@@ -47,9 +47,29 @@ func _init() -> void:
 func run_purge() -> Dictionary:
 	var report: Dictionary = _make_report()
 	var exclusion_index: AssetSourceExclusionIndex = SOURCE_EXCLUSION_INDEX_SCRIPT.new()
-	var load_result: Error = exclusion_index.load_from_path(SOURCE_EXCLUSION_PATH)
-	if load_result != OK:
-		_add_issue(report, "source_exclusion_load_failed", SOURCE_EXCLUSION_PATH, load_result)
+	var load_report: Dictionary = exclusion_index.load_report_from_path(
+		SOURCE_EXCLUSION_PATH
+	)
+	if not GFVariantData.get_option_bool(load_report, "ok"):
+		@warning_ignore("int_as_enum_without_cast")
+		var load_error: Error = GFVariantData.get_option_int(
+			load_report,
+			"error_code",
+			ERR_INVALID_DATA
+		)
+		_add_issue(
+			report,
+			"source_exclusion_load_failed",
+			SOURCE_EXCLUSION_PATH,
+			load_error,
+			{
+				"error_kind": GFVariantData.get_option_string(
+					load_report,
+					"error_kind"
+				),
+				"load_report": load_report,
+			}
+		)
 		_finalize_report(report)
 		_write_report(report)
 		return report
@@ -57,7 +77,7 @@ func run_purge() -> Dictionary:
 	var candidates: Array[Dictionary] = _collect_rejected_candidates(report)
 	report["matched_count"] = candidates.size()
 	_validate_candidates_are_unreferenced(candidates, report)
-	if GFVariantData.get_option_int(report, "error_count") > 0:
+	if GFValidationReportDictionary.has_error_issues(report):
 		_finalize_report(report)
 		_write_report(report)
 		return report
@@ -74,14 +94,26 @@ func run_purge() -> Dictionary:
 				GFVariantData.get_option_string(candidate, "record_path"),
 				add_result
 			)
-	if GFVariantData.get_option_int(report, "error_count") > 0:
+	if GFValidationReportDictionary.has_error_issues(report):
 		_finalize_report(report)
 		_write_report(report)
 		return report
 
-	var save_result: Error = exclusion_index.save_to_path(SOURCE_EXCLUSION_PATH)
+	var exclusion_save_report: Dictionary = exclusion_index.save_report_to_path(
+		SOURCE_EXCLUSION_PATH
+	)
+	var save_result: Error = GFGeneratedArtifactReport.get_error_code(
+		exclusion_save_report
+	)
+	report["source_exclusion_artifact_report"] = exclusion_save_report
 	if save_result != OK:
-		_add_issue(report, "source_exclusion_save_failed", SOURCE_EXCLUSION_PATH, save_result)
+		_add_issue(
+			report,
+			"source_exclusion_save_failed",
+			SOURCE_EXCLUSION_PATH,
+			save_result,
+			{"artifact_report": exclusion_save_report}
+		)
 		_finalize_report(report)
 		_write_report(report)
 		return report
@@ -176,7 +208,7 @@ func _validate_candidates_are_unreferenced(
 			ERR_ALREADY_IN_USE,
 			{
 				"target_id": GFVariantData.get_option_string(reference, "target_id"),
-				"kind": GFVariantData.get_option_string(reference, "kind"),
+				"reference_kind": GFVariantData.get_option_string(reference, "kind"),
 			}
 		)
 
@@ -267,6 +299,7 @@ func _remove_file(
 func _make_report() -> Dictionary:
 	return {
 		"ok": true,
+		"healthy": true,
 		"report_id": "rejected_asset_purge",
 		"matched_count": 0,
 		"exclusion_count": 0,
@@ -278,6 +311,7 @@ func _make_report() -> Dictionary:
 		"issues": [],
 		"issue_count": 0,
 		"error_count": 0,
+		"warning_count": 0,
 	}
 
 
@@ -288,33 +322,71 @@ func _add_issue(
 	error: Error,
 	metadata: Dictionary = {}
 ) -> void:
-	var issues: Array = GFVariantData.get_option_array(report, "issues")
-	var issue: Dictionary = metadata.duplicate(true)
-	issue.merge({
-		"kind": kind,
-		"path": path,
-		"error": error,
-	})
-	issues.append(issue)
-	report["issues"] = issues
-	report["error_count"] = GFVariantData.get_option_int(report, "error_count") + 1
+	var fields: Dictionary = metadata.duplicate(true)
+	fields["path"] = path
+	fields["error"] = error
+	var _appended_issue: Dictionary = GFValidationReportDictionary.append_issue(
+		report,
+		"error",
+		StringName(kind),
+		"拒绝素材清理失败：%s（%s）。" % [kind, error_string(error)],
+		fields
+	)
 
 
 func _finalize_report(report: Dictionary) -> void:
-	report["issue_count"] = GFVariantData.get_option_array(report, "issues").size()
-	report["ok"] = GFVariantData.get_option_int(report, "error_count") == 0
+	var _finalized_report: Dictionary = GFValidationReportDictionary.finalize_report(
+		report,
+		"Rejected asset purge"
+	)
 
 
 func _write_report(report: Dictionary) -> void:
-	var directory_result: Error = DirAccess.make_dir_recursive_absolute(
-		ProjectSettings.globalize_path(REPORT_PATH.get_base_dir())
+	var save_options: Dictionary = {
+		"allowed_roots": PackedStringArray(["res://build/asset_library"]),
+		"artifact_owner": GFGeneratedArtifactReport.OWNER_GENERATED,
+		"generator_id": "asset_library.rejected_asset_purge",
+		"source_id": REVIEW_RECORD_ROOT,
+		"label": "PurgeRejectedAssets",
+		"scan_filesystem": false,
+	}
+	var baseline: Dictionary = _read_text_baseline(REPORT_PATH)
+	if GFVariantData.get_option_bool(baseline, "ok"):
+		save_options["expected_previous_sha256"] = GFVariantData.get_option_string(
+			baseline,
+			"sha256"
+		)
+	var artifact_report: Dictionary = GFGeneratedArtifactReport.save_text(
+		REPORT_PATH,
+		GFVariantJsonCodec.stringify_json_compatible(report, "\t", true) + "\n",
+		save_options
 	)
-	if directory_result != OK:
+	report["artifact_report"] = artifact_report
+	var write_error: Error = GFGeneratedArtifactReport.get_error_code(
+		artifact_report
+	)
+	if write_error == OK:
 		return
-	var file: FileAccess = FileAccess.open(REPORT_PATH, FileAccess.WRITE)
+	_add_issue(
+		report,
+		"purge_report_write_failed",
+		REPORT_PATH,
+		write_error,
+		{"artifact_report": artifact_report}
+	)
+	_finalize_report(report)
+
+
+func _read_text_baseline(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		return {"ok": true, "sha256": ""}
+	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
 	if file == null:
-		return
-	var _stored: bool = file.store_string(
-		GFVariantJsonCodec.stringify_json_compatible(report, "\t", true) + "\n"
-	)
+		return {"ok": false, "sha256": ""}
+	var text: String = file.get_as_text()
+	var read_error: Error = file.get_error()
 	file.close()
+	return {
+		"ok": read_error == OK,
+		"sha256": text.sha256_text() if read_error == OK else "",
+	}

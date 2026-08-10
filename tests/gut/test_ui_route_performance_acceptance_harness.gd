@@ -431,7 +431,9 @@ func test_report_writer_emits_parseable_json() -> void:
 	var report: Dictionary = harness.build_report({
 		"viewport": Vector2i(1280, 720),
 	})
-	var report_path: String = "user://ui_route_performance_test.json"
+	var report_path: String = (
+		"user://ui_route_performance/route_performance_test.json"
+	)
 
 	assert_true(harness.write_report(report, report_path) == OK)
 	assert_true(
@@ -451,6 +453,23 @@ func test_report_writer_emits_parseable_json() -> void:
 			GFVariantData.get_option_bool(parsed_report, "passed"),
 			str(parsed_report)
 		)
+
+
+func test_report_writer_rejects_paths_outside_owned_report_roots() -> void:
+	var harness: HarnessType = HarnessType.new()
+	var forbidden_path: String = (
+		"res://features/__ui_route_performance_forbidden_report.json"
+	)
+
+	assert_true(
+		harness.write_report({"passed": true}, forbidden_path)
+		== ERR_INVALID_PARAMETER
+	)
+	assert_push_error("输出路径不在允许的生成根目录内")
+	assert_false(
+		FileAccess.file_exists(forbidden_path),
+		"性能证据只能写入工具拥有的 build 或 user 报告根。"
+	)
 
 
 # --- 私有/辅助方法 ---

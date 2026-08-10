@@ -17,14 +17,24 @@ const SLOT_MAP_PATH: String = "res://features/asset_library/resources/review/ass
 const SOURCE_EXCLUSION_PATH: String = "res://features/asset_library/resources/source_exclusions.json"
 const REPORT_JSON_PATH: String = "res://build/asset_library/source_import_report.json"
 const REPORT_MARKDOWN_PATH: String = "res://build/asset_library/source_import_report.md"
+const GENERATED_OUTPUT_ROOTS: PackedStringArray = [
+	SOURCE_PACK_ROOT,
+	"res://build/asset_library",
+]
 const COPY_BUFFER_SIZE: int = 1_048_576
 const MAX_SOURCE_FILE_COUNT: int = 100000
+const MAX_CONFIG_FILE_BYTES: int = 1024 * 1024
+const MAX_CONFIG_DEPTH: int = 16
+const MAX_CONFIG_ENTRIES: int = 50_000
 const ASSET_REVIEW_RECORD_SCRIPT = preload("res://features/asset_library/scripts/data/asset_review_record.gd")
 const ASSET_SOURCE_PACK_SCRIPT = preload("res://features/asset_library/scripts/data/asset_source_pack.gd")
 const ASSET_SLOT_BINDING_SCRIPT = preload("res://features/asset_library/scripts/data/asset_slot_binding.gd")
 const ASSET_SLOT_MAP_SCRIPT = preload("res://features/asset_library/scripts/data/asset_slot_map.gd")
 const SOURCE_EXCLUSION_INDEX_SCRIPT = preload(
 	"res://features/asset_library/scripts/data/asset_source_exclusion_index.gd"
+)
+const BOUNDED_JSON_READER_SCRIPT = preload(
+	"res://features/asset_library/scripts/data/asset_bounded_json_object_reader.gd"
 )
 
 const AUDIO_EXTENSIONS: Array[String] = ["wav", "ogg", "mp3", "opus", "m4a"]
@@ -125,26 +135,61 @@ func _init() -> void:
 
 func run_import() -> Dictionary:
 	var report: Dictionary = _make_report()
-	var exclusion_load_result: Error = _source_exclusions.load_from_path(
+	var exclusion_load_report: Dictionary = _source_exclusions.load_report_from_path(
 		SOURCE_EXCLUSION_PATH
 	)
-	if exclusion_load_result != OK:
+	if not GFVariantData.get_option_bool(exclusion_load_report, "ok"):
 		_add_issue(report, "error", "invalid_source_exclusions", "Source exclusion index could not be loaded.", {
 			"path": SOURCE_EXCLUSION_PATH,
-			"error": exclusion_load_result,
+			"error": GFVariantData.get_option_int(
+				exclusion_load_report,
+				"error_code",
+				ERR_INVALID_DATA
+			),
+			"error_kind": GFVariantData.get_option_string(
+				exclusion_load_report,
+				"error_kind",
+				"invalid_source_exclusions"
+			),
+			"read_report": exclusion_load_report,
 		})
 		_finalize_report(report)
 		_write_reports(report)
 		return report
-	var config: Dictionary = _read_json(CONFIG_PATH)
-	if config.is_empty():
+	var config_read_report: Dictionary = _read_json_report(CONFIG_PATH)
+	var config: Dictionary = GFVariantData.get_option_dictionary(
+		config_read_report,
+		"data"
+	)
+	if not GFVariantData.get_option_bool(config_read_report, "ok") or config.is_empty():
 		_add_issue(report, "error", "missing_config", "Asset import config could not be loaded.", {
 			"path": CONFIG_PATH,
+			"error_kind": _get_json_error_kind(
+				config_read_report,
+				"empty_config"
+			),
+			"read_report": _summarize_json_read_report(config_read_report),
 		})
 		_finalize_report(report)
 		_write_reports(report)
 		return report
-	_apply_local_source_paths(config, _read_json(LOCAL_CONFIG_PATH))
+	var local_config_report: Dictionary = _read_json_report(LOCAL_CONFIG_PATH, true)
+	if not GFVariantData.get_option_bool(local_config_report, "ok"):
+		_add_issue(report, "error", "invalid_local_config", "Local asset import config could not be loaded.", {
+			"path": LOCAL_CONFIG_PATH,
+			"error_kind": _get_json_error_kind(
+				local_config_report,
+				"invalid_local_config"
+			),
+			"read_report": _summarize_json_read_report(local_config_report),
+		})
+		_finalize_report(report)
+		_write_reports(report)
+		return report
+	_apply_local_source_paths(
+		config,
+		GFVariantData.get_option_dictionary(local_config_report, "data")
+	)
 
 	var ensure_roots_error: Error = _ensure_asset_library_roots()
 	if ensure_roots_error != OK:
@@ -454,11 +499,20 @@ func _write_source_pack_manifest(
 		"imported_at": imported_at,
 		"report": portable_pack_report,
 	}
-	var write_error: Error = _write_text_if_changed(manifest_path, JSON.stringify(manifest, "\t"))
+	var write_report: Dictionary = _save_generated_text(
+		manifest_path,
+		JSON.stringify(manifest, "\t"),
+		"asset_library.source_import.manifest",
+		pack_id
+	)
+	var write_error: Error = GFGeneratedArtifactReport.get_error_code(
+		write_report
+	)
 	if write_error != OK:
 		_add_issue(report, "error", "source_pack_manifest_write_failed", "Source pack manifest could not be written.", {
 			"path": manifest_path,
 			"error": write_error,
+			"artifact_report": write_report,
 		})
 
 
@@ -940,6 +994,7 @@ func _increment_nested_count(report: Dictionary, key: String, value: String) -> 
 func _make_report() -> Dictionary:
 	return {
 		"ok": true,
+		"healthy": true,
 		"report_id": "asset_source_import",
 		"config_path": CONFIG_PATH,
 		"source_pack_count": 0,
@@ -963,39 +1018,57 @@ func _make_report() -> Dictionary:
 
 
 func _add_issue(report: Dictionary, severity: String, kind: String, message: String, metadata: Dictionary) -> void:
-	var issues: Array = GFVariantData.get_option_array(report, "issues")
-	var issue: Dictionary = metadata.duplicate(true)
-	issue["severity"] = severity
-	issue["kind"] = kind
-	issue["message"] = message
-	issues.append(issue)
-	report["issues"] = issues
-	if severity == "error":
-		report["error_count"] = GFVariantData.get_option_int(report, "error_count") + 1
-	elif severity == "warning":
-		report["warning_count"] = GFVariantData.get_option_int(report, "warning_count") + 1
+	var _appended_issue: Dictionary = GFValidationReportDictionary.append_issue(
+		report,
+		severity,
+		StringName(kind),
+		message,
+		metadata
+	)
 
 
 func _finalize_report(report: Dictionary) -> void:
-	report["issue_count"] = GFVariantData.get_option_array(report, "issues").size()
-	report["ok"] = GFVariantData.get_option_int(report, "error_count") == 0
+	var _finalized_report: Dictionary = GFValidationReportDictionary.finalize_report(
+		report,
+		"Asset source import"
+	)
 
 
 func _write_reports(report: Dictionary) -> void:
-	var markdown_error: Error = _write_text_if_changed(REPORT_MARKDOWN_PATH, _format_report_markdown(report))
+	var markdown_report: Dictionary = _save_generated_text(
+		REPORT_MARKDOWN_PATH,
+		_format_report_markdown(report),
+		"asset_library.source_import.report",
+		CONFIG_PATH
+	)
+	var markdown_error: Error = GFGeneratedArtifactReport.get_error_code(
+		markdown_report
+	)
 	if markdown_error != OK:
 		_add_issue(report, "error", "report_markdown_write_failed", "Source import Markdown report could not be written.", {
 			"path": REPORT_MARKDOWN_PATH,
 			"error": markdown_error,
+			"artifact_report": markdown_report,
 		})
 		_finalize_report(report)
-	var json_error: Error = _write_text_if_changed(REPORT_JSON_PATH, JSON.stringify(report, "\t"))
+	var json_report: Dictionary = _save_generated_text(
+		REPORT_JSON_PATH,
+		JSON.stringify(report, "\t"),
+		"asset_library.source_import.report",
+		CONFIG_PATH
+	)
+	var json_error: Error = GFGeneratedArtifactReport.get_error_code(json_report)
 	if json_error != OK:
 		_add_issue(report, "error", "report_json_write_failed", "Source import JSON report could not be written.", {
 			"path": REPORT_JSON_PATH,
 			"error": json_error,
+			"artifact_report": json_report,
 		})
 		_finalize_report(report)
+	report["artifact_reports"] = [
+		markdown_report.duplicate(true),
+		json_report.duplicate(true),
+	]
 
 
 func _format_report_markdown(report: Dictionary) -> String:
@@ -1046,16 +1119,50 @@ func _append_markdown_line(lines: PackedStringArray, line: String) -> void:
 
 
 func _read_json(path: String) -> Dictionary:
-	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
-	if file == null:
-		return {}
-	var text: String = file.get_as_text()
-	file.close()
-	var parsed: Variant = JSON.parse_string(text)
-	if parsed is Dictionary:
-		var dictionary: Dictionary = parsed
-		return dictionary
-	return {}
+	return GFVariantData.get_option_dictionary(
+		_read_json_report(path),
+		"data"
+	)
+
+
+func _read_json_report(path: String, allow_missing: bool = false) -> Dictionary:
+	if allow_missing and not FileAccess.file_exists(path):
+		return {
+			"ok": true,
+			"error_code": OK,
+			"error_kind": &"",
+			"message": "",
+			"source_path": path,
+			"exists": false,
+			"data": {},
+			"size_bytes": 0,
+			"observed_depth": 0,
+			"entry_count": 0,
+		}
+	var read_report: Dictionary = BOUNDED_JSON_READER_SCRIPT.read_object_report(
+		path,
+		{
+			"max_file_bytes": MAX_CONFIG_FILE_BYTES,
+			"max_depth": MAX_CONFIG_DEPTH,
+			"max_entries": MAX_CONFIG_ENTRIES,
+		}
+	)
+	read_report["exists"] = FileAccess.file_exists(path)
+	return read_report
+
+
+func _summarize_json_read_report(read_report: Dictionary) -> Dictionary:
+	var summary: Dictionary = read_report.duplicate(true)
+	var _removed_data: bool = summary.erase("data")
+	return summary
+
+
+func _get_json_error_kind(read_report: Dictionary, fallback: String) -> String:
+	var error_kind: String = GFVariantData.get_option_string(
+		read_report,
+		"error_kind"
+	)
+	return error_kind if not error_kind.is_empty() else fallback
 
 
 func _apply_local_source_paths(
@@ -1089,28 +1196,42 @@ func _apply_local_source_paths(
 	config["source_packs"] = resolved_packs
 
 
-func _write_text(path: String, text: String) -> Error:
-	var ensure_result: Error = _ensure_dir(path.get_base_dir())
-	if ensure_result != OK:
-		return ensure_result
-	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+func _save_generated_text(
+	path: String,
+	text: String,
+	generator_id: String,
+	source_id: String
+) -> Dictionary:
+	var save_options: Dictionary = {
+		"allowed_roots": GENERATED_OUTPUT_ROOTS,
+		"artifact_owner": GFGeneratedArtifactReport.OWNER_GENERATED,
+		"generator_id": generator_id,
+		"source_id": source_id,
+		"label": "ImportAssetSources",
+		"scan_filesystem": false,
+	}
+	var baseline: Dictionary = _read_text_baseline(path)
+	if GFVariantData.get_option_bool(baseline, "ok"):
+		save_options["expected_previous_sha256"] = GFVariantData.get_option_string(
+			baseline,
+			"sha256"
+		)
+	return GFGeneratedArtifactReport.save_text(path, text, save_options)
+
+
+func _read_text_baseline(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		return {"ok": true, "sha256": ""}
+	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
 	if file == null:
-		return FileAccess.get_open_error()
-	var _store_string_result: bool = file.store_string(text)
+		return {"ok": false, "sha256": ""}
+	var text: String = file.get_as_text()
+	var read_error: Error = file.get_error()
 	file.close()
-	return OK
-
-
-func _write_text_if_changed(path: String, text: String) -> Error:
-	if FileAccess.file_exists(path):
-		var existing_file: FileAccess = FileAccess.open(path, FileAccess.READ)
-		if existing_file == null:
-			return FileAccess.get_open_error()
-		var existing_text: String = existing_file.get_as_text()
-		existing_file.close()
-		if existing_text == text:
-			return OK
-	return _write_text(path, text)
+	return {
+		"ok": read_error == OK,
+		"sha256": text.sha256_text() if read_error == OK else "",
+	}
 
 
 func _ensure_dir(path: String) -> Error:

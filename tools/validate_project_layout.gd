@@ -33,20 +33,19 @@ func _init() -> void:
 # --- 私有/辅助方法 ---
 
 func _write_report(report: Dictionary) -> Error:
-	var report_directory: String = REPORT_PATH.get_base_dir()
-	var mkdir_result: Error = DirAccess.make_dir_recursive_absolute(
-		ProjectSettings.globalize_path(report_directory)
+	var artifact_report: Dictionary = GFGeneratedArtifactReport.save_text(
+		REPORT_PATH,
+		JSON.stringify(report, "\t") + "\n",
+		{
+			"allowed_roots": PackedStringArray(["res://build"]),
+			"artifact_owner": GFGeneratedArtifactReport.OWNER_GENERATED,
+			"generator_id": "ProjectLayoutValidation",
+			"source_id": "gf_project_profile",
+			"scan_filesystem": false,
+			"label": "ProjectLayout",
+		}
 	)
-	if mkdir_result != OK:
-		push_error("[ProjectLayout] 无法创建报告目录：%s。" % report_directory)
-		return mkdir_result
-	var file: FileAccess = FileAccess.open(REPORT_PATH, FileAccess.WRITE)
-	if file == null:
-		push_error("[ProjectLayout] 无法写入报告：%s。" % REPORT_PATH)
-		return FileAccess.get_open_error()
-	var stored: bool = file.store_string(JSON.stringify(report, "\t") + "\n")
-	file.close()
-	return OK if stored else ERR_FILE_CANT_WRITE
+	return GFGeneratedArtifactReport.get_error_code(artifact_report)
 
 
 func _print_summary(report: Dictionary, succeeded: bool) -> void:

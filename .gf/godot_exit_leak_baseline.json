@@ -7,9 +7,9 @@
   "gf_source_commit": "91975abea13645aac8ef2817d3ec4909d914bc68",
   "gf_vendor_tree_sha256": "004a00bee6e08828b83b11727ead9108d2ef987dc706febb4a6fbc642ecda069",
   "gf_global_script_class_count": 810,
-  "project_runtime_script_class_count": 236,
+  "project_runtime_script_class_count": 237,
   "scope": "Headless GUT shutdown after all project tests. Raw counts include Godot-held global script classes; they may only be recalibrated after an audited pinned GF vendor-tree or project runtime class-set change, and must not grow while both inputs remain unchanged.",
-  "calibration_reason": "The exact official GF 11.0.0-dev.0 development snapshot advances by one canonical-main audit-remediation commit to 91975abe (#102), covering reentrant lifecycle, bounded parsing, validation, editor tooling, and package contract fixes across the framework. The audited GF and project runtime global script class sets remain unchanged at 810 and 236. The reviewed ObjectDB, Resource, RID, and PagedAllocator ceilings are intentionally retained and must not be raised without reviewed leak evidence.",
+  "calibration_reason": "The exact official GF 11.0.0-dev.0 development snapshot remains pinned to 91975abe (#102). The project runtime class set intentionally increases from 236 to 237 for AssetBoundedJsonObjectReader, the project-owned bounded JSON boundary required until GF exposes an equivalent public runtime/tool API. The audited GF class count remains 810, and the reviewed ObjectDB, Resource, RID, and PagedAllocator ceilings are intentionally retained without increase.",
   "max_objectdb_instances": 319,
   "max_resources_in_use": 141,
   "max_rid_allocations_by_type": {

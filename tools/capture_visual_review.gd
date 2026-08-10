@@ -445,15 +445,14 @@ func _capture_history_delete_states(page: Node, capture_prefix: String) -> bool:
 	)):
 		push_error("[VisualReview] History delete confirmation could not start.")
 		return false
-	await _settle_frames(4)
-
-	var confirmation: GameModalRoutePanel = _get_top_game_modal_panel()
+	var confirmation: GameModalRoutePanel = await _wait_for_game_modal_open()
 	if not is_instance_valid(confirmation):
 		push_error("[VisualReview] History page is missing the GF delete modal.")
 		return false
 	if not confirmation.is_visible_in_tree():
 		push_error("[VisualReview] History delete confirmation did not open.")
 		return false
+	await _settle_frames(4)
 	_capture_viewport("%s_delete_confirmation.png" % capture_prefix)
 	confirmation.resolve_cancel()
 	if not await _wait_for_game_modal_close(confirmation):
@@ -466,14 +465,14 @@ func _capture_history_delete_states(page: Node, capture_prefix: String) -> bool:
 	), [ERR_CANT_CREATE]):
 		push_error("[VisualReview] History delete error modal could not start.")
 		return false
-	await _settle_frames(4)
-	var error_modal: GameModalRoutePanel = _get_top_game_modal_panel()
+	var error_modal: GameModalRoutePanel = await _wait_for_game_modal_open()
 	if not is_instance_valid(error_modal):
 		push_error("[VisualReview] History page is missing the GF delete error modal.")
 		return false
 	if not error_modal.is_visible_in_tree():
 		push_error("[VisualReview] History delete failure dialog did not open.")
 		return false
+	await _settle_frames(4)
 	_capture_viewport("%s_delete_error.png" % capture_prefix)
 	error_modal.resolve_cancel()
 	if not await _wait_for_game_modal_close(error_modal):
@@ -508,6 +507,20 @@ func _get_top_game_modal_panel() -> GameModalRoutePanel:
 	if panel is GameModalRoutePanel:
 		var modal_panel: GameModalRoutePanel = panel
 		return modal_panel
+	return null
+
+
+func _wait_for_game_modal_open(
+	max_frames: int = 120
+) -> GameModalRoutePanel:
+	for _frame_index: int in range(maxi(max_frames, 1)):
+		var modal_panel: GameModalRoutePanel = _get_top_game_modal_panel()
+		if (
+			is_instance_valid(modal_panel)
+			and modal_panel.is_visible_in_tree()
+		):
+			return modal_panel
+		await process_frame
 	return null
 
 

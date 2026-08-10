@@ -308,15 +308,17 @@ func _build_dynamic_resource_contract_report() -> Dictionary:
 
 
 func _write_report(report: Dictionary) -> Error:
-	var absolute_path: String = ProjectSettings.globalize_path(_REPORT_PATH)
-	var directory_error: Error = DirAccess.make_dir_recursive_absolute(
-		absolute_path.get_base_dir()
-	)
-	if directory_error != OK:
-		return directory_error
-	var file: FileAccess = FileAccess.open(absolute_path, FileAccess.WRITE)
-	if file == null:
-		return FileAccess.get_open_error()
 	var json_value: Variant = GFReportValueCodec.to_json_compatible(report)
-	var _stored: bool = file.store_string(JSON.stringify(json_value, "\t") + "\n")
-	return file.get_error()
+	var artifact_report: Dictionary = GFGeneratedArtifactReport.save_text(
+		_REPORT_PATH,
+		JSON.stringify(json_value, "\t") + "\n",
+		{
+			"allowed_roots": PackedStringArray(["res://build"]),
+			"artifact_owner": GFGeneratedArtifactReport.OWNER_GENERATED,
+			"generator_id": "PlatformReadinessCheck",
+			"source_id": "project_platform_readiness",
+			"scan_filesystem": false,
+			"label": "PlatformReadiness",
+		}
+	)
+	return GFGeneratedArtifactReport.get_error_code(artifact_report)

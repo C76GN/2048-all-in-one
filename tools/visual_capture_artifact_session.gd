@@ -58,6 +58,23 @@ func get_output_directory() -> String:
 	return _output_directory
 
 
+## 返回本次会话是否仍可在隔离目录中安全写入产物。
+##
+## 会在每次终态写入前重新检查目录本身和整棵现有输出树，避免 begin() 后
+## 新出现的 junction/symlink 把生成物或清理操作引向项目外。
+func is_ready_for_artifact_write() -> bool:
+	if not _began:
+		return false
+	var absolute_directory: String = ProjectSettings.globalize_path(
+		_output_directory
+	).replace("\\", "/").simplify_path()
+	return (
+		DirAccess.dir_exists_absolute(absolute_directory)
+		and not _path_has_link_component(absolute_directory)
+		and not _tree_has_link(absolute_directory)
+	)
+
+
 func expect_screenshot(file_name: String) -> void:
 	var normalized_name: String = file_name.get_file()
 	if (
@@ -87,6 +104,8 @@ func finalize(
 	details: Dictionary = {}
 ) -> int:
 	if not _began:
+		return exit_code if exit_code != 0 else 74
+	if not is_ready_for_artifact_write():
 		return exit_code if exit_code != 0 else 74
 
 	var actual_screenshots: PackedStringArray = _scan_actual_screenshots()
@@ -130,14 +149,20 @@ func finalize(
 	var manifest_path: String = _output_directory.path_join(
 		_MANIFEST_FILE_NAME
 	)
-	var file: FileAccess = FileAccess.open(manifest_path, FileAccess.WRITE)
-	if file == null:
-		return effective_exit_code if effective_exit_code != 0 else 74
-	var wrote_manifest: bool = file.store_string(
-		JSON.stringify(manifest, "\t") + "\n"
+	var artifact_report: Dictionary = GFGeneratedArtifactReport.save_text(
+		manifest_path,
+		JSON.stringify(manifest, "\t") + "\n",
+		{
+			"allowed_roots": PackedStringArray([_output_directory]),
+			"artifact_owner": GFGeneratedArtifactReport.OWNER_GENERATED,
+			"generator_id": "VisualCaptureArtifactSession",
+			"source_id": _suite_id,
+			"expected_previous_sha256": "",
+			"scan_filesystem": false,
+			"label": "VisualCaptureArtifactSession",
+		}
 	)
-	file.close()
-	if not wrote_manifest:
+	if GFGeneratedArtifactReport.get_error_code(artifact_report) != OK:
 		return effective_exit_code if effective_exit_code != 0 else 74
 	return effective_exit_code
 

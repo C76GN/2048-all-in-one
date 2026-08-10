@@ -42,12 +42,12 @@ func _synchronize_review_groups() -> Dictionary:
 		not GFVariantData.get_option_bool(scan_report, "ok")
 		or GFVariantData.get_option_bool(scan_report, "truncated")
 	):
-		report["ok"] = false
 		_append_issue(
 			report,
 			"review_record_scan_failed",
 			"GF 候选记录路径枚举未完整完成，拒绝同步。"
 		)
+		_finalize_report(report)
 		return report
 
 	var records_by_group: Dictionary = {}
@@ -86,7 +86,7 @@ func _synchronize_review_groups() -> Dictionary:
 		match result:
 			_SYNC_POLICY_SCRIPT.RESULT_READY:
 				if not _apply_and_save_group(group_id, plan, report):
-					report["ok"] = false
+					_finalize_report(report)
 					return report
 			_SYNC_POLICY_SCRIPT.RESULT_CONFLICT:
 				report["conflict_group_count"] = (
@@ -109,19 +109,18 @@ func _synchronize_review_groups() -> Dictionary:
 				_append_string(report, "invalid_group_ids", group_id)
 
 	if GFVariantData.get_option_int(report, "conflict_group_count") > 0:
-		report["ok"] = false
 		_append_issue(
 			report,
 			"review_group_conflict",
 			"存在互相冲突的可试听人工结论；未覆盖这些评审组。"
 		)
 	if GFVariantData.get_option_int(report, "invalid_group_count") > 0:
-		report["ok"] = false
 		_append_issue(
 			report,
 			"invalid_review_group",
 			"存在无法验证的评审组；未写入这些评审组。"
 		)
+	_finalize_report(report)
 	return report
 
 
@@ -224,17 +223,25 @@ func _append_string(report: Dictionary, key: String, value: String) -> void:
 
 
 func _append_issue(report: Dictionary, kind: String, message: String) -> void:
-	var issues: Array = GFVariantData.get_option_array(report, "issues")
-	issues.append({
-		"kind": kind,
-		"message": message,
-	})
-	report["issues"] = issues
+	var _appended_issue: Dictionary = GFValidationReportDictionary.append_issue(
+		report,
+		"error",
+		StringName(kind),
+		message
+	)
+
+
+func _finalize_report(report: Dictionary) -> void:
+	var _finalized_report: Dictionary = GFValidationReportDictionary.finalize_report(
+		report,
+		"Audio review variant sync"
+	)
 
 
 func _make_report() -> Dictionary:
 	return {
 		"ok": true,
+		"healthy": true,
 		"group_count": 0,
 		"updated_group_count": 0,
 		"updated_record_count": 0,
@@ -247,4 +254,7 @@ func _make_report() -> Dictionary:
 		"conflict_group_ids": PackedStringArray(),
 		"invalid_group_ids": PackedStringArray(),
 		"issues": [],
+		"issue_count": 0,
+		"error_count": 0,
+		"warning_count": 0,
 	}

@@ -11,6 +11,10 @@ const SCHEMA_VERSION: int = 2
 const DEFAULT_REPORT_PATH: String = (
 	"res://build/ui_route_performance/route_timing_report.json"
 )
+const _REPORT_ALLOWED_ROOTS: PackedStringArray = [
+	"res://build/ui_route_performance",
+	"user://ui_route_performance",
+]
 const DEFAULT_BUDGETS: Dictionary = {
 	"ui_route_max_msec": 1000.0,
 	"scene_route_total_max_msec": 1500.0,
@@ -567,24 +571,24 @@ func write_report(
 	var normalized_path: String = path.strip_edges()
 	if normalized_path.is_empty():
 		return ERR_INVALID_PARAMETER
-	var directory_error: Error = DirAccess.make_dir_recursive_absolute(
-		ProjectSettings.globalize_path(normalized_path.get_base_dir())
-	)
-	if directory_error != OK:
-		return directory_error
 	var json_safe_value: Variant = GFReportValueCodec.to_json_compatible(
 		report.duplicate(true)
 	)
 	if not json_safe_value is Dictionary:
 		return ERR_INVALID_DATA
-	var file: FileAccess = FileAccess.open(normalized_path, FileAccess.WRITE)
-	if file == null:
-		return FileAccess.get_open_error()
-	var stored: bool = file.store_string(
-		JSON.stringify(json_safe_value, "\t") + "\n"
+	var artifact_report: Dictionary = GFGeneratedArtifactReport.save_text(
+		normalized_path,
+		JSON.stringify(json_safe_value, "\t") + "\n",
+		{
+			"allowed_roots": _REPORT_ALLOWED_ROOTS,
+			"artifact_owner": GFGeneratedArtifactReport.OWNER_GENERATED,
+			"generator_id": "UIRoutePerformanceAcceptanceHarness",
+			"source_id": "route_timing_report",
+			"scan_filesystem": false,
+			"label": "UiRoutePerformance",
+		}
 	)
-	file.close()
-	return OK if stored else ERR_FILE_CANT_WRITE
+	return GFGeneratedArtifactReport.get_error_code(artifact_report)
 
 
 ## 返回 UI 路由记录的隔离副本。

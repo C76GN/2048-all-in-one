@@ -1,4 +1,7 @@
 ## AssetSourceExclusionIndex: 保存已从评审库移除的源素材身份，防止全量导入复活。
+##
+## 该索引只由素材导入/清理工具持有，不进入玩家运行时真源；保存入口因此使用
+## GFGeneratedArtifactReport 的原子生成物契约。
 class_name AssetSourceExclusionIndex
 extends RefCounted
 
@@ -6,6 +9,16 @@ extends RefCounted
 # --- 常量 ---
 
 const SCHEMA_VERSION: int = 1
+const MAX_INDEX_FILE_BYTES: int = 4 * 1024 * 1024
+const MAX_INDEX_DEPTH: int = 8
+const MAX_INDEX_ENTRIES: int = 500_000
+const _GENERATED_OUTPUT_ROOTS: PackedStringArray = [
+	"res://features/asset_library/resources",
+	"user://",
+]
+const _BOUNDED_JSON_READER_SCRIPT = preload(
+	"res://features/asset_library/scripts/data/asset_bounded_json_object_reader.gd"
+)
 
 
 # --- 私有变量 ---
@@ -88,21 +101,54 @@ func get_entries() -> Array[Dictionary]:
 ## 从 JSON 文件加载索引；文件不存在时视为空索引。
 ## @param path: 排除索引 JSON 路径。
 func load_from_path(path: String) -> Error:
+	var report: Dictionary = load_report_from_path(path)
+	return _get_report_error_code(report, ERR_INVALID_DATA)
+
+
+## 从 JSON 文件加载索引并返回结构化读取/校验报告；文件不存在时视为空索引。
+## @param path: 排除索引 JSON 路径。
+## @return: 包含 error_kind、读取预算证据和 loaded_count 的终态报告。
+func load_report_from_path(path: String) -> Dictionary:
 	_entries_by_key.clear()
 	if not FileAccess.file_exists(path):
-		return OK
-	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
-	if file == null:
-		return FileAccess.get_open_error()
-	var text: String = file.get_as_text()
-	file.close()
-	var parsed: Variant = GFVariantJsonCodec.parse_json_text(text)
-	if not (parsed is Dictionary):
-		return ERR_PARSE_ERROR
-	var document: Dictionary = parsed
+		return {
+			"ok": true,
+			"error_code": OK,
+			"error_kind": &"",
+			"message": "",
+			"source_path": path,
+			"exists": false,
+			"loaded_count": 0,
+		}
+	var read_report: Dictionary = _BOUNDED_JSON_READER_SCRIPT.read_object_report(
+		path,
+		{
+			"max_file_bytes": MAX_INDEX_FILE_BYTES,
+			"max_depth": MAX_INDEX_DEPTH,
+			"max_entries": MAX_INDEX_ENTRIES,
+		}
+	)
+	if not GFVariantData.get_option_bool(read_report, "ok"):
+		return _make_load_failure(
+			read_report,
+			_get_report_error_code(read_report, ERR_INVALID_DATA),
+			GFVariantData.get_option_string_name(read_report, "error_kind", &"invalid_json"),
+			GFVariantData.get_option_string(read_report, "message", "排除索引 JSON 无效。")
+		)
+	var document: Dictionary = GFVariantData.get_option_dictionary(
+		read_report,
+		"data"
+	)
 	if GFVariantData.get_option_int(document, "schema_version", -1) != SCHEMA_VERSION:
-		return ERR_INVALID_DATA
-	for entry_value: Variant in GFVariantData.get_option_array(document, "entries"):
+		return _make_load_failure(
+			read_report,
+			ERR_INVALID_DATA,
+			&"unsupported_schema",
+			"排除索引 schema_version 不受支持。"
+		)
+	var entries: Array = GFVariantData.get_option_array(document, "entries")
+	for entry_index: int in entries.size():
+		var entry_value: Variant = entries[entry_index]
 		var entry: Dictionary = GFVariantData.as_dictionary(entry_value)
 		var add_result: Error = add_exclusion(
 			GFVariantData.get_option_string(entry, "source_pack_id"),
@@ -111,20 +157,33 @@ func load_from_path(path: String) -> Error:
 		)
 		if add_result != OK:
 			_entries_by_key.clear()
-			return ERR_INVALID_DATA
-	return OK
+			var failure: Dictionary = _make_load_failure(
+				read_report,
+				ERR_INVALID_DATA,
+				&"invalid_entry",
+				"排除索引包含无效身份项。"
+			)
+			failure["entry_index"] = entry_index
+			return failure
+	var result: Dictionary = _summarize_read_report(read_report)
+	result["ok"] = true
+	result["error_code"] = OK
+	result["error_kind"] = &""
+	result["message"] = ""
+	result["exists"] = true
+	result["loaded_count"] = _entries_by_key.size()
+	return result
 
 
 ## 把索引以稳定、可审计的 JSON 文档写入指定路径。
 ## @param path: 排除索引 JSON 路径。
 func save_to_path(path: String) -> Error:
-	var absolute_directory: String = ProjectSettings.globalize_path(path.get_base_dir())
-	var directory_result: Error = DirAccess.make_dir_recursive_absolute(absolute_directory)
-	if directory_result != OK:
-		return directory_result
-	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
-	if file == null:
-		return FileAccess.get_open_error()
+	return GFGeneratedArtifactReport.get_error_code(save_report_to_path(path))
+
+
+## 保存索引并返回 GF 标准生成产物报告；save_to_path 保留原 Error 契约。
+## @param path: 排除索引 JSON 路径。
+func save_report_to_path(path: String) -> Dictionary:
 	var document: Dictionary = {
 		"schema_version": SCHEMA_VERSION,
 		"entries": get_entries(),
@@ -134,9 +193,25 @@ func save_to_path(path: String) -> Error:
 		"\t",
 		true
 	) + "\n"
-	var stored: bool = file.store_string(text)
-	file.close()
-	return OK if stored else ERR_FILE_CANT_WRITE
+	var save_options: Dictionary = {
+		"allowed_roots": _GENERATED_OUTPUT_ROOTS,
+		"artifact_owner": GFGeneratedArtifactReport.OWNER_GENERATED,
+		"generator_id": "asset_library.source_exclusion_index",
+		"source_id": "asset_library.source_exclusions",
+		"label": "AssetSourceExclusionIndex",
+		"scan_filesystem": false,
+	}
+	var baseline: Dictionary = _read_text_baseline(path)
+	if GFVariantData.get_option_bool(baseline, "ok"):
+		save_options["expected_previous_sha256"] = GFVariantData.get_option_string(
+			baseline,
+			"sha256"
+		)
+	return GFGeneratedArtifactReport.save_text(
+		path,
+		text,
+		save_options
+	)
 
 
 # --- 私有/辅助方法 ---
@@ -159,3 +234,50 @@ static func _make_key(
 	sha256: String
 ) -> String:
 	return "%s|%s|%s" % [source_pack_id, relative_path, sha256]
+
+
+static func _summarize_read_report(read_report: Dictionary) -> Dictionary:
+	var summary: Dictionary = read_report.duplicate(true)
+	var _removed_data: bool = summary.erase("data")
+	return summary
+
+
+static func _make_load_failure(
+	read_report: Dictionary,
+	error_code: Error,
+	error_kind: StringName,
+	message: String
+) -> Dictionary:
+	var result: Dictionary = _summarize_read_report(read_report)
+	result["ok"] = false
+	result["error_code"] = error_code
+	result["error_kind"] = error_kind
+	result["message"] = message
+	result["exists"] = true
+	result["loaded_count"] = 0
+	return result
+
+
+static func _read_text_baseline(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		return {"ok": true, "sha256": ""}
+	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return {"ok": false, "sha256": ""}
+	var text: String = file.get_as_text()
+	var read_error: Error = file.get_error()
+	file.close()
+	return {
+		"ok": read_error == OK,
+		"sha256": text.sha256_text() if read_error == OK else "",
+	}
+
+
+static func _get_report_error_code(report: Dictionary, fallback: Error) -> Error:
+	@warning_ignore("int_as_enum_without_cast")
+	var error_code: Error = GFVariantData.get_option_int(
+		report,
+		"error_code",
+		fallback
+	)
+	return error_code

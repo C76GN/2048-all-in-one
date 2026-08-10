@@ -482,6 +482,11 @@ func test_visual_review_injects_history_items_through_the_active_list_backend() 
 		and source.contains("_capture_settings_persistence_failure"),
 		"真实视觉验收必须通过可失败的状态辅助方法生成确认和错误证据。"
 	)
+	assert_true(
+		source.contains("func _wait_for_game_modal_open(")
+		and source.count("await _wait_for_game_modal_open()") == 2,
+		"删除确认与错误态必须等待异步 GF 路由真正入栈，不能依赖固定帧数。"
+	)
 
 
 func test_visual_capture_tools_publish_single_run_manifests() -> void:

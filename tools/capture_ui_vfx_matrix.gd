@@ -3273,31 +3273,64 @@ func _record_page_geometry(
 	})
 
 
-func _write_geometry_report() -> void:
-	var directory_path: String = ProjectSettings.globalize_path(_OUTPUT_DIRECTORY)
-	var directory_error: Error = DirAccess.make_dir_recursive_absolute(directory_path)
-	if directory_error != OK:
-		return
-	var file: FileAccess = FileAccess.open(
-		_OUTPUT_DIRECTORY.path_join("geometry_report.json"),
-		FileAccess.WRITE
+func _write_geometry_report() -> Error:
+	if (
+		not is_instance_valid(_artifact_session)
+		or not _artifact_session.is_ready_for_artifact_write()
+	):
+		return ERR_UNAUTHORIZED
+
+	var artifact_reports: Array[Dictionary] = []
+	var geometry_report: Dictionary = _save_capture_text_report(
+		"geometry_report.json",
+		JSON.stringify(_geometry_records, "\t"),
+		"ui_geometry_records"
 	)
-	if file == null:
-		return
-	var _geometry_bytes_written: bool = file.store_string(
-		JSON.stringify(_geometry_records, "\t")
+	artifact_reports.append(geometry_report)
+	var geometry_error: Error = GFGeneratedArtifactReport.get_error_code(
+		geometry_report
 	)
-	file.close()
-	var validation_file: FileAccess = FileAccess.open(
-		_OUTPUT_DIRECTORY.path_join("validation_report.json"),
-		FileAccess.WRITE
+	if geometry_error != OK:
+		return geometry_error
+
+	if not _artifact_session.is_ready_for_artifact_write():
+		return ERR_UNAUTHORIZED
+	var validation_report: Dictionary = _save_capture_text_report(
+		"validation_report.json",
+		JSON.stringify(Array(_validation_errors), "\t"),
+		"ui_validation_errors"
 	)
-	if validation_file == null:
-		return
-	var _validation_bytes_written: bool = validation_file.store_string(
-		JSON.stringify(Array(_validation_errors), "\t")
+	artifact_reports.append(validation_report)
+	var artifact_summary: Dictionary = GFGeneratedArtifactReport.summarize_reports(
+		artifact_reports,
+		"UI VFX matrix evidence"
 	)
-	validation_file.close()
+	if not GFVariantData.get_option_bool(artifact_summary, "success"):
+		var validation_error: Error = GFGeneratedArtifactReport.get_error_code(
+			validation_report
+		)
+		return validation_error if validation_error != OK else ERR_CANT_CREATE
+	return OK
+
+
+func _save_capture_text_report(
+	file_name: String,
+	contents: String,
+	source_id: String
+) -> Dictionary:
+	return GFGeneratedArtifactReport.save_text(
+		_OUTPUT_DIRECTORY.path_join(file_name),
+		contents,
+		{
+			"allowed_roots": PackedStringArray([_OUTPUT_DIRECTORY]),
+			"artifact_owner": GFGeneratedArtifactReport.OWNER_GENERATED,
+			"generator_id": "UiVfxMatrixCapture",
+			"source_id": source_id,
+			"expected_previous_sha256": "",
+			"scan_filesystem": false,
+			"label": "UiVfxMatrix",
+		}
+	)
 
 
 func _finish(exit_code: int) -> void:
@@ -3311,7 +3344,7 @@ func _finish(exit_code: int) -> void:
 
 
 func _finish_after_cleanup(exit_code: int) -> void:
-	_write_geometry_report()
+	var report_write_error: Error = _write_geometry_report()
 	_screenshot_utility = null
 	for child: Node in root.get_children():
 		child.queue_free()
@@ -3319,10 +3352,16 @@ func _finish_after_cleanup(exit_code: int) -> void:
 	await process_frame
 	GFExtensionSettings.clear_manifest_cache()
 	var effective_exit_code: int = exit_code
+	if effective_exit_code == OK and report_write_error != OK:
+		effective_exit_code = 74
 	if is_instance_valid(_artifact_session):
 		effective_exit_code = _artifact_session.finalize(
-			exit_code,
-			"capture completed" if exit_code == 0 else "capture aborted",
+			effective_exit_code,
+			(
+				"capture completed"
+				if effective_exit_code == OK
+				else "capture aborted"
+			),
 			{
 				"capture_count": _capture_count,
 				"validation_errors": Array(_validation_errors),

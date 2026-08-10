@@ -122,6 +122,28 @@ func test_missing_expected_screenshot_converts_success_to_failed_terminal() -> v
 	assert_true(GFVariantData.get_option_int(terminal, "exit_code", -1) == 65)
 
 
+func test_finalize_rejects_manifest_created_after_begin_without_overwriting_it() -> void:
+	var session: VisualCaptureArtifactSession = VisualCaptureArtifactSession.new(
+		"artifact_session_manifest_conflict_test",
+		_OUTPUT_DIRECTORY,
+		[]
+	)
+	assert_true(session.begin())
+	assert_true(_write_text("capture_manifest.json", "caller-owned"))
+
+	assert_true(
+		session.finalize(OK, "capture completed") == 74,
+		"终态 manifest 必须以 begin 后不存在为提交基线。"
+	)
+	assert_push_error("目标文件已偏离调用方读取基线")
+	assert_true(
+		FileAccess.get_file_as_string(
+			_OUTPUT_DIRECTORY.path_join("capture_manifest.json")
+		) == "caller-owned",
+		"并发出现的 manifest 不得被生成器覆盖。"
+	)
+
+
 func test_begin_rejects_linked_output_without_deleting_link_target() -> void:
 	assert_true(_prepare_link_target())
 	if not _try_create_directory_link(
@@ -175,6 +197,39 @@ func test_begin_rejects_linked_child_without_deleting_link_target() -> void:
 			_LINK_TARGET_DIRECTORY.path_join("sentinel.txt")
 		),
 		"拒绝链接子目录时不得删除链接目标中的文件。"
+	)
+
+
+func test_finalize_rejects_link_inserted_after_begin() -> void:
+	assert_true(_prepare_link_target())
+	var session: VisualCaptureArtifactSession = VisualCaptureArtifactSession.new(
+		"artifact_session_late_link_test",
+		_OUTPUT_DIRECTORY,
+		[]
+	)
+	assert_true(session.begin())
+	if not _try_create_directory_link(
+		_LINKED_CHILD_DIRECTORY,
+		_LINK_TARGET_DIRECTORY
+	):
+		_assert_source_contains_link_guards()
+		return
+
+	assert_false(session.is_ready_for_artifact_write())
+	assert_true(
+		session.finalize(OK, "capture completed") == 74,
+		"begin 后新出现的 junction/symlink 必须令终态写入失败关闭。"
+	)
+	assert_true(
+		FileAccess.file_exists(
+			_LINK_TARGET_DIRECTORY.path_join("sentinel.txt")
+		),
+		"终态防线不得写入或删除链接目标中的文件。"
+	)
+	assert_false(
+		FileAccess.file_exists(
+			_OUTPUT_DIRECTORY.path_join("capture_manifest.json")
+		)
 	)
 
 
@@ -259,6 +314,7 @@ func _assert_source_contains_link_guards() -> void:
 	)
 	assert_true(source.contains("_path_has_link_component(absolute_directory)"))
 	assert_true(source.contains("directory.is_link(child_name)"))
+	assert_true(source.contains("func is_ready_for_artifact_write() -> bool:"))
 
 
 func _remove_link_fixtures() -> void:

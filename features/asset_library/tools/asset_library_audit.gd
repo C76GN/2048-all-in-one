@@ -23,6 +23,7 @@ const DEFAULT_REVIEW_CATALOG_JSON_PATH: String = (
 const DEFAULT_REVIEW_CATALOG_MARKDOWN_PATH: String = (
 	"res://build/asset_library/review_catalog_audit.md"
 )
+const _GENERATED_REPORT_ROOT: String = "res://build/asset_library"
 const _ASSET_REVIEW_RECORD_SCRIPT = preload("res://features/asset_library/scripts/data/asset_review_record.gd")
 const _ASSET_SOURCE_PACK_SCRIPT = preload("res://features/asset_library/scripts/data/asset_source_pack.gd")
 const _ASSET_SLOT_MAP_SCRIPT = preload("res://features/asset_library/scripts/data/asset_slot_map.gd")
@@ -277,20 +278,40 @@ func write_audit_reports(
 	options: Dictionary = {}
 ) -> Dictionary:
 	var report: Dictionary = build_audit_report(options)
-	var markdown_error: Error = _write_text_if_changed(markdown_path, _format_audit_markdown(report))
+	var markdown_report: Dictionary = _save_generated_text(
+		markdown_path,
+		_format_audit_markdown(report),
+		"asset_library.audit",
+		ASSET_LIBRARY_MANIFEST_PATH
+	)
+	var markdown_error: Error = GFGeneratedArtifactReport.get_error_code(
+		markdown_report
+	)
 	if markdown_error != OK:
 		_add_audit_issue(report, "error", "audit_markdown_write_failed", "素材库 Markdown 审计报告写入失败。", {
 			"path": markdown_path,
 			"error": markdown_error,
+			"artifact_report": markdown_report,
 		})
 		_finalize_audit_report(report)
-	var json_error: Error = _write_text_if_changed(json_path, JSON.stringify(report, "\t"))
+	var json_report: Dictionary = _save_generated_text(
+		json_path,
+		JSON.stringify(report, "\t"),
+		"asset_library.audit",
+		ASSET_LIBRARY_MANIFEST_PATH
+	)
+	var json_error: Error = GFGeneratedArtifactReport.get_error_code(json_report)
 	if json_error != OK:
 		_add_audit_issue(report, "error", "audit_json_write_failed", "素材库 JSON 审计报告写入失败。", {
 			"path": json_path,
 			"error": json_error,
+			"artifact_report": json_report,
 		})
 		_finalize_audit_report(report)
+	report["artifact_reports"] = [
+		markdown_report.duplicate(true),
+		json_report.duplicate(true),
+	]
 	return report
 
 
@@ -418,23 +439,40 @@ func write_review_catalog_reports(
 	markdown_path: String = DEFAULT_REVIEW_CATALOG_MARKDOWN_PATH
 ) -> Dictionary:
 	var report: Dictionary = build_review_catalog_report()
-	var markdown_error: Error = _write_text_if_changed(
+	var markdown_report: Dictionary = _save_generated_text(
 		markdown_path,
-		_format_review_catalog_markdown(report)
+		_format_review_catalog_markdown(report),
+		"asset_library.review_catalog_audit",
+		ASSET_LIBRARY_REVIEW_ROOT
+	)
+	var markdown_error: Error = GFGeneratedArtifactReport.get_error_code(
+		markdown_report
 	)
 	if markdown_error != OK:
 		_add_audit_issue(report, "error", "review_markdown_write_failed", "评审目录 Markdown 报告写入失败。", {
 			"path": markdown_path,
 			"error": markdown_error,
+			"artifact_report": markdown_report,
 		})
 		_finalize_audit_report(report)
-	var json_error: Error = _write_text_if_changed(json_path, JSON.stringify(report, "\t"))
+	var json_report: Dictionary = _save_generated_text(
+		json_path,
+		JSON.stringify(report, "\t"),
+		"asset_library.review_catalog_audit",
+		ASSET_LIBRARY_REVIEW_ROOT
+	)
+	var json_error: Error = GFGeneratedArtifactReport.get_error_code(json_report)
 	if json_error != OK:
 		_add_audit_issue(report, "error", "review_json_write_failed", "评审目录 JSON 报告写入失败。", {
 			"path": json_path,
 			"error": json_error,
+			"artifact_report": json_report,
 		})
 		_finalize_audit_report(report)
+	report["artifact_reports"] = [
+		markdown_report.duplicate(true),
+		json_report.duplicate(true),
+	]
 	return report
 
 
@@ -759,32 +797,42 @@ func _get_usage_scan_roots(options: Dictionary) -> PackedStringArray:
 	return result
 
 
-func _write_text(path: String, text: String) -> Error:
-	var directory: String = path.get_base_dir()
-	if directory.begins_with("res://") or directory.begins_with("user://"):
-		var mkdir_result: Error = DirAccess.make_dir_recursive_absolute(
-			ProjectSettings.globalize_path(directory)
+func _save_generated_text(
+	path: String,
+	text: String,
+	generator_id: String,
+	source_id: String
+) -> Dictionary:
+	var save_options: Dictionary = {
+		"allowed_roots": PackedStringArray([_GENERATED_REPORT_ROOT]),
+		"artifact_owner": GFGeneratedArtifactReport.OWNER_GENERATED,
+		"generator_id": generator_id,
+		"source_id": source_id,
+		"label": "AssetLibraryAudit",
+		"scan_filesystem": false,
+	}
+	var baseline: Dictionary = _read_text_baseline(path)
+	if GFVariantData.get_option_bool(baseline, "ok"):
+		save_options["expected_previous_sha256"] = GFVariantData.get_option_string(
+			baseline,
+			"sha256"
 		)
-		if mkdir_result != OK:
-			return mkdir_result
-	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+	return GFGeneratedArtifactReport.save_text(path, text, save_options)
+
+
+func _read_text_baseline(path: String) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		return {"ok": true, "sha256": ""}
+	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
 	if file == null:
-		return FileAccess.get_open_error()
-	var store_result: bool = file.store_string(text)
+		return {"ok": false, "sha256": ""}
+	var text: String = file.get_as_text()
+	var read_error: Error = file.get_error()
 	file.close()
-	return OK if store_result else ERR_FILE_CANT_WRITE
-
-
-func _write_text_if_changed(path: String, text: String) -> Error:
-	if FileAccess.file_exists(path):
-		var existing_file: FileAccess = FileAccess.open(path, FileAccess.READ)
-		if existing_file == null:
-			return FileAccess.get_open_error()
-		var existing_text: String = existing_file.get_as_text()
-		existing_file.close()
-		if existing_text == text:
-			return OK
-	return _write_text(path, text)
+	return {
+		"ok": read_error == OK,
+		"sha256": text.sha256_text() if read_error == OK else "",
+	}
 
 
 func _format_audit_markdown(report: Dictionary) -> String:
@@ -1224,20 +1272,6 @@ func _make_review_catalog_report() -> Dictionary:
 	}
 
 
-func _add_report_issue(report: Dictionary, severity: String, kind: String, message: String) -> void:
-	var issues: Array = GFVariantData.get_option_array(report, "issues")
-	issues.append({
-		"severity": severity,
-		"kind": kind,
-		"message": message,
-	})
-	report["issues"] = issues
-	if severity == "error":
-		report["error_count"] = GFVariantData.get_option_int(report, "error_count", 0) + 1
-	elif severity == "warning":
-		report["warning_count"] = GFVariantData.get_option_int(report, "warning_count", 0) + 1
-
-
 func _add_audit_issue(
 	report: Dictionary,
 	severity: String,
@@ -1245,17 +1279,13 @@ func _add_audit_issue(
 	message: String,
 	metadata: Dictionary
 ) -> void:
-	var issues: Array = GFVariantData.get_option_array(report, "issues")
-	var issue: Dictionary = metadata.duplicate(true)
-	issue["severity"] = severity
-	issue["kind"] = kind
-	issue["message"] = message
-	issues.append(issue)
-	report["issues"] = issues
-	if severity == "error":
-		report["error_count"] = GFVariantData.get_option_int(report, "error_count", 0) + 1
-	elif severity == "warning":
-		report["warning_count"] = GFVariantData.get_option_int(report, "warning_count", 0) + 1
+	var _appended_issue: Dictionary = GFValidationReportDictionary.append_issue(
+		report,
+		severity,
+		StringName(kind),
+		message,
+		metadata
+	)
 
 
 func _increment_count(report: Dictionary, key: String, value: String) -> void:
@@ -1265,12 +1295,13 @@ func _increment_count(report: Dictionary, key: String, value: String) -> void:
 
 
 func _finalize_report(report: Dictionary) -> void:
-	var issues: Array = GFVariantData.get_option_array(report, "issues")
-	report["issue_count"] = issues.size()
-	report["ok"] = GFVariantData.get_option_int(report, "error_count", 0) == 0
-	report["healthy"] = (
-		GFVariantData.get_option_int(report, "error_count", 0) == 0
-		and GFVariantData.get_option_int(report, "warning_count", 0) == 0
+	var _finalized_report: Dictionary = GFValidationReportDictionary.finalize_report(
+		report,
+		GFVariantData.get_option_string(
+			report,
+			"report_id",
+			"Asset library audit"
+		)
 	)
 
 
