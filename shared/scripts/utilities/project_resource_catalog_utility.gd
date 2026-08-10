@@ -16,6 +16,12 @@ const _RESOLVER_OWNER_PREFIX: String = "project.catalog."
 var _asset_utility: GFAssetUtility = null
 var _resource_resolver: GFResourceResolverUtility = null
 var _catalogs: Dictionary = {}
+var _catalog_mutations: Dictionary = {}
+var _catalog_preload_sessions: Dictionary = {}
+var _catalog_preload_request_ids: Dictionary = {}
+var _next_catalog_preload_request_id: int = 1
+var _disposing: bool = false
+var _disposed: bool = false
 
 
 # --- Godot 生命周期方法 ---
@@ -34,14 +40,23 @@ func ready() -> void:
 
 
 func dispose() -> void:
+	if _disposing or _disposed:
+		return
+	_disposing = true
 	var catalog_ids: Array = _catalogs.keys()
 	for catalog_id_value: Variant in catalog_ids:
 		var catalog_id: StringName = GFVariantData.to_string_name(catalog_id_value, &"")
 		if catalog_id != &"":
-			var _catalog_unregistered: bool = unregister_catalog(catalog_id, true)
+			var _catalog_unregistered: bool = _unregister_catalog_owned(catalog_id, true)
 	_catalogs.clear()
+	_catalog_mutations.clear()
+	_catalog_preload_sessions.clear()
+	_catalog_preload_request_ids.clear()
+	_next_catalog_preload_request_id = 1
 	_asset_utility = null
 	_resource_resolver = null
+	_disposed = true
+	_disposing = false
 
 
 # --- 公共方法 ---
@@ -78,8 +93,21 @@ func register_catalog(
 		"registered_count": 0,
 	}
 
-	if catalog_id == &"" or not is_instance_valid(registry) or resource_key_prefix.is_empty():
+	if (
+		_disposing
+		or _disposed
+		or catalog_id == &""
+		or not is_instance_valid(registry)
+		or resource_key_prefix.is_empty()
+	):
 		var _invalid_catalog_issue: RefCounted = report.add_error(&"invalid_catalog", "资源目录配置无效。", catalog_id)
+		return report
+	if _catalog_mutations.has(catalog_id):
+		var _busy_catalog_issue: RefCounted = report.add_error(
+			&"catalog_mutation_in_progress",
+			"资源目录正在变更，不能同步重入注册。",
+			catalog_id
+		)
 		return report
 	if not is_instance_valid(_get_asset_utility()):
 		var _asset_issue: RefCounted = report.add_error(&"missing_asset_utility", "GFAssetUtility 未注册。", catalog_id)
@@ -125,8 +153,10 @@ func register_catalog(
 
 	var resolver: GFResourceResolverUtility = _get_resource_resolver()
 	var resolver_owner_id: StringName = _make_resolver_owner_id(catalog_id)
+	_catalog_mutations[catalog_id] = true
 	var replacement: Dictionary = resolver.replace_owner_paths(resolver_owner_id, resolver_entries)
 	if not GFResultDictionary.is_ok(replacement):
+		_end_catalog_mutation(catalog_id)
 		var reason: String = GFVariantData.get_option_string(replacement, "reason", "resolver_registration_failed")
 		var failed_index: int = GFVariantData.get_option_int(replacement, "failed_index", -1)
 		var _registration_issue: RefCounted = report.add_error(
@@ -138,7 +168,24 @@ func register_catalog(
 		)
 		return report
 
+	_rollback_catalog_preload_session(catalog_id, &"catalog_replaced")
+	if _disposing or _disposed:
+		_end_catalog_mutation(catalog_id)
+		var _disposed_during_rollback_issue: RefCounted = report.add_error(
+			&"catalog_disposed_during_registration",
+			"资源目录在替换过程中已销毁。",
+			catalog_id
+		)
+		return report
 	_release_catalog_asset_group(_get_catalog(catalog_id), true)
+	if _disposing or _disposed:
+		_end_catalog_mutation(catalog_id)
+		var _disposed_during_release_issue: RefCounted = report.add_error(
+			&"catalog_disposed_during_registration",
+			"资源目录在释放旧分组时已销毁。",
+			catalog_id
+		)
+		return report
 	_catalogs[catalog_id] = {
 		"registry": registry,
 		"resource_key_prefix": resource_key_prefix,
@@ -158,6 +205,7 @@ func register_catalog(
 		for path: String in paths:
 			asset_utility.register_group_path(group_id, path, pin_group_paths)
 
+	_end_catalog_mutation(catalog_id)
 	report.extra_fields["registered_count"] = resolver_entries.size()
 	return report
 
@@ -166,16 +214,16 @@ func register_catalog(
 ## @param catalog_id: 要注销的稳定目录 ID。
 ## @param remove_unreferenced_cache: 是否同时移除分组释放后的无引用缓存。
 func unregister_catalog(catalog_id: StringName, remove_unreferenced_cache: bool = true) -> bool:
+	if _disposing or _disposed or _catalog_mutations.has(catalog_id):
+		return false
 	var catalog: Dictionary = _get_catalog(catalog_id)
 	if catalog.is_empty():
 		return false
 
-	var resolver: GFResourceResolverUtility = _get_resource_resolver()
-	if is_instance_valid(resolver):
-		var _removed_registration_count: int = resolver.unregister_owner(_get_catalog_resolver_owner_id(catalog))
-	_release_catalog_asset_group(catalog, remove_unreferenced_cache)
-	var _catalog_erased: bool = _catalogs.erase(catalog_id)
-	return true
+	_catalog_mutations[catalog_id] = true
+	var unregistered: bool = _unregister_catalog_owned(catalog_id, remove_unreferenced_cache)
+	_end_catalog_mutation(catalog_id)
+	return unregistered
 
 
 ## 获取目录中的有效资源路径，保持注册表顺序。
@@ -202,40 +250,21 @@ func get_registered_resource_keys(catalog_id: StringName) -> PackedStringArray:
 	return _get_catalog_resource_keys(_get_catalog(catalog_id))
 
 
-## 通过 GFAssetUtility 异步预热目录中的全部资源。
+## 通过 GFAssetLoadSession 事务预热目录中的全部资源。
 ## @param catalog_id: 已注册目录 ID。
-## @param on_completed: 可选完成回调，签名为 func(report: Dictionary)。
-## @param options: 透传 GFAssetUtility.preload_group_async() 的有界加载选项。
-## @return: 请求成功提交时返回 OK。
-func preload_catalog_async(
+## 同一目录只持有一个活动会话；新会话会先回滚尚未结束的旧会话。
+## @param options: 支持 plan_id、lane_id、max_concurrent_loads 和 metadata。
+## @return: 已启动的框架资产会话；目录未配置时返回 null。
+func start_catalog_preload_session(
 	catalog_id: StringName,
-	on_completed: Callable = Callable(),
 	options: Dictionary = {}
-) -> Error:
-	var catalog: Dictionary = _get_catalog(catalog_id)
-	var registry: GFResourceRegistry = _get_catalog_registry(catalog)
-	var asset_utility: GFAssetUtility = _get_asset_utility()
-	var group_id: StringName = _get_catalog_group_id(catalog)
-	if (
-		catalog.is_empty()
-		or not is_instance_valid(registry)
-		or not is_instance_valid(asset_utility)
-		or group_id == &""
-	):
-		return ERR_UNCONFIGURED
-
-	var preload_options: Dictionary = options.duplicate(true)
-	if not preload_options.has("pin_cache"):
-		# register_catalog() 已按目录策略登记并固定分组路径；预热只填充缓存，
-		# 不重复增加同一路径的 pin 计数。
-		preload_options["pin_cache"] = false
-	asset_utility.preload_group_async(
-		group_id,
-		registry.make_asset_group_entries(),
-		on_completed,
-		preload_options
-	)
-	return OK
+) -> GFAssetLoadSession:
+	if _disposing or _disposed or _catalog_mutations.has(catalog_id):
+		return null
+	_catalog_mutations[catalog_id] = true
+	var session: GFAssetLoadSession = _start_catalog_preload_session_owned(catalog_id, options)
+	_end_catalog_mutation(catalog_id)
+	return session
 
 
 ## 通过目录资源路径加载资源，并复用 GFAssetUtility 缓存。
@@ -416,6 +445,184 @@ func _release_catalog_asset_group(catalog: Dictionary, remove_unreferenced_cache
 	var asset_utility: GFAssetUtility = _get_asset_utility()
 	if group_id != &"" and is_instance_valid(asset_utility):
 		asset_utility.unload_group(group_id, remove_unreferenced_cache)
+
+
+func _start_catalog_preload_session_owned(
+	catalog_id: StringName,
+	options: Dictionary
+) -> GFAssetLoadSession:
+	var catalog: Dictionary = _get_catalog(catalog_id)
+	var registry: GFResourceRegistry = _get_catalog_registry(catalog)
+	var asset_utility: GFAssetUtility = _get_asset_utility()
+	var group_id: StringName = _get_catalog_group_id(catalog)
+	if (
+		catalog.is_empty()
+		or not is_instance_valid(registry)
+		or not is_instance_valid(asset_utility)
+		or group_id == &""
+	):
+		return null
+
+	_rollback_catalog_preload_session(catalog_id, &"catalog_preload_superseded")
+	if _disposing or _disposed:
+		return null
+	catalog = _get_catalog(catalog_id)
+	registry = _get_catalog_registry(catalog)
+	asset_utility = _get_asset_utility()
+	group_id = _get_catalog_group_id(catalog)
+	if (
+		catalog.is_empty()
+		or not is_instance_valid(registry)
+		or not is_instance_valid(asset_utility)
+		or group_id == &""
+	):
+		return null
+	var request_id: int = _next_catalog_preload_request_id
+	_next_catalog_preload_request_id += 1
+	_catalog_preload_request_ids[catalog_id] = request_id
+	var session_metadata: Dictionary = GFVariantData.get_option_dictionary(
+		options,
+		"metadata"
+	).duplicate(true)
+	session_metadata["catalog_id"] = catalog_id
+	session_metadata["catalog_preload_request_id"] = request_id
+	var plan_id: StringName = GFVariantData.get_option_string_name(options, "plan_id")
+	if plan_id == &"":
+		plan_id = StringName("project.catalog.%s.preload" % String(catalog_id))
+	var plan: GFAssetPreloadPlan = GFAssetPreloadPlan.new()
+	var _configured_plan: GFAssetPreloadPlan = plan.configure(
+		group_id,
+		registry.make_asset_group_entries(),
+		{
+			"plan_id": plan_id,
+			# register_catalog() 已按目录策略登记并固定目标分组路径；会话负责
+			# staging 收敛、typed 终态与回滚，不重复增加同一路径的 pin 计数。
+			"pin_cache": false,
+			"lane_id": GFVariantData.get_option_string_name(options, "lane_id"),
+			"max_concurrent_loads": GFVariantData.get_option_int(
+				options,
+				"max_concurrent_loads",
+				0
+			),
+			"metadata": session_metadata,
+		}
+	)
+	var session: GFAssetLoadSession = asset_utility.start_preload_session(
+		plan,
+		{
+			"auto_commit": false,
+			"metadata": session_metadata,
+		}
+	)
+	if not _is_catalog_preload_request_current(catalog_id, request_id):
+		if not session.is_completed():
+			var _rollback_started: bool = session.rollback(&"catalog_preload_invalidated")
+		return session
+	_catalog_preload_sessions[catalog_id] = session
+	if session.get_state() == GFAssetLoadSession.State.READY:
+		_commit_catalog_preload_session(session, catalog_id, request_id)
+	elif session.get_state() in [
+		GFAssetLoadSession.State.CREATED,
+		GFAssetLoadSession.State.LOADING,
+	]:
+		var connect_error: int = session.ready_to_commit.connect(
+			_on_catalog_preload_ready.bind(catalog_id, request_id),
+			CONNECT_ONE_SHOT
+		)
+		if connect_error != OK:
+			_remove_catalog_preload_session_if_current(catalog_id, session, request_id)
+			var _rollback_started: bool = session.rollback(&"ready_tracking_failed")
+			push_error(
+				"[ProjectResourceCatalogUtility] 无法跟踪目录预载 READY 终态：%s。"
+				% String(catalog_id)
+			)
+	return session
+
+
+func _unregister_catalog_owned(catalog_id: StringName, remove_unreferenced_cache: bool) -> bool:
+	var catalog: Dictionary = _get_catalog(catalog_id)
+	if catalog.is_empty():
+		return false
+	_rollback_catalog_preload_session(catalog_id, &"catalog_unregistered")
+	var resolver: GFResourceResolverUtility = _get_resource_resolver()
+	if is_instance_valid(resolver):
+		var _removed_registration_count: int = resolver.unregister_owner(
+			_get_catalog_resolver_owner_id(catalog)
+		)
+	_release_catalog_asset_group(catalog, remove_unreferenced_cache)
+	var _catalog_erased: bool = _catalogs.erase(catalog_id)
+	return true
+
+
+func _end_catalog_mutation(catalog_id: StringName) -> void:
+	var _mutation_erased: bool = _catalog_mutations.erase(catalog_id)
+
+
+func _rollback_catalog_preload_session(catalog_id: StringName, reason: StringName) -> void:
+	var session_value: Variant = _catalog_preload_sessions.get(catalog_id)
+	var _session_erased: bool = _catalog_preload_sessions.erase(catalog_id)
+	var _request_erased: bool = _catalog_preload_request_ids.erase(catalog_id)
+	if session_value is GFAssetLoadSession:
+		var session: GFAssetLoadSession = session_value
+		if not session.is_completed():
+			var _rollback_started: bool = session.rollback(reason)
+
+
+func _on_catalog_preload_ready(
+	session: GFAssetLoadSession,
+	catalog_id: StringName,
+	request_id: int
+) -> void:
+	_commit_catalog_preload_session(session, catalog_id, request_id)
+
+
+func _commit_catalog_preload_session(
+	session: GFAssetLoadSession,
+	catalog_id: StringName,
+	request_id: int
+) -> void:
+	if not _is_catalog_preload_session_current(catalog_id, session, request_id):
+		if is_instance_valid(session) and not session.is_completed():
+			var _rollback_started: bool = session.rollback(&"catalog_preload_invalidated")
+		return
+	if session.get_state() != GFAssetLoadSession.State.READY:
+		return
+	var committed: bool = session.commit()
+	if not committed:
+		push_error(
+			"[ProjectResourceCatalogUtility] 目录预载会话无法提交：%s。"
+			% String(catalog_id)
+		)
+
+
+func _is_catalog_preload_request_current(catalog_id: StringName, request_id: int) -> bool:
+	return (
+		_catalogs.has(catalog_id)
+		and GFVariantData.get_option_int(_catalog_preload_request_ids, catalog_id, -1)
+		== request_id
+	)
+
+
+func _is_catalog_preload_session_current(
+	catalog_id: StringName,
+	session: GFAssetLoadSession,
+	request_id: int
+) -> bool:
+	if not _is_catalog_preload_request_current(catalog_id, request_id):
+		return false
+	var current_session_value: Variant = _catalog_preload_sessions.get(catalog_id)
+	return current_session_value is GFAssetLoadSession and is_same(current_session_value, session)
+
+
+func _remove_catalog_preload_session_if_current(
+	catalog_id: StringName,
+	session: GFAssetLoadSession,
+	request_id: int
+) -> void:
+	if not _is_catalog_preload_session_current(catalog_id, session, request_id):
+		return
+	var _session_erased: bool = _catalog_preload_sessions.erase(catalog_id)
+	var _request_erased: bool = _catalog_preload_request_ids.erase(catalog_id)
 
 
 func _get_catalog_registry(catalog: Dictionary) -> GFResourceRegistry:

@@ -37,7 +37,7 @@
 - 规则资源：`features/gameplay/scripts/rules/**` 定义移动、交互、生成、结束判定；`features/gameplay/resources/modes/*.tres` 组合这些规则形成不同玩法模式。
 - 对局 session：`GameInitSystem` 使用 `GFLevelUtility` 记录当前一局的模式、尺寸、种子和来源；这只是运行时 session 语义，不代表项目引入关卡进度玩法。
 - 对局暂停：业务 Module 只能调用 `GamePauseUtility`；该 Adapter 同步 `GFTimeUtility` 与 `SceneTree.paused`。除它之外不得直接写场景树暂停状态。需要在暂停期间运行的 System 必须显式设置 `ignore_pause`，并自行门控所有非暂停意图。
-- 模式目录：`features/gameplay/resources/registries/game_mode_registry.tres` 使用 `GFResourceRegistry` 维护可玩模式列表，`BootRuntime` 必须等待 `GameModeCatalogUtility.get_preload_completion()` 成功；业务热路径只读取 `GFAssetUtility` 缓存，禁止在预载仍进行或缓存缺失时同步 `ResourceLoader` 降级。缓存与分组生命周期仍由 `GFAssetUtility` 独占管理。
+- 模式目录：`features/gameplay/resources/registries/game_mode_registry.tres` 使用 `GFResourceRegistry` 维护可玩模式列表，`GameModeCatalogUtility` 通过 `ProjectResourceCatalogUtility` 启动 `GFAssetLoadSession`，`BootRuntime` 必须等待会话进入 committed 终态；业务热路径只读取 `GFAssetUtility` 缓存，禁止在会话仍进行或缓存缺失时同步 `ResourceLoader` 降级。会话、缓存与分组生命周期均由 GF 资产层独占管理。
 - UI 路由：`features/navigation/resources/registries/ui_route_registry.tres` 使用 `GFResourceRegistry` 维护 `GFUIRoute` 资源目录；业务 UI 按 route ID 打开，不保留路径调用后备。菜单负责关闭自身路由，System 不得直接调用 `GFUIUtility.pop_panel()` 或 `clear_all()`。
 - UI 焦点：动态纵向列表使用 `GFControlFocusUtility.apply_focus_order()`；项目层只维护跨列、返回选中项等界面特有关系，不重新实现顺序遍历、首尾循环或相对路径计算。
 - 完整 Feature 所有权和依赖方向以 `docs/architecture.md` 为准。

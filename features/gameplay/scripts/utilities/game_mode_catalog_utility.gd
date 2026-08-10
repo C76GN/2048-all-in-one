@@ -19,10 +19,8 @@ const _MODE_TYPE_HINT: String = "Resource"
 
 var _resource_catalog: ProjectResourceCatalogUtility = null
 var _mode_registry: GFResourceRegistry = DEFAULT_MODE_REGISTRY
-var _preload_status: StringName = &"idle"
-var _preload_report: Dictionary = {}
-var _preload_completion: GFAsyncCompletion = null
-var _disposing: bool = false
+var _preload_session: GFAssetLoadSession = null
+var _setup_failure_reason: StringName = &""
 
 
 # --- Godot 生命周期方法 ---
@@ -32,16 +30,11 @@ func get_required_utilities() -> Array[Script]:
 
 
 func ready() -> void:
-	_disposing = false
-	_preload_status = &"idle"
-	_preload_report = {}
-	_preload_completion = GFAsyncCompletion.new()
+	_preload_session = null
+	_setup_failure_reason = &""
 	_resource_catalog = _resolve_resource_catalog_utility()
 	if not is_instance_valid(_resource_catalog):
-		_preload_status = &"dependency_missing"
-		var _dependency_failed: bool = _preload_completion.fail(
-			"ProjectResourceCatalogUtility 未注册。"
-		)
+		_setup_failure_reason = &"dependency_missing"
 		push_error("[GameModeCatalogUtility] ProjectResourceCatalogUtility 未注册。")
 		return
 
@@ -54,44 +47,31 @@ func ready() -> void:
 		{"registry": "game_mode_registry"}
 	)
 	if not report.is_ok():
-		_preload_status = &"registration_failed"
-		var _registration_failed: bool = _preload_completion.fail(
-			"模式资源目录注册失败。",
-			{&"report": report.make_summary()}
-		)
+		_setup_failure_reason = &"registration_failed"
 		push_error("[GameModeCatalogUtility] 模式资源目录注册失败：%s" % report.make_summary())
 		return
 
-	_preload_status = &"loading"
-	var preload_error: Error = _resource_catalog.preload_catalog_async(
+	_preload_session = _resource_catalog.start_catalog_preload_session(
 		_CATALOG_ID,
-		_on_preload_completed,
 		{
+			"plan_id": &"game_modes.preload",
 			"max_concurrent_loads": 2,
-			"serial_lane_id": &"game_mode_catalog",
+			"lane_id": &"game_mode_catalog",
+			"metadata": {"registry": "game_mode_registry"},
 		}
 	)
-	if preload_error != OK:
-		_preload_status = &"submit_failed"
-		var _submit_failed: bool = _preload_completion.fail(
-			"模式配置预热提交失败。",
-			{&"error": preload_error}
-		)
-		push_error(
-			"[GameModeCatalogUtility] 模式配置预热提交失败，错误码：%d。"
-			% preload_error
-		)
+	if not is_instance_valid(_preload_session):
+		_setup_failure_reason = &"session_unavailable"
+		push_error("[GameModeCatalogUtility] 无法启动模式配置 GFAssetLoadSession。")
 
 
 func dispose() -> void:
-	_disposing = true
-	if _preload_completion != null and _preload_completion.is_pending():
-		var _cancelled: bool = _preload_completion.cancel(&"catalog_disposed")
+	var _rollback_started: bool = rollback_preload_session(&"catalog_disposed")
 	if is_instance_valid(_resource_catalog):
 		var _catalog_unregistered: bool = _resource_catalog.unregister_catalog(_CATALOG_ID, true)
+	_preload_session = null
 	_resource_catalog = null
-	_preload_status = &"disposed"
-	_preload_report = {}
+	_setup_failure_reason = &"disposed"
 
 
 # --- 公共方法 ---
@@ -109,14 +89,22 @@ func get_config(config_path: String) -> GameModeConfig:
 	if resource is GameModeConfig:
 		var mode_config: GameModeConfig = resource
 		return mode_config
-	if _preload_status != &"loading":
+	if not _is_preload_in_progress():
 		push_error("[GameModeCatalogUtility] 模式配置缓存不可用：%s。" % config_path)
 	return null
 
 
-## 返回本轮目录预载的唯一终态句柄。句柄由 Utility 拥有；调用方只等待和读取。
-func get_preload_completion() -> GFAsyncCompletion:
-	return _preload_completion
+## 返回本轮目录预载的框架事务句柄。句柄由 Utility 拥有；调用方只等待和读取。
+func get_preload_session() -> GFAssetLoadSession:
+	return _preload_session
+
+
+## 请求回滚仍在进行的模式目录预载会话。
+## @param reason: 写入 GF typed 终态的稳定回滚原因。
+func rollback_preload_session(reason: StringName) -> bool:
+	if not is_instance_valid(_preload_session) or _preload_session.is_completed():
+		return false
+	return _preload_session.rollback(reason)
 
 
 ## 获取当前注册表中的配置路径列表。
@@ -135,12 +123,13 @@ func get_debug_snapshot() -> Dictionary:
 	var resource_keys: PackedStringArray = PackedStringArray()
 	if is_instance_valid(_resource_catalog):
 		resource_keys = _resource_catalog.get_registered_resource_keys(_CATALOG_ID)
+	var preload_session_snapshot: Dictionary = _make_preload_session_snapshot()
 	return {
 		"registry": registry_snapshot,
 		"resource_keys": resource_keys,
 		"catalog_id": String(_CATALOG_ID),
-		"preload_status": String(_preload_status),
-		"preload_report": _preload_report.duplicate(true),
+		"preload_session": preload_session_snapshot,
+		"setup_failure_reason": String(_setup_failure_reason),
 	}
 
 
@@ -154,28 +143,29 @@ func _resolve_resource_catalog_utility() -> ProjectResourceCatalogUtility:
 	return null
 
 
-func _on_preload_completed(report: Dictionary) -> void:
-	if _disposing:
-		return
-	_preload_report = report.duplicate(true)
-	if GFVariantData.get_option_bool(report, "ok", false):
-		_preload_status = &"completed"
-		if _preload_completion != null and _preload_completion.is_pending():
-			var _succeeded: bool = _preload_completion.succeed(_preload_report)
-		return
-	_preload_status = &"failed"
-	if _preload_completion != null and _preload_completion.is_pending():
-		var _failed: bool = _preload_completion.fail(
-			"模式配置预热失败。",
-			{&"report": _preload_report}
-		)
-	push_error(
-		"[GameModeCatalogUtility] GF 模式配置预热失败：%s。"
-		% str(
-			GFVariantData.get_option_packed_string_array(
-				report,
-				"failed_paths",
-				PackedStringArray()
-			)
-		)
+func _is_preload_in_progress() -> bool:
+	return (
+		is_instance_valid(_preload_session)
+		and _preload_session.get_state() in [
+			GFAssetLoadSession.State.CREATED,
+			GFAssetLoadSession.State.LOADING,
+			GFAssetLoadSession.State.ROLLBACK_PENDING,
+		]
 	)
+
+
+func _make_preload_session_snapshot() -> Dictionary:
+	if not is_instance_valid(_preload_session):
+		return {}
+	var result_snapshot: Dictionary = {}
+	var result: GFAssetLoadSessionResult = _preload_session.get_result()
+	if result != null:
+		result_snapshot = result.to_dict()
+	return {
+		"session_id": String(_preload_session.get_session_id()),
+		"group_id": String(_preload_session.get_group_id()),
+		"state": _preload_session.get_state(),
+		"completed": _preload_session.is_completed(),
+		"load_report": _preload_session.get_load_report(),
+		"result": result_snapshot,
+	}

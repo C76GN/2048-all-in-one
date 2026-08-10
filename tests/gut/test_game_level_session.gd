@@ -72,17 +72,20 @@ func test_game_initialization_records_current_session_in_level_utility() -> void
 	await architecture.register_system(GameFlowSystem, _SessionFlowSystem.new())
 	await architecture.register_system(GameInitSystem, _SessionInitSystem.new())
 	await architecture.init()
-	var preload_completion: GFAsyncCompletion = mode_catalog.get_preload_completion()
+	var preload_session: GFAssetLoadSession = mode_catalog.get_preload_session()
 	for _frame_index: int in range(240):
 		asset_utility.tick()
-		if preload_completion != null and preload_completion.is_completed():
+		if preload_session != null and preload_session.is_completed():
 			break
 		await get_tree().process_frame
+	var preload_result: GFAssetLoadSessionResult = (
+		preload_session.get_result() if preload_session != null else null
+	)
 	assert_true(
-		preload_completion != null and preload_completion.is_successful(),
+		preload_result != null and preload_result.is_successful(),
 		"绕过 BootRuntime 的测试架构也必须先跨过模式目录预载屏障。"
 	)
-	if preload_completion == null or not preload_completion.is_successful():
+	if preload_result == null or not preload_result.is_successful():
 		architecture.dispose()
 		return
 

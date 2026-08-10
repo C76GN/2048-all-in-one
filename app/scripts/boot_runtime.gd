@@ -118,17 +118,30 @@ func _prepare_mode_catalog() -> bool:
 	if not utility_value is GameModeCatalogUtility:
 		return false
 	var mode_catalog: GameModeCatalogUtility = utility_value
-	var completion: GFAsyncCompletion = mode_catalog.get_preload_completion()
-	if completion == null:
+	var session: GFAssetLoadSession = mode_catalog.get_preload_session()
+	if not is_instance_valid(session):
 		return false
-	if completion.is_pending():
+	if not session.is_completed():
 		var wait_result: Dictionary = await GFAsyncWaitUtility.wait_until(
-			completion.is_completed,
+			session.is_completed,
 			_get_boot_wait_options(_PRELOAD_TIMEOUT_SECONDS)
 		)
-		if not GFVariantData.get_option_bool(wait_result, "completed", false):
+		if (
+			not GFVariantData.get_option_bool(wait_result, "completed", false)
+			and not session.is_completed()
+		):
+			var _rollback_started: bool = mode_catalog.rollback_preload_session(
+				&"boot_preload_timeout"
+			)
 			return false
-	return completion.is_successful() and is_inside_tree()
+	var result: GFAssetLoadSessionResult = session.get_result()
+	if result == null or not result.is_successful():
+		push_error(
+			"[Boot] 模式配置 GFAssetLoadSession 未提交：%s。"
+			% str(result.to_dict() if result != null else {})
+		)
+		return false
+	return is_inside_tree()
 
 
 func _prime_gameplay_visuals() -> void:
