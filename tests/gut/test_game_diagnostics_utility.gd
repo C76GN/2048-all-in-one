@@ -5,6 +5,9 @@ extends GutTest
 # --- 常量 ---
 
 const _GAME_DIAGNOSTICS_UTILITY_SCRIPT = preload("res://features/diagnostics/scripts/utilities/game_diagnostics_utility.gd")
+const _GAMEPLAY_INPUT_CONTEXT: GFInputContext = preload(
+	"res://features/gameplay/resources/input/gameplay_input_context.tres"
+)
 
 
 # --- 测试用例 ---
@@ -24,7 +27,8 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 	var debug_overlay: GFDebugOverlayUtility = GFDebugOverlayUtility.new()
 	var runtime_inspector: GFRuntimeInspectorUtility = GFRuntimeInspectorUtility.new()
 	var screenshots: GFScreenshotUtility = GFScreenshotUtility.new()
-	var project_diagnostics: GFUtility = _GameDiagnosticsFixture.new()
+	var input_mapping: GFInputMappingUtility = GFInputMappingUtility.new()
+	var project_diagnostics: GameDiagnosticsUtility = _GameDiagnosticsFixture.new()
 
 	await architecture.register_utility(GFLogUtility, log_utility)
 	await architecture.register_utility(GFStorageUtility, GFStorageUtility.new())
@@ -46,9 +50,19 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 	await architecture.register_utility(GFDebugOverlayUtility, debug_overlay)
 	await architecture.register_utility(GFRuntimeInspectorUtility, runtime_inspector)
 	await architecture.register_utility(GFScreenshotUtility, screenshots)
+	await architecture.register_utility(GFInputMappingUtility, input_mapping)
 	await architecture.register_utility(GameClockUtility, GameClockUtility.new())
 	await architecture.register_utility(_GAME_DIAGNOSTICS_UTILITY_SCRIPT, project_diagnostics)
 	await architecture.init()
+	input_mapping.enable_context(_GAMEPLAY_INPUT_CONTEXT, 100)
+	var touch_source: GFVirtualInputSource = input_mapping.create_virtual_source(
+		BoardWorldViewportController.TOUCH_INPUT_SOURCE_ID
+	)
+	var hud_source: GFVirtualInputSource = input_mapping.create_virtual_source(
+		Hud.HUD_INPUT_SOURCE_ID
+	)
+	assert_true(touch_source.press(GameplayInputActions.MOVE_LEFT))
+	assert_true(hud_source.press(GameplayInputActions.PAUSE))
 
 	assert_true(console.has_command("diagnostics"), "GFDiagnosticsUtility 应提供标准 diagnostics 命令。")
 	assert_true(console.has_command("support_report"), "项目诊断应提供支持报告落盘命令。")
@@ -92,6 +106,47 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 	assert_true(
 		diagnostics.has_diagnostic_provider(&"gameplay_move_trace"),
 		"移动卡顿轨迹应通过有界 GF 惰性 Provider 导出。"
+	)
+	assert_true(
+		diagnostics.has_diagnostic_provider(&"virtual_inputs"),
+		"玩法虚拟输入源应通过 GF 玩家作用域快照进入惰性诊断。"
+	)
+	var virtual_inputs: Dictionary = project_diagnostics.collect_diagnostic_snapshot(
+		&"virtual_inputs"
+	)
+	var touch_snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		virtual_inputs,
+		"touch_swipe"
+	)
+	var hud_snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		virtual_inputs,
+		"hud_controls"
+	)
+	var touch_actions: Array = GFVariantData.get_option_array(touch_snapshot, "actions")
+	var hud_actions: Array = GFVariantData.get_option_array(hud_snapshot, "actions")
+	assert_true(
+		GFVariantData.get_option_string_name(touch_snapshot, "source_id")
+		== BoardWorldViewportController.TOUCH_INPUT_SOURCE_ID
+	)
+	assert_true(GFVariantData.get_option_int(touch_snapshot, "player_index") == -1)
+	assert_true(touch_actions.size() == 1)
+	assert_true(
+		GFVariantData.get_option_string_name(
+			GFVariantData.as_dictionary(touch_actions[0]),
+			"action_id"
+		) == GameplayInputActions.MOVE_LEFT
+	)
+	assert_true(
+		GFVariantData.get_option_string_name(hud_snapshot, "source_id")
+		== Hud.HUD_INPUT_SOURCE_ID
+	)
+	assert_true(GFVariantData.get_option_int(hud_snapshot, "player_index") == -1)
+	assert_true(hud_actions.size() == 1)
+	assert_true(
+		GFVariantData.get_option_string_name(
+			GFVariantData.as_dictionary(hud_actions[0]),
+			"action_id"
+		) == GameplayInputActions.PAUSE
 	)
 	assert_true(debug_overlay.has_panel(&"game.project_diagnostics"), "项目状态应进入 GF Debug Overlay。")
 	assert_true(
@@ -154,6 +209,7 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 	)
 
 	architecture.dispose()
+	await get_tree().process_frame
 	await get_tree().process_frame
 	assert_false(console.has_command("support_report"), "销毁 Architecture 时应注销项目支持报告命令。")
 	assert_false(console.has_command("screenshot"), "销毁 Architecture 时应注销截图命令。")
@@ -384,6 +440,7 @@ class _GameDiagnosticsFixture extends GameDiagnosticsUtility:
 			GFConsoleUtility,
 			GFDebugOverlayUtility,
 			GFDiagnosticsUtility,
+			GFInputMappingUtility,
 			GFLogUtility,
 			GFRuntimeInspectorUtility,
 			GFScreenshotUtility,

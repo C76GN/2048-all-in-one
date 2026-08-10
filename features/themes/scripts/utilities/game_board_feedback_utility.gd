@@ -80,6 +80,21 @@ func get_current_budget() -> GameFeedbackBudget:
 	return GameFeedbackPerformanceMatrix.resolve(_get_accessibility_state())
 
 
+## 获取棋盘反馈编排及最近一次实际触觉输出的有界诊断快照。
+func get_debug_snapshot() -> Dictionary:
+	var haptic: GFHapticUtility = _get_cached_haptic_utility()
+	return {
+		"profile_configured": _profile != null,
+		"active_root_tween_count": _root_tweens.size(),
+		"active_background_tween_count": _background_tweens.size(),
+		"haptic_last_output_report": (
+			haptic.get_last_output_report()
+			if is_instance_valid(haptic)
+			else {}
+		),
+	}
+
+
 ## 按合并语义把回合映射到唯一反馈等级。
 ## @param merge_count: 本回合合并次数。
 ## @param max_merge_value: 本回合最大合并结果值。

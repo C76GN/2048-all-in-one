@@ -184,6 +184,32 @@ func test_project_content_catalog_uses_owner_scoped_roots_and_gf_query() -> void
 			"资源级 key_prefix 筛选应保持原契约。"
 		)
 	assert_true(non_matching_entries.is_empty(), "不存在的 package ID 应稳定返回零匹配。")
+	var catalog_snapshot: Dictionary = project_catalog.get_debug_snapshot()
+	var query_snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		catalog_snapshot,
+		"last_resource_query"
+	)
+	var query_declaration: Dictionary = GFVariantData.get_option_dictionary(
+		query_snapshot,
+		"query"
+	)
+	var query_id_marker: Dictionary = GFVariantData.get_option_dictionary(
+		GFVariantData.get_option_dictionary(query_declaration, "query_id"),
+		"__gf_variant__"
+	)
+	assert_true(
+		GFVariantData.get_option_string(query_id_marker, "value")
+		== "project.content_catalog.resources",
+		"内容目录诊断必须采用 GFContentPackageQuery 的规范报告身份。"
+	)
+	assert_true(GFVariantData.get_option_bool(query_snapshot, "successful"))
+	assert_true(GFVariantData.get_option_int(query_snapshot, "matched_package_count") == 0)
+	assert_true(GFVariantData.get_option_int(query_snapshot, "matched_resource_count") == 0)
+	assert_lt(
+		JSON.stringify(query_snapshot).to_utf8_buffer().size(),
+		20 * 1024,
+		"内容查询诊断必须服从固定字节预算。"
+	)
 
 	await _dispose_architecture(architecture)
 

@@ -457,6 +457,37 @@ func test_theme_debug_snapshot_exposes_content_package_and_resolver_state() -> v
 	assert_true(sound_slot.is_released(), "主题 Utility dispose 后必须终态释放声音资源槽位。")
 
 
+func test_theme_group_release_preserves_other_group_cache_ownership() -> void:
+	var assets: GFAssetUtility = GFAssetUtility.new()
+	assets.max_cache_size = 8
+	assets.init()
+	var theme_utility: GameThemeUtility = GameThemeUtility.new()
+	theme_utility._assets = assets
+	var shared_path: String = _DEFAULT_BOARD_THEME.resource_path
+	assets.put_cache(shared_path, _DEFAULT_BOARD_THEME)
+	assets.register_group_path(&"theme.previous", shared_path, true)
+	assets.register_group_path(&"theme.shared.consumer", shared_path, true)
+
+	theme_utility._release_asset_group(&"theme.previous")
+
+	assert_true(
+		assets.get_group_paths(&"theme.previous").is_empty(),
+		"替换主题后必须释放旧主题组。"
+	)
+	assert_true(
+		assets.get_group_paths(&"theme.shared.consumer").has(shared_path),
+		"释放旧主题组不得删除其他资源组对共享路径的 ownership。"
+	)
+	assert_same(
+		assets.get_cached(shared_path),
+		_DEFAULT_BOARD_THEME,
+		"共享资源仍有其他组持有时必须保留 GF 有界缓存。"
+	)
+	assert_true(assets.is_cache_pinned(shared_path))
+	assets.unload_group(&"theme.shared.consumer", false)
+	assets.dispose()
+
+
 func test_game_theme_utility_resolves_board_and_tile_schemes() -> void:
 	var setup: Dictionary = await _create_theme_architecture()
 	var architecture: GFArchitecture = _get_architecture(setup)

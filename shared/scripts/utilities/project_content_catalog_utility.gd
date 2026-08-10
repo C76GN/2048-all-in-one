@@ -17,6 +17,16 @@ signal catalog_refreshed(report: Dictionary)
 const SOURCE_ROOT_OWNER_ID: StringName = &"project.content_catalog"
 ## ready 同步重建超过该值时记录诊断告警；不改变原子提交或启动成败语义。
 const READY_REFRESH_WARNING_USEC: int = 50_000
+## 内容查询诊断必须有界，避免调用方 metadata 或筛选集合膨胀支持报告。
+const _QUERY_REPORT_OPTIONS: Dictionary = {
+	"redaction_profile": "support",
+	"max_depth": 6,
+	"max_string_length": 256,
+	"max_collection_items": 64,
+	"max_packed_length": 64,
+	"max_total_nodes": 256,
+	"max_total_bytes": 16 * 1024,
+}
 
 
 # --- 私有变量 ---
@@ -25,6 +35,7 @@ var _configured_source_roots: PackedStringArray = PackedStringArray()
 var _content_packages: GFContentPackageUtility = null
 var _resolver: GFResourceResolverUtility = null
 var _last_refresh_report: Dictionary = {}
+var _last_resource_query_snapshot: Dictionary = {}
 var _clock: GFClock = GFClock.new()
 
 
@@ -32,6 +43,7 @@ var _clock: GFClock = GFClock.new()
 
 func init() -> void:
 	_last_refresh_report.clear()
+	_last_resource_query_snapshot.clear()
 
 
 func get_required_utilities() -> Array[Script]:
@@ -52,6 +64,7 @@ func dispose() -> void:
 			SOURCE_ROOT_OWNER_ID
 		)
 	_last_refresh_report.clear()
+	_last_resource_query_snapshot.clear()
 	_content_packages = null
 	_resolver = null
 
@@ -190,6 +203,12 @@ func query_resources(options: Dictionary = {}) -> Array[Dictionary]:
 	var package_result: GFContentPackageQueryResult = catalog.query_packages(
 		package_query
 	)
+	_last_resource_query_snapshot = {
+		"query": package_query.to_report_dictionary(_QUERY_REPORT_OPTIONS),
+		"successful": package_result.is_successful(),
+		"matched_package_count": package_result.get_manifests().size(),
+		"matched_resource_count": 0,
+	}
 	if not package_result.is_successful():
 		return result
 
@@ -198,6 +217,7 @@ func query_resources(options: Dictionary = {}) -> Array[Dictionary]:
 			if not _resource_entry_matches(entry, required_type_hint, key_prefix, metadata_filter):
 				continue
 			result.append(entry.duplicate(true))
+	_last_resource_query_snapshot["matched_resource_count"] = result.size()
 	return result
 
 
@@ -239,6 +259,7 @@ func get_debug_snapshot() -> Dictionary:
 			else PackedStringArray()
 		),
 		"refresh_report": _last_refresh_report.duplicate(true),
+		"last_resource_query": _last_resource_query_snapshot.duplicate(true),
 		"content_packages": (
 			_content_packages.get_debug_snapshot()
 			if is_instance_valid(_content_packages)

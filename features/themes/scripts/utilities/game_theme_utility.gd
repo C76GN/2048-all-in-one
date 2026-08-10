@@ -449,6 +449,11 @@ func get_debug_snapshot() -> Dictionary:
 		"sound_theme_slot": _get_theme_slot_snapshot(_sound_theme_slot),
 		"visual_activation": _last_visual_activation_report.duplicate(true),
 		"sound_activation": _last_sound_activation_report.duplicate(true),
+		"board_feedback": (
+			_board_feedback.get_debug_snapshot()
+			if is_instance_valid(_board_feedback)
+			else {}
+		),
 		"catalog": (
 			_theme_catalog.get_debug_snapshot()
 			if is_instance_valid(_theme_catalog)
@@ -1029,7 +1034,9 @@ func _release_replaced_asset_group(
 
 func _release_asset_group(group_id: StringName) -> void:
 	if group_id != &"" and is_instance_valid(_assets):
-		_assets.unload_group(group_id, true)
+		# GF 目前会在 eager cache removal 时把共享路径从所有资源组一并移除。
+		# 主题组只释放自身 membership/pin，缓存交给 GFAssetUtility 的有界 LRU 回收。
+		_assets.unload_group(group_id, false)
 
 
 func _release_active_asset_groups() -> void:

@@ -23,7 +23,8 @@ const _SCORE_FORMAT_FALLBACK: String = "分数: %d"
 const _MOVE_COUNT_FORMAT_FALLBACK: String = "移动次数: %d"
 const _HIGH_SCORE_FORMAT_FALLBACK: String = "最高分: %d"
 const _HIGHEST_TILE_FORMAT_FALLBACK: String = "最大方块: %d"
-const _HUD_INPUT_SOURCE_ID: StringName = &"gameplay.hud_controls"
+## HUD 控件虚拟输入源稳定标识，供支持报告按玩家作用域采样。
+const HUD_INPUT_SOURCE_ID: StringName = &"gameplay.hud_controls"
 const _HUD_ACTION_HOLD_SECONDS: float = 0.08
 const _SCORE_FEEDBACK_DELAY_SECONDS: float = 0.055
 const _HINT_MAX_STEPS: int = 12000
@@ -151,7 +152,7 @@ func _ready() -> void:
 	_realtime_timer = _get_realtime_timer_utility()
 	if is_instance_valid(_input_mapping) and is_instance_valid(_realtime_timer):
 		_hud_input_source = _input_mapping.create_virtual_source(
-			_HUD_INPUT_SOURCE_ID,
+			HUD_INPUT_SOURCE_ID,
 			-1,
 			_realtime_timer
 		)

@@ -29,7 +29,8 @@ const _DEFAULT_MINIMUM_ZOOM: float = 0.02
 const _DEFAULT_MAXIMUM_ZOOM: float = 3.0
 const _FIT_MARGIN: float = 18.0
 const _PAN_EDGE_MARGIN: float = 36.0
-const _TOUCH_INPUT_SOURCE_ID: StringName = &"gameplay.touch_swipe"
+## 玩法触控虚拟输入源稳定标识，供支持报告按玩家作用域采样。
+const TOUCH_INPUT_SOURCE_ID: StringName = &"gameplay.touch_swipe"
 const _TOUCH_ACTION_HOLD_SECONDS: float = 0.08
 const _NO_TOUCH_POINTER: int = -1
 const _KEYBOARD_PAN_STEP: float = 52.0
@@ -127,7 +128,7 @@ func _ready() -> void:
 	_resolve_utilities()
 	if is_instance_valid(_input_mapping) and is_instance_valid(_realtime_timer):
 		_touch_input_source = _input_mapping.create_virtual_source(
-			_TOUCH_INPUT_SOURCE_ID,
+			TOUCH_INPUT_SOURCE_ID,
 			-1,
 			_realtime_timer
 		)

@@ -31,6 +31,7 @@ var _debug_overlay_utility: GFDebugOverlayUtility
 var _runtime_inspector_utility: GFRuntimeInspectorUtility
 var _screenshot_utility: GFScreenshotUtility
 var _performance_trace_utility: GamePerformanceTraceUtility
+var _input_mapping_utility: GFInputMappingUtility
 var _command_subscriptions: Array[GFLifetimeSubscription] = []
 var _diagnostic_providers: Dictionary = {}
 
@@ -55,6 +56,7 @@ func get_required_utilities() -> Array[Script]:
 		GFDebugOverlayUtility,
 		GFDiagnosticsUtility,
 		GFLogUtility,
+		GFInputMappingUtility,
 		GFRuntimeInspectorUtility,
 		GFScreenshotUtility,
 		GFSupportReportUtility,
@@ -77,6 +79,7 @@ func ready() -> void:
 	_runtime_inspector_utility = _get_runtime_inspector_utility()
 	_screenshot_utility = _get_screenshot_utility()
 	_performance_trace_utility = _get_performance_trace_utility()
+	_input_mapping_utility = _get_input_mapping_utility()
 	_register_console_commands()
 	_configure_runtime_debug_tools()
 	_refresh_project_tool_snapshots()
@@ -128,6 +131,7 @@ func dispose() -> void:
 	_runtime_inspector_utility = null
 	_screenshot_utility = null
 	_performance_trace_utility = null
+	_input_mapping_utility = null
 
 
 # --- 公共方法 ---
@@ -197,6 +201,8 @@ func collect_diagnostic_snapshot(provider_id: StringName) -> Dictionary:
 			return get_debug_snapshot()
 		&"gameplay_move_trace":
 			return _collect_gameplay_move_trace_snapshot()
+		&"virtual_inputs":
+			return _collect_virtual_input_sources_snapshot()
 		_:
 			return {}
 
@@ -258,6 +264,9 @@ func _refresh_project_tool_snapshots() -> void:
 	)
 	_register_lazy_snapshot_provider(
 		&"gameplay_move_trace"
+	)
+	_register_lazy_snapshot_provider(
+		&"virtual_inputs"
 	)
 
 	# 仅发布架构就绪后不再变化、且采集成本固定的缓存事实。
@@ -597,6 +606,28 @@ func _collect_gameplay_move_trace_snapshot() -> Dictionary:
 	return _performance_trace_utility.build_support_snapshot()
 
 
+func _collect_virtual_input_sources_snapshot() -> Dictionary:
+	if not is_instance_valid(_input_mapping_utility):
+		return _make_unavailable_snapshot(
+			"GFInputMappingUtility is unavailable."
+		)
+	return {
+		"available": true,
+		"touch_swipe": (
+			_input_mapping_utility.get_virtual_source_snapshot_for_player(
+				BoardWorldViewportController.TOUCH_INPUT_SOURCE_ID,
+				-1
+			)
+		),
+		"hud_controls": (
+			_input_mapping_utility.get_virtual_source_snapshot_for_player(
+				Hud.HUD_INPUT_SOURCE_ID,
+				-1
+			)
+		),
+	}
+
+
 func _collect_architecture_dependency_snapshot() -> Dictionary:
 	var architecture: GFArchitecture = _get_architecture_or_null()
 	if architecture == null:
@@ -816,4 +847,12 @@ func _get_performance_trace_utility() -> GamePerformanceTraceUtility:
 	if utility is GamePerformanceTraceUtility:
 		var performance_trace: GamePerformanceTraceUtility = utility
 		return performance_trace
+	return null
+
+
+func _get_input_mapping_utility() -> GFInputMappingUtility:
+	var utility: Object = get_utility(GFInputMappingUtility)
+	if utility is GFInputMappingUtility:
+		var input_mapping: GFInputMappingUtility = utility
+		return input_mapping
 	return null

@@ -2601,6 +2601,22 @@ func test_board_feedback_utility_orchestrates_gf_shake_and_background_feedback()
 		haptic_utility.get_active_haptic_count(&"board") == 1,
 		"整批操作反馈应通过 GFHapticUtility 播放一次 board channel 反馈。"
 	)
+	var _output_report: Dictionary = haptic_utility.apply_current_outputs()
+	var feedback_snapshot: Dictionary = feedback_utility.get_debug_snapshot()
+	var haptic_output_snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		feedback_snapshot,
+		"haptic_last_output_report"
+	)
+	assert_true(
+		haptic_output_snapshot == haptic_utility.get_last_output_report(),
+		"棋盘反馈诊断必须直接采用 GF 最近一次实际输出/拒绝终态。"
+	)
+	assert_gt(
+		GFVariantData.get_option_int(haptic_output_snapshot, "applied_count")
+		+ GFVariantData.get_option_int(haptic_output_snapshot, "rejected_count"),
+		0,
+		"实际触觉输出或 provider 拒绝必须在延迟诊断中可见。"
+	)
 	var energy_value: Variant = material.get_shader_parameter("interaction_energy")
 	assert_true(energy_value is float, "背景操作能量 uniform 应保持 float 类型。")
 	if energy_value is float:
