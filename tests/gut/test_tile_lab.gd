@@ -546,7 +546,6 @@ func _create_setup(
 		else GFStorageUtility.new()
 	)
 	storage.save_dir_name = "gut_tile_lab_%d" % Time.get_ticks_usec()
-	storage.allow_absolute_paths = false
 	storage.create_directories_for_nested_paths = true
 	storage.file_format = GFStorageCodec.Format.BINARY
 	storage.include_storage_metadata = true

@@ -369,7 +369,7 @@ func test_owned_async_route_passes_owner_and_optional_scope_to_gf() -> void:
 	)
 
 
-func test_route_panels_defer_initial_focus_until_after_gf_capture() -> void:
+func test_route_panels_apply_product_focus_after_gf_open_policy() -> void:
 	var route_panel_sources: Array[String] = [
 		"res://features/gameplay/scripts/ui/pause_menu.gd",
 		"res://features/gameplay/scripts/ui/game_over_menu.gd",
@@ -383,11 +383,11 @@ func test_route_panels_defer_initial_focus_until_after_gf_capture() -> void:
 		var ready_source: String = _get_function_source(source, "_ready")
 		assert_true(
 			ready_source.contains("call_deferred(&\"_focus_initial_control\")"),
-			"路由面板初始焦点必须延迟到 GF 捕获 previous focus 之后：%s。" % source_path
+			"路由面板的产品指定焦点应在 GF 通用 focus_on_open 策略之后应用：%s。" % source_path
 		)
 		assert_false(
 			ready_source.contains(".grab_focus()"),
-			"路由面板不得在同步 _ready 中破坏 GF restore_focus：%s。" % source_path
+			"路由面板不得在同步 _ready 中与 GF 通用焦点策略竞争：%s。" % source_path
 		)
 	var settings_source: String = FileAccess.get_file_as_string(
 		"res://features/settings/scripts/menus/settings_menu.gd"

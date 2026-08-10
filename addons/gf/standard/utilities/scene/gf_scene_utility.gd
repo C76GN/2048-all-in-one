@@ -756,6 +756,8 @@ func cancel_scene_preload(path: String) -> void:
 		return
 
 	var request: Dictionary = _get_preload_request(scene_path)
+	if _is_preload_request_cancelled(request):
+		return
 	request["cancelled"] = true
 	_cancel_secondary_auto_neighbor_leases(
 		request,
@@ -1463,13 +1465,14 @@ func _prepare_scene_map_after_switch(path: String) -> int:
 
 
 func _on_auto_neighbor_scene_changed(
-	scene_root: Node,
 	generation: int,
 	target_path: String
 ) -> void:
+	var scene_tree: SceneTree = _auto_neighbor_scene_tree
 	_disconnect_auto_neighbor_scene_changed()
 	if generation != _auto_neighbor_generation:
 		return
+	var scene_root: Node = scene_tree.current_scene if scene_tree != null else null
 	if not _scene_root_matches_target(scene_root, target_path):
 		_cancel_auto_neighbor_plan(&"unexpected_scene_changed")
 		return

@@ -92,8 +92,7 @@ func install(architecture: GFArchitecture, scope: GFAsyncScope) -> void:
 		var missing_storage_reason: String = (
 			"[GameArchitectureInstaller] gf.save 未提供 GFStorageUtility。"
 		)
-		# GF 11.0.0-dev.0 仅取消 Installer scope 时不会保证 installers-running
-		# 收敛；显式失败候选架构可让本轮启动确定终结并允许后续重试。
+		# 缺失必需扩展属于架构初始化失败；同时取消 scope，阻止后续安装写入。
 		architecture.fail_initialization(missing_storage_reason)
 		var _cancelled_missing_storage: bool = scope.cancel(
 			"project_storage_dependency_missing"
@@ -448,7 +447,6 @@ func _bind_gameplay_systems(binder: GFBinder, scope: GFAsyncScope) -> void:
 
 
 func _configure_storage_utility(storage: GFStorageUtility) -> void:
-	storage.allow_absolute_paths = false
 	storage.create_directories_for_nested_paths = true
 	storage.file_format = GFStorageCodec.Format.BINARY
 	storage.include_storage_metadata = true

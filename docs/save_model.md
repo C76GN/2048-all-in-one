@@ -79,12 +79,13 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 ## GF Profile Coordinator 迁移边界
 
-当前 vendored 开发版本已经提供 `GFSaveProfileTransactionCoordinator`，但项目暂不迁移。可用 API 不等于已满足本项目账号契约；`GameSaveGraphUtility` 目前仍拥有活动 Profile 身份、切换 gate、项目恢复决策、section 事务与对账证据，底层 generation、Storage I/O 和 Provider apply/rollback 继续由 `GFSaveProfileUtility` 拥有。暂缓迁移有两个已由源码确认的 blocker：
+当前 vendored 开发版本已经提供 `GFSaveProfileTransactionCoordinator`，但项目暂不迁移。可用 API 不等于已满足本项目账号契约；`GameSaveGraphUtility` 目前仍拥有活动 Profile 身份、切换 gate、项目恢复决策、section 事务与对账证据，底层 generation、Storage I/O 和 Provider apply/rollback 继续由 `GFSaveProfileUtility` 拥有。暂缓迁移仍有一个已由源码确认的 blocker：
 
 1. `activate_profile()` 在 domain 尚未激活时会为 missing/corrupt 目标返回 `GFSaveProfileRecoveryLease`，但 `switch_profile()` 的目标加载遇到相同状态时只返回 `GFSaveProfileTransactionResult.STATUS_TARGET_LOAD_FAILED`，不提供可继续 `bootstrap_profile()` / `adopt_profile()` 的 recovery lease。项目切换到新账号或需重建的目标档时，必须保持来源账号为活动真源，先按项目策略初始化默认 section，或备份并重建损坏/过时目标，再原子提交目标身份；不能把来源账号当前 Provider 状态直接写入目标而造成跨账号数据泄漏。
-2. `unregister_profile()` 要求整个共享 Provider domain 的 `active_profile_id` 为空，因此只要另一个账号仍处于活动状态，就无法注销同一 domain 中已经非活动的 Profile。项目需要在保持当前账号可玩的同时，为失败切换、账号删除和路径清理释放非活动 Profile 的 manager/path 所有权；不能通过停用整个 domain、为每个账号复制一套 Provider 实例或无限保留注册项规避该约束。
 
-只有上游同时满足以下边界后，才允许进行一次性切换：切换事务能为 missing/corrupt 目标返回与原事务、domain generation 和来源身份绑定的 recovery lease，恢复成功前来源身份与 section 状态不变；无在途事务、recovery/reconcile lease 或 detached 写的非活动 Profile 可以在同 domain 仍有活动身份时安全注销；outcome-unknown、rollback failure、quiesce 与 dispose 继续提供唯一 typed 终态并保持 Profile/path 所有权。迁移时 Coordinator 应统一接管 Profile 注册、活动身份、source flush、target load、recovery/reconcile lease 和 `mutate_and_persist()`；项目继续拥有本地账号目录、账号 ID 到路径映射、legacy 收养、旧档备份/重建策略及物理文件清理。不得让项目 transition gate 与 Coordinator 双重协调，也不得保留新旧两套运行时入口；注册、切换、section mutation、对账和关闭顺序必须在同一批改动与回归测试中整体切换。
+当前版本已经允许在共享 Provider domain 仍有另一个活动身份时安全注销目标非活动 Profile，前提是目标不是活动身份且 domain 没有在途事务或 recovery/reconcile lease；原注销 blocker 已解除。该修复只缩小了未来迁移范围，不授权把账号状态机拆成 Coordinator 与项目 transition gate 各管一半。
+
+只有上游补齐以下剩余边界后，才允许进行一次性切换：切换事务能为 missing/corrupt 目标返回与原事务、domain generation 和来源身份绑定的 recovery lease，恢复成功前来源身份与 section 状态不变；outcome-unknown、rollback failure、quiesce 与 dispose 继续提供唯一 typed 终态并保持 Profile/path 所有权。迁移验收仍必须覆盖同 domain 活动身份存在时注销无事务、无 recovery/reconcile lease、无 detached 写的非活动 Profile。迁移时 Coordinator 应统一接管 Profile 注册、活动身份、source flush、target load、recovery/reconcile lease 和 `mutate_and_persist()`；项目继续拥有本地账号目录、账号 ID 到路径映射、legacy 收养、旧档备份/重建策略及物理文件清理。不得让项目 transition gate 与 Coordinator 双重协调，也不得保留新旧两套运行时入口；注册、切换、section mutation、对账和关闭顺序必须在同一批改动与回归测试中整体切换。
 
 ## 事务语义
 

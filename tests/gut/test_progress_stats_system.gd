@@ -545,7 +545,6 @@ func _create_save_architecture(
 	)
 
 	storage.save_dir_name = save_dir_name if not save_dir_name.is_empty() else "gut_progress_stats_system_%d" % Time.get_ticks_usec()
-	storage.allow_absolute_paths = false
 	storage.create_directories_for_nested_paths = true
 	storage.file_format = GFStorageCodec.Format.BINARY
 	storage.include_storage_metadata = true

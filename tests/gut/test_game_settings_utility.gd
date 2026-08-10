@@ -664,7 +664,6 @@ func _write_raw_storage_file(
 func _make_storage(prefix: String) -> GFStorageUtility:
 	var storage: GFStorageUtility = GFStorageUtility.new()
 	storage.save_dir_name = "%s_%d" % [prefix, Time.get_ticks_usec()]
-	storage.allow_absolute_paths = false
 	storage.create_directories_for_nested_paths = true
 	storage.file_format = GFStorageCodec.Format.BINARY
 	storage.include_storage_metadata = true

@@ -736,7 +736,6 @@ func test_project_installer_configures_extension_owned_storage_instance() -> voi
 		storage,
 		"项目 Installer 必须配置 gf.save 已注册的同一 Storage 实例。"
 	)
-	assert_false(storage.allow_absolute_paths)
 	assert_true(storage.create_directories_for_nested_paths)
 	assert_true(storage.file_format == GFStorageCodec.Format.BINARY)
 	assert_true(storage.include_storage_metadata)

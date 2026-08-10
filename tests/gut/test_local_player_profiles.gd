@@ -1900,7 +1900,6 @@ func _create_setup(
 	storage.save_dir_name = "gut_local_profiles_%s" % (
 		GFUuid.generate_v4().replace("-", "")
 	)
-	storage.allow_absolute_paths = false
 	storage.create_directories_for_nested_paths = true
 	storage.file_format = GFStorageCodec.Format.BINARY
 	storage.include_storage_metadata = true

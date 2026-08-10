@@ -1010,12 +1010,12 @@ func _delete_inactive_profile_file_async(
 		return ERR_INVALID_PARAMETER
 	if _profile_cleanup_paths.has(canonical_name):
 		return ERR_BUSY
+	var base_path: String = _storage.get_storage_directory_path()
+	if base_path.is_empty():
+		return ERR_INVALID_PARAMETER
 	var release_error: Error = _release_profile_for_cleanup(canonical_name)
 	if release_error != OK:
 		return release_error
-	var base_path: String = "user://"
-	if not _storage.save_dir_name.is_empty():
-		base_path = base_path.path_join(_storage.save_dir_name)
 	var profile_path: String = ProjectSettings.globalize_path(
 		base_path.path_join(canonical_name)
 	)

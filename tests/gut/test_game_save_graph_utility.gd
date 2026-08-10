@@ -184,7 +184,6 @@ func test_architecture_shutdown_quiesces_and_flushes_latest_profile_generation()
 
 	var verifier: GFStorageUtility = GFStorageUtility.new()
 	verifier.save_dir_name = save_dir_name
-	verifier.allow_absolute_paths = false
 	verifier.create_directories_for_nested_paths = true
 	verifier.file_format = GFStorageCodec.Format.BINARY
 	verifier.include_storage_metadata = true
@@ -2577,7 +2576,6 @@ func _create_persistence_architecture(
 		if not save_dir_name.is_empty()
 		else "gut_save_graph_%s" % GFUuid.generate_v4().replace("-", "")
 	)
-	storage.allow_absolute_paths = false
 	storage.create_directories_for_nested_paths = true
 	storage.file_format = GFStorageCodec.Format.BINARY
 	storage.include_storage_metadata = true

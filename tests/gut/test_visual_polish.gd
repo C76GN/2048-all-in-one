@@ -250,6 +250,10 @@ func test_boot_scene_uses_startup_screen_and_gf_preload_progress() -> void:
 	assert_false(runtime_source.contains("StartupPanel"), "启动运行时不得用动态面板替换原生启动构图。")
 	assert_false(runtime_source.contains("_PROGRESS_SHADER"), "首帧进度不得依赖二次加载 shader 后才出现。")
 	assert_true(runtime_source.contains("configure_scene_preload_map"), "启动编排器应使用 GFScenePreloadMap 描述稳定场景流。")
+	assert_true(
+		runtime_source.contains("configure_scene_preload_map(_SCENE_PRELOAD_MAP, 1, true)"),
+		"启动编排器应启用 GF 修复后的场景切换相邻预载。"
+	)
 	assert_true(runtime_source.contains("preload_scene_map_for"), "启动编排器应通过 GFSceneUtility 预热入口场景的相邻页面。")
 	assert_true(runtime_source.contains("_prime_gameplay_visuals"), "启动编排器应在 GF 初始化后、静态遮罩下预绘制首轮反馈管线。")
 	assert_true(
