@@ -97,7 +97,7 @@ func record_screenshot(file_name: String) -> void:
 		)
 
 
-## 写入终态 manifest，并在声明成功但产物不完整时返回非零错误码。
+## 写入终态 manifest，并在声明成功但产物与固定计划不一致时返回非零错误码。
 func finalize(
 	exit_code: int,
 	terminal_message: String = "",
@@ -124,7 +124,10 @@ func finalize(
 			var _unexpected_appended: bool = unexpected.append(file_name)
 
 	var effective_exit_code: int = exit_code
-	if effective_exit_code == 0 and not missing.is_empty():
+	if (
+		effective_exit_code == 0
+		and (not missing.is_empty() or not unexpected.is_empty())
+	):
 		effective_exit_code = 65
 	var terminal_state: String = (
 		"completed" if effective_exit_code == 0 else "failed"

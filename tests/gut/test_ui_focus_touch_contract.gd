@@ -503,6 +503,7 @@ func test_player_profile_rows_update_in_place_by_stable_business_id() -> void:
 	dialog._leaderboard_group_option.clear()
 	dialog._leaderboard_group_option.add_item("旧账号榜单")
 	dialog._prepare_progress_snapshot_pending()
+	assert_false(dialog.is_content_ready())
 	assert_true(dialog._account_summary_label.text.is_empty())
 	assert_false(dialog._mode_list.visible)
 	assert_false(dialog._leaderboard_list.visible)
@@ -514,6 +515,11 @@ func test_player_profile_rows_update_in_place_by_stable_business_id() -> void:
 	assert_true(
 		mode_row_identity_preserved,
 		"撤下旧数据只隐藏父容器，不能破坏可复用行身份。"
+	)
+	dialog._apply_progress_snapshot_failure()
+	assert_true(
+		dialog.is_content_ready(),
+		"设备统计失败也必须收敛为可呈现的内容终态。"
 	)
 
 	var stale_completion: GFAsyncCompletion = GFAsyncCompletion.new()
@@ -532,6 +538,7 @@ func test_player_profile_rows_update_in_place_by_stable_business_id() -> void:
 		"旧 generation 的迟到账号快照不得恢复已撤下的数据。"
 	)
 
+	dialog._prepare_progress_snapshot_pending()
 	var loading_cancel_source: GFCancellationSource = GFCancellationSource.new()
 	dialog._progress_snapshot_generation = 10
 	dialog._progress_snapshot_completion = GFAsyncCompletion.new()

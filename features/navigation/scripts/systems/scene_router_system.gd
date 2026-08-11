@@ -9,7 +9,7 @@ extends GFSystem
 # --- 常量 ---
 
 const _LOG_TAG: String = "SceneRouterSystem"
-const _TRANSITION_MINIMUM_SECONDS: float = 0.30
+const _TRANSITION_MINIMUM_SECONDS: float = 0.0
 const _DEFAULT_TRANSITION_TIMEOUT_SECONDS: float = 5.0
 const _QUIT_SHUTDOWN_TIMEOUT_SECONDS: float = 10.0
 
@@ -27,6 +27,7 @@ var _accessibility: GameAccessibilityUtility
 var _platform_utility: GamePlatformUtility
 var _signal_utility: GFSignalUtility
 var _operation_diagnostics: GFOperationDiagnosticsUtility
+var _clock_utility: GameClockUtility
 var _scene_switch_started_connection: GFSignalConnection
 var _scene_switch_completed_connection: GFSignalConnection
 var _scene_switch_failed_connection: GFSignalConnection
@@ -42,6 +43,7 @@ var _quit_completion: GFAsyncCompletion = null
 
 func get_required_utilities() -> Array[Script]:
 	return [
+		GameClockUtility,
 		GameThemeUtility,
 		GameAccessibilityUtility,
 		GamePlatformUtility,
@@ -66,6 +68,7 @@ func ready() -> void:
 	_platform_utility = _get_platform_utility()
 	_signal_utility = _get_signal_utility()
 	_operation_diagnostics = _get_operation_diagnostics_utility()
+	_clock_utility = _get_clock_utility()
 	if not _has_required_dependencies():
 		return
 	_connect_scene_utility_signals()
@@ -89,6 +92,7 @@ func dispose() -> void:
 	_platform_utility = null
 	_signal_utility = null
 	_operation_diagnostics = null
+	_clock_utility = null
 	_log = null
 	_scene_switch_started_connection = null
 	_scene_switch_completed_connection = null
@@ -328,9 +332,11 @@ func _run_scene_change(request_id: int) -> void:
 	var request: _SceneChangeRequest = _get_scene_request(request_id)
 	if request == null:
 		return
+	var cover_started_usec: int = _get_monotonic_usec()
 	var cover_error: Error = _play_scene_transition_cover()
 	if cover_error == OK:
 		await _await_screen_transition()
+		_record_scene_change_phase(&"cover", cover_started_usec)
 	request = _get_scene_request(request_id)
 	if request == null:
 		return
@@ -428,6 +434,14 @@ func _get_operation_diagnostics_utility() -> GFOperationDiagnosticsUtility:
 	return null
 
 
+func _get_clock_utility() -> GameClockUtility:
+	var utility_value: Object = get_utility(GameClockUtility)
+	if utility_value is GameClockUtility:
+		var clock_utility: GameClockUtility = utility_value
+		return clock_utility
+	return null
+
+
 func _has_required_dependencies() -> bool:
 	var missing: PackedStringArray = PackedStringArray()
 	if not is_instance_valid(_scene_utility):
@@ -448,6 +462,8 @@ func _has_required_dependencies() -> bool:
 		var _diagnostics_appended: bool = missing.append(
 			"GFOperationDiagnosticsUtility"
 		)
+	if not is_instance_valid(_clock_utility):
+		var _clock_appended: bool = missing.append("GameClockUtility")
 	if missing.is_empty():
 		return true
 	push_error("[SceneRouterSystem] 缺少必需架构依赖：%s。" % ", ".join(missing))
@@ -770,7 +786,9 @@ func _complete_scene_change(
 		return
 	var tree: SceneTree = _get_scene_tree()
 	if success and is_instance_valid(tree):
+		var process_frame_started_usec: int = _get_monotonic_usec()
 		await tree.process_frame
+		_record_scene_change_phase(&"target_process_frame", process_frame_started_usec)
 		request = _get_scene_request(request_id)
 		if request == null:
 			return
@@ -778,14 +796,18 @@ func _complete_scene_change(
 			is_instance_valid(_platform_utility)
 			and not _platform_utility.is_headless_runtime()
 		):
+			var first_draw_started_usec: int = _get_monotonic_usec()
 			await RenderingServer.frame_post_draw
+			_record_scene_change_phase(&"target_first_post_draw", first_draw_started_usec)
 			request = _get_scene_request(request_id)
 			if request == null:
 				return
 
+	var reveal_started_usec: int = _get_monotonic_usec()
 	var reveal_error: Error = _play_scene_transition_reveal()
 	if reveal_error == OK:
 		await _await_screen_transition()
+		_record_scene_change_phase(&"reveal", reveal_started_usec)
 	request = _get_scene_request(request_id)
 	if request == null:
 		return
@@ -883,6 +905,7 @@ func _begin_scene_change_operation(path: String) -> void:
 		"component": &"scene_router",
 		"label": "Load scene",
 		"metadata": {"path": path},
+		"started_ticks_usec": _get_monotonic_usec(),
 	})
 
 
@@ -898,9 +921,44 @@ func _finish_scene_change_operation(success: bool, metadata: Dictionary = {}) ->
 		var _operation: Dictionary = _operation_diagnostics.finish_operation(
 			_scene_change_operation_id,
 			success,
-			{"metadata": metadata}
+			{
+				"ended_ticks_usec": _get_monotonic_usec(),
+				"metadata": metadata,
+			}
 		)
 	_scene_change_operation_id = &""
+
+
+func _record_scene_change_phase(phase_id: StringName, started_ticks_usec: int) -> void:
+	if (
+		_scene_change_operation_id == &""
+		or not is_instance_valid(_operation_diagnostics)
+	):
+		return
+	var ended_ticks_usec: int = _get_monotonic_usec()
+	var _phase: Dictionary = _operation_diagnostics.record_phase_from_ticks(
+		_scene_change_operation_id,
+		phase_id,
+		started_ticks_usec,
+		{
+			"component": &"scene_router",
+			"ended_ticks_usec": ended_ticks_usec,
+		}
+	)
+	var _sample: Dictionary = _operation_diagnostics.record_sample_from_ticks(
+		StringName("game.scene_change.%s" % phase_id),
+		started_ticks_usec,
+		{
+			"component": &"scene_router",
+			"ended_ticks_usec": ended_ticks_usec,
+		}
+	)
+
+
+func _get_monotonic_usec() -> int:
+	if not is_instance_valid(_clock_utility):
+		return 0
+	return _clock_utility.get_tick_usec()
 
 
 # --- 信号处理函数 ---
@@ -917,6 +975,7 @@ func _on_scene_switch_started(path: String, previous_path: String) -> void:
 	var request: _SceneChangeRequest = _get_scene_request_for_path(path)
 	if request == null:
 		return
+	request.switch_started_usec = _get_monotonic_usec()
 	if _scene_change_operation_id != &"" and is_instance_valid(_operation_diagnostics):
 		var _state: Dictionary = _operation_diagnostics.record_state_snapshot(
 			_scene_change_operation_id,
@@ -930,13 +989,17 @@ func _on_scene_switch_completed(path: String, _previous_path: String) -> void:
 	var request: _SceneChangeRequest = _get_scene_request_for_path(path)
 	if request == null:
 		return
-	var started_ticks_usec: int = _get_scene_change_started_usec()
+	request.switch_completed_usec = _get_monotonic_usec()
+	var started_ticks_usec: int = request.switch_started_usec
 	if started_ticks_usec > 0:
 		var _phase: Dictionary = _operation_diagnostics.record_phase_from_ticks(
 			_scene_change_operation_id,
 			&"load",
 			started_ticks_usec,
-			{"metadata": {"path": path}}
+			{
+				"ended_ticks_usec": request.switch_completed_usec,
+				"metadata": {"path": path},
+			}
 		)
 	_queue_scene_change_completion(request.request_id, true)
 
@@ -985,6 +1048,8 @@ class _SceneChangeRequest extends RefCounted:
 	var owner_lifetime: GFLifetimeSubscription = null
 	var accepted_by_scene_utility: bool = false
 	var completion_queued: bool = false
+	var switch_started_usec: int = 0
+	var switch_completed_usec: int = 0
 
 	func _init(next_request_id: int, target_path: String) -> void:
 		request_id = next_request_id

@@ -122,6 +122,33 @@ func test_missing_expected_screenshot_converts_success_to_failed_terminal() -> v
 	assert_true(GFVariantData.get_option_int(terminal, "exit_code", -1) == 65)
 
 
+func test_unexpected_screenshot_converts_success_to_failed_terminal() -> void:
+	var session: VisualCaptureArtifactSession = VisualCaptureArtifactSession.new(
+		"artifact_session_unexpected_test",
+		_OUTPUT_DIRECTORY,
+		[]
+	)
+	assert_true(session.begin())
+	assert_true(_write_text("unexpected.png", "unexpected capture"))
+	session.record_screenshot("unexpected.png")
+	assert_true(session.finalize(OK, "capture completed") == 65)
+	var manifest: Dictionary = _read_manifest()
+	assert_true(
+		GFVariantData.get_option_array(
+			manifest,
+			"unexpected_screenshots"
+		) == ["unexpected.png"]
+	)
+	var terminal: Dictionary = GFVariantData.get_option_dictionary(
+		manifest,
+		"terminal"
+	)
+	assert_true(
+		GFVariantData.get_option_string(terminal, "state") == "failed"
+	)
+	assert_true(GFVariantData.get_option_int(terminal, "exit_code", -1) == 65)
+
+
 func test_finalize_rejects_manifest_created_after_begin_without_overwriting_it() -> void:
 	var session: VisualCaptureArtifactSession = VisualCaptureArtifactSession.new(
 		"artifact_session_manifest_conflict_test",

@@ -200,14 +200,14 @@ func _ready() -> void:
 	_setup_form_binder()
 	_connect_volume_drag_signals()
 	var _connect_result_62: int = _back_button.pressed.connect(_on_back_button_pressed)
-	var _general_tab_connection: int = _general_tab_button.pressed.connect(
-		_set_active_section.bind(SettingsSection.GENERAL)
+	var _general_tab_connection: int = _general_tab_button.toggled.connect(
+		_on_section_button_toggled.bind(SettingsSection.GENERAL)
 	)
-	var _audio_tab_connection: int = _audio_tab_button.pressed.connect(
-		_set_active_section.bind(SettingsSection.AUDIO)
+	var _audio_tab_connection: int = _audio_tab_button.toggled.connect(
+		_on_section_button_toggled.bind(SettingsSection.AUDIO)
 	)
-	var _controls_tab_connection: int = _controls_tab_button.pressed.connect(
-		_set_active_section.bind(SettingsSection.CONTROLS)
+	var _controls_tab_connection: int = _controls_tab_button.toggled.connect(
+		_on_section_button_toggled.bind(SettingsSection.CONTROLS)
 	)
 	var _reset_connect_result: int = _reset_bindings_button.pressed.connect(
 		_on_reset_bindings_pressed
@@ -410,14 +410,41 @@ func _apply_field_widths() -> void:
 
 
 func _set_active_section(section: SettingsSection) -> void:
+	var section_button: Button = _get_section_button(section)
+	if not is_instance_valid(section_button):
+		return
+	if not section_button.button_pressed:
+		# 使用真实 toggle 终态，让 ButtonGroup、内容和动效 presenter 消费
+		# 同一条状态变化；toggled 回调会继续应用对应 section。
+		section_button.button_pressed = true
+		return
+	_apply_active_section(section)
+
+
+func _on_section_button_toggled(
+	pressed: bool,
+	section: SettingsSection
+) -> void:
+	if pressed:
+		_apply_active_section(section)
+
+
+func _get_section_button(section: SettingsSection) -> Button:
+	match section:
+		SettingsSection.AUDIO:
+			return _audio_tab_button
+		SettingsSection.CONTROLS:
+			return _controls_tab_button
+		_:
+			return _general_tab_button
+
+
+func _apply_active_section(section: SettingsSection) -> void:
 	var previous_section: SettingsSection = _active_section
 	_active_section = section
 	_general_section.visible = section == SettingsSection.GENERAL
 	_audio_section.visible = section == SettingsSection.AUDIO
 	_controls_section.visible = section == SettingsSection.CONTROLS
-	_general_tab_button.set_pressed_no_signal(section == SettingsSection.GENERAL)
-	_audio_tab_button.set_pressed_no_signal(section == SettingsSection.AUDIO)
-	_controls_tab_button.set_pressed_no_signal(section == SettingsSection.CONTROLS)
 	if is_instance_valid(_section_scroll):
 		_section_scroll.scroll_vertical = 0
 	match section:

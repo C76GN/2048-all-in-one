@@ -30,6 +30,10 @@ func get_unix_timestamp() -> int:
 	return _clock.get_unix_time_seconds()
 
 
+func get_tick_usec() -> int:
+	return _clock.get_monotonic_usec()
+
+
 func get_tick_msec() -> int:
 	return _clock.get_monotonic_msec()
 

@@ -215,7 +215,11 @@ func _apply_responsive_layout() -> void:
 	var compact: bool = _layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
 	var side_by_side: bool = _uses_side_by_side_layout(_layout_reference_size)
 	_set_page_scroll_enabled(not side_by_side)
-	var page_size_changed: bool = _update_items_per_page(_layout_reference_size)
+	var first_screen_budget_size: Vector2 = _resolve_first_screen_budget_size(
+		size,
+		_layout_reference_size
+	)
+	var page_size_changed: bool = _update_items_per_page(first_screen_budget_size)
 	var compact_horizontal_margins: float = (
 		32.0
 		if _layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
@@ -330,6 +334,28 @@ static func _resolve_physical_layout_size(
 		):
 			return Vector2(safe_area.size)
 	return Vector2(window_size)
+
+
+## 合并物理窗口断点与实际逻辑画布高度，得到首屏分页预算。
+##
+## 宽度继续使用物理安全区，保证 960×540 等 stretch 窗口按真实设备结构
+## 堆叠；高度取物理与逻辑画布的较小值，避免超宽窗口按 943px 物理高度
+## 物化五张卡，却在实际 720px 逻辑画布里被 CenterContainer 向上居中溢出。
+static func _resolve_first_screen_budget_size(
+	logical_size: Vector2,
+	physical_layout_size: Vector2
+) -> Vector2:
+	var budget_width: float = (
+		physical_layout_size.x
+		if physical_layout_size.x > 0.0
+		else logical_size.x
+	)
+	var budget_height: float = logical_size.y
+	if budget_height <= 0.0:
+		budget_height = physical_layout_size.y
+	elif physical_layout_size.y > 0.0:
+		budget_height = minf(budget_height, physical_layout_size.y)
+	return Vector2(maxf(budget_width, 0.0), maxf(budget_height, 0.0))
 
 
 func _restore_focus_after_responsive_layout(focused_control: Control) -> void:

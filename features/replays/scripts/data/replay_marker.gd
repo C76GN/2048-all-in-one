@@ -57,7 +57,7 @@ static func build_catalog(
 
 	var previous_score: int = 0
 	var previous_target_reached: bool = false
-	for index: int in range(replay_data.checkpoints.size()):
+	for index: int in range(_get_bounded_checkpoint_count(replay_data)):
 		var checkpoint: ReplayCheckpoint = replay_data.checkpoints[index]
 		if not is_instance_valid(checkpoint):
 			continue
@@ -69,18 +69,18 @@ static func build_catalog(
 		if not checkpoint.metadata_available:
 			previous_score = checkpoint.score
 			continue
+		var kind_mask: int = _get_checkpoint_kind_mask(
+			checkpoint,
+			previous_target_reached
+		)
 
-		if turn_merge_count > 0:
+		if _kind_mask_has(kind_mask, Kind.MERGE):
 			var merge_marker: ReplayMarker = _make_marker(Kind.MERGE, marker_step)
 			merge_marker.score_delta = turn_score_delta
 			merge_marker.merge_count = turn_merge_count
 			result.append(merge_marker)
 
-		if (
-			turn_merge_count > 1
-			or turn_transform_count > 0
-			or turn_ratio_resolution_count > 0
-		):
+		if _kind_mask_has(kind_mask, Kind.CHAIN_OR_TRANSFORM):
 			var chain_marker: ReplayMarker = _make_marker(
 				Kind.CHAIN_OR_TRANSFORM,
 				marker_step
@@ -90,7 +90,7 @@ static func build_catalog(
 			chain_marker.ratio_resolution_count = turn_ratio_resolution_count
 			result.append(chain_marker)
 
-		if checkpoint.target_reached and not previous_target_reached:
+		if _kind_mask_has(kind_mask, Kind.MILESTONE):
 			var target_marker: ReplayMarker = _make_marker(
 				Kind.MILESTONE,
 				marker_step
@@ -101,10 +101,10 @@ static func build_catalog(
 
 		previous_score = checkpoint.score
 
-	if not replay_data.actions.is_empty():
+	if _has_failure_marker(replay_data):
 		result.append(_make_marker(Kind.FAILURE, replay_data.actions.size()))
 
-	if not oos_report.is_empty():
+	if _has_oos_marker(oos_report):
 		var oos_step: int = clampi(
 			GFVariantData.get_option_int(oos_report, &"step_index", 0),
 			0,
@@ -116,6 +116,59 @@ static func build_catalog(
 
 	result.sort_custom(_sort_markers)
 	return _deduplicate(result)
+
+
+## 以与 build_catalog 相同的分类规则统计标记，但不构造 ReplayMarker 对象。
+##
+## 扫描最多 ReplayData.MAX_STEP_COUNT 个 checkpoint；返回值中的 key_events
+## 与列表语义一致，只包含连锁/变换、首次里程碑与终局失败。
+## @param replay_data: 已通过严格校验的当前回放数据。
+## @param oos_report: 可选的首个回放偏离诊断报告，只计入 total。
+static func summarize_counts(
+	replay_data: ReplayData,
+	oos_report: Dictionary = {}
+) -> Dictionary:
+	var total_count: int = 0
+	var summarized_merge_count: int = 0
+	var key_event_count: int = 0
+	if not is_instance_valid(replay_data):
+		return {
+			&"total": total_count,
+			&"merges": summarized_merge_count,
+			&"key_events": key_event_count,
+		}
+	var previous_target_reached: bool = false
+	for index: int in range(_get_bounded_checkpoint_count(replay_data)):
+		var checkpoint: ReplayCheckpoint = replay_data.checkpoints[index]
+		if not is_instance_valid(checkpoint):
+			continue
+		if not checkpoint.metadata_available:
+			continue
+		var kind_mask: int = _get_checkpoint_kind_mask(
+			checkpoint,
+			previous_target_reached
+		)
+		if _kind_mask_has(kind_mask, Kind.MERGE):
+			total_count += 1
+			summarized_merge_count += 1
+		if _kind_mask_has(kind_mask, Kind.CHAIN_OR_TRANSFORM):
+			total_count += 1
+			key_event_count += 1
+		if _kind_mask_has(kind_mask, Kind.MILESTONE):
+			total_count += 1
+			key_event_count += 1
+		previous_target_reached = checkpoint.target_reached
+
+	if _has_failure_marker(replay_data):
+		total_count += 1
+		key_event_count += 1
+	if _has_oos_marker(oos_report):
+		total_count += 1
+	return {
+		&"total": total_count,
+		&"merges": summarized_merge_count,
+		&"key_events": key_event_count,
+	}
 
 
 ## 统计标记目录中指定类型的条目数量。
@@ -130,6 +183,40 @@ static func count_by_kind(markers: Array[ReplayMarker], marker_kind: Kind) -> in
 
 
 # --- 私有/辅助方法 ---
+
+static func _get_bounded_checkpoint_count(replay_data: ReplayData) -> int:
+	return mini(replay_data.checkpoints.size(), ReplayData.MAX_STEP_COUNT)
+
+
+static func _get_checkpoint_kind_mask(
+	checkpoint: ReplayCheckpoint,
+	previous_target_reached: bool
+) -> int:
+	var result: int = 0
+	if checkpoint.merge_count > 0:
+		result |= 1 << Kind.MERGE
+	if (
+		checkpoint.merge_count > 1
+		or checkpoint.transform_count > 0
+		or checkpoint.ratio_resolution_count > 0
+	):
+		result |= 1 << Kind.CHAIN_OR_TRANSFORM
+	if checkpoint.target_reached and not previous_target_reached:
+		result |= 1 << Kind.MILESTONE
+	return result
+
+
+static func _kind_mask_has(kind_mask: int, marker_kind: Kind) -> bool:
+	return (kind_mask & (1 << marker_kind)) != 0
+
+
+static func _has_failure_marker(replay_data: ReplayData) -> bool:
+	return not replay_data.actions.is_empty()
+
+
+static func _has_oos_marker(oos_report: Dictionary) -> bool:
+	return not oos_report.is_empty()
+
 
 static func _make_marker(marker_kind: Kind, marker_step: int) -> ReplayMarker:
 	return ReplayMarker.new(

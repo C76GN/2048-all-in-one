@@ -19,6 +19,11 @@ const _MARKER_SUMMARY_FORMAT_FALLBACK: String = "%d markers · %d merges · %d k
 @export var item_scene: PackedScene
 
 
+# --- 私有变量 ---
+
+var _marker_summary_by_replay_id: Dictionary = {}
+
+
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
@@ -39,6 +44,7 @@ func _ready() -> void:
 # --- 虚方法覆写 ---
 
 func _get_data_list() -> Array:
+	_marker_summary_by_replay_id.clear()
 	var replay_system: ReplaySystem = _get_replay_system()
 	var replays: Array[ReplayData] = []
 	if is_instance_valid(replay_system):
@@ -62,7 +68,12 @@ func _setup_item(item: Control, data: Resource) -> void:
 
 	var replay_item: ReplayListItem = item
 	var replay_data: ReplayData = data
-	replay_item.setup(replay_data, _get_mode_display_name(replay_data.mode_config_path))
+	var marker_summary: Dictionary = _get_marker_summary(replay_data)
+	replay_item.setup(
+		replay_data,
+		_get_mode_display_name(replay_data.mode_config_path),
+		GFVariantData.get_option_int(marker_summary, &"total")
+	)
 
 
 func _update_preview(data: Resource) -> void:
@@ -96,19 +107,17 @@ func _update_preview(data: Resource) -> void:
 		tr("LABEL_TOTAL_MOVES"),
 		replay.actions.size(),
 	]
-	var markers: Array[ReplayMarker] = ReplayMarker.build_catalog(replay)
-	var merge_markers: int = ReplayMarker.count_by_kind(markers, ReplayMarker.Kind.MERGE)
-	var key_event_markers: int = (
-		ReplayMarker.count_by_kind(markers, ReplayMarker.Kind.CHAIN_OR_TRANSFORM)
-		+ ReplayMarker.count_by_kind(markers, ReplayMarker.Kind.MILESTONE)
-		+ ReplayMarker.count_by_kind(markers, ReplayMarker.Kind.FAILURE)
-	)
+	var marker_summary: Dictionary = _get_marker_summary(replay)
 	details += "[b]%s[/b] %s\n" % [
 		tr("LABEL_REPLAY_MARKERS"),
 		GameTextFormatUtility.format_template(
 			tr("REPLAY_MARKER_SUMMARY_FORMAT"),
 			_MARKER_SUMMARY_FORMAT_FALLBACK,
-			[markers.size(), merge_markers, key_event_markers]
+			[
+				GFVariantData.get_option_int(marker_summary, &"total"),
+				GFVariantData.get_option_int(marker_summary, &"merges"),
+				GFVariantData.get_option_int(marker_summary, &"key_events"),
+			]
 		),
 	]
 	details += "[b]%s[/b] %d" % [tr("LABEL_SEED"), replay.initial_seed]
@@ -182,6 +191,20 @@ func _get_mode_display_name(mode_config_path: String) -> String:
 		return tr(mode_config.mode_name)
 
 	return tr("CONFIG_MISSING")
+
+
+func _get_marker_summary(replay: ReplayData) -> Dictionary:
+	if not is_instance_valid(replay) or replay.replay_id.is_empty():
+		return {}
+	var cached_value: Variant = _marker_summary_by_replay_id.get(
+		replay.replay_id
+	)
+	if cached_value is Dictionary:
+		var cached_summary: Dictionary = cached_value
+		return cached_summary
+	var summary: Dictionary = ReplayMarker.summarize_counts(replay)
+	_marker_summary_by_replay_id[replay.replay_id] = summary
+	return summary
 
 
 func _get_app_config_model() -> AppConfigModel:

@@ -505,6 +505,43 @@ func test_bookmark_immutable_candidate_can_be_handed_off_once() -> void:
 	)
 
 
+func test_apply_section_moves_its_isolated_payload_into_provider_once() -> void:
+	var provider: _ApplyOwnershipProbeSaveData = (
+		_ApplyOwnershipProbeSaveData.new()
+	)
+	var source_nested: Dictionary = {&"value": 7}
+	var source_payload: Dictionary = {&"nested": source_nested}
+	var section: GFSaveSection = provider.make_section(source_payload)
+	source_nested[&"value"] = 99
+
+	assert_true(provider.apply_section(section) == OK)
+	assert_true(
+		provider.boundary_and_replace_share_root,
+		(
+			"GFSaveSection.get_payload() 已返回隔离副本，provider 应接管同一根，"
+			+ "不得在边界校验后再深复制一次。"
+		)
+	)
+	var exposed_payload: Dictionary = GFVariantData.as_dictionary(
+		section.get_payload()
+	)
+	var exposed_nested: Dictionary = GFVariantData.get_option_dictionary(
+		exposed_payload,
+		&"nested"
+	)
+	exposed_nested[&"value"] = 123
+	assert_true(
+		GFVariantData.get_option_int(
+			GFVariantData.get_option_dictionary(
+				provider.get_section_data(),
+				&"nested"
+			),
+			&"value"
+		) == 7,
+		"接管 get_payload() 的结果后仍必须与原 section 及调用方 payload 隔离。"
+	)
+
+
 func test_bookmark_transaction_rollback_candidate_freezes_old_root() -> void:
 	var provider: BookmarkCatalogSaveData = BookmarkCatalogSaveData.new()
 	var old_bookmark: BookmarkData = _make_bookmark(930)
@@ -790,3 +827,41 @@ func _make_custom_board(index: int) -> CustomBoardData:
 		CustomBoardData.get_topology_id(board.custom_board_id)
 	)
 	return board
+
+
+# --- 内部类 ---
+
+class _ApplyOwnershipProbeSaveData extends GameSaveSectionData:
+	var boundary_and_replace_share_root: bool = false
+	var _boundary_candidate: Dictionary = {}
+	var _payload: Dictionary = {&"nested": {&"value": 0}}
+
+	func _init() -> void:
+		section_id = &"ownership_probe"
+		schema_version = 1
+
+	func _gather_section_data() -> Dictionary:
+		return _payload
+
+	func _validate_section_data_boundary(data: Dictionary) -> Error:
+		_boundary_candidate = data
+		if data.size() != 1:
+			return ERR_INVALID_DATA
+		var nested_value: Variant = GFVariantData.get_option_value(
+			data,
+			&"nested"
+		)
+		if not nested_value is Dictionary:
+			return ERR_INVALID_DATA
+		var nested: Dictionary = nested_value
+		return (
+			OK
+			if nested.size() == 1
+			and GFVariantData.get_option_value(nested, &"value") is int
+			else ERR_INVALID_DATA
+		)
+
+	func _replace_section_data(data: Dictionary) -> Error:
+		boundary_and_replace_share_root = is_same(_boundary_candidate, data)
+		_payload = data
+		return OK

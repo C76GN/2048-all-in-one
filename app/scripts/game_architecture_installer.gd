@@ -8,6 +8,7 @@ extends GFInstaller
 const _VERBOSE_LOGGING_FEATURE: String = "verbose_logging"
 const _DEV_TOOLS_FEATURE: String = "with_dev_tools"
 const _PLATFORM_SMOKE_FEATURE: String = "platform_smoke"
+const _PERFORMANCE_TIMING_META: StringName = &"game_architecture_installer_timing"
 const _DEV_TOOLS_INSTALLER_PATH: String = (
 	"res://features/diagnostics/scripts/installers/game_diagnostics_installer.gd"
 )
@@ -59,6 +60,8 @@ const _GAME_PLATFORM_UTILITY_SCRIPT: Script = preload("res://features/platform_r
 # --- 私有变量 ---
 
 var _clock: GFClock = GFClock.new()
+var _architecture: GFArchitecture = null
+var _installation_timing: Dictionary = {}
 
 
 # --- 公共方法 ---
@@ -70,6 +73,10 @@ var _clock: GFClock = GFClock.new()
 ## @param architecture: GF 尚未发布的候选架构。
 ## @param scope: 本轮安装的协作取消作用域。
 func install(architecture: GFArchitecture, scope: GFAsyncScope) -> void:
+	_architecture = architecture
+	_installation_timing = {
+		"project_install_started_usec": _clock.get_monotonic_usec(),
+	}
 	if architecture == null or scope == null:
 		var invalid_reason: String = (
 			"[GameArchitectureInstaller] install 失败：候选架构或 scope 为空。"
@@ -100,12 +107,14 @@ func install(architecture: GFArchitecture, scope: GFAsyncScope) -> void:
 		return
 	var storage: GFStorageUtility = storage_value
 	_configure_storage_utility(storage)
+	_record_installation_segment(&"configure_storage", _get_install_started_usec())
 
 
 ## 使用声明式 Binder 注册项目级 Model、Utility 和 System。
 ## @param binder: GF 传入的绑定器实例。
 ## @param scope: GF 为本次安装创建的可取消异步作用域。
 func install_bindings(binder: Variant, scope: GFAsyncScope) -> void:
+	var bindings_started_usec: int = _clock.get_monotonic_usec()
 	if not binder is GFBinder:
 		push_error("[GameArchitectureInstaller] install_bindings 失败：binder 为空或类型错误。")
 		return
@@ -116,15 +125,24 @@ func install_bindings(binder: Variant, scope: GFAsyncScope) -> void:
 		return
 	var gf_binder: GFBinder = binder
 
+	var models_started_usec: int = _clock.get_monotonic_usec()
 	await _bind_models(gf_binder, scope)
 	if scope.is_cancel_requested():
 		return
+	_record_installation_segment(&"models", models_started_usec)
+	var utilities_started_usec: int = _clock.get_monotonic_usec()
 	await _bind_utilities(gf_binder, scope)
 	if scope.is_cancel_requested():
 		return
+	_record_installation_segment(&"utilities", utilities_started_usec)
+	var systems_started_usec: int = _clock.get_monotonic_usec()
 	await _bind_systems(gf_binder, scope)
 	if scope.is_cancel_requested():
 		return
+	_record_installation_segment(&"systems", systems_started_usec)
+	_record_installation_segment(&"bindings", bindings_started_usec)
+	_installation_timing["project_install_finished_usec"] = _clock.get_monotonic_usec()
+	_publish_installation_timing()
 
 
 # --- 私有/辅助方法 ---
@@ -145,18 +163,26 @@ func _bind_models(binder: GFBinder, scope: GFAsyncScope) -> void:
 
 
 func _bind_utilities(binder: GFBinder, scope: GFAsyncScope) -> void:
+	var foundation_started_usec: int = _clock.get_monotonic_usec()
 	await _bind_runtime_foundation_utilities(binder, scope)
 	if scope.is_cancel_requested():
 		return
+	_record_installation_segment(&"utilities_foundation", foundation_started_usec)
+	var content_started_usec: int = _clock.get_monotonic_usec()
 	await _bind_content_and_gameplay_utilities(binder, scope)
 	if scope.is_cancel_requested():
 		return
+	_record_installation_segment(&"utilities_content_gameplay", content_started_usec)
+	var presentation_started_usec: int = _clock.get_monotonic_usec()
 	await _bind_presentation_utilities(binder, scope)
 	if scope.is_cancel_requested():
 		return
+	_record_installation_segment(&"utilities_presentation", presentation_started_usec)
+	var input_started_usec: int = _clock.get_monotonic_usec()
 	await _bind_input_and_platform_utilities(binder, scope)
 	if scope.is_cancel_requested():
 		return
+	_record_installation_segment(&"utilities_input_platform", input_started_usec)
 
 	if _are_dev_tools_enabled():
 		await _install_dev_tools(binder, scope)
@@ -372,15 +398,21 @@ func _bind_input_and_platform_utilities(binder: GFBinder, scope: GFAsyncScope) -
 
 
 func _bind_systems(binder: GFBinder, scope: GFAsyncScope) -> void:
+	var navigation_started_usec: int = _clock.get_monotonic_usec()
 	await _bind_state_and_navigation_systems(binder, scope)
 	if scope.is_cancel_requested():
 		return
+	_record_installation_segment(&"systems_navigation", navigation_started_usec)
+	var progression_started_usec: int = _clock.get_monotonic_usec()
 	await _bind_progression_systems(binder, scope)
 	if scope.is_cancel_requested():
 		return
+	_record_installation_segment(&"systems_progression", progression_started_usec)
+	var gameplay_started_usec: int = _clock.get_monotonic_usec()
 	await _bind_gameplay_systems(binder, scope)
 	if scope.is_cancel_requested():
 		return
+	_record_installation_segment(&"systems_gameplay", gameplay_started_usec)
 
 
 func _bind_state_and_navigation_systems(binder: GFBinder, scope: GFAsyncScope) -> void:
@@ -452,6 +484,31 @@ func _configure_storage_utility(storage: GFStorageUtility) -> void:
 	storage.include_storage_metadata = true
 	storage.use_integrity_checksum = true
 	storage.save_version = 1
+
+
+func _get_install_started_usec() -> int:
+	return GFVariantData.get_option_int(
+		_installation_timing,
+		"project_install_started_usec",
+		_clock.get_monotonic_usec()
+	)
+
+
+func _record_installation_segment(segment_id: StringName, started_usec: int) -> void:
+	if started_usec < 0:
+		return
+	_installation_timing[String(segment_id)] = (
+		float(_clock.get_monotonic_usec() - started_usec) / 1000.0
+	)
+
+
+func _publish_installation_timing() -> void:
+	if not is_instance_valid(_architecture):
+		return
+	_architecture.set_meta(
+		_PERFORMANCE_TIMING_META,
+		_installation_timing.duplicate(true)
+	)
 
 
 func _create_time_utility() -> GFTimeUtility:

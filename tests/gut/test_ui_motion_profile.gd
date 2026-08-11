@@ -66,6 +66,75 @@ func test_default_profile_exposes_existing_and_forward_semantic_presets() -> voi
 		),
 		"结果揭示应比普通内容切换更有重量。"
 	)
+	assert_between(
+		_HALFTONE_MOTION_PROFILE.piece_assembly_duration,
+		0.18,
+		0.22,
+		"纸片组装应在一次短促交接内完成。"
+	)
+	assert_lte(
+		_HALFTONE_MOTION_PROFILE.piece_assembly_stagger,
+		0.018,
+		"格子错峰不得形成长瀑布演出。"
+	)
+	assert_lte(
+		absf(_HALFTONE_MOTION_PROFILE.piece_assembly_start_rotation),
+		0.015,
+		"格子组装只允许轻微角度扰动。"
+	)
+
+
+func test_piece_assembly_keeps_a_visible_first_frame_and_settles_cleanly() -> void:
+	var host: Control = Control.new()
+	var first: Control = Control.new()
+	var second: Control = Control.new()
+	first.size = Vector2(100.0, 100.0)
+	second.size = Vector2(100.0, 100.0)
+	host.add_child(first)
+	host.add_child(second)
+	add_child_autoqfree(host)
+	await get_tree().process_frame
+
+	var motion: GameUiMotionUtility = GameUiMotionUtility.new()
+	assert_true(motion.apply_profile(_HALFTONE_MOTION_PROFILE))
+	var pieces: Array[Control] = [first, second]
+	assert_true(motion.play_piece_assembly(pieces, 0.014, 0.14) == 2)
+	assert_gt(first.modulate.a, 0.0, "首块应提供可见脚点，首个揭示帧不能全空。")
+	assert_almost_eq(second.modulate.a, 0.0, 0.001)
+	assert_true(first.scale.x < 1.0 and second.scale.x < 1.0)
+	assert_lte(absf(first.rotation), 0.015)
+
+	motion.complete_children_motion(host)
+	for piece: Control in pieces:
+		assert_true(piece.scale.is_equal_approx(Vector2.ONE))
+		assert_true(piece.modulate.is_equal_approx(Color.WHITE))
+		assert_almost_eq(piece.rotation, 0.0, 0.001)
+
+
+func test_piece_assembly_reduced_motion_is_an_immediate_static_terminal() -> void:
+	var host: Control = Control.new()
+	var first: Control = Control.new()
+	var second: Control = Control.new()
+	host.add_child(first)
+	host.add_child(second)
+	add_child_autoqfree(host)
+	await get_tree().process_frame
+
+	var accessibility: GameAccessibilityUtility = GameAccessibilityUtility.new()
+	var accessibility_state: GameAccessibilityState = GameAccessibilityState.new()
+	accessibility_state.reduced_motion = true
+	accessibility.set("_state", accessibility_state)
+	var motion: GameUiMotionUtility = GameUiMotionUtility.new()
+	motion.set("_accessibility", accessibility)
+	assert_true(motion.apply_profile(_HALFTONE_MOTION_PROFILE))
+	var pieces: Array[Control] = [first, second]
+	assert_true(motion.play_piece_assembly(pieces, 0.014, 0.14) == 2)
+
+	for piece: Control in pieces:
+		assert_true(piece.scale.is_equal_approx(Vector2.ONE))
+		assert_true(piece.modulate.is_equal_approx(Color.WHITE))
+		assert_almost_eq(piece.rotation, 0.0, 0.001)
+		assert_false(piece.has_meta(&"_game_ui_motion_control_tween"))
 
 
 func test_utility_uses_applied_profile_for_panel_reveal() -> void:

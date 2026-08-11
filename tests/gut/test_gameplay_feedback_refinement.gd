@@ -110,6 +110,104 @@ func test_merge_feedback_keeps_the_emphasis_channels() -> void:
 	architecture.dispose()
 
 
+func test_merge_feedback_hierarchy_reserves_large_board_motion_for_records() -> void:
+	var merge_recipe: GameFeedbackRecipe = _PROFILE.turn_merge_recipe
+	var high_merge_recipe: GameFeedbackRecipe = _PROFILE.high_merge_recipe
+	var record_recipe: GameFeedbackRecipe = _PROFILE.record_recipe
+
+	assert_between(
+		merge_recipe.root_rotation_degrees,
+		0.5,
+		1.0,
+		"普通合并的整盘旋转应只作为轻量确认。"
+	)
+	assert_between(
+		merge_recipe.edge_fragment_count,
+		0,
+		3,
+		"普通合并只允许少量边缘纸片。"
+	)
+	assert_between(
+		high_merge_recipe.root_rotation_degrees,
+		1.0,
+		2.0,
+		"高价值合并仍应保持在克制的整盘运动范围。"
+	)
+	assert_between(
+		high_merge_recipe.edge_fragment_count,
+		4,
+		6,
+		"高价值合并应使用可辨识但有界的纸片数量。"
+	)
+	assert_between(
+		record_recipe.root_rotation_degrees,
+		4.0,
+		5.0,
+		"明显的整盘旋转只保留给破纪录等稀有事件。"
+	)
+
+	var feedback: GameBoardFeedbackUtility = GameBoardFeedbackUtility.new()
+	assert_true(
+		feedback.classify_turn(2, 128, 256)
+		== GameBoardFeedbackUtility.FeedbackTier.MERGE,
+		"常见的连续合并不得过早升级为高价值演出。"
+	)
+	assert_true(
+		feedback.classify_turn(3, 128, 256)
+		== GameBoardFeedbackUtility.FeedbackTier.HIGH_MERGE
+	)
+	assert_true(
+		feedback.classify_turn(1, 256, 256)
+		== GameBoardFeedbackUtility.FeedbackTier.HIGH_MERGE
+	)
+	assert_true(
+		feedback.classify_turn(1, 128, 512)
+		== GameBoardFeedbackUtility.FeedbackTier.HIGH_MERGE
+	)
+
+
+func test_reduced_motion_merge_commits_a_static_board_terminal() -> void:
+	var setup: Dictionary = await _make_feedback_architecture()
+	var architecture: GFArchitecture = setup[&"architecture"]
+	var feedback: GameBoardFeedbackUtility = setup[&"feedback"]
+	var shake: GFShakeUtility = setup[&"shake"]
+	var accessibility: GameAccessibilityUtility = setup[&"accessibility"]
+	assert_true(feedback.apply_profile(_PROFILE))
+	accessibility.set_reduced_motion(true)
+
+	var root: Node2D = Node2D.new()
+	root.position = Vector2(120.0, 80.0)
+	root.set_meta(&"feedback_base_position", root.position)
+	add_child_autoqfree(root)
+	var canvas: BoardFeedbackCanvas = BoardFeedbackCanvas.new()
+	root.add_child(canvas)
+	var backdrop: BoardMotionBackdrop = BoardMotionBackdrop.new()
+	backdrop.set_board_size(Vector2(400.0, 400.0))
+	root.add_child(backdrop)
+	await get_tree().process_frame
+
+	var fragment_count: int = feedback.play_turn_feedback(
+		root,
+		canvas,
+		null,
+		Vector2i.RIGHT,
+		GameBoardFeedbackUtility.FeedbackTier.HIGH_MERGE,
+		Rect2(Vector2.ZERO, Vector2(400.0, 400.0)),
+		Color.WHITE,
+		backdrop
+	)
+
+	assert_true(fragment_count == 0)
+	assert_true(root.position.is_equal_approx(Vector2(120.0, 80.0)))
+	assert_true(root.scale.is_equal_approx(Vector2.ONE))
+	assert_almost_eq(root.rotation_degrees, 0.0, 0.001)
+	assert_true(canvas._turn_duration == 0.0, "减少动态不得启动边缘冲击时序。")
+	assert_true(backdrop._duration == 0.0, "减少动态不得启动后层纸片时序。")
+	assert_true(shake.get_active_shake_count(&"board") == 0)
+
+	architecture.dispose()
+
+
 func test_feedback_rail_uses_priority_and_interruptible_motion() -> void:
 	var surface: Dictionary = await _make_feedback_surface()
 	var hud: Hud = surface[&"hud"]
@@ -388,6 +486,7 @@ func _make_feedback_architecture() -> Dictionary:
 		&"architecture": architecture,
 		&"feedback": feedback,
 		&"shake": shake,
+		&"accessibility": accessibility,
 	}
 
 

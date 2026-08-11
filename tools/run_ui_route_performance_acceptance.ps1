@@ -15,6 +15,10 @@ $invokerPath = Join-Path $resolvedProjectRoot (
 	"tools\invoke_godot_project_tool.ps1"
 )
 
+if (Test-Path -LiteralPath $reportPath -PathType Leaf) {
+	Remove-Item -LiteralPath $reportPath -Force
+}
+
 & powershell `
 	-ExecutionPolicy Bypass `
 	-File $invokerPath `
@@ -36,8 +40,10 @@ $report = Get-Content -LiteralPath $reportPath -Raw -Encoding UTF8 |
 	ConvertFrom-Json
 $summary = $report.summary
 Write-Host (
-	"UI route performance: passed={0}, ui={1}/{2} failed, scene={3}/{4} failed, preload={5}/{6} failed" -f
+	"UI route performance: passed={0}, boot={1}/{2} failed, ui={3}/{4} failed, scene={5}/{6} failed, preload={7}/{8} failed" -f
 	[bool]$report.passed,
+	[int]$summary.boot_failure_count,
+	[int]$summary.boot_count,
 	[int]$summary.ui_route_failure_count,
 	[int]$summary.ui_route_count,
 	[int]$summary.scene_route_failure_count,

@@ -14,6 +14,9 @@ const _PROJECT_OVERLAY_PANEL_ID: StringName = &"game.project_diagnostics"
 const _RUNTIME_OVERLAY_TARGET_ID: StringName = &"game.debug_overlay"
 const _RUNTIME_SCREENSHOT_TARGET_ID: StringName = &"game.screenshots"
 const _MAX_SCENE_METADATA_NODES: int = 256
+const _RUNTIME_LOADING_PROVIDER_ID: StringName = &"runtime_loading"
+const _MAX_RUNTIME_LOADING_PATHS: int = 32
+const _RUNTIME_LOADING_MAX_DURATION_USEC: int = 50_000
 
 
 # --- 私有变量 ---
@@ -32,6 +35,9 @@ var _runtime_inspector_utility: GFRuntimeInspectorUtility
 var _screenshot_utility: GFScreenshotUtility
 var _performance_trace_utility: GamePerformanceTraceUtility
 var _input_mapping_utility: GFInputMappingUtility
+var _asset_utility: GFAssetUtility
+var _scene_utility: GFSceneUtility
+var _render_warmup_utility: GFRenderWarmupUtility
 var _command_subscriptions: Array[GFLifetimeSubscription] = []
 var _diagnostic_providers: Dictionary = {}
 
@@ -52,12 +58,15 @@ func get_required_utilities() -> Array[Script]:
 		GameUiRouterUtility,
 		TileCatalogUtility,
 		GFConsoleUtility,
+		GFAssetUtility,
 		GFAssetMetadataUtility,
 		GFDebugOverlayUtility,
 		GFDiagnosticsUtility,
 		GFLogUtility,
 		GFInputMappingUtility,
+		GFRenderWarmupUtility,
 		GFRuntimeInspectorUtility,
+		GFSceneUtility,
 		GFScreenshotUtility,
 		GFSupportReportUtility,
 		ProjectResourceCatalogUtility,
@@ -80,6 +89,9 @@ func ready() -> void:
 	_screenshot_utility = _get_screenshot_utility()
 	_performance_trace_utility = _get_performance_trace_utility()
 	_input_mapping_utility = _get_input_mapping_utility()
+	_asset_utility = _get_asset_utility()
+	_scene_utility = _get_scene_utility()
+	_render_warmup_utility = _get_render_warmup_utility()
 	_register_console_commands()
 	_configure_runtime_debug_tools()
 	_refresh_project_tool_snapshots()
@@ -132,6 +144,9 @@ func dispose() -> void:
 	_screenshot_utility = null
 	_performance_trace_utility = null
 	_input_mapping_utility = null
+	_asset_utility = null
+	_scene_utility = null
+	_render_warmup_utility = null
 
 
 # --- 公共方法 ---
@@ -203,6 +218,8 @@ func collect_diagnostic_snapshot(provider_id: StringName) -> Dictionary:
 			return _collect_gameplay_move_trace_snapshot()
 		&"virtual_inputs":
 			return _collect_virtual_input_sources_snapshot()
+		_RUNTIME_LOADING_PROVIDER_ID:
+			return _collect_runtime_loading_snapshot()
 		_:
 			return {}
 
@@ -267,6 +284,10 @@ func _refresh_project_tool_snapshots() -> void:
 	)
 	_register_lazy_snapshot_provider(
 		&"virtual_inputs"
+	)
+	_register_lazy_snapshot_provider(
+		_RUNTIME_LOADING_PROVIDER_ID,
+		_RUNTIME_LOADING_MAX_DURATION_USEC
 	)
 
 	# 仅发布架构就绪后不再变化、且采集成本固定的缓存事实。
@@ -628,6 +649,297 @@ func _collect_virtual_input_sources_snapshot() -> Dictionary:
 	}
 
 
+func _collect_runtime_loading_snapshot() -> Dictionary:
+	return {
+		"available": (
+			is_instance_valid(_asset_utility)
+			or is_instance_valid(_scene_utility)
+			or is_instance_valid(_render_warmup_utility)
+		),
+		"collection": "explicit_support_request_only",
+		"bounds": {
+			"max_paths_per_list": _MAX_RUNTIME_LOADING_PATHS,
+			"filesystem_scan": false,
+			"scene_tree_scan": false,
+			"absolute_paths": false,
+		},
+		"assets": _collect_asset_loading_snapshot(),
+		"scenes": _collect_scene_loading_snapshot(),
+		"render_warmup": _collect_render_warmup_snapshot(),
+	}
+
+
+func _collect_asset_loading_snapshot() -> Dictionary:
+	if not is_instance_valid(_asset_utility):
+		return _make_unavailable_snapshot("GFAssetUtility is unavailable.")
+	var source: Dictionary = _asset_utility.get_debug_snapshot()
+	var broker: Dictionary = GFVariantData.get_option_dictionary(
+		source,
+		"resource_broker"
+	)
+	return {
+		"available": true,
+		"max_cache_size": GFVariantData.get_option_int(
+			source,
+			"max_cache_size"
+		),
+		"cache_count": GFVariantData.get_option_int(source, "cache_count"),
+		"pending_count": GFVariantData.get_option_int(source, "pending_count"),
+		"queued_count": GFVariantData.get_option_int(source, "queued_count"),
+		"pinned_count": GFVariantData.get_option_int(source, "pinned_count"),
+		"group_count": GFVariantData.get_option_int(source, "group_count"),
+		"active_preload_session_count": (
+			_asset_utility.get_active_preload_session_count()
+		),
+		"cached_paths": _make_bounded_runtime_path_list(
+			GFVariantData.get_option_value(source, "cached_paths")
+		),
+		"pending_paths": _make_bounded_runtime_path_list(
+			GFVariantData.get_option_value(source, "pending_paths")
+		),
+		"queued_paths": _make_bounded_runtime_path_list(
+			GFVariantData.get_option_value(source, "queued_paths")
+		),
+		"pinned_paths": _make_bounded_runtime_path_list(
+			GFVariantData.get_option_value(source, "pinned_paths")
+		),
+		"resource_broker": _make_runtime_broker_snapshot(broker),
+	}
+
+
+func _collect_scene_loading_snapshot() -> Dictionary:
+	if not is_instance_valid(_scene_utility):
+		return _make_unavailable_snapshot("GFSceneUtility is unavailable.")
+	var source: Dictionary = _scene_utility.get_scene_cache_debug_snapshot()
+	var transition: Dictionary = GFVariantData.get_option_dictionary(
+		source,
+		"transition"
+	)
+	var preload_cache: Dictionary = GFVariantData.get_option_dictionary(
+		source,
+		"preload_cache"
+	)
+	var preloading: Dictionary = GFVariantData.get_option_dictionary(
+		source,
+		"preloading"
+	)
+	var background: Dictionary = GFVariantData.get_option_dictionary(
+		source,
+		"background"
+	)
+	return {
+		"available": true,
+		"is_loading": GFVariantData.get_option_bool(source, "is_loading"),
+		"target_path": _sanitize_runtime_loading_path(
+			GFVariantData.get_option_string(source, "target_path")
+		),
+		"loading_progress": clampf(
+			GFVariantData.get_option_float(source, "loading_progress"),
+			0.0,
+			1.0
+		),
+		"current_scene": _sanitize_runtime_loading_path(
+			GFVariantData.get_option_string(source, "current_scene")
+		),
+		"previous_scene": _sanitize_runtime_loading_path(
+			GFVariantData.get_option_string(source, "previous_scene")
+		),
+		"transition": {
+			"minimum_duration_seconds": GFVariantData.get_option_float(
+				transition,
+				"minimum_duration_seconds"
+			),
+			"cache_loaded_scene": GFVariantData.get_option_bool(
+				transition,
+				"cache_loaded_scene"
+			),
+			"history_size": GFVariantData.get_option_int(
+				transition,
+				"history_size"
+			),
+			"pending_completion": GFVariantData.get_option_bool(
+				transition,
+				"pending_completion"
+			),
+		},
+		"preload_cache": {
+			"size": GFVariantData.get_option_int(preload_cache, "size"),
+			"max_size": GFVariantData.get_option_int(preload_cache, "max_size"),
+			"fixed_size": GFVariantData.get_option_int(
+				preload_cache,
+				"fixed_size"
+			),
+			"temporary_size": GFVariantData.get_option_int(
+				preload_cache,
+				"temporary_size"
+			),
+			"paths": _make_bounded_runtime_path_list(
+				GFVariantData.get_option_value(preload_cache, "paths")
+			),
+		},
+		"preloading": {
+			"size": GFVariantData.get_option_int(preloading, "size"),
+			"paths": _make_bounded_runtime_path_list(
+				GFVariantData.get_option_value(preloading, "paths")
+			),
+		},
+		"background_paths": _make_bounded_runtime_path_list(
+			GFVariantData.get_option_value(background, "paths")
+		),
+		"resource_broker": _make_runtime_broker_snapshot(
+			GFVariantData.get_option_dictionary(source, "resource_broker")
+		),
+	}
+
+
+func _collect_render_warmup_snapshot() -> Dictionary:
+	if not is_instance_valid(_render_warmup_utility):
+		return _make_unavailable_snapshot(
+			"GFRenderWarmupUtility is unavailable."
+		)
+	var source: Dictionary = _render_warmup_utility.get_debug_snapshot()
+	return {
+		"available": true,
+		"queue_size": GFVariantData.get_option_int(source, "queue_size"),
+		"cached_resource_count": GFVariantData.get_option_int(
+			source,
+			"cached_resource_count"
+		),
+		"processed_entry_count": GFVariantData.get_option_int(
+			source,
+			"processed_entry_count"
+		),
+		"failed_entry_count": GFVariantData.get_option_int(
+			source,
+			"failed_entry_count"
+		),
+		"default_entries_per_tick": GFVariantData.get_option_int(
+			source,
+			"default_entries_per_tick"
+		),
+		"default_max_seconds": GFVariantData.get_option_float(
+			source,
+			"default_max_seconds"
+		),
+		"default_touch_mode": GFVariantData.get_option_int(
+			source,
+			"default_touch_mode"
+		),
+		"keep_resources_cached": GFVariantData.get_option_bool(
+			source,
+			"keep_resources_cached"
+		),
+		"max_cached_resources": GFVariantData.get_option_int(
+			source,
+			"max_cached_resources"
+		),
+		"temporary_render_node_count": GFVariantData.get_option_int(
+			source,
+			"temporary_render_node_count"
+		),
+	}
+
+
+func _make_runtime_broker_snapshot(source: Dictionary) -> Dictionary:
+	if source.is_empty():
+		return {
+			"available": false,
+			"healthy": false,
+			"configured": false,
+			"disposed": false,
+			"error": "resource_broker_snapshot_missing",
+			"request_error": ERR_UNCONFIGURED,
+		}
+	var configured: bool = GFVariantData.get_option_bool(
+		source,
+		"configured"
+	)
+	var disposed: bool = GFVariantData.get_option_bool(source, "disposed")
+	var error_message: String = GFVariantData.get_option_string(
+		source,
+		"error"
+	)
+	var request_error: int = GFVariantData.get_option_int(
+		source,
+		"request_error",
+		ERR_UNCONFIGURED
+	)
+	var healthy: bool = (
+		configured
+		and not disposed
+		and error_message.is_empty()
+		and request_error == OK
+	)
+	return {
+		"available": configured,
+		"healthy": healthy,
+		"configured": configured,
+		"disposed": disposed,
+		"error": error_message,
+		"request_error": request_error,
+		"active_count": GFVariantData.get_option_int(source, "active_count"),
+		"pending_count": GFVariantData.get_option_int(source, "pending_count"),
+		"draining_count": GFVariantData.get_option_int(source, "draining_count"),
+		"active_exclusive": GFVariantData.get_option_bool(
+			source,
+			"active_exclusive"
+		),
+		"max_active_requests": GFVariantData.get_option_int(
+			source,
+			"max_active_requests"
+		),
+		"max_pending_requests": GFVariantData.get_option_int(
+			source,
+			"max_pending_requests"
+		),
+		"active_paths": _make_bounded_runtime_path_list(
+			GFVariantData.get_option_value(source, "active_paths")
+		),
+		"pending_paths": _make_bounded_runtime_path_list(
+			GFVariantData.get_option_value(source, "pending_paths")
+		),
+		"draining_paths": _make_bounded_runtime_path_list(
+			GFVariantData.get_option_value(source, "draining_paths")
+		),
+	}
+
+
+func _make_bounded_runtime_path_list(value: Variant) -> Dictionary:
+	var source_paths: PackedStringArray = PackedStringArray()
+	if value is PackedStringArray:
+		var packed_value: PackedStringArray = value
+		source_paths = packed_value
+	elif value is Array:
+		for item: Variant in value:
+			var _source_appended: bool = source_paths.append(str(item))
+	var bounded_paths: PackedStringArray = PackedStringArray()
+	var returned_count: int = mini(
+		source_paths.size(),
+		_MAX_RUNTIME_LOADING_PATHS
+	)
+	for index: int in range(returned_count):
+		var _bounded_appended: bool = bounded_paths.append(
+			_sanitize_runtime_loading_path(source_paths[index])
+		)
+	return {
+		"total_count": source_paths.size(),
+		"returned_count": bounded_paths.size(),
+		"truncated": source_paths.size() > bounded_paths.size(),
+		"values": bounded_paths,
+	}
+
+
+func _sanitize_runtime_loading_path(path: String) -> String:
+	var normalized: String = path.strip_edges()
+	if normalized.is_empty():
+		return ""
+	if normalized.begins_with("res://"):
+		return normalized
+	if normalized.begins_with("user://"):
+		return "user://<redacted>"
+	return "<redacted>"
+
+
 func _collect_architecture_dependency_snapshot() -> Dictionary:
 	var architecture: GFArchitecture = _get_architecture_or_null()
 	if architecture == null:
@@ -855,4 +1167,28 @@ func _get_input_mapping_utility() -> GFInputMappingUtility:
 	if utility is GFInputMappingUtility:
 		var input_mapping: GFInputMappingUtility = utility
 		return input_mapping
+	return null
+
+
+func _get_asset_utility() -> GFAssetUtility:
+	var utility: Object = get_utility(GFAssetUtility)
+	if utility is GFAssetUtility:
+		var assets: GFAssetUtility = utility
+		return assets
+	return null
+
+
+func _get_scene_utility() -> GFSceneUtility:
+	var utility: Object = get_utility(GFSceneUtility)
+	if utility is GFSceneUtility:
+		var scenes: GFSceneUtility = utility
+		return scenes
+	return null
+
+
+func _get_render_warmup_utility() -> GFRenderWarmupUtility:
+	var utility: Object = get_utility(GFRenderWarmupUtility)
+	if utility is GFRenderWarmupUtility:
+		var warmup: GFRenderWarmupUtility = utility
+		return warmup
 	return null

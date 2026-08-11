@@ -15,6 +15,7 @@ const _SCORE_FORMAT_FALLBACK: String = "%d pts"
 # --- 私有变量 ---
 
 var _mode_display_name: String = ""
+var _marker_count: int = 0
 
 
 # --- @onready 变量 (节点引用) ---
@@ -29,8 +30,21 @@ var _mode_display_name: String = ""
 ## 使用 ReplayData 资源来配置此列表项。
 ## @param replay_data: 用于填充UI的回放数据资源。
 ## @param mode_display_name: 已由父菜单通过 GF 架构解析出的模式名称。
-func setup(replay_data: ReplayData, mode_display_name: String) -> void:
+## @param marker_count: 父菜单按稳定 replay_id 缓存的标记数量。
+func setup(
+	replay_data: ReplayData,
+	mode_display_name: String,
+	marker_count: int = -1
+) -> void:
 	_mode_display_name = mode_display_name
+	_marker_count = (
+		maxi(marker_count, 0)
+		if marker_count >= 0
+		else GFVariantData.get_option_int(
+			ReplayMarker.summarize_counts(replay_data),
+			&"total"
+		)
+	)
 	# 设置基类数据并触发刷新
 	setup_item(replay_data)
 
@@ -60,7 +74,6 @@ func _update_display() -> void:
 
 	var topology: BoardTopology = replay_data.get_initial_topology()
 	var board_size: Vector2i = topology.get_bounds_size() if topology != null else Vector2i.ZERO
-	var markers: Array[ReplayMarker] = ReplayMarker.build_catalog(replay_data)
 	_info_label.text = GameTextFormatUtility.format_template(
 		tr("LIST_REPLAY_RECORD_META_FORMAT"),
 		_META_FORMAT_FALLBACK,
@@ -69,7 +82,7 @@ func _update_display() -> void:
 			board_size.x,
 			board_size.y,
 			replay_data.actions.size(),
-			markers.size(),
+			_marker_count,
 		]
 	)
 	_score_label.text = GameTextFormatUtility.format_template(

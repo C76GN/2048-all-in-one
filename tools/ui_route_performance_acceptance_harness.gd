@@ -7,7 +7,7 @@ extends RefCounted
 
 # --- 常量 ---
 
-const SCHEMA_VERSION: int = 2
+const SCHEMA_VERSION: int = 3
 const DEFAULT_REPORT_PATH: String = (
 	"res://build/ui_route_performance/route_timing_report.json"
 )
@@ -15,12 +15,27 @@ const _REPORT_ALLOWED_ROOTS: PackedStringArray = [
 	"res://build/ui_route_performance",
 	"user://ui_route_performance",
 ]
+const _REPORT_MAX_TOTAL_NODES: int = 65_536
+const _REPORT_MAX_TOTAL_BYTES: int = 4 * 1024 * 1024
 const DEFAULT_BUDGETS: Dictionary = {
+	"boot_motion_settled_max_msec": 12_000.0,
 	"ui_route_max_msec": 1000.0,
+	"ui_route_post_draw_max_msec": 1200.0,
+	"ui_route_motion_settled_max_msec": 1500.0,
 	"scene_route_total_max_msec": 1500.0,
 	"scene_load_max_msec": 750.0,
+	"scene_route_post_draw_max_msec": 1800.0,
+	"scene_route_motion_settled_max_msec": 2500.0,
 	"scene_preload_max_msec": 1000.0,
 }
+const _PHASE_READY: StringName = &"ready"
+const _PHASE_POST_DRAW: StringName = &"post_draw"
+const _PHASE_MOTION_SETTLED: StringName = &"motion_settled"
+const _MEASURED_PHASE_IDS: Array[StringName] = [
+	_PHASE_READY,
+	_PHASE_POST_DRAW,
+	_PHASE_MOTION_SETTLED,
+]
 
 
 # --- 私有变量 ---
@@ -30,18 +45,22 @@ var _ui_route_budget_by_id: Dictionary = {}
 var _scene_route_budget_by_id: Dictionary = {}
 var _minimum_ui_route_samples: int = 1
 var _minimum_scene_route_samples: int = 1
+var _minimum_boot_samples: int = 0
+var _require_phase_evidence: bool = false
 var _metadata: Dictionary = {}
 var _now_usec_provider: Callable = Callable()
 
 var _ui_route_records: Array[Dictionary] = []
 var _scene_route_records: Array[Dictionary] = []
 var _scene_preload_records: Array[Dictionary] = []
+var _boot_records: Array[Dictionary] = []
 var _recorded_ui_request_indices: Dictionary = {}
 
 var _scene_utility: GFSceneUtility = null
 var _screen_transition_utility: GFScreenTransitionUtility = null
 var _active_scene_route: Dictionary = {}
 var _active_scene_preloads: Dictionary = {}
+var _preloading_scene_paths_at_bind: Dictionary = {}
 
 
 # --- 公共方法 ---
@@ -50,7 +69,8 @@ var _active_scene_preloads: Dictionary = {}
 ##
 ## @param options: 支持 budgets、ui_route_budget_by_id、
 ## scene_route_budget_by_id、minimum_ui_route_samples、
-## minimum_scene_route_samples、metadata 和 now_usec_provider。
+## minimum_scene_route_samples、minimum_boot_samples、require_phase_evidence、
+## metadata 和 now_usec_provider。
 ## @return 当前采集器。
 func configure(options: Dictionary = {}) -> RefCounted:
 	_budgets = DEFAULT_BUDGETS.duplicate(true)
@@ -83,6 +103,15 @@ func configure(options: Dictionary = {}) -> RefCounted:
 		GFVariantData.get_option_int(options, "minimum_scene_route_samples", 1),
 		0
 	)
+	_minimum_boot_samples = maxi(
+		GFVariantData.get_option_int(options, "minimum_boot_samples", 0),
+		0
+	)
+	_require_phase_evidence = GFVariantData.get_option_bool(
+		options,
+		"require_phase_evidence",
+		false
+	)
 	_metadata = GFVariantData.get_option_dictionary(options, "metadata").duplicate(
 		true
 	)
@@ -95,6 +124,72 @@ func configure(options: Dictionary = {}) -> RefCounted:
 	return self
 
 
+## 记录一次由工具进程边界定义的启动样本。
+##
+## 启动没有可复用的 GF 路由终态，因此调用方必须提供同一单调时钟上的绝对
+## 时间戳。ready 表示 MainMenu 已入树并完成 `_ready`，post_draw 表示其首帧
+## 已提交，motion_settled 表示采样器观察到约定的动效安静窗口。
+## @param started_usec: 加载 Boot PackedScene 前的单调时间。
+## @param ready_usec: MainMenu ready 的单调时间。
+## @param post_draw_usec: MainMenu 首次 post draw 的单调时间。
+## @param motion_settled_usec: MainMenu 动效安静窗口完成的单调时间。
+## @param context: 冷暖口径、安静窗口策略和环境上下文。
+func record_boot_observation(
+	started_usec: int,
+	ready_usec: int,
+	post_draw_usec: int,
+	motion_settled_usec: int,
+	context: Dictionary = {}
+) -> Dictionary:
+	var phases: Dictionary = _make_phase_observation(
+		started_usec,
+		ready_usec,
+		post_draw_usec,
+		motion_settled_usec,
+		GFVariantData.get_option_bool(
+			context,
+			"motion_settled_observed",
+			motion_settled_usec >= post_draw_usec
+		)
+	)
+	var duration_msec: float = GFVariantData.get_option_float(
+		phases,
+		"motion_settled_msec",
+		-1.0
+	)
+	var budget_msec: float = GFVariantData.get_option_float(
+		_budgets,
+		"boot_motion_settled_max_msec"
+	)
+	var evidence_complete: bool = GFVariantData.get_option_bool(
+		phases,
+		"evidence_complete"
+	)
+	var record: Dictionary = {
+		"kind": "boot",
+		"sample_index": _boot_records.size(),
+		"cache_state": GFVariantData.get_option_string(
+			context,
+			"cache_state",
+			"process_first_boot"
+		),
+		"duration_msec": duration_msec,
+		"budget_msec": budget_msec,
+		"within_budget": (
+			evidence_complete
+			and duration_msec <= budget_msec
+		),
+		"phases": phases,
+		"passed": (
+			evidence_complete
+			and duration_msec <= budget_msec
+		),
+		"context": context.duplicate(true),
+	}
+	_boot_records.append(record)
+	return record.duplicate(true)
+
+
 ## 监听 GFSceneUtility 的加载、切换和预加载公开信号。
 ##
 ## @param scene_utility: 当前架构拥有的 GFSceneUtility。
@@ -104,53 +199,59 @@ func bind_scene_utility(scene_utility: GFSceneUtility) -> bool:
 	if not is_instance_valid(scene_utility):
 		return false
 	_scene_utility = scene_utility
-	_connect_scene_signal(
+	for path: String in _scene_utility.get_preloading_scene_paths():
+		_preloading_scene_paths_at_bind[path] = true
+	var connected: bool = _connect_scene_signal(
 		_scene_utility.scene_load_started,
 		_on_scene_load_started
 	)
-	_connect_scene_signal(
+	connected = _connect_scene_signal(
 		_scene_utility.scene_load_completed,
 		_on_scene_load_completed
-	)
-	_connect_scene_signal(
+	) and connected
+	connected = _connect_scene_signal(
 		_scene_utility.scene_load_failed,
 		_on_scene_load_failed
-	)
-	_connect_scene_signal(
+	) and connected
+	connected = _connect_scene_signal(
 		_scene_utility.scene_switch_started,
 		_on_scene_switch_started
-	)
-	_connect_scene_signal(
+	) and connected
+	connected = _connect_scene_signal(
 		_scene_utility.scene_switch_completed,
 		_on_scene_switch_completed
-	)
-	_connect_scene_signal(
+	) and connected
+	connected = _connect_scene_signal(
 		_scene_utility.scene_switch_failed,
 		_on_scene_switch_failed
-	)
-	_connect_scene_signal(
+	) and connected
+	connected = _connect_scene_signal(
 		_scene_utility.scene_preload_started,
 		_on_scene_preload_started
-	)
-	_connect_scene_signal(
+	) and connected
+	connected = _connect_scene_signal(
 		_scene_utility.scene_preload_completed,
 		_on_scene_preload_completed
-	)
-	_connect_scene_signal(
+	) and connected
+	connected = _connect_scene_signal(
 		_scene_utility.scene_preload_failed,
 		_on_scene_preload_failed
-	)
-	_connect_scene_signal(
+	) and connected
+	connected = _connect_scene_signal(
 		_scene_utility.scene_preload_cancelled,
 		_on_scene_preload_cancelled
-	)
-	return true
+	) and connected
+	if not connected:
+		unbind_scene_utility()
+	return connected
 
 
 ## 解除 GFSceneUtility 信号监听。
 func unbind_scene_utility() -> void:
 	if not is_instance_valid(_scene_utility):
 		_scene_utility = null
+		_active_scene_preloads.clear()
+		_preloading_scene_paths_at_bind.clear()
 		return
 	_disconnect_scene_signal(
 		_scene_utility.scene_load_started,
@@ -193,6 +294,8 @@ func unbind_scene_utility() -> void:
 		_on_scene_preload_cancelled
 	)
 	_scene_utility = null
+	_active_scene_preloads.clear()
+	_preloading_scene_paths_at_bind.clear()
 
 
 ## 监听 GFScreenTransitionUtility 的开始、完成与取消公开信号。
@@ -206,19 +309,21 @@ func bind_screen_transition_utility(
 	if not is_instance_valid(screen_transition_utility):
 		return false
 	_screen_transition_utility = screen_transition_utility
-	_connect_scene_signal(
+	var connected: bool = _connect_scene_signal(
 		_screen_transition_utility.transition_started,
 		_on_transition_started
 	)
-	_connect_scene_signal(
+	connected = _connect_scene_signal(
 		_screen_transition_utility.transition_finished,
 		_on_transition_finished
-	)
-	_connect_scene_signal(
+	) and connected
+	connected = _connect_scene_signal(
 		_screen_transition_utility.transition_cancelled,
 		_on_transition_cancelled
-	)
-	return true
+	) and connected
+	if not connected:
+		unbind_screen_transition_utility()
+	return connected
 
 
 ## 解除 GFScreenTransitionUtility 信号监听。
@@ -245,13 +350,19 @@ func unbind_screen_transition_utility() -> void:
 ##
 ## @param result: GFUIRouterUtility 返回的不可变终态；null 会形成显式失败记录。
 ## @param context: 场景、冷暖状态、序号等调用方上下文。
+## @param observation: 工具单调时钟上的 started/ready/post_draw/
+## motion_settled 时间戳和 motion_settled_observed 终态。
 ## @return JSON 安全边界之前的记录副本。
 func record_ui_route_result(
 	result: GFUIRouteResult,
-	context: Dictionary = {}
+	context: Dictionary = {},
+	observation: Dictionary = {}
 ) -> Dictionary:
 	if result == null:
-		var missing_record: Dictionary = _make_missing_ui_route_record(context)
+		var missing_record: Dictionary = _make_missing_ui_route_record(
+			context,
+			observation
+		)
 		_ui_route_records.append(missing_record)
 		return missing_record.duplicate(true)
 
@@ -278,8 +389,26 @@ func record_ui_route_result(
 	var preload_result: GFAssetLoadSessionResult = result.get_preload_result()
 	var preload_attempted: bool = result.was_preload_attempted()
 	var preload_successful: bool = result.was_preload_successful()
+	var phases: Dictionary = _make_phase_observation_from_dictionary(
+		observation,
+		duration_msec
+	)
+	var phase_evidence_complete: bool = GFVariantData.get_option_bool(
+		phases,
+		"evidence_complete"
+	)
+	var phase_budget: Dictionary = _make_phase_budget_result(
+		phases,
+		"ui_route_post_draw_max_msec",
+		"ui_route_motion_settled_max_msec"
+	)
+	var phase_budget_passed: bool = GFVariantData.get_option_bool(
+		phase_budget,
+		"passed"
+	)
 	var record: Dictionary = {
 		"kind": "ui_route",
+		"sample_index": _ui_route_records.size(),
 		"request_id": request_id,
 		"route_id": String(route_id),
 		"operation": String(result.get_operation()),
@@ -289,7 +418,14 @@ func record_ui_route_result(
 		"duration_msec": duration_msec,
 		"budget_msec": budget_msec,
 		"within_budget": duration_msec <= budget_msec,
-		"passed": result.is_successful() and duration_msec <= budget_msec,
+		"phases": phases,
+		"phase_budget": phase_budget,
+		"passed": (
+			result.is_successful()
+			and duration_msec <= budget_msec
+			and phase_budget_passed
+			and (phase_evidence_complete or not _require_phase_evidence)
+		),
 		"preload": {
 			"policy": String(result.get_preload_policy()),
 			"attempted": preload_attempted,
@@ -341,8 +477,29 @@ func begin_scene_route(
 		"switch_status": "pending",
 		"transitions": [],
 		"active_transition_index": -1,
+		"milestones_usec": {},
 		"context": context.duplicate(true),
 	}
+	return true
+
+
+## 记录当前场景路线的 ready、post_draw 或 motion_settled 里程碑。
+##
+## 重复里程碑保持首次观测时间；未知里程碑被拒绝，避免报告 schema 漂移。
+func mark_scene_route_milestone(milestone_id: StringName) -> bool:
+	if (
+		_active_scene_route.is_empty()
+		or not _MEASURED_PHASE_IDS.has(milestone_id)
+	):
+		return false
+	var milestones: Dictionary = GFVariantData.get_option_dictionary(
+		_active_scene_route,
+		"milestones_usec"
+	)
+	if milestones.has(milestone_id):
+		return true
+	milestones[milestone_id] = _now_usec()
+	_active_scene_route["milestones_usec"] = milestones
 	return true
 
 
@@ -357,11 +514,24 @@ func complete_scene_route(
 ) -> Dictionary:
 	if _active_scene_route.is_empty():
 		return {}
-	var ended_usec: int = _now_usec()
+	var observation_ended_usec: int = _now_usec()
 	var started_usec: int = GFVariantData.get_option_int(
 		_active_scene_route,
 		"started_usec",
-		ended_usec
+		observation_ended_usec
+	)
+	var requested_route_ready_usec: int = GFVariantData.get_option_int(
+		metadata,
+		"route_ready_usec",
+		observation_ended_usec
+	)
+	var ended_usec: int = (
+		requested_route_ready_usec
+		if (
+			requested_route_ready_usec >= started_usec
+			and requested_route_ready_usec <= observation_ended_usec
+		)
+		else observation_ended_usec
 	)
 	var total_duration_msec: float = _usec_delta_to_msec(
 		started_usec,
@@ -386,10 +556,27 @@ func complete_scene_route(
 		"scene_load_max_msec"
 	)
 	var load_evidence_complete: bool = load_duration_msec >= 0.0
+	var load_status: String = GFVariantData.get_option_string(
+		_active_scene_route,
+		"load_status"
+	)
+	var load_terminal_success: bool = (
+		load_evidence_complete
+		and load_status == "completed"
+	)
 	var switch_duration_msec: float = GFVariantData.get_option_float(
 		_active_scene_route,
 		"switch_duration_msec",
 		-1.0
+	)
+	var switch_status: String = GFVariantData.get_option_string(
+		_active_scene_route,
+		"switch_status"
+	)
+	var switch_evidence_complete: bool = switch_duration_msec >= 0.0
+	var switch_terminal_success: bool = (
+		switch_evidence_complete
+		and switch_status == "completed"
 	)
 	var interactive_ready: bool = GFVariantData.get_option_bool(
 		metadata,
@@ -412,16 +599,48 @@ func complete_scene_route(
 		transition_summary,
 		"evidence_complete"
 	)
+	var milestones: Dictionary = GFVariantData.get_option_dictionary(
+		_active_scene_route,
+		"milestones_usec"
+	)
+	var phases: Dictionary = _make_phase_observation(
+		started_usec,
+		GFVariantData.get_option_int(milestones, _PHASE_READY),
+		GFVariantData.get_option_int(milestones, _PHASE_POST_DRAW),
+		GFVariantData.get_option_int(milestones, _PHASE_MOTION_SETTLED),
+		GFVariantData.get_option_bool(
+			metadata,
+			"motion_settled_observed",
+			milestones.has(_PHASE_MOTION_SETTLED)
+		)
+	)
+	var phase_evidence_complete: bool = GFVariantData.get_option_bool(
+		phases,
+		"evidence_complete"
+	)
+	var phase_budget: Dictionary = _make_phase_budget_result(
+		phases,
+		"scene_route_post_draw_max_msec",
+		"scene_route_motion_settled_max_msec"
+	)
+	var phase_budget_passed: bool = GFVariantData.get_option_bool(
+		phase_budget,
+		"passed"
+	)
 	var passed: bool = (
 		succeeded
 		and interactive_ready
-		and load_evidence_complete
+		and load_terminal_success
+		and switch_terminal_success
 		and transition_evidence_complete
 		and total_duration_msec <= total_budget_msec
 		and load_duration_msec <= load_budget_msec
+		and phase_budget_passed
+		and (phase_evidence_complete or not _require_phase_evidence)
 	)
 	var record: Dictionary = {
 		"kind": "scene_route",
+		"sample_index": _scene_route_records.size(),
 		"route_id": String(route_id),
 		"target_path": GFVariantData.get_option_string(
 			_active_scene_route,
@@ -433,11 +652,9 @@ func complete_scene_route(
 		"budget_msec": total_budget_msec,
 		"within_budget": total_duration_msec <= total_budget_msec,
 		"load": {
-			"status": GFVariantData.get_option_string(
-				_active_scene_route,
-				"load_status"
-			),
+			"status": load_status,
 			"evidence_complete": load_evidence_complete,
+			"terminal_success": load_terminal_success,
 			"duration_msec": load_duration_msec,
 			"budget_msec": load_budget_msec,
 			"within_budget": (
@@ -446,15 +663,15 @@ func complete_scene_route(
 			),
 		},
 		"switch": {
-			"status": GFVariantData.get_option_string(
-				_active_scene_route,
-				"switch_status"
-			),
-			"evidence_complete": switch_duration_msec >= 0.0,
+			"status": switch_status,
+			"evidence_complete": switch_evidence_complete,
+			"terminal_success": switch_terminal_success,
 			"duration_msec": switch_duration_msec,
 		},
 		"transitions": transitions,
 		"transition_summary": transition_summary,
+		"phases": phases,
+		"phase_budget": phase_budget,
 		"passed": passed,
 		"context": GFVariantData.get_option_dictionary(
 			_active_scene_route,
@@ -472,6 +689,7 @@ func complete_scene_route(
 ## @param additional_metadata: 本次执行的额外环境元数据。
 ## @return 可经 GFReportValueCodec 转为 JSON 的报告。
 func build_report(additional_metadata: Dictionary = {}) -> Dictionary:
+	var boot_failures: int = _count_failed_records(_boot_records)
 	var ui_failures: int = _count_failed_records(_ui_route_records)
 	var scene_failures: int = _count_failed_records(_scene_route_records)
 	var preload_failures: int = _count_failed_records(
@@ -480,17 +698,33 @@ func build_report(additional_metadata: Dictionary = {}) -> Dictionary:
 	var ui_samples_complete: bool = (
 		_ui_route_records.size() >= _minimum_ui_route_samples
 	)
+	var boot_samples_complete: bool = (
+		_boot_records.size() >= _minimum_boot_samples
+	)
 	var scene_samples_complete: bool = (
 		_scene_route_records.size() >= _minimum_scene_route_samples
 	)
-	var no_active_work: bool = (
+	var no_active_scene_work: bool = (
 		_active_scene_route.is_empty()
 		and _active_scene_preloads.is_empty()
+		and _preloading_scene_paths_at_bind.is_empty()
 	)
+	var active_asset_preload_session_count: int = maxi(
+		GFVariantData.get_option_int(
+			additional_metadata,
+			"active_asset_preload_session_count",
+			0
+		),
+		0
+	)
+	var no_active_asset_work: bool = active_asset_preload_session_count == 0
+	var no_active_work: bool = no_active_scene_work and no_active_asset_work
 	var passed: bool = (
-		ui_samples_complete
+		boot_samples_complete
+		and ui_samples_complete
 		and scene_samples_complete
 		and no_active_work
+		and boot_failures == 0
 		and ui_failures == 0
 		and scene_failures == 0
 		and preload_failures == 0
@@ -503,25 +737,73 @@ func build_report(additional_metadata: Dictionary = {}) -> Dictionary:
 		"evidence_kind": "rendered_route_smoke",
 		"budgets": _budgets.duplicate(true),
 		"minimum_samples": {
+			"boot": _minimum_boot_samples,
 			"ui_routes": _minimum_ui_route_samples,
 			"scene_routes": _minimum_scene_route_samples,
 		},
 		"summary": {
+			"boot_count": _boot_records.size(),
+			"boot_failure_count": boot_failures,
 			"ui_route_count": _ui_route_records.size(),
 			"ui_route_failure_count": ui_failures,
 			"scene_route_count": _scene_route_records.size(),
 			"scene_route_failure_count": scene_failures,
 			"scene_preload_count": _scene_preload_records.size(),
 			"scene_preload_failure_count": preload_failures,
+			"preexisting_scene_preload_pending_count": (
+				_preloading_scene_paths_at_bind.size()
+			),
+			"boot_samples_complete": boot_samples_complete,
 			"ui_samples_complete": ui_samples_complete,
 			"scene_samples_complete": scene_samples_complete,
+			"active_asset_preload_session_count": (
+				active_asset_preload_session_count
+			),
+			"no_active_scene_work": no_active_scene_work,
+			"no_active_asset_work": no_active_asset_work,
 			"no_active_work": no_active_work,
 		},
 		"metrics": {
+			"boot_ready_msec": _make_nested_metric_summary(
+				&"boot_ready_msec",
+				_boot_records,
+				"phases",
+				"ready_msec"
+			),
+			"boot_post_draw_msec": _make_nested_metric_summary(
+				&"boot_post_draw_msec",
+				_boot_records,
+				"phases",
+				"post_draw_msec"
+			),
+			"boot_motion_settled_msec": _make_nested_metric_summary(
+				&"boot_motion_settled_msec",
+				_boot_records,
+				"phases",
+				"motion_settled_msec"
+			),
 			"ui_route_duration_msec": _make_metric_summary(
 				&"ui_route_duration_msec",
 				_ui_route_records,
 				"duration_msec"
+			),
+			"ui_route_ready_msec": _make_nested_metric_summary(
+				&"ui_route_ready_msec",
+				_ui_route_records,
+				"phases",
+				"ready_msec"
+			),
+			"ui_route_post_draw_msec": _make_nested_metric_summary(
+				&"ui_route_post_draw_msec",
+				_ui_route_records,
+				"phases",
+				"post_draw_msec"
+			),
+			"ui_route_motion_settled_msec": _make_nested_metric_summary(
+				&"ui_route_motion_settled_msec",
+				_ui_route_records,
+				"phases",
+				"motion_settled_msec"
 			),
 			"scene_route_duration_msec": _make_metric_summary(
 				&"scene_route_duration_msec",
@@ -533,6 +815,24 @@ func build_report(additional_metadata: Dictionary = {}) -> Dictionary:
 				_scene_route_records,
 				"load",
 				"duration_msec"
+			),
+			"scene_route_ready_msec": _make_nested_metric_summary(
+				&"scene_route_ready_msec",
+				_scene_route_records,
+				"phases",
+				"ready_msec"
+			),
+			"scene_route_post_draw_msec": _make_nested_metric_summary(
+				&"scene_route_post_draw_msec",
+				_scene_route_records,
+				"phases",
+				"post_draw_msec"
+			),
+			"scene_route_motion_settled_msec": _make_nested_metric_summary(
+				&"scene_route_motion_settled_msec",
+				_scene_route_records,
+				"phases",
+				"motion_settled_msec"
 			),
 			"scene_transition_configured_duration_msec": (
 				_make_scene_transition_metric_summary(
@@ -552,6 +852,22 @@ func build_report(additional_metadata: Dictionary = {}) -> Dictionary:
 				"duration_msec"
 			),
 		},
+		"route_groups": {
+			"ui": _make_grouped_metric_summaries(
+				&"ui_route_duration_msec",
+				_ui_route_records,
+				"route_id",
+				"duration_msec"
+			),
+			"scene": _make_grouped_metric_summaries(
+				&"scene_route_duration_msec",
+				_scene_route_records,
+				"route_id",
+				"duration_msec"
+			),
+		},
+		"sample_protocol": _make_sample_protocol(),
+		"boot": _boot_records.duplicate(true),
 		"ui_routes": _ui_route_records.duplicate(true),
 		"scene_routes": _scene_route_records.duplicate(true),
 		"scene_preloads": _scene_preload_records.duplicate(true),
@@ -572,7 +888,12 @@ func write_report(
 	if normalized_path.is_empty():
 		return ERR_INVALID_PARAMETER
 	var json_safe_value: Variant = GFReportValueCodec.to_json_compatible(
-		report.duplicate(true)
+		report.duplicate(true),
+		{
+			"max_depth": 64,
+			"max_total_nodes": _REPORT_MAX_TOTAL_NODES,
+			"max_total_bytes": _REPORT_MAX_TOTAL_BYTES,
+		}
 	)
 	if not json_safe_value is Dictionary:
 		return ERR_INVALID_DATA
@@ -596,6 +917,11 @@ func get_ui_route_records() -> Array[Dictionary]:
 	return _ui_route_records.duplicate(true)
 
 
+## 返回启动记录的隔离副本。
+func get_boot_records() -> Array[Dictionary]:
+	return _boot_records.duplicate(true)
+
+
 ## 返回场景路由记录的隔离副本。
 func get_scene_route_records() -> Array[Dictionary]:
 	return _scene_route_records.duplicate(true)
@@ -604,6 +930,14 @@ func get_scene_route_records() -> Array[Dictionary]:
 ## 返回场景预加载记录的隔离副本。
 func get_scene_preload_records() -> Array[Dictionary]:
 	return _scene_preload_records.duplicate(true)
+
+
+## 返回绑定后仍等待唯一终态的场景预加载数量。
+func get_pending_scene_preload_count() -> int:
+	return (
+		_active_scene_preloads.size()
+		+ _preloading_scene_paths_at_bind.size()
+	)
 
 
 # --- 信号处理函数 ---
@@ -745,6 +1079,9 @@ func _on_transition_cancelled(effect: GFScreenTransitionEffect) -> void:
 
 
 func _on_scene_preload_started(path: String) -> void:
+	var _was_preloading_at_bind: bool = (
+		_preloading_scene_paths_at_bind.erase(path)
+	)
 	_active_scene_preloads[path] = {
 		"started_usec": _now_usec(),
 	}
@@ -764,9 +1101,10 @@ func _on_scene_preload_cancelled(path: String) -> void:
 
 # --- 私有/辅助方法 ---
 
-func _connect_scene_signal(signal_value: Signal, callback: Callable) -> void:
-	if not signal_value.is_connected(callback):
-		var _error: Error = signal_value.connect(callback) as Error
+func _connect_scene_signal(signal_value: Signal, callback: Callable) -> bool:
+	if signal_value.is_connected(callback):
+		return true
+	return signal_value.connect(callback) == OK
 
 
 func _disconnect_scene_signal(signal_value: Signal, callback: Callable) -> void:
@@ -982,6 +1320,17 @@ func _finish_scene_preload(
 	succeeded: bool
 ) -> void:
 	if not _active_scene_preloads.has(path):
+		var was_preloading_at_bind: bool = (
+			_preloading_scene_paths_at_bind.erase(path)
+		)
+		if status == "completed" and was_preloading_at_bind:
+			return
+		_record_scene_preload_without_started(
+			path,
+			status,
+			succeeded,
+			was_preloading_at_bind
+		)
 		return
 	var state: Dictionary = GFVariantData.get_option_dictionary(
 		_active_scene_preloads,
@@ -1014,7 +1363,38 @@ func _finish_scene_preload(
 	var _erased: bool = _active_scene_preloads.erase(path)
 
 
-func _make_missing_ui_route_record(context: Dictionary) -> Dictionary:
+func _record_scene_preload_without_started(
+	path: String,
+	status: String,
+	succeeded: bool,
+	was_preloading_at_bind: bool
+) -> void:
+	var budget_msec: float = GFVariantData.get_option_float(
+		_budgets,
+		"scene_preload_max_msec"
+	)
+	_scene_preload_records.append({
+		"kind": "scene_preload",
+		"path": path,
+		"status": status,
+		"ok": succeeded,
+		"evidence_complete": false,
+		"observation_scope": (
+			"preexisting_at_bind"
+			if was_preloading_at_bind
+			else "started_after_bind_without_started_signal"
+		),
+		"duration_msec": -1.0,
+		"budget_msec": budget_msec,
+		"within_budget": false,
+		"passed": false,
+	})
+
+
+func _make_missing_ui_route_record(
+	context: Dictionary,
+	observation: Dictionary = {}
+) -> Dictionary:
 	var route_id: StringName = GFVariantData.get_option_string_name(
 		context,
 		"route_id"
@@ -1026,6 +1406,7 @@ func _make_missing_ui_route_record(context: Dictionary) -> Dictionary:
 	)
 	return {
 		"kind": "ui_route",
+		"sample_index": _ui_route_records.size(),
 		"request_id": 0,
 		"route_id": String(route_id),
 		"operation": "",
@@ -1035,6 +1416,10 @@ func _make_missing_ui_route_record(context: Dictionary) -> Dictionary:
 		"duration_msec": -1.0,
 		"budget_msec": budget_msec,
 		"within_budget": false,
+		"phases": _make_phase_observation_from_dictionary(
+			observation,
+			-1.0
+		),
 		"passed": false,
 		"preload": {
 			"policy": "",
@@ -1045,6 +1430,143 @@ func _make_missing_ui_route_record(context: Dictionary) -> Dictionary:
 			"result": {},
 		},
 		"context": context.duplicate(true),
+	}
+
+
+func _make_phase_observation_from_dictionary(
+	observation: Dictionary,
+	fallback_ready_msec: float
+) -> Dictionary:
+	var started_usec: int = GFVariantData.get_option_int(
+		observation,
+		"started_usec"
+	)
+	var ready_usec: int = GFVariantData.get_option_int(
+		observation,
+		"ready_usec"
+	)
+	var post_draw_usec: int = GFVariantData.get_option_int(
+		observation,
+		"post_draw_usec"
+	)
+	var motion_settled_usec: int = GFVariantData.get_option_int(
+		observation,
+		"motion_settled_usec"
+	)
+	if (
+		started_usec <= 0
+		or ready_usec <= 0
+		or post_draw_usec <= 0
+		or motion_settled_usec <= 0
+	):
+		return {
+			"evidence_complete": false,
+			"motion_settled_observed": false,
+			"ready_msec": fallback_ready_msec,
+			"post_draw_msec": -1.0,
+			"motion_settled_msec": -1.0,
+			"source": "gf_terminal_only",
+		}
+	var phases: Dictionary = _make_phase_observation(
+		started_usec,
+		ready_usec,
+		post_draw_usec,
+		motion_settled_usec,
+		GFVariantData.get_option_bool(
+			observation,
+			"motion_settled_observed",
+			false
+		)
+	)
+	phases["source"] = "tool_monotonic_clock"
+	return phases
+
+
+func _make_phase_observation(
+	started_usec: int,
+	ready_usec: int,
+	post_draw_usec: int,
+	motion_settled_usec: int,
+	motion_settled_observed: bool
+) -> Dictionary:
+	var monotonic: bool = (
+		started_usec >= 0
+		and ready_usec >= started_usec
+		and post_draw_usec >= ready_usec
+		and motion_settled_usec >= post_draw_usec
+	)
+	return {
+		"evidence_complete": monotonic and motion_settled_observed,
+		"motion_settled_observed": motion_settled_observed,
+		"ready_msec": (
+			_usec_delta_to_msec(started_usec, ready_usec)
+			if monotonic
+			else -1.0
+		),
+		"post_draw_msec": (
+			_usec_delta_to_msec(started_usec, post_draw_usec)
+			if monotonic
+			else -1.0
+		),
+		"motion_settled_msec": (
+			_usec_delta_to_msec(started_usec, motion_settled_usec)
+			if monotonic
+			else -1.0
+		),
+	}
+
+
+func _make_phase_budget_result(
+	phases: Dictionary,
+	post_draw_budget_key: String,
+	motion_settled_budget_key: String
+) -> Dictionary:
+	var evidence_complete: bool = GFVariantData.get_option_bool(
+		phases,
+		"evidence_complete"
+	)
+	var post_draw_msec: float = GFVariantData.get_option_float(
+		phases,
+		"post_draw_msec",
+		-1.0
+	)
+	var motion_settled_msec: float = GFVariantData.get_option_float(
+		phases,
+		"motion_settled_msec",
+		-1.0
+	)
+	var post_draw_budget_msec: float = GFVariantData.get_option_float(
+		_budgets,
+		post_draw_budget_key
+	)
+	var motion_settled_budget_msec: float = GFVariantData.get_option_float(
+		_budgets,
+		motion_settled_budget_key
+	)
+	var post_draw_within_budget: bool = (
+		post_draw_msec >= 0.0
+		and post_draw_msec <= post_draw_budget_msec
+	)
+	var motion_settled_within_budget: bool = (
+		motion_settled_msec >= 0.0
+		and motion_settled_msec <= motion_settled_budget_msec
+	)
+	var within_budget: bool = (
+		evidence_complete
+		and post_draw_within_budget
+		and motion_settled_within_budget
+	)
+	return {
+		"evidence_complete": evidence_complete,
+		"post_draw_budget_msec": post_draw_budget_msec,
+		"post_draw_within_budget": post_draw_within_budget,
+		"motion_settled_budget_msec": motion_settled_budget_msec,
+		"motion_settled_within_budget": motion_settled_within_budget,
+		"within_budget": within_budget,
+		"passed": within_budget or (
+			not evidence_complete
+			and not _require_phase_evidence
+		),
 	}
 
 
@@ -1134,6 +1656,134 @@ func _make_scene_transition_metric_summary(
 	return _summarize_values(metric_id, values)
 
 
+func _make_grouped_metric_summaries(
+	metric_id: StringName,
+	records: Array[Dictionary],
+	group_key: String,
+	value_key: String
+) -> Dictionary:
+	var grouped_values: Dictionary = {}
+	var grouped_sample_indices: Dictionary = {}
+	var grouped_cache_states: Dictionary = {}
+	for record: Dictionary in records:
+		var group_id: String = GFVariantData.get_option_string(
+			record,
+			group_key
+		)
+		if group_id.is_empty():
+			continue
+		var value: float = GFVariantData.get_option_float(
+			record,
+			value_key,
+			-1.0
+		)
+		if value < 0.0:
+			continue
+		var values: Array[float] = []
+		if grouped_values.has(group_id):
+			values.assign(GFVariantData.get_option_array(
+				grouped_values,
+				group_id
+			))
+		values.append(value)
+		grouped_values[group_id] = values
+
+		var sample_indices: Array[int] = []
+		if grouped_sample_indices.has(group_id):
+			sample_indices.assign(GFVariantData.get_option_array(
+				grouped_sample_indices,
+				group_id
+			))
+		sample_indices.append(GFVariantData.get_option_int(
+			record,
+			"sample_index",
+			sample_indices.size()
+		))
+		grouped_sample_indices[group_id] = sample_indices
+
+		var cache_states: Array[String] = []
+		if grouped_cache_states.has(group_id):
+			cache_states.assign(GFVariantData.get_option_array(
+				grouped_cache_states,
+				group_id
+			))
+		var context: Dictionary = GFVariantData.get_option_dictionary(
+			record,
+			"context"
+		)
+		cache_states.append(
+			GFVariantData.get_option_string(context, "cache_state", "unspecified")
+		)
+		grouped_cache_states[group_id] = cache_states
+
+	var result: Dictionary = {}
+	for group_id_value: Variant in grouped_values.keys():
+		var group_id: String = str(group_id_value)
+		var values: Array[float] = []
+		values.assign(GFVariantData.get_option_array(grouped_values, group_id))
+		result[group_id] = {
+			"metric": _summarize_values(
+				StringName("%s.%s" % [metric_id, group_id]),
+				values
+			),
+			"sample_indices": GFVariantData.get_option_array(
+				grouped_sample_indices,
+				group_id
+			).duplicate(),
+			"cache_states": GFVariantData.get_option_array(
+				grouped_cache_states,
+				group_id
+			).duplicate(),
+		}
+	return result
+
+
+func _make_sample_protocol() -> Dictionary:
+	return {
+		"clock": "Time.get_ticks_usec monotonic wall clock",
+		"sequence_semantics": (
+			"GFMetricSeries samples, latest_value and sparkline preserve the "
+			+ "recorded execution order; percentile calculations sort a copy"
+		),
+		"boot": {
+			"cache_state": "process_first_boot",
+			"ready": "MainMenu is in-tree and node-ready",
+			"post_draw": "first RenderingServer.frame_post_draw after ready",
+			"motion_settled": "configured tween quiet-window observation",
+		},
+		"ui_route": {
+			"request_duration": "GFUIRouteResult typed terminal duration",
+			"first_open_in_process": (
+				"first request for the route in this process; boot and adjacent "
+				+ "preloads may already have populated shared caches"
+			),
+			"warm_reopen_in_process": (
+				"immediate second request after closing the first panel"
+			),
+			"ready": (
+				"submitted panel is in-tree/node-ready and any route-specific typed "
+				+ "semantic contract (editor context, profile snapshot or list content) is terminal"
+			),
+			"post_draw": "first RenderingServer.frame_post_draw after ready",
+			"motion_settled": "configured tween quiet-window observation",
+		},
+		"scene_route": {
+			"request_start": "immediately before SceneRouterSystem intent",
+			"route_duration": (
+				"request start through SceneRouterSystem idle/interactive ready; "
+				+ "motion settling is reported separately"
+			),
+			"ready": (
+				"target scene is in-tree/node-ready and any route-specific "
+				+ "list-content or gameplay-board contract is ready"
+			),
+			"post_draw": "first RenderingServer.frame_post_draw after ready",
+			"motion_settled": "configured tween quiet-window observation",
+			"load": "GFSceneUtility public load signal interval",
+		},
+	}
+
+
 func _summarize_values(
 	metric_id: StringName,
 	values: Array[float]
@@ -1142,10 +1792,10 @@ func _summarize_values(
 		metric_id,
 		{"max_samples": maxi(values.size(), 1)}
 	)
+	for index: int in range(values.size()):
+		series.add_sample(values[index], float(index))
 	var sorted_values: Array[float] = values.duplicate()
 	sorted_values.sort()
-	for index: int in range(sorted_values.size()):
-		series.add_sample(sorted_values[index], float(index))
 	var summary: Dictionary = series.to_dict(true)
 	summary["p50"] = _nearest_rank(sorted_values, 0.50)
 	summary["p95"] = _nearest_rank(sorted_values, 0.95)

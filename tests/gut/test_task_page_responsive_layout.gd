@@ -149,6 +149,45 @@ func test_mode_selection_paginates_from_available_first_screen_height() -> void:
 	)
 
 
+func test_mode_selection_clamps_ultrawide_budget_to_logical_canvas_height() -> void:
+	var ultrawide_budget: Vector2 = ModeSelection._resolve_first_screen_budget_size(
+		Vector2(1430.0, 720.0),
+		Vector2(1906.0, 943.0)
+	)
+	assert_true(
+		ultrawide_budget == Vector2(1906.0, 720.0),
+		"超宽物理窗口不得把 943px 高度直接当作 720px 逻辑画布的首屏预算。"
+	)
+	assert_true(
+		ModeSelection._get_items_per_page_for_viewport(ultrawide_budget) == 4,
+		"逻辑 720px 高画布最多物化四张卡，避免中心内容向顶部安全区负向溢出。"
+	)
+
+	var compact_budget: Vector2 = ModeSelection._resolve_first_screen_budget_size(
+		Vector2(1280.0, 720.0),
+		Vector2(960.0, 540.0)
+	)
+	assert_true(compact_budget == Vector2(960.0, 540.0))
+	assert_false(
+		ModeSelection._uses_side_by_side_layout(compact_budget),
+		"逻辑高度保护不得破坏物理 960×540 的单列契约。"
+	)
+
+	var menu: Node = _MODE_SELECTION_SCENE.instantiate()
+	var center_holder: CenterContainer = menu.find_child(
+		"CenterContentHolder",
+		true,
+		false
+	) as CenterContainer
+	assert_not_null(center_holder)
+	if center_holder != null:
+		assert_false(
+			center_holder.use_top_left,
+			"分页预算已经约束内容高度；CenterContainer 必须保留原生居中语义，避免内容列向左偏移半个宽度。"
+		)
+	menu.free()
+
+
 func test_mode_selection_key_controls_preserve_touch_target_contract() -> void:
 	var menu: Node = _MODE_SELECTION_SCENE.instantiate()
 	autofree(menu)
@@ -487,6 +526,17 @@ func test_visual_review_injects_history_items_through_the_active_list_backend() 
 		and source.count("await _wait_for_game_modal_open()") == 2,
 		"删除确认与错误态必须等待异步 GF 路由真正入栈，不能依赖固定帧数。"
 	)
+	assert_true(
+		source.contains("func _wait_for_game_modal_visual_settle(")
+		and source.count("await _wait_for_game_modal_visual_settle(") == 2
+		and source.contains("_is_control_motion_running(surface)")
+		and source.contains("_MODAL_STABLE_FRAME_COUNT"),
+		"确认与错误截图必须等待遮罩和任务表面的动效终态连续稳定，不能截取淡入中间帧。"
+	)
+	assert_true(
+		source.contains("controls_button.button_pressed = true"),
+		"设置页视觉验收必须触发真实 toggle 终态，不能只伪造 pressed 信号。"
+	)
 
 
 func test_visual_capture_tools_publish_single_run_manifests() -> void:
@@ -536,8 +586,8 @@ func test_visual_capture_tools_publish_single_run_manifests() -> void:
 	var screenshot_pattern: RegEx = RegEx.new()
 	assert_true(screenshot_pattern.compile('"[^"]+\\.png"') == OK)
 	assert_true(
-		screenshot_pattern.search_all(plan_source).size() == 169,
-		"UI 矩阵必须在运行前独立声明完整的 169 张截图契约。"
+		screenshot_pattern.search_all(plan_source).size() == 171,
+		"UI 矩阵必须在运行前独立声明完整的 171 张截图契约。"
 	)
 	assert_false(
 		matrix_source.contains("_artifact_session.expect_screenshot(file_name)"),
@@ -563,6 +613,30 @@ func test_capture_matrix_covers_reduced_motion_for_every_page_matrix() -> void:
 			"accessibility.set_reduced_motion(previous_state.reduced_motion)"
 		),
 		"验收必须显式进入 reduced-motion，并恢复原始玩家偏好。"
+	)
+	assert_true(
+		source.contains("await _capture_gameplay_reduced_motion_states(game_play)")
+		and source.contains("gameplay_intro_reduced_motion_1280x720.png")
+		and source.contains("gameplay_merge_reduced_motion_1280x720.png"),
+		"玩法矩阵必须分别保留入场与合并的 reduced-motion 静态终态证据。"
+	)
+
+
+func test_visual_review_separates_scene_reveal_from_gameplay_motion_evidence() -> void:
+	var source: String = FileAccess.get_file_as_string(
+		_VISUAL_REVIEW_CAPTURE_PATH
+	)
+	assert_true(
+		source.contains("await _wait_for_scene_reveal_terminal(240)")
+		and source.contains("gameplay_intro_0020ms.png")
+		and source.contains("gameplay_intro_0520ms.png"),
+		"棋盘入场时间切片必须在场景揭示终态后单独采样，并覆盖首帧脚点与最终回弹。"
+	)
+	assert_true(
+		source.contains("gameplay_intro_reduced_motion.png")
+		and source.contains("gameplay_merge_reduced_motion.png")
+		and source.contains("_is_gameplay_intro_static"),
+		"视觉复核必须验证玩法入场和合并的 reduced-motion 静态终态。"
 	)
 
 

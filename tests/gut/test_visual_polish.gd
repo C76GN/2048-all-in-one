@@ -39,6 +39,9 @@ const _HALFTONE_BOARD_FEEDBACK_PROFILE: GameBoardFeedbackProfile = preload(
 	"res://features/themes/resources/themes/game/feedback/halftone_atlas_board_feedback_profile.tres"
 )
 const _HALFTONE_TILE_VISUAL_THEME: TileVisualTheme = preload("res://features/themes/resources/themes/game/halftone_atlas_tile_visual_theme.tres")
+const _HALFTONE_GAME_THEME: GameTheme = preload(
+	"res://features/themes/resources/themes/game/halftone_atlas_theme.tres"
+)
 const _CLASSIC_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/classic_tile_theme.tres")
 const _FIBONACCI_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/fibonacci_tile_theme.tres")
 const _LUCAS_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/lucas_tile_theme.tres")
@@ -241,7 +244,6 @@ func test_boot_scene_uses_startup_screen_and_gf_preload_progress() -> void:
 	)
 	assert_true(runtime_source.contains("GFAsyncWaitUtility.wait_until"), "启动编排器应使用 GFAsyncWaitUtility 统一预加载条件与超时。")
 	assert_true(runtime_source.contains("GFAsyncWaitUtility.delay_seconds"), "启动画面延迟应受 GF 生命周期保护。")
-	assert_true(runtime_source.contains("preload_scene(startup_scene_path, true)"), "启动编排器应通过 GFSceneUtility 预热实际入口场景。")
 	assert_true(runtime_source.contains("_get_scene_router_system"), "启动编排器应把最终场景切换交给 SceneRouterSystem。")
 	assert_false(runtime_source.contains("change_scene_to_file"), "GF 初始化后不应保留绕过 SceneRouterSystem 的场景切换旁路。")
 	assert_true(boot_source.contains("set_runtime_progress"), "正式编排器应只更新同一个静态启动壳。")
@@ -255,6 +257,18 @@ func test_boot_scene_uses_startup_screen_and_gf_preload_progress() -> void:
 		"启动编排器应启用 GF 修复后的场景切换相邻预载。"
 	)
 	assert_true(runtime_source.contains("preload_scene_map_for"), "启动编排器应通过 GFSceneUtility 预热入口场景的相邻页面。")
+	assert_true(
+		runtime_source.contains("_ENTRY_SCENE_FINAL_WAIT_SECONDS: float = 0.20"),
+		"入口预热只允许短暂收敛窗口，不得重新引入八秒启动阻塞。"
+	)
+	assert_true(
+		runtime_source.contains("preload_scene(startup_scene_path, true)"),
+		"固定入口场景应先于邻居计划取得共享 Broker admission。"
+	)
+	assert_true(
+		runtime_source.contains("startup_scene_path,\n\t\t\t1,\n\t\t\tfalse"),
+		"启动邻居计划必须排除已单独固定的入口场景，避免重复 admission。"
+	)
 	assert_true(runtime_source.contains("_prime_gameplay_visuals"), "启动编排器应在 GF 初始化后、静态遮罩下预绘制首轮反馈管线。")
 	assert_true(
 		runtime_source.contains("DisplayServer.get_name() != \"headless\""),
@@ -288,6 +302,29 @@ func test_boot_scene_uses_startup_screen_and_gf_preload_progress() -> void:
 		assert_true(minimum_display_time == 0, "原生启动图不应额外占用固定等待时间。")
 
 
+func test_gameplay_visual_warmup_uses_active_theme_and_draws_transition_materials() -> void:
+	var warmup_value: Object = _GAMEPLAY_VISUAL_WARMUP_SCRIPT.new()
+	assert_true(warmup_value is GameplayVisualWarmup)
+	if not warmup_value is GameplayVisualWarmup:
+		return
+	var warmup: GameplayVisualWarmup = warmup_value
+	add_child_autoqfree(warmup)
+	assert_true(
+		warmup.configure(_HALFTONE_GAME_THEME),
+		"预热树应消费已经激活的主题，不得在脚本解析期固定加载默认主题。"
+	)
+	warmup.prime()
+	assert_true(warmup.is_primed())
+	var transition_probe_count: int = 0
+	for child: Node in warmup.get_children():
+		if child is ColorRect and (child as ColorRect).material is ShaderMaterial:
+			transition_probe_count += 1
+	assert_true(
+		transition_probe_count == 2,
+		"cover/reveal ShaderMaterial 都应参与一次真实 CanvasItem draw warmup。"
+	)
+
+
 func test_main_menu_board_motif_uses_neutral_palette_without_dense_patterns() -> void:
 	var motif_source: String = _read_text(_MAIN_MENU_BOARD_MOTIF_PATH)
 
@@ -299,7 +336,7 @@ func test_main_menu_board_motif_uses_neutral_palette_without_dense_patterns() ->
 	assert_true(motif_source.contains("_DEMO_NEW_TILE_START"), "首页棋盘演示应以新方块生成完成动作闭环。")
 
 
-func test_navigation_scene_preload_map_is_valid_and_defers_gameplay_to_intent() -> void:
+func test_navigation_scene_preload_map_is_valid_and_preloads_gameplay_from_mode_selection() -> void:
 	var report: Dictionary = _SCENE_PRELOAD_MAP.validate_map({"check_exists": true})
 	assert_true(GFVariantData.get_option_int(report, &"error_count") == 0, "场景预载图不应包含阻断错误。")
 	assert_true(GFVariantData.get_option_int(report, &"warning_count") == 0, "场景预载图不应包含缺失或重复路径。")
@@ -317,12 +354,12 @@ func test_navigation_scene_preload_map_is_valid_and_defers_gameplay_to_intent() 
 	assert_has(
 		planned_paths,
 		"res://features/navigation/scenes/menus/main_menu.tscn",
-		"模式选择的静态邻接预载只需保留可立即返回的主菜单。"
+		"模式选择应继续预热可立即返回的主菜单。"
 	)
-	assert_does_not_have(
+	assert_has(
 		planned_paths,
 		"res://features/gameplay/scenes/game/game_play.tscn",
-		"玩法场景应由开始按钮的 focus/hover 意图预载，不能阻塞模式页首帧。"
+		"模式选择应在用户配置棋盘期间后台预热 Gameplay，避免触屏直接开始时冷加载。"
 	)
 	assert_lte(_SCENE_PRELOAD_MAP.max_scheduled_scenes, 2, "启动预载图不得并发调度所有低频菜单。")
 
@@ -350,6 +387,10 @@ func test_gameplay_visual_warmup_primes_tiles_and_feedback_without_runtime_asset
 		return
 	var warmup: Node2D = warmup_value
 	add_child_autofree(warmup)
+	assert_true(
+		GFVariantData.to_bool(warmup.call(&"configure", _HALFTONE_GAME_THEME)),
+		"视觉预热必须先绑定当前已激活主题。"
+	)
 	warmup.call(&"prime")
 	await get_tree().process_frame
 
@@ -2580,7 +2621,7 @@ func test_board_feedback_utility_orchestrates_gf_shake_and_background_feedback()
 	add_child_autoqfree(background)
 	await get_tree().process_frame
 
-	var tier: GameBoardFeedbackUtility.FeedbackTier = feedback_utility.classify_turn(2, 64, 128)
+	var tier: GameBoardFeedbackUtility.FeedbackTier = feedback_utility.classify_turn(3, 256, 512)
 	var created_count: int = feedback_utility.play_turn_feedback(
 		feedback_root,
 		feedback_canvas,
@@ -2592,7 +2633,7 @@ func test_board_feedback_utility_orchestrates_gf_shake_and_background_feedback()
 	)
 
 	assert_true(tier == GameBoardFeedbackUtility.FeedbackTier.HIGH_MERGE)
-	assert_true(created_count == 14, "高价值合并应提升后层纸片数量。")
+	assert_true(created_count == 5, "高价值合并应使用克制且可辨识的后层纸片数量。")
 	assert_true(
 		shake_utility.get_active_shake_count(&"board") == 1,
 		"整批操作反馈应通过 GFShakeUtility 播放一次 board channel 反馈。"

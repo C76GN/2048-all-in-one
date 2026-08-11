@@ -308,6 +308,51 @@ func test_board_editor_scene_initializes_with_injected_topology_context() -> voi
 	await get_tree().process_frame
 
 
+func test_board_editor_zoom_controls_use_readable_semantic_overlay() -> void:
+	var panel: Node = _BOARD_EDITOR_SCENE.instantiate()
+	var canvas_backdrop: Panel = panel.get_node_or_null("%CanvasBackdrop") as Panel
+	var view_controls: PanelContainer = panel.get_node_or_null(
+		"%ViewControls"
+	) as PanelContainer
+	var zoom_out_button: Button = panel.get_node_or_null("%ZoomOutButton") as Button
+	var zoom_label: Label = panel.get_node_or_null("%ZoomLabel") as Label
+	var fit_button: Button = panel.get_node_or_null("%FitButton") as Button
+	var zoom_in_button: Button = panel.get_node_or_null("%ZoomInButton") as Button
+	for control: Control in [
+		canvas_backdrop,
+		view_controls,
+		zoom_out_button,
+		zoom_label,
+		fit_button,
+		zoom_in_button,
+	]:
+		assert_not_null(control, "棋盘缩放工具缺少语义化节点。")
+	if canvas_backdrop != null and view_controls != null:
+		assert_gt(
+			view_controls.z_index,
+			canvas_backdrop.z_index,
+			"缩放工具 SHELL 必须明确绘制在画布 FIELD 之上。"
+		)
+	if zoom_label != null:
+		assert_gte(zoom_label.custom_minimum_size.x, 56.0)
+	if fit_button != null:
+		assert_gte(fit_button.custom_minimum_size.x, 64.0)
+
+	var source: String = _read_text(_BOARD_EDITOR_SCRIPT_PATH)
+	for required_semantic_role: String in [
+		"GameUiStyleUtility.SurfaceRole.FIELD",
+		"GameUiStyleUtility.SurfaceRole.SHELL",
+		"GameUiStyleUtility.TextRole.NUMERIC",
+		"style.style_button(_zoom_out_button, GameUiStyleUtility.ButtonRole.ICON)",
+		"style.style_button(_zoom_in_button, GameUiStyleUtility.ButtonRole.ICON)",
+	]:
+		assert_true(
+			source.contains(required_semantic_role),
+			"棋盘缩放工具缺少语义样式：%s。" % required_semantic_role
+		)
+	panel.free()
+
+
 func test_board_editor_initial_focus_matches_the_visible_responsive_section() -> void:
 	await _assert_board_editor_initial_focus(
 		Vector2(1440.0, 900.0),

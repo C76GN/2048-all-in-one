@@ -132,9 +132,20 @@ func test_game_ui_router_registers_project_panel_routes() -> void:
 	var hub_route_plan: Dictionary = ui_router.build_preload_plan(
 		&"tile_catalog",
 		{
-			"max_depth": 1,
+			"max_depth": 0,
 			"max_routes": 4,
 			"include_source": true,
+			"fixed_route_ids": PackedStringArray([
+				"tile_catalog",
+				"tile_lab",
+				"player_profile",
+				"achievements",
+			]),
+			"group_id": &"main_menu_popup_intent",
+			"plan_id": &"main_menu_popup_intent.preload",
+			"pin_cache": true,
+			"lane_id": &"ui.main_menu_popup_intent",
+			"max_concurrent_loads": 2,
 			"check_exists": true,
 		}
 	)
@@ -143,10 +154,23 @@ func test_game_ui_router_registers_project_panel_routes() -> void:
 	)
 	assert_true(
 		hub_scene_paths == PackedStringArray(
-			["res://features/tile_catalog/scenes/ui/tile_catalog_dialog.tscn"]
+			[
+				"res://features/tile_catalog/scenes/ui/tile_catalog_dialog.tscn",
+				"res://features/tile_lab/scenes/ui/tile_lab_dialog.tscn",
+				"res://features/player_profiles/scenes/ui/player_profile_dialog.tscn",
+				"res://features/achievements/scenes/ui/achievement_list_dialog.tscn",
+			]
 		),
-		"主菜单弹层首开预载计划应只等待当前页面。"
+		"主菜单首帧后的有界意图计划应覆盖四个高频弹层。"
 	)
+	var hub_asset_plan_value: Variant = hub_route_plan.get("asset_plan")
+	assert_true(hub_asset_plan_value is GFAssetPreloadPlan)
+	if hub_asset_plan_value is GFAssetPreloadPlan:
+		var hub_asset_plan: GFAssetPreloadPlan = hub_asset_plan_value
+		assert_true(hub_asset_plan.group_id == &"main_menu_popup_intent")
+		assert_true(hub_asset_plan.plan_id == &"main_menu_popup_intent.preload")
+		assert_true(hub_asset_plan.pin_cache)
+		assert_true(hub_asset_plan.max_concurrent_loads == 2)
 
 	architecture.dispose()
 	await get_tree().process_frame

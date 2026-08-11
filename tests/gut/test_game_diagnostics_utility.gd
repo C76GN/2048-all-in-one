@@ -28,6 +28,10 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 	var runtime_inspector: GFRuntimeInspectorUtility = GFRuntimeInspectorUtility.new()
 	var screenshots: GFScreenshotUtility = GFScreenshotUtility.new()
 	var input_mapping: GFInputMappingUtility = GFInputMappingUtility.new()
+	var resource_broker: GFResourceBroker = GFResourceBroker.new()
+	var asset_utility: GFAssetUtility = GFAssetUtility.new()
+	var scene_utility: GFSceneUtility = GFSceneUtility.new()
+	var render_warmup: GFRenderWarmupUtility = GFRenderWarmupUtility.new()
 	var project_diagnostics: GameDiagnosticsUtility = _GameDiagnosticsFixture.new()
 
 	await architecture.register_utility(GFLogUtility, log_utility)
@@ -38,6 +42,10 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 	)
 	await architecture.register_utility(GameSettingsUtility, settings)
 	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
+	await architecture.register_utility(GFResourceBroker, resource_broker)
+	await architecture.register_utility(GFAssetUtility, asset_utility)
+	await architecture.register_utility(GFSceneUtility, scene_utility)
+	await architecture.register_utility(GFRenderWarmupUtility, render_warmup)
 	await architecture.register_utility(GFConsoleUtility, console)
 	await architecture.register_utility(GFDiagnosticsUtility, diagnostics)
 	await architecture.register_utility(GFSessionTraceUtility, session_trace)
@@ -54,6 +62,11 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 	await architecture.register_utility(GameClockUtility, GameClockUtility.new())
 	await architecture.register_utility(_GAME_DIAGNOSTICS_UTILITY_SCRIPT, project_diagnostics)
 	await architecture.init()
+	for cache_index: int in range(40):
+		asset_utility.put_cache(
+			"user://accounts/private_%02d/theme.tres" % cache_index,
+			Resource.new()
+		)
 	input_mapping.enable_context(_GAMEPLAY_INPUT_CONTEXT, 100)
 	var touch_source: GFVirtualInputSource = input_mapping.create_virtual_source(
 		BoardWorldViewportController.TOUCH_INPUT_SOURCE_ID
@@ -110,6 +123,66 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 	assert_true(
 		diagnostics.has_diagnostic_provider(&"virtual_inputs"),
 		"玩法虚拟输入源应通过 GF 玩家作用域快照进入惰性诊断。"
+	)
+	assert_true(
+		diagnostics.has_diagnostic_provider(&"runtime_loading"),
+		"Asset、Scene 与 RenderWarmup 状态应通过有界惰性 Provider 采集。"
+	)
+	var runtime_loading: Dictionary = (
+		project_diagnostics.collect_diagnostic_snapshot(&"runtime_loading")
+	)
+	assert_true(GFVariantData.get_option_bool(runtime_loading, "available"))
+	assert_true(runtime_loading.has("assets"))
+	assert_true(runtime_loading.has("scenes"))
+	assert_true(runtime_loading.has("render_warmup"))
+	var runtime_asset_snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		runtime_loading,
+		"assets"
+	)
+	var cached_path_snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		runtime_asset_snapshot,
+		"cached_paths"
+	)
+	var runtime_broker_snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		runtime_asset_snapshot,
+		"resource_broker"
+	)
+	assert_true(GFVariantData.get_option_bool(runtime_broker_snapshot, "configured"))
+	assert_true(GFVariantData.get_option_bool(runtime_broker_snapshot, "available"))
+	assert_true(GFVariantData.get_option_bool(runtime_broker_snapshot, "healthy"))
+	assert_true(GFVariantData.get_option_int(cached_path_snapshot, "total_count") == 40)
+	assert_true(GFVariantData.get_option_int(cached_path_snapshot, "returned_count") == 32)
+	assert_true(GFVariantData.get_option_bool(cached_path_snapshot, "truncated"))
+	var bounded_paths: Variant = cached_path_snapshot.get(
+		"values",
+		PackedStringArray()
+	)
+	assert_true(bounded_paths is PackedStringArray)
+	if bounded_paths is PackedStringArray:
+		var path_values: PackedStringArray = bounded_paths
+		assert_true(path_values.size() == 32)
+		for path: String in path_values:
+			assert_true(
+				path == "user://<redacted>",
+				"运行加载快照不得泄露 user:// 下的账号或资源标识。"
+			)
+	var runtime_loading_bounds: Dictionary = GFVariantData.get_option_dictionary(
+		runtime_loading,
+		"bounds"
+	)
+	assert_true(
+		GFVariantData.get_option_int(
+			runtime_loading_bounds,
+			"max_paths_per_list"
+		) == 32
+	)
+	assert_false(
+		GFVariantData.get_option_bool(
+			runtime_loading_bounds,
+			"filesystem_scan",
+			true
+		),
+		"runtime_loading Provider 不得扫描文件系统。"
 	)
 	var virtual_inputs: Dictionary = project_diagnostics.collect_diagnostic_snapshot(
 		&"virtual_inputs"
@@ -192,6 +265,7 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 			"project_diagnostics",
 			"tile_catalog",
 			"gameplay_move_trace",
+			"runtime_loading",
 		]),
 		"diagnostic_provider_request": {"reason": "gut_explicit_request"},
 	})
@@ -200,11 +274,11 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 		"diagnostic_providers"
 	)
 	assert_true(
-		GFVariantData.get_option_int(provider_batch, "executed_count") == 3,
-		"显式请求只应执行列出的三个 Provider。"
+		GFVariantData.get_option_int(provider_batch, "executed_count") == 4,
+		"显式请求只应执行列出的四个 Provider。"
 	)
 	assert_true(
-		GFVariantData.get_option_int(provider_batch, "success_count") == 3,
+		GFVariantData.get_option_int(provider_batch, "success_count") == 4,
 		"可用与 unavailable 快照都应形成成功、类型化的 Provider 结果。"
 	)
 
@@ -216,6 +290,10 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 	assert_false(
 		diagnostics.has_diagnostic_provider(&"project_diagnostics"),
 		"销毁 Architecture 时应注销项目惰性诊断 Provider。"
+	)
+	assert_false(
+		diagnostics.has_diagnostic_provider(&"runtime_loading"),
+		"销毁 Architecture 时应注销运行时加载诊断 Provider。"
 	)
 
 
@@ -393,8 +471,14 @@ func test_gameplay_move_trace_is_bounded_and_exposes_only_phase_metrics() -> voi
 func test_scene_router_reuses_gf_operation_start_tick() -> void:
 	var operation_diagnostics: GFOperationDiagnosticsUtility = GFOperationDiagnosticsUtility.new()
 	operation_diagnostics.init()
+	var clock_utility: GameClockUtility = GameClockUtility.new()
+	assert_true(
+		clock_utility.set_clock(GFManualClock.new(1_234_000, 9_876_000)),
+		"场景路由测试应注入确定性的项目统一时钟。"
+	)
 	var router: SceneRouterSystem = SceneRouterSystem.new()
 	router.set("_operation_diagnostics", operation_diagnostics)
+	router.set("_clock_utility", clock_utility)
 
 	var _begin_result: Variant = router.call(
 		"_begin_scene_change_operation",
@@ -408,7 +492,10 @@ func test_scene_router_reuses_gf_operation_start_tick() -> void:
 	var router_started_ticks: int = GFVariantData.get_option_int(router_snapshot, "scene_change_started_usec")
 	var operation_started_ticks: int = GFVariantData.get_option_int(operation, "started_ticks_usec")
 
-	assert_gt(router_started_ticks, 0, "场景路由诊断应暴露 GF 操作记录的起始 tick。")
+	assert_true(
+		router_started_ticks == 1_234_000,
+		"场景路由诊断应暴露注入 GF 时钟的确定性起始 tick。"
+	)
 	assert_true(router_started_ticks == operation_started_ticks, "场景路由不得平行维护另一份操作起始 tick。")
 
 	router.dispose()
@@ -436,13 +523,16 @@ class _GameDiagnosticsFixture extends GameDiagnosticsUtility:
 		return [
 			GameClockUtility,
 			GamePerformanceTraceUtility,
+			GFAssetUtility,
 			GFAssetMetadataUtility,
 			GFConsoleUtility,
 			GFDebugOverlayUtility,
 			GFDiagnosticsUtility,
 			GFInputMappingUtility,
 			GFLogUtility,
+			GFRenderWarmupUtility,
 			GFRuntimeInspectorUtility,
+			GFSceneUtility,
 			GFScreenshotUtility,
 			GFSupportReportUtility,
 		]

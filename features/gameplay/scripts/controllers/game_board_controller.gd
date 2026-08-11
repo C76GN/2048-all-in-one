@@ -39,13 +39,16 @@ const TILE_Z_INDEX: int = 2
 const RELEASE_TOKEN_META: StringName = &"_board_animation_release_token"
 
 const _LOG_TAG: String = "GameBoardController"
-const _BOARD_INTRO_DURATION: float = 0.22
-const _BOARD_INTRO_CELL_STAGGER: float = 0.018
-const _BOARD_INTRO_TILE_STAGGER: float = 0.028
-const _BOARD_INTRO_TILE_DURATION: float = 0.28
-const _BOARD_INTRO_TILE_START_SCALE: float = 0.72
-const _BOARD_INTRO_TILE_PEAK_SCALE: float = 1.06
-const _BOARD_INTRO_MAX_STAGGER_WINDOW: float = 0.62
+const _BOARD_INTRO_INITIAL_DELAY: float = 0.14
+const _BOARD_INTRO_DURATION: float = 0.20
+const _BOARD_INTRO_CELL_STAGGER: float = 0.014
+const _BOARD_INTRO_TILE_PHASE_DELAY: float = 0.10
+const _BOARD_INTRO_TILE_STAGGER: float = 0.024
+const _BOARD_INTRO_TILE_DURATION: float = 0.22
+const _BOARD_INTRO_TILE_START_SCALE: float = 0.74
+const _BOARD_INTRO_TILE_PEAK_SCALE: float = 1.04
+const _BOARD_INTRO_MAX_STAGGER_WINDOW: float = 0.26
+const _BOARD_INTRO_FIRST_PIECE_ALPHA: float = 0.38
 const _BOARD_INTRO_MAX_ANIMATED_CELL_COUNT: int = 256
 const _CULL_MARGIN_CELLS: int = 2
 const _MIN_PROJECTED_CELL_DETAIL_SIZE: float = 12.0
@@ -1225,13 +1228,15 @@ func _play_board_intro() -> void:
 	):
 		var _assembled_cell_count: int = _ui_motion_utility.play_piece_assembly(
 			intro_cells,
-			cell_stagger
+			cell_stagger,
+			_BOARD_INTRO_INITIAL_DELAY
 		)
 	elif intro_cells.size() <= _BOARD_INTRO_MAX_ANIMATED_CELL_COUNT:
 		for index: int in intro_cells.size():
 			var _cell_intro_tween: Tween = _play_grid_cell_intro(
 				intro_cells[index],
-				float(index) * cell_stagger
+				_BOARD_INTRO_INITIAL_DELAY + float(index) * cell_stagger,
+				_BOARD_INTRO_FIRST_PIECE_ALPHA if index == 0 else 0.0
 			)
 
 	var intro_tiles: Array[Tile] = []
@@ -1253,14 +1258,22 @@ func _play_board_intro() -> void:
 		)
 		for index: int in intro_tiles.size():
 			var _tile_intro_tween: Tween = intro_tiles[index].animate_intro(
-				float(index) * tile_stagger,
+				(
+					_BOARD_INTRO_INITIAL_DELAY
+					+ _BOARD_INTRO_TILE_PHASE_DELAY
+					+ float(index) * tile_stagger
+				),
 				_BOARD_INTRO_TILE_START_SCALE,
 				_BOARD_INTRO_TILE_PEAK_SCALE,
 				_BOARD_INTRO_TILE_DURATION,
 				feedback_budget
 			)
 
-func _play_grid_cell_intro(cell_control: Control, delay_seconds: float) -> Tween:
+func _play_grid_cell_intro(
+	cell_control: Control,
+	delay_seconds: float,
+	start_alpha: float = 0.0
+) -> Tween:
 	if not is_instance_valid(cell_control):
 		return null
 	_kill_grid_cell_intro_tween(cell_control)
@@ -1268,7 +1281,7 @@ func _play_grid_cell_intro(cell_control: Control, delay_seconds: float) -> Tween
 	cell_control.scale = Vector2.ONE * 0.72
 	cell_control.rotation = 0.0
 	var start_color: Color = Color.WHITE
-	start_color.a = 0.0
+	start_color.a = clampf(start_alpha, 0.0, 1.0)
 	cell_control.modulate = start_color
 	var tween: Tween = cell_control.create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
 	var grow_tweener: PropertyTweener = tween.tween_property(

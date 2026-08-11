@@ -202,6 +202,19 @@ func test_scene_router_reduced_motion_uses_instant_shaderless_transition() -> vo
 		)
 		assert_false(config.preload_as_fixed_cache, "普通目标场景不得永久固定在预加载缓存。")
 
+	settings.set_value(GameAccessibilityState.REDUCED_MOTION_SETTING_KEY, false)
+	var normal_config_value: Variant = router.call(
+		"_make_scene_transition_config",
+		"res://features/navigation/scenes/menus/main_menu.tscn"
+	)
+	assert_true(normal_config_value is GFSceneTransitionConfig)
+	if normal_config_value is GFSceneTransitionConfig:
+		var normal_config: GFSceneTransitionConfig = normal_config_value
+		assert_true(
+			normal_config.minimum_duration_seconds == 0.0,
+			"正常转场已有不透明 cover，不得再叠加固定加载等待。"
+		)
+
 	await _dispose_architecture(architecture)
 
 

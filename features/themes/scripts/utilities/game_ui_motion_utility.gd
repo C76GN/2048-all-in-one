@@ -45,6 +45,8 @@ const _TAB_INDEX_META: StringName = &"_game_ui_motion_tab_index"
 ## 这避免 ScrollContainer 与密集按钮组裁切放大后的控件。
 const _PROFILE_VECTOR_SENTINEL: Vector2 = Vector2(1.0e20, 1.0e20)
 const _PROFILE_COLOR_SENTINEL: Color = Color(-1.0, -1.0, -1.0, -1.0)
+## 错峰组装的第一块保留一层可读脚点，避免场景揭示后的首个可见帧全空。
+const _PIECE_ASSEMBLY_FOOTHOLD_ALPHA: float = 0.38
 
 
 # --- 私有变量 ---
@@ -910,10 +912,12 @@ func play_toast_exit(control: Control, rest_position: Vector2) -> Tween:
 ## 让一组独立视觉部件以错峰缩放和旋转完成组装。
 ## @param pieces: 需要组装的控件数组；无效或隐藏控件会被忽略。
 ## @param stagger: 相邻部件的开始时间间隔。
+## @param initial_delay: 整组部件开始前的短暂交接时间。
 ## @return: 本次启动的部件动画数量。
 func play_piece_assembly(
 	pieces: Array[Control],
-	stagger: float = -1.0
+	stagger: float = -1.0,
+	initial_delay: float = 0.0
 ) -> int:
 	var resolved_stagger: float = (
 		_get_motion_profile().piece_assembly_stagger
@@ -927,8 +931,9 @@ func play_piece_assembly(
 		var rotation_direction: float = -1.0 if animated_count % 2 == 0 else 1.0
 		var _piece_tween: Tween = _play_piece_reveal(
 			piece,
-			float(animated_count) * resolved_stagger,
-			rotation_direction
+			maxf(initial_delay, 0.0) + float(animated_count) * resolved_stagger,
+			rotation_direction,
+			animated_count == 0
 		)
 		animated_count += 1
 	return animated_count
@@ -1146,7 +1151,8 @@ func _bind_tab_container(tab_container: TabContainer) -> void:
 func _play_piece_reveal(
 	control: Control,
 	delay: float,
-	rotation_direction: float
+	rotation_direction: float,
+	keep_visible_foothold: bool
 ) -> Tween:
 	if not is_instance_valid(control):
 		return null
@@ -1183,7 +1189,11 @@ func _play_piece_reveal(
 		+ profile.piece_assembly_start_rotation * rotation_direction
 	)
 	var start_modulate: Color = base_modulate
-	start_modulate.a = 0.0
+	start_modulate.a = (
+		base_modulate.a * _PIECE_ASSEMBLY_FOOTHOLD_ALPHA
+		if keep_visible_foothold
+		else 0.0
+	)
 	control.modulate = start_modulate
 
 	var tween: Tween = control.create_tween()

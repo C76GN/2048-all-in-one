@@ -124,6 +124,133 @@ func test_marker_catalog_does_not_infer_events_without_current_metadata() -> voi
 	assert_true(last_marker.kind == ReplayMarker.Kind.FAILURE, "已保存回放末步必须有失败标记。")
 
 
+func test_marker_count_summary_matches_catalog_for_all_event_categories() -> void:
+	var replay: ReplayData = ReplayData.new()
+	replay.actions = [
+		Vector2i.LEFT,
+		Vector2i.RIGHT,
+		Vector2i.UP,
+		Vector2i.DOWN,
+		Vector2i.LEFT,
+		Vector2i.RIGHT,
+		Vector2i.UP,
+	]
+	var no_metadata: ReplayCheckpoint = _make_checkpoint(1, 128)
+	no_metadata.metadata_available = false
+	no_metadata.merge_count = 5
+	no_metadata.target_reached = true
+	var merge: ReplayCheckpoint = _make_checkpoint(2, 132)
+	merge.metadata_available = true
+	merge.merge_count = 1
+	var chain: ReplayCheckpoint = _make_checkpoint(3, 164)
+	chain.metadata_available = true
+	chain.merge_count = 2
+	var transform: ReplayCheckpoint = _make_checkpoint(4, 164)
+	transform.metadata_available = true
+	transform.transform_count = 1
+	var ratio: ReplayCheckpoint = _make_checkpoint(5, 164)
+	ratio.metadata_available = true
+	ratio.ratio_resolution_count = 1
+	var milestone: ReplayCheckpoint = _make_checkpoint(6, 164)
+	milestone.metadata_available = true
+	milestone.target_reached = true
+	milestone.highest_tile = 2048
+	var repeated_milestone: ReplayCheckpoint = _make_checkpoint(7, 164)
+	repeated_milestone.metadata_available = true
+	repeated_milestone.target_reached = true
+	repeated_milestone.highest_tile = 4096
+	replay.checkpoints = [
+		no_metadata,
+		merge,
+		chain,
+		transform,
+		ratio,
+		milestone,
+		repeated_milestone,
+	]
+	var oos_report: Dictionary = {
+		&"kind": &"fixture",
+		&"step_index": 3,
+	}
+
+	var markers: Array[ReplayMarker] = ReplayMarker.build_catalog(
+		replay,
+		oos_report
+	)
+	var summary: Dictionary = ReplayMarker.summarize_counts(
+		replay,
+		oos_report
+	)
+	var expected_key_events: int = (
+		ReplayMarker.count_by_kind(markers, ReplayMarker.Kind.CHAIN_OR_TRANSFORM)
+		+ ReplayMarker.count_by_kind(markers, ReplayMarker.Kind.MILESTONE)
+		+ ReplayMarker.count_by_kind(markers, ReplayMarker.Kind.FAILURE)
+	)
+
+	assert_true(
+		GFVariantData.get_option_int(summary, &"total") == markers.size(),
+		"零对象摘要与完整播放目录的标记总数必须等价。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(summary, &"merges")
+		== ReplayMarker.count_by_kind(markers, ReplayMarker.Kind.MERGE),
+		"零对象摘要与完整播放目录的合并标记数必须等价。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(summary, &"key_events") == expected_key_events,
+		"列表关键事件语义必须排除普通合并与 OOS，并与完整目录等价。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(summary, &"total") == 8
+		and GFVariantData.get_option_int(summary, &"merges") == 2
+		and GFVariantData.get_option_int(summary, &"key_events") == 5,
+		"夹具应覆盖合并、连锁、变换、比例消解、里程碑、失败与 OOS。"
+	)
+
+
+func test_marker_count_summary_is_bounded_by_replay_step_capacity() -> void:
+	var replay: ReplayData = ReplayData.new()
+	replay.actions = [Vector2i.LEFT]
+	var merge: ReplayCheckpoint = _make_checkpoint(1, 4)
+	merge.metadata_available = true
+	merge.merge_count = 1
+	var _resize_error: int = replay.checkpoints.resize(
+		ReplayData.MAX_STEP_COUNT + 8
+	)
+	replay.checkpoints.fill(merge)
+
+	var summary: Dictionary = ReplayMarker.summarize_counts(replay)
+
+	assert_true(
+		GFVariantData.get_option_int(summary, &"total")
+		== ReplayData.MAX_STEP_COUNT + 1,
+		"摘要只允许扫描业务步数上限，并额外计入唯一终局失败标记。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(summary, &"merges")
+		== ReplayData.MAX_STEP_COUNT,
+		"超限内存资源不得让列表摘要执行无界 checkpoint 扫描。"
+	)
+
+
+func test_replay_list_caches_marker_summary_by_stable_replay_id() -> void:
+	var replay: ReplayData = _make_navigation_replay()
+	var replay_list: ReplayList = ReplayList.new()
+	autofree(replay_list)
+	var first_summary: Dictionary = replay_list._get_marker_summary(replay)
+	var second_summary: Dictionary = replay_list._get_marker_summary(replay)
+
+	assert_true(first_summary == second_summary)
+	assert_true(
+		GFVariantData.get_option_int(first_summary, &"total") > 0,
+		"回放列表摘要应保留真实标记数量。"
+	)
+	assert_true(
+		replay_list._marker_summary_by_replay_id.size() == 1,
+		"虚拟列表重复绑定和详情预览必须共享一次标记扫描。"
+	)
+
+
 func test_replay_marker_navigation_obeys_boundaries_and_oos_blocking() -> void:
 	var history: GFCommandHistoryUtility = _make_history(2)
 	var replay: ReplayData = _make_navigation_replay()
@@ -389,6 +516,7 @@ func _marker_ids(markers: Array[ReplayMarker]) -> Array[StringName]:
 
 func _make_navigation_replay() -> ReplayData:
 	var replay: ReplayData = ReplayData.new()
+	replay.replay_id = GFUuid.generate_v7(1234567)
 	replay.actions = [
 		Vector2i.LEFT,
 		Vector2i.RIGHT,

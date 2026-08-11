@@ -9,10 +9,6 @@ extends Node2D
 # --- 常量 ---
 
 const _TILE_SCENE: PackedScene = preload("res://features/gameplay/scenes/components/tile.tscn")
-const _TILE_VISUAL_THEME: TileVisualTheme = preload("res://features/themes/resources/themes/game/halftone_atlas_tile_visual_theme.tres")
-const _FEEDBACK_PROFILE: GameBoardFeedbackProfile = preload(
-	"res://features/themes/resources/themes/game/feedback/halftone_atlas_board_feedback_profile.tres"
-)
 const _INK_COLOR: Color = Color(0.19215687, 0.2, 0.21568628, 1.0)
 const _PAPER_COLOR: Color = Color(0.95686275, 0.94509804, 0.9098039, 1.0)
 const _WARMUP_COLORS: Array[Color] = [
@@ -28,19 +24,47 @@ const _WARMUP_COLORS: Array[Color] = [
 # --- 私有变量 ---
 
 var _primed: bool = false
+var _tile_visual_theme: TileVisualTheme
+var _feedback_profile: GameBoardFeedbackProfile
+var _transition_materials: Array[ShaderMaterial] = []
 
 
 # --- 公共方法 ---
 
+## 配置预热需要的当前游戏主题资源。
+## @param theme: 提供方块视觉、棋盘反馈与转场材质的已激活游戏主题。
+func configure(theme: GameTheme) -> bool:
+	if (
+		not is_instance_valid(theme)
+		or not is_instance_valid(theme.tile_visual_theme)
+		or not is_instance_valid(theme.board_feedback_profile)
+	):
+		return false
+	_tile_visual_theme = theme.tile_visual_theme
+	_feedback_profile = theme.board_feedback_profile
+	_transition_materials.clear()
+	for effect: GFScreenTransitionEffect in [
+		theme.scene_transition_cover_effect,
+		theme.scene_transition_reveal_effect,
+	]:
+		if effect != null and is_instance_valid(effect.shader_material):
+			_transition_materials.append(effect.shader_material)
+	return true
+
+
 func prime() -> void:
-	if _primed:
+	if (
+		_primed
+		or not is_instance_valid(_tile_visual_theme)
+		or not is_instance_valid(_feedback_profile)
+	):
 		return
 	_primed = true
 	z_index = -1000
 	position = Vector2(24.0, 24.0)
 
-	for index: int in range(_TILE_VISUAL_THEME.family_styles.size()):
-		var style: TileVisualFamilyStyle = _TILE_VISUAL_THEME.family_styles[index]
+	for index: int in range(_tile_visual_theme.family_styles.size()):
+		var style: TileVisualFamilyStyle = _tile_visual_theme.family_styles[index]
 		if style == null:
 			continue
 		var tile_value: Node = _TILE_SCENE.instantiate()
@@ -70,7 +94,10 @@ func prime() -> void:
 	var budget: GameFeedbackBudget = GameFeedbackPerformanceMatrix.resolve(
 		GameAccessibilityState.new()
 	)
-	var turn_recipe: GameFeedbackRecipe = _FEEDBACK_PROFILE.high_merge_recipe
+	for shader_material: ShaderMaterial in _transition_materials:
+		_add_canvas_material_probe(shader_material)
+
+	var turn_recipe: GameFeedbackRecipe = _feedback_profile.high_merge_recipe
 	var _turn_primitives: int = feedback_canvas.play_turn_impact(
 		Rect2(Vector2.ZERO, Vector2(312.0, 208.0)),
 		Vector2.RIGHT,
@@ -81,7 +108,7 @@ func prime() -> void:
 		* budget.duration_scale,
 		budget.motion_scale
 	)
-	var tile_recipe: GameFeedbackRecipe = _FEEDBACK_PROFILE.tile_merge_recipe
+	var tile_recipe: GameFeedbackRecipe = _feedback_profile.tile_merge_recipe
 	var _burst_primitives: int = feedback_canvas.play_tile_burst(
 		Vector2(156.0, 104.0),
 		&"merge",
@@ -96,3 +123,21 @@ func prime() -> void:
 
 func is_primed() -> bool:
 	return _primed
+
+
+# --- 私有/辅助方法 ---
+
+func _add_canvas_material_probe(shader_material: ShaderMaterial) -> void:
+	if not is_instance_valid(shader_material):
+		return
+	var probe: ColorRect = ColorRect.new()
+	probe.name = "TransitionMaterialProbe"
+	probe.position = Vector2(
+		336.0 + float(_transition_materials.find(shader_material)) * 20.0,
+		0.0
+	)
+	probe.size = Vector2(16.0, 16.0)
+	probe.color = Color.WHITE
+	probe.material = shader_material
+	probe.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(probe)

@@ -230,7 +230,7 @@ func test_mode_selection_primes_gameplay_from_start_intent() -> void:
 	)
 
 
-func test_mode_selection_defers_gameplay_preload_until_start_intent() -> void:
+func test_mode_selection_includes_gameplay_in_neighbor_preload_plan() -> void:
 	var plan: Dictionary = _SCENE_PRELOAD_MAP.get_preload_plan(
 		_MODE_SELECTION_SCENE_PATH,
 		1,
@@ -243,10 +243,10 @@ func test_mode_selection_defers_gameplay_preload_until_start_intent() -> void:
 			PackedStringArray()
 		)
 	)
-	assert_does_not_have(
+	assert_has(
 		temporary_paths,
 		_GAME_SCENE_PATH,
-		"模式场景刚切入时不应同帧预载 gameplay；玩法场景由开始意图触发。"
+		"模式页停留期间应由 GF 邻接预载在后台温热玩法场景；开始意图仍可幂等提速。"
 	)
 
 
@@ -704,6 +704,38 @@ func test_replay_list_virtual_list_binder_bounds_focus_repairs_and_disposes() ->
 		"目录缩短后不得保留越界活动节点。"
 	)
 
+	replay_list._content_ready = false
+	replay_list._virtual_population_terminal_pending = true
+	replay_list._on_virtual_list_sync_completed(
+		_VirtualSyncResultProbe.new(GFVirtualListSyncResult.STATUS_DEFERRED)
+	)
+	assert_false(
+		replay_list.is_content_ready(),
+		"GF deferred 仅表示已排队下一轮，不能提前宣告首窗内容就绪。"
+	)
+	replay_list._on_virtual_list_sync_completed(
+		_VirtualSyncResultProbe.new(GFVirtualListSyncResult.STATUS_SYNCED)
+	)
+	assert_true(
+		replay_list.is_content_ready(),
+		"deferred 后首个明确成功同步必须完成列表内容屏障。"
+	)
+
+	replay_list._content_ready = false
+	replay_list._virtual_population_terminal_pending = true
+	replay_list._on_virtual_list_sync_completed(
+		_VirtualSyncResultProbe.new(GFVirtualListSyncResult.STATUS_BIND_FAILED)
+	)
+	assert_push_error("GFVirtualListBinder 延迟同步失败")
+	assert_false(
+		replay_list.is_content_ready(),
+		"deferred 后失败不得被当成已完成水合。"
+	)
+	assert_false(
+		replay_list._virtual_population_terminal_pending,
+		"明确失败必须关闭本轮等待，避免后续无关同步误完成旧屏障。"
+	)
+
 	binder.dispose()
 	var disposed_snapshot: Dictionary = binder.get_debug_snapshot()
 	assert_true(binder.is_disposed(), "显式 teardown 必须让 Binder 进入 disposed 终态。")
@@ -792,9 +824,27 @@ func test_delete_busy_guard_and_late_rollback_unlock_once() -> void:
 
 # --- 内部类 ---
 
+class _VirtualSyncResultProbe extends GFVirtualListSyncResult:
+	var _probe_status: StringName = GFVirtualListSyncResult.STATUS_UNBOUND
+
+	func _init(status: StringName) -> void:
+		_probe_status = status
+
+	func is_successful() -> bool:
+		return _probe_status in [
+			GFVirtualListSyncResult.STATUS_SYNCED,
+			GFVirtualListSyncResult.STATUS_UNCHANGED,
+			GFVirtualListSyncResult.STATUS_TRUNCATED,
+		]
+
+	func get_status() -> StringName:
+		return _probe_status
+
+
 class _SceneRequestProbe extends SceneRouterSystem:
 	func prepare() -> void:
 		_scene_utility = GFSceneUtility.new()
+		_clock_utility = GameClockUtility.new()
 
 	## @param _path: 待预热的场景资源路径；探针不执行真实预热。
 	func prime_scene(_path: String) -> Error:

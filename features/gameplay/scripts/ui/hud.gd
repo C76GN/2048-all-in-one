@@ -319,7 +319,11 @@ func _play_startup_intro() -> void:
 	]:
 		if is_instance_valid(candidate) and candidate.visible:
 			pieces.append(candidate)
-	var _assembled_piece_count: int = _ui_motion_utility.play_piece_assembly(pieces)
+	var _assembled_piece_count: int = _ui_motion_utility.play_piece_assembly(
+		pieces,
+		-1.0,
+		0.08
+	)
 	var startup_buttons: Array[BaseButton] = []
 	if is_instance_valid(_details_toggle_button) and _details_toggle_button.visible:
 		startup_buttons.append(_details_toggle_button)

@@ -18,6 +18,9 @@ enum FeedbackTier {
 const _SHAKE_CHANNEL: StringName = &"board"
 const _HAPTIC_CHANNEL: StringName = &"board"
 const _BASE_POSITION_META: StringName = &"feedback_base_position"
+const _HIGH_MERGE_COUNT_THRESHOLD: int = 3
+const _HIGH_MERGE_VALUE_THRESHOLD: int = 256
+const _HIGH_MERGE_SCORE_THRESHOLD: int = 512
 
 
 # --- 私有变量 ---
@@ -110,7 +113,11 @@ func classify_turn(
 		return FeedbackTier.RECORD
 	if merge_count <= 0:
 		return FeedbackTier.MOVE
-	if merge_count >= 2 or max_merge_value >= 64 or score_delta >= 128:
+	if (
+		merge_count >= _HIGH_MERGE_COUNT_THRESHOLD
+		or max_merge_value >= _HIGH_MERGE_VALUE_THRESHOLD
+		or score_delta >= _HIGH_MERGE_SCORE_THRESHOLD
+	):
 		return FeedbackTier.HIGH_MERGE
 	return FeedbackTier.MERGE
 
@@ -148,7 +155,9 @@ func play_turn_feedback(
 	var budget: GameFeedbackBudget = GameFeedbackPerformanceMatrix.resolve(state)
 	var direction_vector: Vector2 = Vector2(direction).normalized()
 	_play_root_impulse(root, direction_vector, recipe, budget)
-	var uses_emphasis_channels: bool = tier != FeedbackTier.MOVE
+	var uses_emphasis_channels: bool = (
+		tier != FeedbackTier.MOVE and budget.motion_scale > 0.0
+	)
 	if uses_emphasis_channels:
 		_play_background_impulse(background, direction_vector, recipe, budget)
 	_play_turn_shake(recipe, direction, state, budget, tier)

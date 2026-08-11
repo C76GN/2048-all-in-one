@@ -484,6 +484,66 @@ func test_settings_scene_exposes_timing_and_binding_controls() -> void:
 	scene_root.free()
 
 
+func test_settings_sections_share_one_non_empty_toggle_group() -> void:
+	var scene_root: Node = _SETTINGS_SCENE.instantiate()
+	var general_button: Button = scene_root.get_node_or_null(
+		"%GeneralTabButton"
+	) as Button
+	var audio_button: Button = scene_root.get_node_or_null(
+		"%AudioTabButton"
+	) as Button
+	var controls_button: Button = scene_root.get_node_or_null(
+		"%ControlsTabButton"
+	) as Button
+	assert_not_null(general_button)
+	assert_not_null(audio_button)
+	assert_not_null(controls_button)
+	if general_button == null or audio_button == null or controls_button == null:
+		scene_root.free()
+		return
+
+	var section_group: ButtonGroup = general_button.button_group
+	assert_not_null(section_group, "设置分区必须由共享 ButtonGroup 持有唯一选中态。")
+	if section_group != null:
+		assert_same(audio_button.button_group, section_group)
+		assert_same(controls_button.button_group, section_group)
+		assert_false(section_group.allow_unpress, "设置分区不得取消全部选中态。")
+		var second_scene_root: Node = _SETTINGS_SCENE.instantiate()
+		var second_general_button: Button = second_scene_root.get_node_or_null(
+			"%GeneralTabButton"
+		) as Button
+		assert_not_null(second_general_button)
+		if second_general_button != null:
+			assert_not_same(
+				second_general_button.button_group,
+				section_group,
+				"不同设置弹层实例不得共享可变 ButtonGroup 状态。"
+			)
+		second_scene_root.free()
+	assert_true(general_button.toggle_mode and general_button.button_pressed)
+
+	watch_signals(general_button)
+	watch_signals(audio_button)
+	audio_button.button_pressed = true
+	assert_false(general_button.button_pressed)
+	assert_true(audio_button.button_pressed)
+	assert_signal_emitted(general_button, "toggled")
+	assert_signal_emitted(audio_button, "toggled")
+
+	var settings_source: String = FileAccess.get_file_as_string(_SETTINGS_SCRIPT_PATH)
+	assert_true(
+		settings_source.count(".toggled.connect") >= 3,
+		"设置内容与选中 presenter 必须消费真实 toggled 终态。"
+	)
+	assert_false(
+		settings_source.contains(
+			"_general_tab_button.set_pressed_no_signal(section"
+		),
+		"设置分区不得静默改写选中态并绕过动效 presenter。"
+	)
+	scene_root.free()
+
+
 func test_settings_scene_ignores_translation_refresh_before_ready() -> void:
 	var scene_root: Node = _SETTINGS_SCENE.instantiate()
 

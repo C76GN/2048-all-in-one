@@ -9,7 +9,7 @@ shader_parameter/reverse_progress = false
 
 [resource]
 script = ExtResource("1_effect")
-duration_seconds = 0.24
+duration_seconds = 0.20
 from_alpha = 1.0
 to_alpha = 1.0
 layer = 1024

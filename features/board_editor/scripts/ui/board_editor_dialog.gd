@@ -6,6 +6,7 @@ extends GameUiController
 # --- 信号 ---
 
 signal topology_applied(topology: BoardTopology)
+signal interaction_ready
 
 
 # --- 常量 ---
@@ -30,6 +31,7 @@ var _save_graph: GameSaveGraphUtility
 var _saved_boards: Array[CustomBoardData] = []
 var _selected_saved_board_id: String = ""
 var _configured: bool = false
+var _interaction_ready: bool = false
 var _animate_next_canvas_change: bool = false
 var _persistence_operation_busy: bool = false
 var _persistence_outcome_unknown: bool = false
@@ -59,7 +61,13 @@ var _persistence_reconciliation_prompted: bool = false
 @onready var _cross_button: Button = %CrossButton
 @onready var _normalize_button: Button = %NormalizeButton
 @onready var _clear_button: Button = %ClearButton
+@onready var _canvas_backdrop: Panel = %CanvasBackdrop
 @onready var _canvas: BoardEditorCanvas = %BoardEditorCanvas
+@onready var _view_controls: PanelContainer = %ViewControls
+@onready var _zoom_out_button: Button = %ZoomOutButton
+@onready var _zoom_label: Label = %ZoomLabel
+@onready var _fit_button: Button = %FitButton
+@onready var _zoom_in_button: Button = %ZoomInButton
 @onready var _validation_label: Label = %ValidationLabel
 @onready var _library_title_label: Label = %LibraryTitleLabel
 @onready var _saved_board_list: ItemList = %SavedBoardList
@@ -107,6 +115,7 @@ func _exit_tree() -> void:
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
 	_history = null
+	_interaction_ready = false
 	_custom_board_system = null
 	_input_mapping = null
 	_signal_utility = null
@@ -135,11 +144,22 @@ func configure(
 	topology_template: BoardTopologyTemplate,
 	initial_topology: BoardTopology
 ) -> void:
+	_interaction_ready = false
 	_topology_template = topology_template
 	_initial_topology = initial_topology
 	_configured = is_instance_valid(topology_template)
 	if is_node_ready():
 		_initialize_editor()
+
+
+## 返回局部 GF 历史、草稿与画布是否已完成初始化并可接受编辑输入。
+func is_interaction_ready() -> bool:
+	return (
+		_interaction_ready
+		and is_instance_valid(_history)
+		and is_instance_valid(_draft)
+		and is_instance_valid(_canvas)
+	)
 
 
 # --- 私有/辅助方法 ---
@@ -161,6 +181,8 @@ func _initialize_editor() -> void:
 	_board_name_edit.text = tr("BOARD_EDITOR_DEFAULT_NAME")
 	_refresh_saved_boards()
 	_refresh_draft_state()
+	_interaction_ready = true
+	interaction_ready.emit()
 
 
 func _setup_tool_button_group() -> void:
@@ -242,6 +264,19 @@ func _apply_semantic_styles() -> void:
 		GameUiStyleUtility.TextRole.SECONDARY
 	)
 	style.style_label(_validation_label, GameUiStyleUtility.TextRole.SECONDARY)
+	style.style_panel(
+		_canvas_backdrop,
+		GameUiStyleUtility.SurfaceRole.FIELD,
+		GameUiStyleUtility.BorderRole.DEFAULT,
+		1
+	)
+	style.style_panel_container(
+		_view_controls,
+		GameUiStyleUtility.SurfaceRole.SHELL,
+		GameUiStyleUtility.BorderRole.DEFAULT,
+		1
+	)
+	style.style_label(_zoom_label, GameUiStyleUtility.TextRole.NUMERIC)
 	style.style_line_edit(_board_name_edit)
 
 	style.style_button(
@@ -260,6 +295,9 @@ func _apply_semantic_styles() -> void:
 	style.style_button(_cross_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	style.style_button(_normalize_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	style.style_button(_clear_button, GameUiStyleUtility.ButtonRole.QUIET)
+	style.style_button(_zoom_out_button, GameUiStyleUtility.ButtonRole.ICON)
+	style.style_button(_fit_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+	style.style_button(_zoom_in_button, GameUiStyleUtility.ButtonRole.ICON)
 	style.style_button(_save_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	style.style_button(_load_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	style.style_button(_delete_button, GameUiStyleUtility.ButtonRole.QUIET)

@@ -3,6 +3,11 @@ class_name PlayerProfileDialog
 extends GameUiController
 
 
+# --- 信号 ---
+
+signal content_ready
+
+
 # --- 常量 ---
 
 ## 720px 竖屏不能再挤压横向标题栏；在常见紧凑平板宽度前改为纵向分区。
@@ -27,6 +32,7 @@ var _progress_snapshot_cancel_source: GFCancellationSource = null
 var _progress_snapshot_generation: int = 0
 var _progress_snapshot_account_id: String = ""
 var _progress_snapshot_status_generation: int = -1
+var _content_ready: bool = false
 var _mode_rows_by_id: Dictionary = {}
 var _leaderboard_rows_by_account_id: Dictionary = {}
 var _mode_table_view: GFTableDataView = GFTableDataView.new()
@@ -73,9 +79,16 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	_content_ready = false
 	_cancel_progress_snapshot(&"dialog_closed")
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
+
+# --- 公共方法 ---
+
+## 返回设备统计快照是否已成功投影，或已收敛为可呈现的失败终态。
+func is_content_ready() -> bool:
+	return _content_ready
 
 
 # --- 私有/辅助方法 ---
@@ -957,8 +970,9 @@ func _on_progress_snapshot_completed(
 		_progress_snapshot_cancel_source.dispose()
 	_progress_snapshot_cancel_source = null
 	if not settled_completion.is_successful():
-		if not settled_completion.is_cancelled():
-			_apply_progress_snapshot_failure()
+		# 只有 supersede/离树产生的取消会在上方 generation/tree guard 中被忽略；
+		# 当前 generation 的取消同样必须收敛为可呈现终态，不能让内容就绪屏障永久等待。
+		_apply_progress_snapshot_failure()
 		return
 	var result_value: Variant = settled_completion.get_result()
 	if not result_value is Dictionary:
@@ -992,6 +1006,7 @@ func _on_progress_snapshot_completed(
 		)
 	else:
 		_clear_progress_snapshot_status(generation)
+	_mark_content_ready()
 
 
 func _set_progress_loading_state(generation: int) -> void:
@@ -1025,6 +1040,7 @@ func _set_progress_loading_state(generation: int) -> void:
 
 
 func _prepare_progress_snapshot_pending() -> void:
+	_content_ready = false
 	# 账号 selector 已切换时必须立即撤下旧账号数据；仅 Loading 文案延迟出现。
 	_account_summary_label.text = ""
 	_mode_empty_label.visible = false
@@ -1056,6 +1072,14 @@ func _apply_progress_snapshot_failure() -> void:
 		true,
 		_progress_snapshot_generation
 	)
+	_mark_content_ready()
+
+
+func _mark_content_ready() -> void:
+	if _content_ready:
+		return
+	_content_ready = true
+	content_ready.emit()
 
 
 func _get_cached_row(cache: Dictionary, row_id: String) -> Control:

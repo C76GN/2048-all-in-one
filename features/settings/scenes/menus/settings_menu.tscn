@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3 uid="uid://c8j6k4m2n5qax"]
+[gd_scene load_steps=5 format=3 uid="uid://c8j6k4m2n5qax"]
 
 [ext_resource type="Script" uid="uid://cgipf2t7wpn1v" path="res://features/settings/scripts/menus/settings_menu.gd" id="1_script"]
 [ext_resource type="Shader" uid="uid://bcbbruhugjje" path="res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader" id="2_background_shader"]
@@ -9,6 +9,10 @@ shader_parameter/base_color = Color(0.95686275, 0.92941177, 0.8666667, 1)
 shader_parameter/accent_color = Color(0.61960787, 0.85882354, 0.8352941, 1)
 shader_parameter/secondary_color = Color(0.9372549, 0.81960785, 0.3647059, 1)
 shader_parameter/warm_color = Color(0.9607843, 0.6392157, 0.7882353, 1)
+
+[sub_resource type="ButtonGroup" id="ButtonGroup_settings_sections"]
+resource_local_to_scene = true
+allow_unpress = false
 
 [node name="SettingsMenu" type="Control"]
 layout_mode = 3
@@ -90,6 +94,7 @@ custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
 toggle_mode = true
 button_pressed = true
+button_group = SubResource("ButtonGroup_settings_sections")
 text = "外观"
 
 [node name="AudioTabButton" type="Button" parent="SafeMargin/Page/Body/CategoryRail"]
@@ -97,6 +102,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
 toggle_mode = true
+button_group = SubResource("ButtonGroup_settings_sections")
 text = "声音"
 
 [node name="ControlsTabButton" type="Button" parent="SafeMargin/Page/Body/CategoryRail"]
@@ -104,6 +110,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 50)
 layout_mode = 2
 toggle_mode = true
+button_group = SubResource("ButtonGroup_settings_sections")
 text = "操作"
 
 [node name="ContentPanel" type="MarginContainer" parent="SafeMargin/Page/Body"]

@@ -205,6 +205,7 @@ focus_mode = 2
 script = ExtResource("6_spatial_canvas")
 
 [node name="CanvasBackdrop" type="Panel" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport"]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -226,11 +227,13 @@ unique_name_in_owner = true
 script = ExtResource("3_viewport")
 
 [node name="ViewControls" type="PanelContainer" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport"]
+unique_name_in_owner = true
+z_index = 2
 layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
-offset_left = -242.0
+offset_left = -254.0
 offset_top = 10.0
 offset_right = -10.0
 offset_bottom = 62.0
@@ -256,7 +259,7 @@ text = "-"
 
 [node name="ZoomLabel" type="Label" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport/ViewControls/Margin/Buttons"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(52, 44)
+custom_minimum_size = Vector2(56, 44)
 layout_mode = 2
 text = "100%"
 horizontal_alignment = 1
@@ -264,7 +267,7 @@ vertical_alignment = 1
 
 [node name="FitButton" type="Button" parent="OuterMargin/EditorPanel/InnerMargin/RootVBox/Content/CanvasViewport/ViewControls/Margin/Buttons"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(56, 44)
+custom_minimum_size = Vector2(64, 44)
 layout_mode = 2
 tooltip_text = "显示完整画布"
 text = "适配"

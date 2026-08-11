@@ -356,6 +356,7 @@ func test_project_clock_adapts_one_shared_gf_clock() -> void:
 	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)
 
 	assert_true(clock_set, "项目时钟 Adapter 应接受 GFClock 注入。")
+	assert_true(game_clock.get_tick_usec() == 1_234_000, "微秒 tick 必须委托给 GFClock。")
 	assert_true(game_clock.get_tick_msec() == 1234, "单调 tick 必须委托给 GFClock。")
 	assert_true(game_clock.get_unix_timestamp() == 9876, "Unix 时间必须委托给 GFClock。")
 	assert_true(
@@ -364,6 +365,10 @@ func test_project_clock_adapts_one_shared_gf_clock() -> void:
 			"Composition Root 必须向 GFTimeUtility、GameClockUtility 与"
 			+ " GameSettingsUtility 注入同一 GFClock。"
 		)
+	)
+	assert_false(
+		installer_source.contains("Time.get_ticks_"),
+		"Composition Root 阶段计时必须复用已注入各运行时服务的共享 GFClock。"
 	)
 
 
@@ -831,6 +836,15 @@ func test_runtime_diagnostics_baseline_is_bounded_and_dev_installer_does_not_reb
 	assert_true(
 		router_source.contains("get_utility(GFOperationDiagnosticsUtility)"),
 		"SceneRouterSystem 应通过正式 GF 依赖声明解析运行时诊断基线。"
+	)
+	assert_true(
+		router_source.contains("get_utility(GameClockUtility)")
+		and router_source.contains("_clock_utility.get_tick_usec()"),
+		"SceneRouterSystem 阶段计时应通过正式依赖解析项目共享时钟。"
+	)
+	assert_false(
+		router_source.contains("Time.get_ticks_"),
+		"SceneRouterSystem 不得绕过项目共享时钟直接读取引擎 tick。"
 	)
 	assert_false(
 		router_source.contains(

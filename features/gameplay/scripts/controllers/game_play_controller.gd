@@ -6,6 +6,11 @@ class_name GamePlayController
 extends GFController
 
 
+# --- 信号 ---
+
+signal interaction_ready
+
+
 # --- 常量 ---
 
 const _LOG_TAG: String = "GamePlayController"
@@ -51,6 +56,7 @@ var _replay_markers: Array[ReplayMarker] = []
 var _is_syncing_marker_picker: bool = false
 var _pending_popup_route_ids: Dictionary = {}
 var _game_initialization_requested: bool = false
+var _interaction_ready: bool = false
 
 ## 标记是否已完成清理，避免 _exit_tree 重复执行。
 var _is_cleaned_up: bool = false
@@ -125,6 +131,11 @@ func _exit_tree() -> void:
 
 # --- 公共方法 ---
 
+## 返回棋盘世界、模式数据与初始规则是否已完成并可接受玩家输入。
+func is_interaction_ready() -> bool:
+	return _interaction_ready
+
+
 # --- 私有/辅助方法 ---
 
 func _update_static_ui_text() -> void:
@@ -156,7 +167,11 @@ func _play_startup_chrome_intro() -> void:
 	if not is_instance_valid(motion_utility):
 		return
 	var pieces: Array[Control] = [_view_controls]
-	var _assembled_piece_count: int = motion_utility.play_piece_assembly(pieces, 0.0)
+	var _assembled_piece_count: int = motion_utility.play_piece_assembly(
+		pieces,
+		0.0,
+		0.18
+	)
 
 
 func _connect_replay_control_signals() -> void:
@@ -179,6 +194,7 @@ func _cleanup_listeners() -> void:
 	if _is_cleaned_up:
 		return
 	_is_cleaned_up = true
+	_interaction_ready = false
 	
 	_unregister_level_runtime_cleanup()
 
@@ -513,7 +529,9 @@ func _resolve_replay_text(key: String, fallback: String) -> String:
 func _publish_gameplay_board_ready() -> void:
 	if _is_replay_mode() or not is_instance_valid(game_board):
 		return
+	_interaction_ready = true
 	send_event(GameplayBoardReadyData.new(game_board))
+	interaction_ready.emit()
 
 
 func _apply_game_background_theme(theme: BoardTheme) -> void:

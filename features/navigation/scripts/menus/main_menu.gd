@@ -20,6 +20,14 @@ const _INTRO_MENU_STAGGER: float = 0.032
 const _RETURN_MENU_STAGGER: float = 0.018
 const _INTRO_MENU_DELAY: float = 0.24
 const _FULL_INTRO_WINDOW: float = 0.92
+const _POPUP_INTENT_PRELOAD_GROUP_ID: StringName = &"main_menu_popup_intent"
+const _POPUP_INTENT_PRELOAD_PLAN_ID: StringName = &"main_menu_popup_intent.preload"
+const _POPUP_INTENT_PRELOAD_ROUTE_IDS: Array[String] = [
+	"tile_catalog",
+	"tile_lab",
+	"player_profile",
+	"achievements",
+]
 
 
 # --- 导出变量 ---
@@ -53,6 +61,8 @@ var _intro_in_progress: bool = false
 var _intro_completion_tween: Tween = null
 var _popup_route_open_pending: bool = false
 var _popup_route_button_disabled_states: Dictionary = {}
+var _popup_intent_preload_session: GFAssetLoadSession = null
+var _popup_intent_asset_utility: GFAssetUtility = null
 
 
 # --- @onready 变量 (节点引用) ---
@@ -119,6 +129,11 @@ func _ready() -> void:
 	_update_ui_text()
 	_refresh_continue_game_state()
 	call_deferred(&"_play_content_reveal")
+	call_deferred(&"_start_popup_intent_preload_after_first_draw")
+
+
+func _exit_tree() -> void:
+	_release_popup_intent_preload()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -136,6 +151,79 @@ func _goto_scene(scene_path: String, property_name: String) -> void:
 	var router: SceneRouterSystem = _get_scene_router_system()
 	if is_instance_valid(router):
 		router.goto_scene(scene_path)
+
+
+func _start_popup_intent_preload_after_first_draw() -> void:
+	if not is_inside_tree() or is_instance_valid(_popup_intent_preload_session):
+		return
+	if DisplayServer.get_name() == "headless":
+		await get_tree().process_frame
+	else:
+		await RenderingServer.frame_post_draw
+	if not is_inside_tree() or is_instance_valid(_popup_intent_preload_session):
+		return
+
+	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
+	var asset_value: Object = _find_optional_utility(GFAssetUtility)
+	if not is_instance_valid(ui_router) or not asset_value is GFAssetUtility:
+		return
+	var asset_utility: GFAssetUtility = asset_value
+	var preload_result: Dictionary = ui_router.build_preload_plan(
+		GameUiRouterUtility.ROUTE_TILE_CATALOG,
+		{
+			"max_depth": 0,
+			"max_routes": _POPUP_INTENT_PRELOAD_ROUTE_IDS.size(),
+			"include_source": true,
+			"fixed_route_ids": _POPUP_INTENT_PRELOAD_ROUTE_IDS,
+			"group_id": _POPUP_INTENT_PRELOAD_GROUP_ID,
+			"plan_id": _POPUP_INTENT_PRELOAD_PLAN_ID,
+			"pin_cache": true,
+			"lane_id": &"ui.main_menu_popup_intent",
+			"max_concurrent_loads": 2,
+			"check_exists": true,
+			"metadata": {
+				"owner": &"main_menu",
+				"purpose": &"popup_first_open_latency",
+			},
+		}
+	)
+	if (
+		not GFVariantData.get_option_bool(preload_result, "ok")
+		or not GFVariantData.get_option_bool(preload_result, "healthy")
+	):
+		return
+	var plan_value: Variant = preload_result.get("asset_plan")
+	if not plan_value is GFAssetPreloadPlan:
+		return
+	var plan: GFAssetPreloadPlan = plan_value
+	var session: GFAssetLoadSession = asset_utility.start_preload_session(
+		plan,
+		{
+			"auto_commit": true,
+			"metadata": {
+				"owner": &"main_menu",
+				"purpose": &"popup_first_open_latency",
+			},
+		}
+	)
+	if session == null:
+		return
+	_popup_intent_asset_utility = asset_utility
+	_popup_intent_preload_session = session
+	if not is_inside_tree():
+		_release_popup_intent_preload()
+
+
+func _release_popup_intent_preload() -> void:
+	var session: GFAssetLoadSession = _popup_intent_preload_session
+	var asset_utility: GFAssetUtility = _popup_intent_asset_utility
+	_popup_intent_preload_session = null
+	_popup_intent_asset_utility = null
+	if session != null and not session.is_completed():
+		var _rolled_back: bool = session.rollback(&"main_menu_exit")
+	if is_instance_valid(asset_utility):
+		# GF #108 修复前禁止 eager removal；这里只释放分组 pin，缓存交给有界 LRU。
+		asset_utility.unload_group(_POPUP_INTENT_PRELOAD_GROUP_ID, false)
 
 
 func _bind_full_scene_preload_hints() -> void:

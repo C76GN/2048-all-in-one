@@ -132,7 +132,11 @@ func _apply_section(
 	var payload: Variant = section.get_payload()
 	if not payload is Dictionary:
 		return ERR_INVALID_DATA
-	return replace_section_data(GFVariantData.as_dictionary(payload))
+	# GFSaveSection.get_payload() 已返回调用方独占的深副本，直接移交可避免
+	# 大型 section 在边界校验后再次完整复制。
+	return replace_section_data_taking_ownership(
+		GFVariantData.as_dictionary(payload)
+	)
 
 
 func _rollback_section(

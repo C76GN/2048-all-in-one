@@ -320,6 +320,59 @@ func test_tile_catalog_dialog_renders_registry_and_adapts_layout() -> void:
 	await _dispose_discovery_setup(setup)
 
 
+func test_tile_catalog_search_uses_gf_signal_debounce_and_applies_latest_query() -> void:
+	var setup: Dictionary = await _create_discovery_setup(
+		"gut_tile_catalog_search_%d" % Time.get_ticks_usec()
+	)
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var context: TestArchitectureContext = TestArchitectureContext.new()
+	context.test_architecture = architecture
+	add_child_autoqfree(context)
+	var panel_node: Node = TILE_CATALOG_DIALOG_SCENE.instantiate()
+	assert_true(panel_node is TileCatalogDialog)
+	if not panel_node is TileCatalogDialog:
+		await _dispose_discovery_setup(setup)
+		return
+	var panel: TileCatalogDialog = panel_node
+	context.add_child(panel)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var initial_count: int = panel._catalog_view.get_visible_row_count()
+	assert_true(initial_count == EXPECTED_DEFINITION_IDS.size())
+	var first_card: TileCatalogCard = panel._catalog_grid.get_child(0) as TileCatalogCard
+	assert_not_null(first_card)
+	if first_card != null:
+		var definition_id: String = GFVariantData.get_option_string(
+			first_card.get_entry(),
+			&"definition_id"
+		)
+		panel._search_input.text = "__no_match__"
+		panel._search_input.text_changed.emit(panel._search_input.text)
+		panel._search_input.text = definition_id
+		panel._search_input.text_changed.emit(panel._search_input.text)
+		assert_true(
+			panel._catalog_view.get_visible_row_count() == initial_count,
+			"搜索静默期内不得为每个输入事件同步重建图鉴。"
+		)
+		var _wait_result: Dictionary = await GFAsyncWaitUtility.delay_seconds(
+			TileCatalogDialog._SEARCH_DEBOUNCE_SECONDS + 0.05,
+			{
+				"guard_node": self,
+				"respect_time_scale": false,
+			}
+		)
+		assert_true(
+			panel._catalog_view.get_visible_row_count() == 1,
+			"GFSignalConnection debounce 应只提交最后一条搜索查询。"
+		)
+
+	context.remove_child(panel)
+	panel.queue_free()
+	await get_tree().process_frame
+	await _dispose_discovery_setup(setup)
+
+
 func test_tile_catalog_filters_preserve_touch_target_contract() -> void:
 	var panel: Node = TILE_CATALOG_DIALOG_SCENE.instantiate()
 	autofree(panel)

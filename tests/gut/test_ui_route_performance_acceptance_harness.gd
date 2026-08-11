@@ -56,6 +56,35 @@ func test_ui_route_result_preserves_duration_and_preload_evidence() -> void:
 	assert_true(GFVariantData.get_option_bool(report, "passed"), str(report))
 
 
+func test_report_rejects_unsettled_asset_preload_sessions() -> void:
+	var harness: HarnessType = HarnessType.new()
+	var _configured_harness: RefCounted = harness.configure({
+		"minimum_scene_route_samples": 0,
+	})
+	var _record: Dictionary = harness.record_ui_route_result(
+		_make_ui_route_result(11, &"tile_catalog", 120, true)
+	)
+	var report: Dictionary = harness.build_report({
+		"active_asset_preload_session_count": 1,
+	})
+	var summary: Dictionary = GFVariantData.get_option_dictionary(
+		report,
+		"summary"
+	)
+
+	assert_false(
+		GFVariantData.get_option_bool(report, "passed"),
+		"GFAssetLoadSession 尚未收敛时，性能报告不得提前宣告无活动工作。"
+	)
+	assert_false(GFVariantData.get_option_bool(summary, "no_active_asset_work"))
+	assert_true(
+		GFVariantData.get_option_int(
+			summary,
+			"active_asset_preload_session_count"
+		) == 1
+	)
+
+
 func test_ui_route_budget_failure_is_not_hidden_by_success_status() -> void:
 	var harness: HarnessType = HarnessType.new()
 	var _configured_harness: RefCounted = harness.configure({
@@ -86,6 +115,196 @@ func test_ui_route_budget_failure_is_not_hidden_by_success_status() -> void:
 			"ui_route_failure_count"
 		) == 1,
 		"超过预算的 UI 路由必须计入失败样本。"
+	)
+
+
+func test_metric_series_preserves_execution_order_while_percentiles_sort_copy() -> void:
+	var harness: HarnessType = HarnessType.new()
+	var _configured_harness: RefCounted = harness.configure({
+		"minimum_ui_route_samples": 3,
+		"minimum_scene_route_samples": 0,
+	})
+	var durations: Array[int] = [300, 100, 200]
+	for index: int in range(durations.size()):
+		var _record: Dictionary = harness.record_ui_route_result(
+			_make_ui_route_result(
+				100 + index,
+				&"tile_catalog",
+				durations[index],
+				false
+			),
+			{
+				"cache_state": (
+					"first_open_in_process"
+					if index == 0
+					else "warm_reopen_in_process"
+				),
+			}
+		)
+
+	var report: Dictionary = harness.build_report()
+	var metrics: Dictionary = GFVariantData.get_option_dictionary(
+		report,
+		"metrics"
+	)
+	var aggregate: Dictionary = GFVariantData.get_option_dictionary(
+		metrics,
+		"ui_route_duration_msec"
+	)
+	var samples: Array = GFVariantData.get_option_array(aggregate, "samples")
+	assert_true(samples.size() == 3)
+	if samples.size() == 3:
+		assert_almost_eq(
+			GFVariantData.get_option_float(
+				GFVariantData.as_dictionary(samples[0]),
+				"value"
+			),
+			300.0,
+			0.001
+		)
+		assert_almost_eq(
+			GFVariantData.get_option_float(
+				GFVariantData.as_dictionary(samples[2]),
+				"value"
+			),
+			200.0,
+			0.001
+		)
+	assert_almost_eq(
+		GFVariantData.get_option_float(aggregate, "latest_value"),
+		200.0,
+		0.001,
+		"latest 必须代表最后发生的样本，而不是排序后的最大值。"
+	)
+	assert_almost_eq(
+		GFVariantData.get_option_float(aggregate, "p95"),
+		300.0,
+		0.001
+	)
+	var route_groups: Dictionary = GFVariantData.get_option_dictionary(
+		report,
+		"route_groups"
+	)
+	var ui_groups: Dictionary = GFVariantData.get_option_dictionary(
+		route_groups,
+		"ui"
+	)
+	var tile_group: Dictionary = GFVariantData.get_option_dictionary(
+		ui_groups,
+		"tile_catalog"
+	)
+	var tile_metric: Dictionary = GFVariantData.get_option_dictionary(
+		tile_group,
+		"metric"
+	)
+	assert_almost_eq(
+		GFVariantData.get_option_float(tile_metric, "latest_value"),
+		200.0,
+		0.001,
+		"按 route 分组后仍必须保留真实执行顺序。"
+	)
+
+
+func test_boot_and_ui_phase_observations_use_explicit_monotonic_boundaries() -> void:
+	var harness: HarnessType = HarnessType.new()
+	var _configured_harness: RefCounted = harness.configure({
+		"minimum_boot_samples": 1,
+		"minimum_ui_route_samples": 1,
+		"minimum_scene_route_samples": 0,
+		"require_phase_evidence": true,
+	})
+	var boot_record: Dictionary = harness.record_boot_observation(
+		1_000_000,
+		1_120_000,
+		1_150_000,
+		1_420_000,
+		{
+			"cache_state": "process_first_boot",
+			"motion_settled_observed": true,
+		}
+	)
+	var ui_record: Dictionary = harness.record_ui_route_result(
+		_make_ui_route_result(200, &"settings_menu", 80, false),
+		{"cache_state": "first_open_in_process"},
+		{
+			"started_usec": 2_000_000,
+			"ready_usec": 2_090_000,
+			"post_draw_usec": 2_110_000,
+			"motion_settled_usec": 2_250_000,
+			"motion_settled_observed": true,
+		}
+	)
+
+	var boot_phases: Dictionary = GFVariantData.get_option_dictionary(
+		boot_record,
+		"phases"
+	)
+	var ui_phases: Dictionary = GFVariantData.get_option_dictionary(
+		ui_record,
+		"phases"
+	)
+	assert_almost_eq(
+		GFVariantData.get_option_float(boot_phases, "ready_msec"),
+		120.0,
+		0.001
+	)
+	assert_almost_eq(
+		GFVariantData.get_option_float(
+			boot_phases,
+			"motion_settled_msec"
+		),
+		420.0,
+		0.001
+	)
+	assert_almost_eq(
+		GFVariantData.get_option_float(ui_phases, "post_draw_msec"),
+		110.0,
+		0.001
+	)
+	assert_true(GFVariantData.get_option_bool(harness.build_report(), "passed"))
+
+
+func test_ui_route_phase_budget_rejects_slow_visual_settlement() -> void:
+	var harness: HarnessType = HarnessType.new()
+	var _configured_harness: RefCounted = harness.configure({
+		"minimum_ui_route_samples": 1,
+		"minimum_scene_route_samples": 0,
+		"require_phase_evidence": true,
+		"budgets": {
+			"ui_route_max_msec": 500.0,
+			"ui_route_post_draw_max_msec": 100.0,
+			"ui_route_motion_settled_max_msec": 200.0,
+		},
+	})
+	var record: Dictionary = harness.record_ui_route_result(
+		_make_ui_route_result(201, &"settings_menu", 80, false),
+		{"cache_state": "first_open_in_process"},
+		{
+			"started_usec": 3_000_000,
+			"ready_usec": 3_080_000,
+			"post_draw_usec": 3_110_000,
+			"motion_settled_usec": 3_250_000,
+			"motion_settled_observed": true,
+		}
+	)
+
+	assert_true(GFVariantData.get_option_bool(record, "within_budget"))
+	assert_false(
+		GFVariantData.get_option_bool(record, "passed"),
+		"GF 路由终态很快时，超预算首绘或动效终态仍必须让验收失败。"
+	)
+	var phase_budget: Dictionary = GFVariantData.get_option_dictionary(
+		record,
+		"phase_budget"
+	)
+	assert_false(
+		GFVariantData.get_option_bool(phase_budget, "post_draw_within_budget")
+	)
+	assert_false(
+		GFVariantData.get_option_bool(
+			phase_budget,
+			"motion_settled_within_budget"
+		)
 	)
 
 
@@ -344,6 +563,98 @@ func test_scene_signals_capture_load_switch_preload_and_total_duration() -> void
 	assert_true(GFVariantData.get_option_bool(report, "passed"), str(report))
 
 
+func test_scene_record_requires_completed_load_and_switch_terminals() -> void:
+	var failed_load_record: Dictionary = _make_scene_terminal_record(
+		"failed",
+		"completed"
+	)
+	assert_false(
+		GFVariantData.get_option_bool(failed_load_record, "passed"),
+		"即使调用方误传 succeeded=true，failed load 信号也必须否决场景验收。"
+	)
+	assert_false(
+		GFVariantData.get_option_bool(
+			GFVariantData.get_option_dictionary(failed_load_record, "load"),
+			"terminal_success"
+		)
+	)
+
+	var missing_switch_record: Dictionary = _make_scene_terminal_record(
+		"completed",
+		"pending"
+	)
+	assert_false(
+		GFVariantData.get_option_bool(missing_switch_record, "passed"),
+		"缺少 completed switch 终态时不得仅凭目标节点可见而通过。"
+	)
+	assert_false(
+		GFVariantData.get_option_bool(
+			GFVariantData.get_option_dictionary(missing_switch_record, "switch"),
+			"terminal_success"
+		)
+	)
+
+
+func test_scene_preload_failure_without_started_signal_is_not_dropped() -> void:
+	_fake_times_usec = [4_000_000]
+	var harness: HarnessType = HarnessType.new()
+	var _configured_harness: RefCounted = harness.configure({
+		"minimum_ui_route_samples": 0,
+		"minimum_scene_route_samples": 0,
+		"now_usec_provider": Callable(self, &"_next_fake_time_usec"),
+	})
+	var scene_utility: GFSceneUtility = GFSceneUtility.new()
+	assert_true(harness.bind_scene_utility(scene_utility))
+
+	scene_utility.scene_preload_failed.emit("res://missing_scene.tscn")
+	var preload_records: Array[Dictionary] = (
+		harness.get_scene_preload_records()
+	)
+	var report: Dictionary = harness.build_report()
+	harness.unbind_scene_utility()
+
+	assert_true(preload_records.size() == 1)
+	var record: Dictionary = preload_records[0]
+	assert_true(GFVariantData.get_option_string(record, "status") == "failed")
+	assert_false(GFVariantData.get_option_bool(record, "evidence_complete"))
+	assert_false(GFVariantData.get_option_bool(record, "passed"))
+	assert_false(
+		GFVariantData.get_option_bool(report, "passed"),
+		"没有 started 前置信号的同步预载失败也必须进入失败计数。"
+	)
+
+
+func test_preload_already_running_at_bind_blocks_terminal_report() -> void:
+	var harness: HarnessType = HarnessType.new()
+	var _configured_harness: RefCounted = harness.configure({
+		"minimum_boot_samples": 0,
+		"minimum_ui_route_samples": 0,
+		"minimum_scene_route_samples": 0,
+	})
+	var path: String = "res://already_running.tscn"
+	harness._preloading_scene_paths_at_bind[path] = true
+
+	var pending_report: Dictionary = harness.build_report()
+	var pending_summary: Dictionary = GFVariantData.get_option_dictionary(
+		pending_report,
+		"summary"
+	)
+	assert_false(GFVariantData.get_option_bool(pending_report, "passed"))
+	assert_true(
+		GFVariantData.get_option_int(
+			pending_summary,
+			"preexisting_scene_preload_pending_count"
+		) == 1
+	)
+
+	harness._on_scene_preload_completed(path, null)
+	var settled_report: Dictionary = harness.build_report()
+	assert_true(
+		GFVariantData.get_option_bool(settled_report, "passed"),
+		"绑定前已在途的成功预载终态应清除 pending gate。"
+	)
+
+
 func test_cancelled_transition_is_recorded_as_incomplete_evidence() -> void:
 	_fake_times_usec = [
 		3_000_000,
@@ -473,6 +784,72 @@ func test_report_writer_rejects_paths_outside_owned_report_roots() -> void:
 
 
 # --- 私有/辅助方法 ---
+
+func _make_scene_terminal_record(
+	load_status: String,
+	switch_status: String
+) -> Dictionary:
+	_fake_times_usec = [1_000_000, 2_000_000]
+	var harness: HarnessType = HarnessType.new()
+	var _configured_harness: RefCounted = harness.configure({
+		"minimum_ui_route_samples": 0,
+		"minimum_scene_route_samples": 1,
+		"require_phase_evidence": true,
+		"budgets": {
+			"scene_route_total_max_msec": 1500.0,
+			"scene_load_max_msec": 500.0,
+			"scene_route_post_draw_max_msec": 1500.0,
+			"scene_route_motion_settled_max_msec": 1800.0,
+		},
+		"now_usec_provider": Callable(self, &"_next_fake_time_usec"),
+	})
+	assert_true(
+		harness.begin_scene_route(
+			&"terminal_contract",
+			"res://target.tscn"
+		)
+	)
+	harness._active_scene_route["load_status"] = load_status
+	harness._active_scene_route["load_started_usec"] = 1_200_000
+	harness._active_scene_route["load_completed_usec"] = 1_300_000
+	harness._active_scene_route["load_duration_msec"] = 100.0
+	harness._active_scene_route["switch_status"] = switch_status
+	harness._active_scene_route["switch_started_usec"] = 1_220_000
+	harness._active_scene_route["switch_completed_usec"] = 1_350_000
+	harness._active_scene_route["switch_duration_msec"] = (
+		130.0 if switch_status != "pending" else -1.0
+	)
+	harness._active_scene_route["transitions"] = [
+		{
+			"phase": "cover",
+			"status": "completed",
+			"configured_duration_msec": 100.0,
+			"wall_duration_msec": 100.0,
+			"_started_usec": 1_050_000,
+			"_ended_usec": 1_150_000,
+			"_effect_instance_id": 1,
+		},
+		{
+			"phase": "reveal",
+			"status": "completed",
+			"configured_duration_msec": 100.0,
+			"wall_duration_msec": 100.0,
+			"_started_usec": 1_400_000,
+			"_ended_usec": 1_500_000,
+			"_effect_instance_id": 2,
+		},
+	]
+	harness._active_scene_route["milestones_usec"] = {
+		&"ready": 1_550_000,
+		&"post_draw": 1_600_000,
+		&"motion_settled": 1_700_000,
+	}
+	return harness.complete_scene_route(true, {
+		"interactive_ready": true,
+		"route_ready_usec": 1_800_000,
+		"motion_settled_observed": true,
+	})
+
 
 func _make_ui_route_result(
 	request_id: int,

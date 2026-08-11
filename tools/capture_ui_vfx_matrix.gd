@@ -74,6 +74,7 @@ const _EXPECTED_SCREENSHOTS: Array[String] = [
 	"gameplay_720x960.png",
 	"gameplay_960x540.png",
 	"gameplay_973x781.png",
+	"gameplay_intro_reduced_motion_1280x720.png",
 	"gameplay_invalid_move_1280x720.png",
 	"gameplay_invalid_move_720x960.png",
 	"gameplay_invalid_move_960x540.png",
@@ -82,6 +83,7 @@ const _EXPECTED_SCREENSHOTS: Array[String] = [
 	"gameplay_turn_subtitle_720x960.png",
 	"gameplay_turn_subtitle_960x540.png",
 	"gameplay_turn_subtitle_973x781.png",
+	"gameplay_merge_reduced_motion_1280x720.png",
 	"main_menu_1280x720.png",
 	"main_menu_1906x943.png",
 	"main_menu_720x960.png",
@@ -928,6 +930,18 @@ func _capture_mode_selection_second_page(mode_selection: Node) -> bool:
 		# 页切换会重新播放右侧详情的交错 reveal；等完整节拍结束后再截图，
 		# 否则底部的种子与开始按钮仍处于低透明度中，看起来像被裁掉。
 		await _settle_frames(36)
+		# NextPageButton 获得焦点时，ScrollContainer 会自动把分页按钮滚进
+		# 可视区。基础截图必须回到页面起点；只有存在真实滚动余量时才另存
+		# scroll_end 证据。
+		var scroll_node: Node = mode_selection.find_child(
+			"ModeSelectionScroll",
+			true,
+			false
+		)
+		if scroll_node is ScrollContainer:
+			var page_scroll: ScrollContainer = scroll_node
+			page_scroll.scroll_vertical = 0
+			await _settle_frames(3)
 		var current_page: int = _get_mode_selection_page_index(
 			mode_selection
 		)
@@ -1490,6 +1504,8 @@ func _activate_board_editor_section(
 
 func _capture_gameplay_player_flow(game_play: Node) -> bool:
 	await _capture_gameplay_matrix(game_play)
+	if not await _capture_gameplay_reduced_motion_states(game_play):
+		return false
 	if not await _capture_pause_menu_player_flow(game_play):
 		return false
 	if not await _capture_target_reached_player_flow():
@@ -1522,6 +1538,161 @@ func _capture_gameplay_matrix(game_play: Node) -> void:
 		await _capture_gameplay_feedback_states(game_play, resolution)
 	_set_resolution(_PLAYER_FLOW_RESOLUTIONS[0])
 	await _settle_frames(8)
+
+
+func _capture_gameplay_reduced_motion_states(game_play: Node) -> bool:
+	_set_resolution(_REDUCED_MOTION_RESOLUTIONS[0])
+	await _settle_frames(4)
+	var game_board_node: Node = game_play.get_node_or_null("%GameBoard")
+	var feedback_canvas_node: Node = game_play.find_child(
+		"BoardFeedbackCanvas",
+		true,
+		false
+	)
+	var feedback_root_node: Node = game_play.find_child(
+		"BoardFeedbackRoot",
+		true,
+		false
+	)
+	var backdrop_node: Node = game_play.find_child(
+		"BoardMotionBackdrop",
+		true,
+		false
+	)
+	var board_background_node: Node = game_play.find_child(
+		"BoardBackground",
+		true,
+		false
+	)
+	var background_node: Node = game_play.find_child("Background", true, false)
+	var accessibility_value: Variant = _get_gf_member(
+		&"get_utility",
+		GameAccessibilityUtility
+	)
+	var feedback_value: Variant = _get_gf_member(
+		&"get_utility",
+		GameBoardFeedbackUtility
+	)
+	if (
+		not game_board_node is GameBoardController
+		or not feedback_canvas_node is BoardFeedbackCanvas
+		or not feedback_root_node is Node2D
+		or not backdrop_node is BoardMotionBackdrop
+		or not board_background_node is Control
+		or not background_node is ColorRect
+		or not accessibility_value is GameAccessibilityUtility
+		or not feedback_value is GameBoardFeedbackUtility
+	):
+		_record_error("gameplay reduced-motion 验收依赖不完整。")
+		return false
+
+	var game_board: GameBoardController = game_board_node
+	var feedback_canvas: BoardFeedbackCanvas = feedback_canvas_node
+	var feedback_root: Node2D = feedback_root_node
+	var backdrop: BoardMotionBackdrop = backdrop_node
+	var board_background: Control = board_background_node
+	var background: ColorRect = background_node
+	var accessibility: GameAccessibilityUtility = accessibility_value
+	var feedback: GameBoardFeedbackUtility = feedback_value
+	var previous_reduced_motion: bool = accessibility.get_state().reduced_motion
+	accessibility.set_reduced_motion(true)
+	feedback_canvas.reset_feedback()
+	backdrop.reset_feedback()
+	for node: Node in game_play.find_children("*", "Tile", true, false):
+		if node is Tile:
+			var tile: Tile = node
+			tile.reset_animation_state()
+	game_board.call(&"_play_board_intro")
+	await _settle_frames(2)
+	if not _is_gameplay_intro_static(game_board, game_play):
+		_record_error("gameplay reduced-motion 入场未直接提交静态终态。")
+		accessibility.set_reduced_motion(previous_reduced_motion)
+		return false
+	_save_viewport(
+		"gameplay_intro_reduced_motion_1280x720.png",
+		_REDUCED_MOTION_RESOLUTIONS[0]
+	)
+
+	var board_rect: Rect2 = Rect2(
+		-board_background.size * 0.5,
+		board_background.size
+	)
+	var fragment_count: int = feedback.play_turn_feedback(
+		feedback_root,
+		feedback_canvas,
+		background,
+		Vector2i.RIGHT,
+		GameBoardFeedbackUtility.FeedbackTier.HIGH_MERGE,
+		board_rect,
+		Color("#efb24d"),
+		backdrop
+	)
+	await _settle_frames(2)
+	var base_position_value: Variant = feedback_root.get_meta(
+		&"feedback_base_position",
+		feedback_root.position
+	)
+	var base_position: Vector2 = (
+		base_position_value if base_position_value is Vector2 else feedback_root.position
+	)
+	var merge_is_static: bool = (
+		fragment_count == 0
+		and feedback_root.position.is_equal_approx(base_position)
+		and feedback_root.scale.is_equal_approx(Vector2.ONE)
+		and is_zero_approx(feedback_root.rotation)
+		and is_zero_approx(feedback_root.skew)
+		and feedback_canvas._turn_elapsed >= feedback_canvas._turn_duration
+		and backdrop._elapsed >= backdrop._duration
+		and not feedback_canvas.is_processing()
+		and not backdrop.is_processing()
+	)
+	if not merge_is_static:
+		_record_error("gameplay reduced-motion 合并仍保留动态棋盘反馈。")
+		accessibility.set_reduced_motion(previous_reduced_motion)
+		return false
+	_save_viewport(
+		"gameplay_merge_reduced_motion_1280x720.png",
+		_REDUCED_MOTION_RESOLUTIONS[0]
+	)
+
+	accessibility.set_reduced_motion(previous_reduced_motion)
+	feedback_canvas.reset_feedback()
+	backdrop.reset_feedback()
+	await _settle_frames(2)
+	return true
+
+
+func _is_gameplay_intro_static(
+	game_board: GameBoardController,
+	game_play: Node
+) -> bool:
+	var grid_cells_value: Variant = game_board.get("_grid_cell_map")
+	if not grid_cells_value is Dictionary:
+		return false
+	var grid_cells: Dictionary = grid_cells_value
+	if grid_cells.is_empty():
+		return false
+	for cell_value: Variant in grid_cells.values():
+		if not cell_value is Control:
+			continue
+		var cell: Control = cell_value
+		if (
+			not cell.scale.is_equal_approx(Vector2.ONE)
+			or not cell.modulate.is_equal_approx(Color.WHITE)
+			or not is_zero_approx(cell.rotation)
+		):
+			return false
+	for node: Node in game_play.find_children("*", "Tile", true, false):
+		if not node is Tile:
+			continue
+		var tile: Tile = node
+		if (
+			not tile.scale.is_equal_approx(Vector2.ONE)
+			or not tile.modulate.is_equal_approx(Color.WHITE)
+			or not is_zero_approx(tile.rotation)
+		):
+			return false
+	return true
 
 
 func _capture_gameplay_feedback_states(
@@ -2195,7 +2366,10 @@ func _activate_named_button(
 		_record_error("%s 状态按钮 %s 不可操作。" % [page.name, button_name])
 		return false
 	button.grab_focus()
-	button.pressed.emit()
+	if button.toggle_mode:
+		button.button_pressed = true
+	else:
+		button.pressed.emit()
 	await _settle_frames(5)
 	return true
 

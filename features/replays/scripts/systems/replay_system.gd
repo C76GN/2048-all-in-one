@@ -30,6 +30,12 @@ var _current_replay: ReplayData = null
 var _is_replay_active: bool = false
 var _command_history: GFCommandHistoryUtility = null
 var _save_graph: GameSaveGraphUtility = null
+var _signal_utility: GFSignalUtility = null
+var _cached_replays: Array[ReplayData] = []
+var _cached_profile_id: StringName = &""
+var _replay_cache_valid: bool = false
+var _replay_cache_hits: int = 0
+var _replay_cache_misses: int = 0
 var _oos_report: Dictionary = {}
 var _markers: Array[ReplayMarker] = []
 var _is_jump_active: bool = false
@@ -40,17 +46,30 @@ var _jump_request_id: int = 0
 # --- Godot 生命周期方法 ---
 
 func get_required_utilities() -> Array[Script]:
-	return [GameSaveGraphUtility, GFCommandHistoryUtility]
+	return [GameSaveGraphUtility, GFCommandHistoryUtility, GFSignalUtility]
 
 
 func ready() -> void:
 	_command_history = _get_command_history_utility()
 	_save_graph = _resolve_save_graph_utility()
+	_signal_utility = _resolve_signal_utility()
+	_invalidate_replay_cache()
+	_replay_cache_hits = 0
+	_replay_cache_misses = 0
+	if not is_instance_valid(_save_graph) or not is_instance_valid(
+		_signal_utility
+	):
+		push_error("[ReplaySystem] SaveGraph 或 GFSignalUtility 未注册。")
+		return
+	_connect_save_graph_signals()
 
 
 func dispose() -> void:
+	_disconnect_save_graph_signals()
+	_invalidate_replay_cache()
 	_command_history = null
 	_save_graph = null
+	_signal_utility = null
 	_current_replay = null
 	_is_replay_active = false
 	_oos_report.clear()
@@ -100,35 +119,61 @@ func request_save_replay(
 			)
 	replays.append(candidate)
 	replays = _retain_newest_replays(replays)
-	return save_graph.request_replace_section_data(
+	var operation: GameSaveSectionOperation = save_graph.request_replace_section_data(
 		GameSaveGraphUtility.REPLAYS_SECTION_ID,
 		_serialize_replays(replays),
 		{&"feature_operation": "save_replay"}
 	)
+	_invalidate_replay_cache_for_operation(operation)
+	return operation
 
 
 ## 从统一玩家数据图读取全部回放。
 ## @return: 一个包含所有ReplayData资源的数组。
 func load_replays() -> Array[ReplayData]:
-	var replays: Array[ReplayData] = []
 	var save_graph: GameSaveGraphUtility = _get_save_graph()
 	if save_graph == null:
-		return replays
+		return []
+	if not save_graph.is_profile_loaded():
+		_invalidate_replay_cache()
+		return []
 
-	var section_data: Dictionary = save_graph.get_section_data(GameSaveGraphUtility.REPLAYS_SECTION_ID)
-	var item_values: Array = GFVariantData.get_option_array(section_data, "items")
+	var active_profile_id: StringName = save_graph.get_active_profile_id()
+	if _replay_cache_valid and _cached_profile_id == active_profile_id:
+		_replay_cache_hits += 1
+		return _duplicate_replays(_cached_replays)
+
+	_replay_cache_misses += 1
+	var replays: Array[ReplayData] = []
+	var runtime_data: Dictionary = save_graph.get_section_runtime_cache_snapshot(
+		GameSaveGraphUtility.REPLAYS_SECTION_ID
+	)
+	var item_values: Array = GFVariantData.get_option_array(runtime_data, "items")
 	if item_values.size() > ReplayCatalogSaveData.MAX_REPLAY_COUNT:
 		return replays
 	for item_value: Variant in item_values:
-		if not (item_value is Dictionary):
+		if not item_value is ReplayData:
 			continue
-		var replay: ReplayData = ReplayData.from_dict(GFVariantData.as_dictionary(item_value))
-		if replay != null:
-			replays.append(replay)
+		var replay: ReplayData = item_value
+		replays.append(replay)
 	replays.sort_custom(func(left: ReplayData, right: ReplayData) -> bool:
 		return left.replay_id > right.replay_id
 	)
-	return replays
+	_cached_replays = replays
+	_cached_profile_id = active_profile_id
+	_replay_cache_valid = true
+	return _duplicate_replays(_cached_replays)
+
+
+## 返回回放解码缓存的有界诊断快照。
+func get_cache_debug_snapshot() -> Dictionary:
+	return {
+		&"valid": _replay_cache_valid,
+		&"profile_id": String(_cached_profile_id),
+		&"replay_count": _cached_replays.size(),
+		&"hits": _replay_cache_hits,
+		&"misses": _replay_cache_misses,
+	}
 
 
 ## 根据稳定 ID 异步删除一个回放。
@@ -158,11 +203,13 @@ func request_delete_replay(
 			GameSaveGraphUtility.REPLAYS_SECTION_ID,
 			ERR_DOES_NOT_EXIST
 		)
-	return save_graph.request_replace_section_data(
+	var operation: GameSaveSectionOperation = save_graph.request_replace_section_data(
 		GameSaveGraphUtility.REPLAYS_SECTION_ID,
 		_serialize_replays(retained),
 		{&"feature_operation": "delete_replay"}
 	)
+	_invalidate_replay_cache_for_operation(operation)
+	return operation
 
 
 ## 激活回放模式。
@@ -512,10 +559,116 @@ func _retain_newest_replays(replays: Array[ReplayData]) -> Array[ReplayData]:
 	return retained
 
 
+func _duplicate_replays(replays: Array[ReplayData]) -> Array[ReplayData]:
+	var result: Array[ReplayData] = []
+	for replay: ReplayData in replays:
+		if replay == null:
+			continue
+		var duplicate_value: Resource = replay.duplicate(true)
+		if duplicate_value is ReplayData:
+			var duplicate_replay: ReplayData = duplicate_value
+			result.append(duplicate_replay)
+	return result
+
+
+func _invalidate_replay_cache() -> void:
+	_cached_replays.clear()
+	_cached_profile_id = &""
+	_replay_cache_valid = false
+
+
+func _invalidate_replay_cache_for_operation(
+	operation: GameSaveSectionOperation
+) -> void:
+	if operation == null:
+		return
+	if operation.is_pending():
+		_invalidate_replay_cache()
+		return
+	if not operation.is_completed():
+		return
+	var result: GameSaveSectionResult = operation.get_result()
+	if _section_result_may_change_replays(result):
+		_invalidate_replay_cache()
+
+
+func _section_result_may_change_replays(
+	result: GameSaveSectionResult
+) -> bool:
+	return (
+		result != null
+		and result.get_section_ids().has(
+			String(GameSaveGraphUtility.REPLAYS_SECTION_ID)
+		)
+		and (
+			result.is_successful()
+			or result.was_candidate_applied()
+			or result.was_memory_rolled_back()
+			or result.requires_reconciliation()
+		)
+	)
+
+
+func _connect_save_graph_signals() -> void:
+	if (
+		not is_instance_valid(_save_graph)
+		or not is_instance_valid(_signal_utility)
+	):
+		return
+	var _section_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_save_graph.section_operation_completed,
+		_on_section_operation_completed,
+		self
+	)
+	var _reconciliation_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_save_graph.section_reconciliation_settled,
+		_on_section_reconciliation_settled,
+		self
+	)
+	var _profile_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_save_graph.profile_operation_completed,
+		_on_profile_operation_completed,
+		self
+	)
+
+
+func _disconnect_save_graph_signals() -> void:
+	if is_instance_valid(_signal_utility):
+		_signal_utility.disconnect_owner(self)
+
+
+func _on_section_operation_completed(result: GameSaveSectionResult) -> void:
+	if _section_result_may_change_replays(result):
+		_invalidate_replay_cache()
+
+
+func _on_section_reconciliation_settled(evidence: Dictionary) -> void:
+	var section_ids_value: Variant = evidence.get(
+		&"section_ids",
+		PackedStringArray()
+	)
+	if not section_ids_value is PackedStringArray:
+		return
+	var section_ids: PackedStringArray = section_ids_value
+	if section_ids.has(String(GameSaveGraphUtility.REPLAYS_SECTION_ID)):
+		_invalidate_replay_cache()
+
+
+func _on_profile_operation_completed(result: GFSaveProfileResult) -> void:
+	if (
+		result != null
+		and result.get_operation() == GFSaveProfileOperation.OPERATION_LOAD
+	):
+		_invalidate_replay_cache()
+
+
 func _get_save_graph() -> GameSaveGraphUtility:
 	if is_instance_valid(_save_graph):
 		return _save_graph
 	_save_graph = _resolve_save_graph_utility()
+	if not is_instance_valid(_signal_utility):
+		_signal_utility = _resolve_signal_utility()
+	_connect_save_graph_signals()
 	return _save_graph
 
 
@@ -523,5 +676,13 @@ func _resolve_save_graph_utility() -> GameSaveGraphUtility:
 	var utility_value: Object = get_utility(GameSaveGraphUtility)
 	if utility_value is GameSaveGraphUtility:
 		var utility: GameSaveGraphUtility = utility_value
+		return utility
+	return null
+
+
+func _resolve_signal_utility() -> GFSignalUtility:
+	var utility_value: Object = get_utility(GFSignalUtility)
+	if utility_value is GFSignalUtility:
+		var utility: GFSignalUtility = utility_value
 		return utility
 	return null

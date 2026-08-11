@@ -13,6 +13,7 @@ const _ONE_COLUMN_BREAKPOINT: float = 560.0
 const _DESKTOP_CATALOG_MINIMUM_WIDTH: float = 520.0
 const _DESKTOP_MAXIMUM_WIDTH: float = 1120.0
 const _DESKTOP_MAXIMUM_HEIGHT: float = 680.0
+const _SEARCH_DEBOUNCE_SECONDS: float = 0.12
 const _FALLBACK_BACKGROUND: Color = Color("#f0d696")
 const _FALLBACK_FONT: Color = Color("#594a45")
 
@@ -158,6 +159,9 @@ func _bind_runtime_signals() -> void:
 		_search_input.text_changed,
 		_on_search_changed,
 		self
+	)
+	var _debounced_search_connection: GFSignalConnection = (
+		_search_connection.debounce(_SEARCH_DEBOUNCE_SECONDS)
 	)
 	var _filter_connection: GFSignalConnection = _signal_utility.connect_signal(
 		_state_filter.item_selected,

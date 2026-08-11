@@ -14,6 +14,9 @@ const _REPLAY_ITEM_SCENE: PackedScene = preload(
 const _BOOKMARK_ITEM_SCENE: PackedScene = preload(
 	"res://features/bookmarks/scenes/ui/bookmark_list_item.tscn"
 )
+const _CONTROL_TWEEN_META: StringName = &"_game_ui_motion_control_tween"
+const _MODAL_TERMINAL_ALPHA: float = 0.999
+const _MODAL_STABLE_FRAME_COUNT: int = 2
 const _EXPECTED_SCREENSHOTS: Array[String] = [
 	"boot_loading.png",
 	"boot_loading_progress.png",
@@ -33,15 +36,17 @@ const _EXPECTED_SCREENSHOTS: Array[String] = [
 	"settings_save_failure.png",
 	"settings_controls.png",
 	"gameplay_intro_0020ms.png",
-	"gameplay_intro_0080ms.png",
-	"gameplay_intro_0160ms.png",
-	"gameplay_intro_0360ms.png",
+	"gameplay_intro_0120ms.png",
+	"gameplay_intro_0280ms.png",
+	"gameplay_intro_0520ms.png",
+	"gameplay_intro_reduced_motion.png",
 	"gameplay.png",
 	"gameplay_grid_motion.png",
 	"gameplay_motion_0040ms.png",
 	"gameplay_motion_0110ms.png",
 	"gameplay_motion_0210ms.png",
 	"gameplay_motion_0430ms.png",
+	"gameplay_merge_reduced_motion.png",
 	"gameplay_feedback.png",
 ]
 
@@ -191,7 +196,7 @@ func _run_capture() -> void:
 	var controls_tab: Node = settings_menu.find_child("ControlsTabButton", true, false)
 	if controls_tab is Button:
 		var controls_button: Button = controls_tab
-		controls_button.pressed.emit()
+		controls_button.button_pressed = true
 	await _settle_frames(12)
 	_capture_viewport("settings_controls.png")
 
@@ -233,6 +238,9 @@ func _run_capture() -> void:
 		return
 	if not await _capture_first_merge_feedback(game_play):
 		_request_exit(19)
+		return
+	if not await _capture_gameplay_reduced_motion_states(game_play):
+		_request_exit(20)
 		return
 	# Let the captured turn finish before the scene is freed. Exiting while the
 	# board action still owns pooled tiles can race the pool's deferred reparent.
@@ -452,7 +460,11 @@ func _capture_history_delete_states(page: Node, capture_prefix: String) -> bool:
 	if not confirmation.is_visible_in_tree():
 		push_error("[VisualReview] History delete confirmation did not open.")
 		return false
-	await _settle_frames(4)
+	if not await _wait_for_game_modal_visual_settle(confirmation):
+		push_error(
+			"[VisualReview] History delete confirmation did not reach its visual terminal state."
+		)
+		return false
 	_capture_viewport("%s_delete_confirmation.png" % capture_prefix)
 	confirmation.resolve_cancel()
 	if not await _wait_for_game_modal_close(confirmation):
@@ -472,7 +484,11 @@ func _capture_history_delete_states(page: Node, capture_prefix: String) -> bool:
 	if not error_modal.is_visible_in_tree():
 		push_error("[VisualReview] History delete failure dialog did not open.")
 		return false
-	await _settle_frames(4)
+	if not await _wait_for_game_modal_visual_settle(error_modal):
+		push_error(
+			"[VisualReview] History delete error modal did not reach its visual terminal state."
+		)
+		return false
 	_capture_viewport("%s_delete_error.png" % capture_prefix)
 	error_modal.resolve_cancel()
 	if not await _wait_for_game_modal_close(error_modal):
@@ -522,6 +538,43 @@ func _wait_for_game_modal_open(
 			return modal_panel
 		await process_frame
 	return null
+
+
+func _wait_for_game_modal_visual_settle(
+	modal_panel: GameModalRoutePanel,
+	max_frames: int = 120
+) -> bool:
+	if not is_instance_valid(modal_panel):
+		return false
+	var surface: Control = modal_panel.get_node_or_null("%Surface") as Control
+	var backdrop: Control = modal_panel.get_node_or_null("%DimBackground") as Control
+	if not is_instance_valid(surface) or not is_instance_valid(backdrop):
+		return false
+	var stable_frame_count: int = 0
+	for _frame_index: int in range(maxi(max_frames, 1)):
+		var terminal: bool = (
+			_get_top_game_modal_panel() == modal_panel
+			and modal_panel.is_visible_in_tree()
+			and surface.modulate.a >= _MODAL_TERMINAL_ALPHA
+			and backdrop.modulate.a >= _MODAL_TERMINAL_ALPHA
+			and not _is_control_motion_running(surface)
+			and not _is_control_motion_running(backdrop)
+		)
+		stable_frame_count = stable_frame_count + 1 if terminal else 0
+		if stable_frame_count >= _MODAL_STABLE_FRAME_COUNT:
+			return true
+		await process_frame
+	return false
+
+
+static func _is_control_motion_running(control: Control) -> bool:
+	if not is_instance_valid(control):
+		return false
+	var tween_value: Variant = control.get_meta(_CONTROL_TWEEN_META, null)
+	if not tween_value is Tween:
+		return false
+	var tween: Tween = tween_value
+	return tween.is_valid() and tween.is_running()
 
 
 func _wait_for_game_modal_close(
@@ -975,23 +1028,202 @@ func _capture_gameplay_intro_frames(game_play: Node) -> bool:
 	if not intro_started:
 		push_error("[VisualReview] Gameplay intro did not create visible grid cells.")
 		return false
+	if not await _wait_for_scene_reveal_terminal(240):
+		push_error("[VisualReview] Scene reveal did not reach its terminal state.")
+		return false
+
+	# 路由揭示完成后重新触发一次真实棋盘组装，以便时间切片只观察格子/方块
+	# 动效，而不是把全屏 cover 误判为棋盘首帧全空。
+	game_board.call(&"_play_board_intro")
 
 	await _settle_frames(1)
 	if not _save_viewport("gameplay_intro_0020ms.png"):
 		return false
-	await create_timer(0.06, true, false, true).timeout
+	await create_timer(0.10, true, false, true).timeout
 	await _settle_frames(1)
-	if not _save_viewport("gameplay_intro_0080ms.png"):
+	if not _save_viewport("gameplay_intro_0120ms.png"):
 		return false
-	await create_timer(0.08, true, false, true).timeout
+	await create_timer(0.16, true, false, true).timeout
 	await _settle_frames(1)
-	if not _save_viewport("gameplay_intro_0160ms.png"):
+	if not _save_viewport("gameplay_intro_0280ms.png"):
 		return false
-	await create_timer(0.20, true, false, true).timeout
+	await create_timer(0.24, true, false, true).timeout
 	await _settle_frames(1)
-	if not _save_viewport("gameplay_intro_0360ms.png"):
+	if not _save_viewport("gameplay_intro_0520ms.png"):
 		return false
 	return true
+
+
+func _capture_gameplay_reduced_motion_states(game_play: Node) -> bool:
+	var game_board_node: Node = game_play.get_node_or_null("%GameBoard")
+	var feedback_canvas_node: Node = game_play.find_child(
+		"BoardFeedbackCanvas",
+		true,
+		false
+	)
+	var feedback_root_node: Node = game_play.find_child(
+		"BoardFeedbackRoot",
+		true,
+		false
+	)
+	var backdrop_node: Node = game_play.find_child(
+		"BoardMotionBackdrop",
+		true,
+		false
+	)
+	var board_background_node: Node = game_play.find_child(
+		"BoardBackground",
+		true,
+		false
+	)
+	var background_node: Node = game_play.find_child("Background", true, false)
+	var accessibility_value: Variant = _get_gf_member(
+		&"get_utility",
+		GameAccessibilityUtility
+	)
+	var feedback_value: Variant = _get_gf_member(
+		&"get_utility",
+		GameBoardFeedbackUtility
+	)
+	if (
+		not game_board_node is GameBoardController
+		or not feedback_canvas_node is BoardFeedbackCanvas
+		or not feedback_root_node is Node2D
+		or not backdrop_node is BoardMotionBackdrop
+		or not board_background_node is Control
+		or not background_node is ColorRect
+		or not accessibility_value is GameAccessibilityUtility
+		or not feedback_value is GameBoardFeedbackUtility
+	):
+		push_error("[VisualReview] Reduced-motion gameplay fixture is incomplete.")
+		return false
+
+	var game_board: GameBoardController = game_board_node
+	var feedback_canvas: BoardFeedbackCanvas = feedback_canvas_node
+	var feedback_root: Node2D = feedback_root_node
+	var backdrop: BoardMotionBackdrop = backdrop_node
+	var board_background: Control = board_background_node
+	var background: ColorRect = background_node
+	var accessibility: GameAccessibilityUtility = accessibility_value
+	var feedback: GameBoardFeedbackUtility = feedback_value
+	var previous_reduced_motion: bool = accessibility.get_state().reduced_motion
+	accessibility.set_reduced_motion(true)
+	feedback_canvas.reset_feedback()
+	backdrop.reset_feedback()
+	for node: Node in game_play.find_children("*", "Tile", true, false):
+		if node is Tile:
+			var tile: Tile = node
+			tile.reset_animation_state()
+	game_board.call(&"_play_board_intro")
+	await _settle_frames(2)
+
+	var intro_is_static: bool = _is_gameplay_intro_static(game_board, game_play)
+	if not intro_is_static:
+		push_error("[VisualReview] Reduced-motion gameplay intro is not at its static terminal.")
+		accessibility.set_reduced_motion(previous_reduced_motion)
+		return false
+	if not _save_viewport("gameplay_intro_reduced_motion.png"):
+		accessibility.set_reduced_motion(previous_reduced_motion)
+		return false
+
+	var board_rect: Rect2 = Rect2(
+		-board_background.size * 0.5,
+		board_background.size
+	)
+	var fragment_count: int = feedback.play_turn_feedback(
+		feedback_root,
+		feedback_canvas,
+		background,
+		Vector2i.RIGHT,
+		GameBoardFeedbackUtility.FeedbackTier.HIGH_MERGE,
+		board_rect,
+		Color("#efb24d"),
+		backdrop
+	)
+	await _settle_frames(2)
+	var base_position_value: Variant = feedback_root.get_meta(
+		&"feedback_base_position",
+		feedback_root.position
+	)
+	var base_position: Vector2 = (
+		base_position_value if base_position_value is Vector2 else feedback_root.position
+	)
+	var merge_is_static: bool = (
+		fragment_count == 0
+		and feedback_root.position.is_equal_approx(base_position)
+		and feedback_root.scale.is_equal_approx(Vector2.ONE)
+		and is_zero_approx(feedback_root.rotation)
+		and is_zero_approx(feedback_root.skew)
+		and feedback_canvas._turn_elapsed >= feedback_canvas._turn_duration
+		and backdrop._elapsed >= backdrop._duration
+		and not feedback_canvas.is_processing()
+		and not backdrop.is_processing()
+	)
+	if not merge_is_static:
+		push_error("[VisualReview] Reduced-motion merge retained dynamic board feedback.")
+		accessibility.set_reduced_motion(previous_reduced_motion)
+		return false
+	if not _save_viewport("gameplay_merge_reduced_motion.png"):
+		accessibility.set_reduced_motion(previous_reduced_motion)
+		return false
+
+	accessibility.set_reduced_motion(previous_reduced_motion)
+	feedback_canvas.reset_feedback()
+	backdrop.reset_feedback()
+	await _settle_frames(2)
+	return true
+
+
+func _is_gameplay_intro_static(
+	game_board: GameBoardController,
+	game_play: Node
+) -> bool:
+	var grid_cells_value: Variant = game_board.get("_grid_cell_map")
+	if not grid_cells_value is Dictionary:
+		return false
+	var grid_cells: Dictionary = grid_cells_value
+	if grid_cells.is_empty():
+		return false
+	for cell_value: Variant in grid_cells.values():
+		if not cell_value is Control:
+			continue
+		var cell: Control = cell_value
+		if (
+			not cell.scale.is_equal_approx(Vector2.ONE)
+			or not cell.modulate.is_equal_approx(Color.WHITE)
+			or not is_zero_approx(cell.rotation)
+		):
+			return false
+	for node: Node in game_play.find_children("*", "Tile", true, false):
+		if not node is Tile:
+			continue
+		var tile: Tile = node
+		if (
+			not tile.scale.is_equal_approx(Vector2.ONE)
+			or not tile.modulate.is_equal_approx(Color.WHITE)
+			or not is_zero_approx(tile.rotation)
+		):
+			return false
+	return true
+
+
+func _wait_for_scene_reveal_terminal(frame_budget: int) -> bool:
+	var transition_value: Variant = _get_gf_member(
+		&"get_utility",
+		GFScreenTransitionUtility
+	)
+	if not transition_value is GFScreenTransitionUtility:
+		return true
+	var transition: GFScreenTransitionUtility = transition_value
+	for _frame: int in range(maxi(frame_budget, 1)):
+		var snapshot: Dictionary = transition.get_debug_snapshot()
+		if (
+			not GFVariantData.get_option_bool(snapshot, &"transition_active")
+			and not GFVariantData.get_option_bool(snapshot, &"overlay_visible")
+		):
+			return true
+		await process_frame
+	return false
 
 
 func _count_painted_gameplay_tiles(game_play: Node) -> int:

@@ -6,6 +6,11 @@ class_name BaseListMenu
 extends GameUiController
 
 
+# --- 信号 ---
+
+signal content_ready
+
+
 # --- 常量 ---
 
 const _LIST_REVEAL_OFFSET: Vector2 = Vector2(16.0, 0.0)
@@ -78,6 +83,9 @@ var _virtual_data_list: Array[Resource] = []
 var _virtual_item_extent: float = 1.0
 var _has_revealed_list_once: bool = false
 var _empty_state_active: bool = false
+var _content_ready: bool = false
+var _last_virtual_population_succeeded: bool = false
+var _virtual_population_terminal_pending: bool = false
 
 
 # --- @onready 变量 (节点引用) ---
@@ -127,6 +135,8 @@ func _notification(what: int) -> void:
 
 
 func _exit_tree() -> void:
+	_content_ready = false
+	_virtual_population_terminal_pending = false
 	_delete_operation_token += 1
 	_delete_operation_busy = false
 	_delete_outcome_unknown = false
@@ -158,6 +168,11 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 # --- 公共方法 ---
+
+## 返回列表数据、空态或首个虚拟窗口是否已完成物化并可接受交互。
+func is_content_ready() -> bool:
+	return _content_ready
+
 
 ## 返回历史任务页是否应采用紧凑单列布局。
 ## @param viewport_size: 当前逻辑视口尺寸。
@@ -657,6 +672,8 @@ func _apply_list_focus_order(items: Array[Control]) -> void:
 
 ## 重新填充列表内容。
 func _populate_list() -> void:
+	_content_ready = false
+	_virtual_population_terminal_pending = false
 	if not _item_scene:
 		push_error("[BaseListMenu] _item_scene 未在子类中初始化。")
 		return
@@ -682,6 +699,7 @@ func _populate_list() -> void:
 		if reuse_virtual_binding:
 			await _clear_list_content()
 		_handle_empty_list()
+		_mark_content_ready()
 		return
 	_set_empty_state(false)
 
@@ -692,6 +710,8 @@ func _populate_list() -> void:
 
 	if _uses_virtual_list():
 		await _populate_virtual_list(data_list, template, preferred_virtual_focus)
+		if _last_virtual_population_succeeded:
+			_mark_content_ready()
 		return
 
 	var created_nodes: Array[Node] = GFRepeaterBinder.rebuild_container(items_container, template, data_list, {
@@ -716,6 +736,7 @@ func _populate_list() -> void:
 		_bind_and_reveal_list_items()
 	else:
 		_handle_empty_list()
+	_mark_content_ready()
 
 
 ## 处理列表为空的情况。
@@ -751,6 +772,7 @@ func _set_empty_state(is_empty: bool) -> void:
 
 
 func _clear_list_content() -> void:
+	_virtual_population_terminal_pending = false
 	if (
 		_uses_virtual_list()
 		and is_instance_valid(_virtual_list_binder)
@@ -794,6 +816,8 @@ func _populate_virtual_list(
 	template: Control,
 	preferred_focus_index: int = GFVirtualListFocusModel.NO_FOCUS
 ) -> void:
+	_last_virtual_population_succeeded = false
+	_virtual_population_terminal_pending = false
 	if not is_instance_valid(_virtual_list_model):
 		_virtual_list_model = GFVirtualListModel.new()
 	if not is_instance_valid(_virtual_focus_model):
@@ -858,22 +882,30 @@ func _populate_virtual_list(
 	})
 	if not GFVariantData.get_option_bool(frame_wait, "completed", false):
 		return
-	if binder.is_bound():
-		var settled_result: GFVirtualListSyncResult = binder.sync_now()
-		if (
-			not settled_result.is_successful()
-			and settled_result.get_status() != GFVirtualListSyncResult.STATUS_DEFERRED
-		):
+	if not binder.is_bound():
+		return
+	# 第二轮之后才接受内容就绪终态：首轮成功仍可能触发行高测量与下一轮同步。
+	# DEFERRED 不是成功，后续由 sync_completed 的首个明确成功结果完成水合屏障。
+	_virtual_population_terminal_pending = true
+	var settled_result: GFVirtualListSyncResult = binder.sync_now()
+	if (
+		not settled_result.is_successful()
+		and settled_result.get_status() != GFVirtualListSyncResult.STATUS_DEFERRED
+	):
+		# sync_now() 会同步发出 sync_completed；仅在信号未完成收口时兜底。
+		if _virtual_population_terminal_pending:
+			_virtual_population_terminal_pending = false
 			push_error(
 				"[BaseListMenu] GFVirtualListBinder 稳定同步失败：%s。"
 				% String(settled_result.get_status())
 			)
-			return
-	if _virtual_focus_model.has_focus():
-		_set_selected_item(
-			_virtual_data_list[_virtual_focus_model.focused_index]
-		)
-	_bind_and_reveal_list_items()
+
+
+func _mark_content_ready() -> void:
+	if _content_ready:
+		return
+	_content_ready = true
+	content_ready.emit()
 
 
 func _estimate_virtual_item_extent(template: Control) -> float:
@@ -1016,12 +1048,37 @@ func _on_virtual_item_minimum_size_changed() -> void:
 func _on_virtual_list_sync_completed(
 	result: GFVirtualListSyncResult
 ) -> void:
-	if result == null or not result.is_successful():
+	if result == null:
 		return
+	if not result.is_successful():
+		if (
+			_virtual_population_terminal_pending
+			and result.get_status() != GFVirtualListSyncResult.STATUS_DEFERRED
+		):
+			_virtual_population_terminal_pending = false
+			push_error(
+				"[BaseListMenu] GFVirtualListBinder 延迟同步失败：%s。"
+				% String(result.get_status())
+			)
+		return
+	if (
+		_virtual_population_terminal_pending
+		and is_instance_valid(_virtual_focus_model)
+		and _virtual_focus_model.has_focus()
+		and _virtual_focus_model.focused_index >= 0
+		and _virtual_focus_model.focused_index < _virtual_data_list.size()
+	):
+		_set_selected_item(
+			_virtual_data_list[_virtual_focus_model.focused_index]
+		)
 	var items: Array[Control] = _get_list_item_controls()
 	_apply_list_focus_order(items)
 	_apply_virtual_selection_visuals()
 	_bind_and_reveal_list_items()
+	if _virtual_population_terminal_pending:
+		_virtual_population_terminal_pending = false
+		_last_virtual_population_succeeded = true
+		_mark_content_ready()
 
 
 func _apply_virtual_selection_visuals() -> void:

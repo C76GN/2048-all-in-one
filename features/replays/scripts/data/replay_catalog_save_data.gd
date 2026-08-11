@@ -45,6 +45,20 @@ func _gather_section_data() -> Dictionary:
 	}
 
 
+func _make_runtime_section_cache_snapshot() -> Dictionary:
+	var decoded_items: Array[ReplayData] = []
+	for item: ReplayData in _items:
+		if item == null:
+			continue
+		# Provider 内的已验证 Resource 是权威缓存；调用方仍取得深复制，
+		# 避免列表/回放控制器改写 actions、checkpoints 或嵌套快照。
+		var duplicate_value: Resource = item.duplicate(true)
+		if duplicate_value is ReplayData:
+			var duplicate_item: ReplayData = duplicate_value
+			decoded_items.append(duplicate_item)
+	return {&"items": decoded_items}
+
+
 func _replace_section_data(data: Dictionary) -> Error:
 	if data.size() != 1:
 		return ERR_INVALID_DATA

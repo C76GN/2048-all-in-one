@@ -98,6 +98,85 @@ func test_replay_catalog_save_snapshot_yields_between_bounded_slices() -> void:
 		)
 
 
+func test_replay_system_reuses_provider_runtime_cache_without_exposing_mutable_data() -> void:
+	var save_graph: ReplaySaveGraphStub = ReplaySaveGraphStub.new()
+	var stored_replay: ReplayData = _make_replay(1_700_000_000_010, 64)
+	assert_true(
+		save_graph.provider.replace_section_data({
+			&"items": [stored_replay.to_dict()],
+		}) == OK
+	)
+	var replay_system: ReplaySystem = ReplaySystem.new()
+	replay_system._save_graph = save_graph
+
+	var first_read: Array[ReplayData] = replay_system.load_replays()
+	assert_true(first_read.size() == 1)
+	if first_read.is_empty():
+		return
+	first_read[0].final_score = -1
+	first_read[0].actions[0] = Vector2i.LEFT
+	var first_eligibility_value: Variant = first_read[0].session_metadata.get(
+		&"eligibility"
+	)
+	if first_eligibility_value is Dictionary:
+		var first_eligibility: Dictionary = first_eligibility_value
+		first_eligibility[&"eligible"] = false
+	var first_topology_value: Variant = first_read[0].final_board_snapshot.get(
+		&"topology"
+	)
+	if first_topology_value is Dictionary:
+		var first_topology: Dictionary = first_topology_value
+		var first_active_cells_value: Variant = first_topology.get(&"active_cells")
+		if first_active_cells_value is Array:
+			var first_active_cells: Array = first_active_cells_value
+			first_active_cells[0] = Vector2i(99, 99)
+	first_read[0].checkpoints[0].score = -1
+	var second_read: Array[ReplayData] = replay_system.load_replays()
+	assert_true(
+		second_read.size() == 1 and second_read[0].final_score == 64,
+		"命中 runtime cache 时仍必须向调用方交付隔离 ReplayData。"
+	)
+	if not second_read.is_empty():
+		assert_true(second_read[0].actions[0] == Vector2i.RIGHT)
+		var second_eligibility: Dictionary = GFVariantData.get_option_dictionary(
+			second_read[0].session_metadata,
+			&"eligibility"
+		)
+		assert_true(GFVariantData.get_option_bool(second_eligibility, &"eligible"))
+		var second_topology: Dictionary = GFVariantData.get_option_dictionary(
+			second_read[0].final_board_snapshot,
+			&"topology"
+		)
+		var second_active_cells: Array = GFVariantData.get_option_array(
+			second_topology,
+			&"active_cells"
+		)
+		assert_false(second_active_cells.has(Vector2i(99, 99)))
+		assert_true(second_read[0].checkpoints[0].score == 64)
+	var cache_snapshot: Dictionary = replay_system.get_cache_debug_snapshot()
+	assert_true(GFVariantData.get_option_int(cache_snapshot, &"misses") == 1)
+	assert_true(GFVariantData.get_option_int(cache_snapshot, &"hits") == 1)
+
+	var next_replay: ReplayData = _make_replay(1_700_000_000_011, 128)
+	var operation: GameSaveSectionOperation = replay_system.request_save_replay(
+		next_replay
+	)
+	assert_true(
+		operation != null
+		and operation.get_result() != null
+		and operation.get_result().is_successful()
+	)
+	assert_false(
+		GFVariantData.get_option_bool(
+			replay_system.get_cache_debug_snapshot(),
+			&"valid"
+		),
+		"同步应用回放候选后必须立即失效旧 Profile cache。"
+	)
+	var refreshed: Array[ReplayData] = replay_system.load_replays()
+	assert_true(refreshed.size() == 2)
+
+
 func test_saving_replays_deterministically_retains_newest_uuid_v7_items() -> void:
 	var save_graph: ReplaySaveGraphStub = ReplaySaveGraphStub.new()
 	var replay_system: ReplaySystem = ReplaySystem.new()
@@ -205,6 +284,19 @@ class ReplaySaveGraphStub extends GameSaveGraphUtility:
 		if section_id != GameSaveGraphUtility.REPLAYS_SECTION_ID:
 			return {}
 		return provider.get_section_data()
+
+	## 从回放测试 Provider 读取指定 section 的隔离运行时缓存快照。
+	## @param section_id: 要读取运行时缓存的稳定 section 标识。
+	func get_section_runtime_cache_snapshot(section_id: StringName) -> Dictionary:
+		if section_id != GameSaveGraphUtility.REPLAYS_SECTION_ID:
+			return {}
+		return provider.get_runtime_section_cache_snapshot()
+
+	func is_profile_loaded() -> bool:
+		return true
+
+	func get_active_profile_id() -> StringName:
+		return &"test.replay_limits"
 
 	## 以立即完成的 typed operation 替换测试回放 section。
 	## @param section_id: 要替换的稳定 section 标识。
