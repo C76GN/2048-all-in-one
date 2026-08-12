@@ -232,7 +232,7 @@ func test_catalog_unregister_owns_loading_session_rollback_without_mode_assistan
 
 	assert_not_null(preload_session, "模式目录应创建由 Catalog 关联的活动会话。")
 	assert_true(
-		catalog.unregister_catalog(&"game_modes", true),
+		catalog.unregister_catalog(&"game_modes"),
 		"直接注销目录应成功接管活动会话的回滚。"
 	)
 	assert_true(
@@ -262,6 +262,74 @@ func test_catalog_unregister_owns_loading_session_rollback_without_mode_assistan
 		"Catalog 所有权回滚收敛后 GFAssetUtility 不应保留活动会话。"
 	)
 
+	architecture.dispose()
+
+
+func test_catalog_unregister_preserves_another_group_shared_cache_ownership() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var asset_utility: GFAssetUtility = GFAssetUtility.new()
+	var resolver: GFResourceResolverUtility = GFResourceResolverUtility.new()
+	var catalog: ProjectResourceCatalogUtility = ProjectResourceCatalogUtility.new()
+	await architecture.register_utility(GFResourceBroker, GFResourceBroker.new())
+	await architecture.register_utility(GFAssetUtility, asset_utility)
+	await architecture.register_utility(GFResourceResolverUtility, resolver)
+	await architecture.register_utility(ProjectResourceCatalogUtility, catalog)
+	assert_true(await architecture.init(), "共享路径目录夹具必须完成架构初始化。")
+
+	var shared_path: String = EXPECTED_MODE_CONFIG_PATHS[0]
+	var entry: GFResourceRegistryEntry = GFResourceRegistryEntry.new()
+	entry.id = &"shared_mode"
+	entry.path = shared_path
+	entry.type_hint = "Resource"
+	var registry_a: GFResourceRegistry = GFResourceRegistry.new()
+	var registry_b: GFResourceRegistry = GFResourceRegistry.new()
+	assert_true(registry_a.set_entry(entry), "目录 A 应接纳共享路径条目。")
+	assert_true(registry_b.set_entry(entry), "目录 B 应接纳共享路径条目。")
+	assert_true(
+		catalog.register_catalog(
+			&"shared_catalog_a",
+			registry_a,
+			"test.shared.a.",
+			"Resource",
+			&"shared_group_a"
+		).is_ok(),
+		"目录 A 应注册共享资源路径。"
+	)
+	assert_true(
+		catalog.register_catalog(
+			&"shared_catalog_b",
+			registry_b,
+			"test.shared.b.",
+			"Resource",
+			&"shared_group_b"
+		).is_ok(),
+		"目录 B 应注册共享资源路径。"
+	)
+	var cached_resource: Resource = load(shared_path)
+	assert_not_null(cached_resource, "共享路径夹具资源必须可加载。")
+	asset_utility.put_cache(shared_path, cached_resource)
+
+	assert_true(catalog.unregister_catalog(&"shared_catalog_a"), "目录 A 应可注销。")
+	assert_true(
+		asset_utility.get_group_paths(&"shared_group_a").is_empty(),
+		"注销目录 A 必须释放 A 的 group membership。"
+	)
+	assert_true(
+		asset_utility.get_group_paths(&"shared_group_b").has(shared_path),
+		"注销目录 A 不得清除仍存活的目录 B membership。"
+	)
+	assert_true(asset_utility.is_cache_pinned(shared_path), "目录 B 的 pin 必须继续生效。")
+	assert_not_null(
+		asset_utility.get_cached(shared_path),
+		"目录 A 释放时不得 eager remove 目录 B 仍拥有的缓存。"
+	)
+
+	assert_true(catalog.unregister_catalog(&"shared_catalog_b"), "目录 B 应可注销。")
+	assert_true(
+		asset_utility.get_group_paths(&"shared_group_b").is_empty(),
+		"最后一个目录注销后必须释放自身 group membership。"
+	)
+	assert_false(asset_utility.is_cache_pinned(shared_path), "最后一个目录释放后不得残留 pin。")
 	architecture.dispose()
 
 

@@ -506,6 +506,7 @@ func test_scene_router_reuses_gf_operation_start_tick() -> void:
 
 func _make_trace_settings() -> GameSettingsUtility:
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	settings.persistence_enabled = false
 	settings.auto_load_on_init = false
 	settings.auto_save_on_change = false
 	settings.register_project_defaults()

@@ -372,6 +372,25 @@ func test_project_clock_adapts_one_shared_gf_clock() -> void:
 	)
 
 
+func test_project_installer_binds_storage_settings_store_before_game_settings() -> void:
+	var source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var store_position: int = source.find(
+		"bind_utility(GFStorageSettingsStoreUtility)"
+	)
+	var settings_position: int = source.find("bind_utility(GameSettingsUtility)")
+
+	assert_true(store_position >= 0, "项目 Installer 应注册 GF Storage Settings Store。")
+	assert_true(
+		source.contains("with_alias(GFSettingsStoreUtility)"),
+		"Storage Settings Store 必须以精确 GFSettingsStoreUtility alias 注册。"
+	)
+	assert_true(settings_position >= 0, "项目 Installer 应注册 GameSettingsUtility。")
+	assert_true(
+		store_position < settings_position,
+		"Settings Store 必须先于依赖它的 GameSettingsUtility 注册。"
+	)
+
+
 func test_startup_render_warmup_uses_gf_manifest_and_utility() -> void:
 	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)
 	var boot_source: String = _read_text(BOOT_RUNTIME_PATH)
@@ -741,7 +760,6 @@ func test_project_installer_configures_extension_owned_storage_instance() -> voi
 		storage,
 		"项目 Installer 必须配置 gf.save 已注册的同一 Storage 实例。"
 	)
-	assert_true(storage.create_directories_for_nested_paths)
 	assert_true(storage.file_format == GFStorageCodec.Format.BINARY)
 	assert_true(storage.include_storage_metadata)
 	assert_true(storage.use_integrity_checksum)

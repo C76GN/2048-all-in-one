@@ -4,9 +4,9 @@
 
 ## 设计目标
 
-1. 每个账号的玩家数据只写入一个原子 Profile 文件；每次提交都是完整 `GFSaveDocument`，不产生按 Feature 分散的旁路文件或半写物理文档。彼此独立的业务操作仍各自拥有明确的类型化终态。
+1. 每个账号的玩家数据只占用一个 GFStorage logical family；每次提交都是完整 `GFSaveDocument`，不产生按 Feature 分散的旁路 family。GFStorage 私有拥有 family metadata、payload 与事务成员，项目不得拼接、枚举或删除这些物理成员。彼此独立的业务操作仍各自拥有明确的类型化终态。
 2. 每个 Feature 拥有自己的业务 Schema，持久化 Feature 不解释业务字段。
-3. 加载前严格校验 GFStorage 物理文档、`GFSaveProfile`、typed section 和 Feature Schema；不可解析的物理载荷只允许丢弃并重建，同源旧 Profile 只允许先备份再重建，未来版本或业务 Schema 错误直接拒绝并保留原档。
+3. 加载前严格校验 GFStorage logical family、`GFSaveProfile`、typed section 和 Feature Schema；immutable claim 有效时的不可解析载荷只允许丢弃并重建，同源旧 Profile 只允许先备份再重建；私有 family 结构损坏、未来版本或业务 Schema 错误直接拒绝并保留原档。
 4. 复用 `GFSaveProfileUtility`、`GFSaveProfile`、`GFSaveSectionProvider`、`GFSaveProfileOperation`/`GFSaveProfileResult`、`GFSaveRecoveryPolicy`、`GFSaveDocument` 和 `GFStorageUtility`，不在项目层重复实现 generation 合并、重试、flush barrier、事务 apply/rollback、文档封装或原子文件提交。
 5. 不保留旧 SaveSlot 或时间戳 Resource 集合的运行时双读分支。
 
@@ -20,7 +20,7 @@
 
 账号目录是设备身份元数据，不是玩家业务 Profile。它不得保存统计、书签、回放、成就、发现、自定义棋盘或试验台蓝图。账号切换由 `LocalAccountSystem` 编排：先冲刷当前 Profile，再事务加载目标 Profile，失败时保持原账号和原内存图。
 
-创建、切换、重命名和删除只返回一次性 `LocalAccountOperation` / `LocalAccountOperationResult`，不保留同步 CRUD 包装或重复事务实现。目录变更先构造候选 payload，只有 GFStorage typed async 写成功后才交换权威内存状态并由 System 发布业务信号。I/O 超时进入 `catalog_outcome_unknown`：保留在途操作和路径所有权、阻止后续目录变更，迟到终态到达后再按实际磁盘结果对齐内存；不得把超时当成已回滚成功。Profile 切换或清理进入 outcome-unknown 时也必须持有同一账号协调锁，直到迟到终态、轮询证据或显式 `request_account_reconciliation()` 完成对账。删除目录的迟到成功不能直接释放账号 ID 与路径：目标 Profile 及其事务伴生文件清理成功后才能解锁；清理超时或失败继续保留所有权和可诊断证据。GF `ready()` 只连接运行期依赖；当前账号 Profile 由 `begin_activation()` 接入 `GameSaveGraphUtility.begin_bootstrap_profile()` 的一次性异步终态，成功后架构才进入 READY。`GameSaveGraphUtility.ready()` 不隐式加载 legacy 文件；不安装 `LocalAccountSystem` 的工具与测试架构必须自行等待 `begin_bootstrap_profile()` 的 typed completion。关闭时账号 System 先停止 saga 准入，Catalog 随后通过自己的 `begin_quiesce()` 拒绝新目录写并排空已接纳及 detached 写入，SaveGraph 冲刷并注销全部 Profile，最后才允许 GF Storage 依赖关闭；`dispose()` 不再轮询或睡眠等待 I/O。
+创建、切换、重命名和删除只返回一次性 `LocalAccountOperation` / `LocalAccountOperationResult`，不保留同步 CRUD 包装或重复事务实现。目录变更先构造候选 payload，只有 GFStorage typed async 写成功后才交换权威内存状态并由 System 发布业务信号。目录写通过 `GFStorageAsyncRequestOptions` 的 5 秒 caller deadline 进入 `catalog_outcome_unknown`：保留在途 operation、候选 payload 和路径所有权，阻止后续目录变更；同一 operation 的 physical completed 迟到后再按实际存储结果对齐内存，不得把 caller 离开当成已回滚成功。Profile 切换或清理进入 outcome-unknown 时也必须持有同一账号协调锁，直到迟到终态、轮询证据或显式 `request_account_reconciliation()` 完成对账。删除目录的迟到成功不能直接释放账号 ID 与路径：目标 Profile logical family 的物理删除成功后才能解锁；清理超时或失败继续保留所有权和可诊断证据。GF `ready()` 只连接运行期依赖；当前账号 Profile 由 `begin_activation()` 接入 `GameSaveGraphUtility.begin_bootstrap_profile()` 的一次性异步终态，成功后架构才进入 READY。`GameSaveGraphUtility.ready()` 不隐式加载旧 layout 文件；不安装 `LocalAccountSystem` 的工具与测试架构必须自行等待 `begin_bootstrap_profile()` 的 typed completion。关闭时账号 System 先停止 saga 准入，Catalog 随后通过自己的 `begin_quiesce()` 拒绝新目录写并排空已接纳及 caller 离开后的物理写入，SaveGraph 冲刷并注销全部 Profile，最后才允许 GF Storage 依赖关闭；`dispose()` 不再轮询或睡眠等待 I/O。
 
 ### 玩家数据
 
@@ -33,21 +33,21 @@
 
 Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vector2i` 和嵌套 Variant；JSON 不能稳定保留普通数字的原始类型。不得仅为可读性切回 JSON，除非同步设计显式类型编码并重写回归测试。
 
-首次启用本地账号时，唯一的旧默认 `player_data.save` 可以被一次性收养为首个账号 Profile；目标 Profile 写入成功后才删除旧文件，不保留运行时双读。此后每个账号只使用自己的路径。
+首次启用本地账号时，当前 Storage layout 中唯一的默认 `player_data.save` logical family 可以被一次性收养为首个账号 Profile；目标 Profile 写入成功后才删除旧 family，不保留运行时双读。当前仓库尚无 tag 或正式 release，因此不实现旧 visible-root 到私有 family layout 的运行时兼容双读；未来若已有发布数据，只能提供一次性、显式、离线迁移工具。
 
 当文档 metadata 精确标识为同一 Profile schema、版本为历史正整数且低于当前版本时，启动流程先把完整规范文档保存到带账号身份和旧版本的 `recovery/` 路径，确认备份成功后再通过当前 section 默认值原子重建活动文件。不读取、转换或合并历史业务字段；备份失败时不得覆盖原活动文件。
 
-`ProjectStorageRecoveryPolicy` 只把 `ERR_PARSE_ERROR`、`ERR_FILE_UNRECOGNIZED` 和 `ERR_FILE_CORRUPT` 视为可重置的物理载荷失败。项目绝不消费其中的字段；先由 GF 拒绝读取，再通过 `GFStorageUtility.delete_file()` 清理主文件及事务伴生文件，最后以当前默认 section 写回新 Profile。未来 GFStorage 版本、未来 Profile 版本、未知 schema ID、畸形业务文档和当前 section 校验失败必须保留原档并显式失败。
+`ProjectStorageRecoveryPolicy` 只把 GF 已归类为 `GFStorageReadResult.FailureKind.CORRUPT` 的读取视为可尝试重置。项目绝不消费其中的字段；immutable claim 有效时先由 GF 拒绝读取，再由 GFStorage 的 logical-family 删除入口清理可变成员，最后以当前默认 section 写回新 Profile。若 catalog、owner 或事务身份等私有 family 结构已损坏，公开删除同样失败，项目必须保留证据并失败关闭。项目不拼接 `.tmp`、`.bak`、事务证据或其他私有 sidecar。未来 GFStorage 版本、未来 Profile 版本、未知 schema ID、畸形业务文档和当前 section 校验失败必须保留原档并显式失败。
 
 ### 设置
 
 - 文件：`settings.sav`
 - 所有权：`features/settings/scripts/utilities/game_settings_utility.gd`
-- 能力：`GFSettingsUtility`、`GFDisplaySettingsUtility` 和 `GFStorageUtility`
+- 能力：`GFSettingsUtility`、`GFDisplaySettingsUtility`、`GFSettingsStoreUtility` 和 `GFStorageSettingsStoreUtility`
 
-设置是全局偏好，不参与玩家数据图事务。语言、显示、主音量、视觉主题、音效主题、GF 输入覆盖、棋盘动画响应策略和默认关闭的本地性能诊断同意项不随书签或回放恢复；撤回诊断同意必须立即清空内存轨迹。项目在 Storage 依赖完成 `ready()` 后读取设置；架构关闭时先拒绝新变更并在 quiesce 阶段冲刷已接纳的 debounce/batch 目标，禁止把最后一次保存拖到 Storage 已释放后的 `dispose()`。
+设置是全局偏好，不参与玩家数据图事务。语言、显示、主音量、视觉主题、音效主题、GF 输入覆盖、棋盘动画响应策略和默认关闭的本地性能诊断同意项不随书签或回放恢复；撤回诊断同意必须立即清空内存轨迹。Composition Root 把 `GFStorageSettingsStoreUtility` 注册为精确 `GFSettingsStoreUtility` alias；该 Store 声明并缓存 Storage 生命周期依赖，`GFSettingsUtility` 在 Store ready 后的 activation 边界加载设置。架构关闭时由 GF Settings 先冻结 mutation admission，再按冻结时的原目标文件顺序冲刷全部 debounce/batch 记录；项目不得读取框架私有队列，也不得把最后一次保存拖到 Storage 已释放后的 `dispose()`。
 
-设置只接受当前 GF Storage codec 和当前设置定义。项目不再在运行时识别旧版 `XOR + Base64 JSON` 载荷；物理解析、envelope 或 checksum 失败时由 GF 明确拒绝，再按同一 `ProjectStorageRecoveryPolicy` 删除并写回当前默认设置，未知载荷中的字段不得猜测。未来存储版本和设置业务错误不自动删除，并阻断本次运行中的后续设置写入，防止旧程序覆盖新版本文件。发布后若存在必须保留的数据，只提供显式一次性迁移工具，不把旧格式双读留在主路径。
+设置只接受当前 GF Storage codec 和当前设置定义。项目不再在运行时识别旧版 `XOR + Base64 JSON` 载荷；payload、envelope 或 checksum 损坏由 GF 明确拒绝，再按同一 `ProjectStorageRecoveryPolicy` 通过 Settings Store 覆写当前默认设置，未知载荷中的字段不得猜测。若损坏位于 GF 私有 catalog、owner 或事务身份，公开 load/save/delete 都无法完成单 family 授权重建：架构激活前发现时由 Storage 阻止启动进入 READY；Storage 已激活后的显式设置重载可以应用内存默认值，但该加载诊断与持久化健康必须失败，原证据和 logical identity 保持不动并阻断后续写入。项目不得解析或修改私有成员。未来存储版本和设置业务错误同样不自动删除。发布后若存在必须保留的数据，只提供显式一次性迁移工具，不把旧格式双读留在主路径。
 
 ## GFSaveProfile 结构
 
@@ -85,7 +85,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 当前版本已经允许在共享 Provider domain 仍有另一个活动身份时安全注销目标非活动 Profile，前提是目标不是活动身份且 domain 没有在途事务或 recovery/reconcile lease；原注销 blocker 已解除。该修复只缩小了未来迁移范围，不授权把账号状态机拆成 Coordinator 与项目 transition gate 各管一半。
 
-只有上游补齐以下剩余边界后，才允许进行一次性切换：切换事务能为 missing/corrupt 目标返回与原事务、domain generation 和来源身份绑定的 recovery lease，恢复成功前来源身份与 section 状态不变；outcome-unknown、rollback failure、quiesce 与 dispose 继续提供唯一 typed 终态并保持 Profile/path 所有权。迁移验收仍必须覆盖同 domain 活动身份存在时注销无事务、无 recovery/reconcile lease、无 detached 写的非活动 Profile。迁移时 Coordinator 应统一接管 Profile 注册、活动身份、source flush、target load、recovery/reconcile lease 和 `mutate_and_persist()`；项目继续拥有本地账号目录、账号 ID 到路径映射、legacy 收养、旧档备份/重建策略及物理文件清理。不得让项目 transition gate 与 Coordinator 双重协调，也不得保留新旧两套运行时入口；注册、切换、section mutation、对账和关闭顺序必须在同一批改动与回归测试中整体切换。
+只有上游补齐以下剩余边界后，才允许进行一次性切换：切换事务能为 missing/corrupt 目标返回与原事务、domain generation 和来源身份绑定的 recovery lease，恢复成功前来源身份与 section 状态不变；outcome-unknown、rollback failure、quiesce 与 dispose 继续提供唯一 typed 终态并保持 Profile/path 所有权。迁移验收仍必须覆盖同 domain 活动身份存在时注销无事务、无 recovery/reconcile lease、无 detached 写的非活动 Profile。迁移时 Coordinator 应统一接管 Profile 注册、活动身份、source flush、target load、recovery/reconcile lease 和 `mutate_and_persist()`；项目继续拥有本地账号目录、账号 ID 到 logical identity 的映射、当前 layout 内的默认 Profile 收养，以及旧业务档备份/重建策略；物理 family 与成员清理由 GFStorage 独占。不得让项目 transition gate 与 Coordinator 双重协调，也不得保留新旧两套运行时入口；注册、切换、section mutation、对账和关闭顺序必须在同一批改动与回归测试中整体切换。
 
 ## 事务语义
 
@@ -95,8 +95,10 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 2. section 替换只通过立即返回的一次性 `GameSaveSectionOperation`；Profile 保存、加载和冲刷只通过 `request_save_profile()`、`request_load_profile()`、`request_flush_profile()` 返回的 `GFSaveProfileOperation`；启动与账号切换分别等待 `begin_bootstrap_profile()` completion 和 `activate_profile_async()`。`GameSaveGraphUtility` 不保留同步保存、加载、冲刷、引导或切换包装。玩家 UI 在操作期间禁用重复提交，并以 owner/token 防止页面释放后回写。
 3. 项目先保存本次涉及 section 的内存快照并应用候选；同一时刻只允许一个立即事务。项目构造一次性 `GFSaveProfileRequest`，`GFSaveProfileUtility.save_profile()` 立即返回 `GFSaveProfileOperation`，不在请求调用栈里收集或写盘；后续 Profile tick 按 provider 顺序推进 `GFSaveSectionSnapshotOperation`，再按 generation 串行化、合并和有界重试。小型、有严格容量上限的 provider 可以返回已完成 snapshot operation；`ReplayCatalogSaveData` 必须按回放、action 和 checkpoint 预算分片，避免长回放目录在单帧同步序列化。任何目录增长到会占用整帧时都应在 provider 内采用分步 snapshot operation，不得恢复 UI 调用栈同步深拷贝。
 4. `GFStorageUtility` 通过临时文件、事务标记和原子提交写入当前账号 Profile。确认成功后 `GameSaveSectionResult` 为 `persisted`；确认失败时项目反向恢复本次 section，并等待回滚状态的补偿保存后再终结。
-5. `outcome_unknown` 不表示成功或失败。项目保留候选快照、Profile 与路径所有权，并阻止新的立即写入和账号切换；GF detached 写入收敛后按 requested/persisted generation 判断晚到成功，或回滚并补偿保存，再以原 transaction ID 发布唯一对账证据。
+5. `outcome_unknown` 不表示成功或失败。项目保留候选快照、Profile 与路径所有权，并阻止新的立即写入和账号切换；GF caller-first 后的迟到物理写入收敛后，按 requested/persisted generation 判断晚到成功，或回滚并补偿保存，再以原 transaction ID 发布唯一对账证据。
 6. 高频统计、发现和成就更新使用 `queue_section_data()` 合并到下一 generation；`flush_profile()` 是覆盖调用时最新 generation 的屏障。“已排队”不等于“已持久化”。
+
+Profile 删除使用 `GFStorageUtility.delete_file_request_async()` 和 `GFStorageAsyncRequestOptions`。caller 轴可以因 owner、token 或 deadline 先终结；已接纳 delete 此时是 `OUTCOME_UNKNOWN`，项目继续保留账号协调锁与 logical identity。只有同一 `GFStorageAsyncOperation.completed` 的物理终态到达后才释放路径所有权并推进 reconciliation。未找到 logical family 保持幂等成功语义；项目不得再用 `GFBackgroundWorkUtility` 自建文件删除任务。
 
 业务 System 不得直接调用 `FileAccess`、枚举存档目录或生成旁路文件。
 
@@ -107,7 +109,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 3. `GFSaveProfileUtility` 按 provider 数组顺序应用 section，并在任一 provider 失败时反向恢复已经应用的 provider 快照；运行时不得暴露部分加载状态。
 4. 缺失文件可以按当前内存默认值恢复并随后保存；未来 schema、未知 section、畸形 metadata 或当前 Feature schema 错误必须明确失败并保留原档。
 
-首次运行没有文件是正常状态。物理格式损坏不是首次运行，必须记录拒绝原因并按 `reset_allowed` 重建；未来版本或业务 Schema 错误必须明确失败且保留原档。
+首次运行没有文件是正常状态。payload/envelope 格式损坏不是首次运行，必须记录拒绝原因并在 immutable claim 有效时按 `reset_allowed` 重建；私有 family 结构损坏、未来版本或业务 Schema 错误必须明确失败且保留原档。
 
 ## Feature 数据
 
@@ -202,7 +204,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 - Binary 往返后严格类型与稳定 UUID 保留。
 - 后期 section 应用失败时早期 section 回滚。
 - 同源旧 Profile 先完整备份再以当前默认 section 重建，且运行时不双读旧业务字段。
-- 不可解析的 GFStorage 物理文档只重建当前默认值；未来存储版本不得自动删除。
+- immutable claim 有效时，不可解析的 GFStorage logical family 载荷只重建当前默认值；私有 family 结构损坏与未来存储版本不得自动删除。
 - 未来 Profile、未知 schema、畸形 metadata 和当前 section Schema 不匹配时拒绝载荷。
 - 保存失败时内存 section 回滚。
 - 回放继续游玩清理 redo 历史，设置恢复不污染玩家数据。

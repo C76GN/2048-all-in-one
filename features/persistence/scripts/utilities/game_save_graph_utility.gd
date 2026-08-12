@@ -72,8 +72,6 @@ var _active_profile_id: StringName = &""
 ## 设备最多 8 个账号，连同 legacy/default Profile，集合天然有界。
 var _registered_profiles: Dictionary = {}
 var _storage: GFStorageUtility = null
-var _background_work: GFBackgroundWorkUtility = null
-var _clock: GameClockUtility = null
 var _log: GFLogUtility = null
 var _platform: GamePlatformUtility = null
 var _signal_utility: GFSignalUtility = null
@@ -91,13 +89,10 @@ var _profile_transition_lease: GFAsyncGateLease = null
 var _profile_transition_diagnostic_id: StringName = &""
 var _platform_backgrounded: bool = false
 var _profile_file_name: String = PROFILE_FILE_NAME
-var _profile_delete_tasks: Dictionary = {}
-var _profile_delete_deadlines: Dictionary = {}
-var _profile_delete_timed_out: Dictionary = {}
+var _profile_delete_operations: Dictionary = {}
 var _profile_delete_waiters: Dictionary = {}
 var _profile_delete_file_names: Dictionary = {}
 var _profile_cleanup_paths: Dictionary = {}
-var _profile_delete_serial: int = 0
 var _disposing: bool = false
 var _disposed: bool = false
 var _quiescing: bool = false
@@ -140,9 +135,7 @@ func init() -> void:
 func get_required_utilities() -> Array[Script]:
 	return [
 		GFStorageUtility,
-		GFBackgroundWorkUtility,
 		GFSaveProfileUtility,
-		GameClockUtility,
 		GFLogUtility,
 		GFOperationDiagnosticsUtility,
 		GamePlatformUtility,
@@ -157,9 +150,7 @@ func ready() -> void:
 	_quiesce_completion = null
 	_quiesce_flush_operation = null
 	_storage = _resolve_storage_utility()
-	_background_work = _resolve_background_work_utility()
 	_profile_utility = _resolve_profile_utility()
-	_clock = _resolve_clock_utility()
 	_log = _resolve_log_utility()
 	_operation_diagnostics = _resolve_operation_diagnostics_utility()
 	_platform = _resolve_platform_utility()
@@ -167,9 +158,7 @@ func ready() -> void:
 	_async_tracker = _resolve_optional_async_tracker()
 	if (
 		_storage == null
-		or _background_work == null
 		or _profile_utility == null
-		or _clock == null
 		or _signal_utility == null
 		or _section_providers.is_empty()
 	):
@@ -180,17 +169,6 @@ func ready() -> void:
 		_profile_utility.profile_operation_completed,
 		_on_profile_operation_completed,
 		self
-	)
-	var _background_connections: Array[GFSignalConnection] = (
-		_signal_utility.connect_any(
-			[
-				_background_work.work_completed,
-				_background_work.work_failed,
-				_background_work.work_cancelled,
-			],
-			_on_background_work_terminal,
-			self
-		)
 	)
 	if is_instance_valid(_platform):
 		var _lifecycle_connection: GFSignalConnection = _signal_utility.connect_signal(
@@ -205,10 +183,10 @@ func ready() -> void:
 		return
 
 
-## 驱动保存 debounce 与后台清理超时。
+## 驱动保存 debounce、section 对账与静默收敛。
 ## @param delta: 自上一帧起的秒数。
 func tick(delta: float = 0.0) -> void:
-	_tick_profile_delete_timeouts()
+	_poll_profile_delete_operation_terminals()
 	_tick_section_reconciliation()
 	if _profile_save_pending and _loaded and not _quiescing:
 		# 账号切换事务会在入口冲刷旧 Profile；事务期间新产生的更新保持
@@ -259,23 +237,22 @@ func dispose() -> void:
 	# 已静默模块的资源，不能在主线程重新发起并忙等一次 Profile IO。
 	_settle_pending_section_operation_for_dispose()
 	_disconnect_section_operation_callbacks()
-	if is_instance_valid(_background_work):
-		for task_value: Variant in _profile_delete_tasks.values():
-			if not (task_value is GFBackgroundWorkTask):
-				continue
-			var task: GFBackgroundWorkTask = task_value
-			if not task.is_finished():
-				var _cancelled: bool = (
-					_background_work.cancel_work(task.work_id)
-				)
-			profile_cleanup_task_terminal.emit(task.work_id)
+	# 正常关闭已由 begin_quiesce() 等到物理删除终态。强制 dispose 只能结束
+	# caller 观察；GFStorage 仍继续持有已接纳的 worker 与同文件锁到物理收敛，
+	# 此处清理的是已销毁项目模块的诊断引用，不宣称磁盘工作已取消。
+	for operation_value: Variant in _profile_delete_operations.values():
+		if not (operation_value is GFStorageAsyncOperation):
+			continue
+		var operation: GFStorageAsyncOperation = operation_value
+		if operation.is_caller_pending():
+			var _cancelled_observation: bool = operation.cancel_observation(
+				&"save_graph_disposed"
+			)
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
 	_clear_async_tracking()
 	_disposed = true
-	_profile_delete_tasks.clear()
-	_profile_delete_deadlines.clear()
-	_profile_delete_timed_out.clear()
+	_profile_delete_operations.clear()
 	_profile_delete_waiters.clear()
 	_profile_delete_file_names.clear()
 	_profile_cleanup_paths.clear()
@@ -323,11 +300,9 @@ func dispose() -> void:
 	_quiesce_completion = null
 	_quiesce_flush_operation = null
 	_storage = null
-	_background_work = null
 	_signal_utility = null
 	_operation_diagnostics = null
 	_async_tracker = null
-	_clock = null
 	_log = null
 	_platform = null
 
@@ -411,10 +386,10 @@ func get_last_profile_transition_evidence() -> Dictionary:
 	return _last_profile_transition_evidence.duplicate(true)
 
 
-## 返回指定 Profile 路径是否仍由后台清理任务持有。
+## 返回指定 Profile logical identity 是否仍由异步删除 Operation 持有。
 ##
-## timeout 只终结等待者，不代表线程已停止；账号协调必须等本查询变为 false
-## 后才能重试清理或解除路径所有权。
+## caller timeout 只终结当前等待者，不代表物理删除已停止；账号协调必须等本查询
+## 变为 false 后才能重试清理或解除路径所有权。
 ## @param profile_file_name: 待查询的 Profile 规范文件名。
 func is_profile_cleanup_pending(profile_file_name: String) -> bool:
 	if profile_file_name.is_empty() or _storage == null:
@@ -618,10 +593,10 @@ func activate_profile_async(
 	return error
 
 
-## 在 GFBackgroundWorkUtility 拥有的 IO 任务中删除非当前账号 Profile。
+## 通过 GFStorage logical family 删除请求清理非当前账号 Profile。
 ##
-## UI 账号事务等待 GFBackgroundWorkTask 到达唯一终态；任务由本 Utility
-## 保留到终结，并在架构 dispose 时统一取消，避免主线程同步 delete_file。
+## caller deadline 只终结当前等待者；若 worker 已接纳，则继续持有账号路径，
+## 直到同一 Operation 的物理终态到达，不能把 outcome unknown 伪装成删除失败。
 ## @param profile_file_name: 要删除的非活动账号 Profile 相对路径。
 func delete_inactive_profile_async(
 	profile_file_name: String
@@ -999,8 +974,7 @@ func _delete_inactive_profile_file_async(
 		profile_file_name.is_empty()
 		or profile_file_name == _profile_file_name
 		or _storage == null
-		or _background_work == null
-		or _clock == null
+		or _signal_utility == null
 	):
 		return ERR_INVALID_PARAMETER
 	var canonical_name: String = (
@@ -1010,66 +984,74 @@ func _delete_inactive_profile_file_async(
 		return ERR_INVALID_PARAMETER
 	if _profile_cleanup_paths.has(canonical_name):
 		return ERR_BUSY
-	var base_path: String = _storage.get_storage_directory_path()
-	if base_path.is_empty():
-		return ERR_INVALID_PARAMETER
 	var release_error: Error = _release_profile_for_cleanup(canonical_name)
 	if release_error != OK:
 		return release_error
-	var profile_path: String = ProjectSettings.globalize_path(
-		base_path.path_join(canonical_name)
-	)
-	_profile_delete_serial += 1
-	var work_id: StringName = StringName(
-		"profile-delete:%d:%s"
-		% [_profile_delete_serial, canonical_name.sha256_text().left(12)]
-	)
-	var worker: ProfileFileCleanupUtility = ProfileFileCleanupUtility.new()
-	var task: GFBackgroundWorkTask = _background_work.submit_io_work(
-		Callable(worker, "run"),
-		{
-			&"paths": PackedStringArray([
-				profile_path,
-				profile_path + ".tmp",
-				profile_path + ".bak",
-				profile_path + ".txn",
-			]),
-		},
-		Callable(),
-		{
-			&"id": work_id,
-			&"metadata": {
-				&"owner": "GameSaveGraphUtility",
-				&"profile_file": canonical_name,
-			},
-		}
-	)
-	if task == null:
-		return ERR_CANT_CREATE
-	_profile_delete_tasks[task.work_id] = task
-	_profile_delete_waiters[task.work_id] = true
-	_profile_delete_file_names[task.work_id] = canonical_name
-	_profile_cleanup_paths[canonical_name] = task.work_id
-	_profile_delete_deadlines[task.work_id] = (
-		_clock.get_tick_msec() + _PROFILE_DELETE_TIMEOUT_MSEC
-	)
-	_track_profile_cleanup_task(task, canonical_name)
-	while (
-		not task.is_finished()
-		and not _profile_delete_timed_out.has(task.work_id)
-		and not _disposing
-	):
-		var _terminal_work_id: StringName = (
-			await profile_cleanup_task_terminal
+	var options: GFStorageAsyncRequestOptions = (
+		GFStorageAsyncRequestOptions.create(
+			self,
+			null,
+			_PROFILE_DELETE_TIMEOUT_MSEC
 		)
-	var result_error: Error = (
-		_background_delete_task_to_error(task)
-		if task.is_finished() or _profile_delete_timed_out.has(task.work_id)
-		else ERR_UNAVAILABLE
 	)
-	var _waiter_erased: bool = _profile_delete_waiters.erase(task.work_id)
-	if task.is_finished():
-		_cleanup_profile_delete_tracking(task.work_id)
+	if not options.is_valid():
+		return ERR_INVALID_PARAMETER
+	var operation: GFStorageAsyncOperation = (
+		_storage.delete_file_request_async(canonical_name, options)
+	)
+	if operation == null:
+		return ERR_CANT_CREATE
+	var request_id: int = operation.get_request_id()
+	if request_id <= 0:
+		return ERR_CANT_CREATE
+	_profile_delete_operations[request_id] = operation
+	_profile_delete_waiters[request_id] = true
+	_profile_delete_file_names[request_id] = canonical_name
+	_profile_cleanup_paths[canonical_name] = request_id
+	_track_profile_cleanup_operation(operation, canonical_name)
+	if not operation.is_completed():
+		var physical_connection: GFSignalConnection = (
+			_signal_utility.connect_once(
+				operation.completed,
+				_on_profile_delete_physical_completed,
+				self,
+				[operation]
+			)
+		)
+		if physical_connection == null or not physical_connection.is_active():
+			_log_error(
+				"Profile 删除物理终态观察连接失败；将由 tick 查询收敛请求 %d。"
+				% request_id
+			)
+	if not operation.is_caller_completed():
+		var caller_connection: GFSignalConnection = (
+			_signal_utility.connect_once(
+				operation.caller_completed,
+				_on_profile_delete_caller_completed,
+				self,
+				[operation]
+			)
+		)
+		if caller_connection == null or not caller_connection.is_active():
+			_log_error(
+				"Profile 删除 caller 终态观察连接失败；停止当前观察并保留物理请求 %d。"
+				% request_id
+			)
+			var _cancelled_observation: bool = operation.cancel_observation(
+				&"profile_delete_observer_connect_failed"
+			)
+	# connect 前后的同步查询与逐帧 fallback 共同闭合终态竞态：即使一次性
+	# 信号连接失败或终态恰好已写入，caller 也不会永久等待。
+	_poll_profile_delete_operation_terminals()
+	while operation.is_caller_pending() and not _disposing:
+		var _terminal_work_id: StringName = await profile_cleanup_task_terminal
+	var caller_result: GFStorageAsyncCallerResult = operation.get_caller_result()
+	var result_error: Error = _profile_delete_caller_result_to_error(
+		caller_result
+	)
+	var _waiter_erased: bool = _profile_delete_waiters.erase(request_id)
+	if operation.is_completed():
+		_cleanup_profile_delete_tracking(request_id)
 	return result_error
 
 
@@ -3079,7 +3061,7 @@ func _try_advance_quiesce() -> void:
 		_is_profile_transition_in_progress()
 		or _has_pending_section_transaction()
 		or is_section_reconciliation_pending()
-		or not _profile_delete_tasks.is_empty()
+		or not _profile_delete_operations.is_empty()
 		or not _profile_cleanup_paths.is_empty()
 	):
 		return
@@ -3526,102 +3508,123 @@ static func _is_account_profile_file_name_valid(
 	return GFUuid.is_valid(account_id, 7)
 
 
-func _background_delete_task_to_error(
-	task: GFBackgroundWorkTask
+func _profile_delete_caller_result_to_error(
+	caller_result: GFStorageAsyncCallerResult
 ) -> Error:
-	if task == null:
-		return ERR_CANT_CREATE
-	if _profile_delete_timed_out.has(task.work_id):
-		return ERR_TIMEOUT
-	if task.status == GFBackgroundWorkTask.Status.CANCELLED:
+	if caller_result == null:
 		return ERR_UNAVAILABLE
-	var result: Dictionary = GFVariantData.as_dictionary(task.result)
-	@warning_ignore("int_as_enum_without_cast")
-	var error_code: Error = GFVariantData.get_option_int(
-		result,
-		&"error_code",
-		(
-			OK
-			if task.status == GFBackgroundWorkTask.Status.COMPLETED
-			else ERR_CANT_CREATE
-		)
+	if caller_result.is_outcome_unknown():
+		return ERR_TIMEOUT
+	if (
+		caller_result.get_status()
+		!= GFStorageAsyncCallerResult.Status.PHYSICAL_SETTLED
+	):
+		return caller_result.get_error_code()
+	return _profile_delete_physical_result_to_error(
+		caller_result.get_physical_result()
 	)
-	if task.status != GFBackgroundWorkTask.Status.COMPLETED:
-		return error_code if error_code != OK else ERR_CANT_CREATE
-	return error_code
 
 
-func _tick_profile_delete_timeouts() -> void:
-	if _clock == null or _background_work == null:
+func _profile_delete_physical_result_to_error(
+	physical_result: GFStorageAsyncResult
+) -> Error:
+	if physical_result == null:
+		return ERR_UNAVAILABLE
+	if physical_result.is_successful():
+		return OK
+	var delete_result: GFStorageDeleteResult = (
+		physical_result.get_delete_result()
+	)
+	# 账号清理维持幂等语义：logical family 已不存在也视作清理完成。
+	if (
+		delete_result != null
+		and delete_result.get_failure_kind()
+		== GFStorageDeleteResult.FailureKind.NOT_FOUND
+	):
+		return OK
+	return physical_result.get_error_code()
+
+
+func _on_profile_delete_caller_completed(
+	operation: GFStorageAsyncOperation,
+	_result: GFStorageAsyncCallerResult
+) -> void:
+	if operation == null:
 		return
-	var now_msec: int = _clock.get_tick_msec()
-	for work_id_value: Variant in _profile_delete_deadlines.keys():
-		var work_id: StringName = GFVariantData.to_string_name(
-			work_id_value
+	var request_id: int = operation.get_request_id()
+	if not _profile_delete_operations.has(request_id):
+		return
+	profile_cleanup_task_terminal.emit(
+		StringName("profile-delete:%d" % request_id)
+	)
+
+
+func _on_profile_delete_physical_completed(
+	operation: GFStorageAsyncOperation,
+	_result: GFStorageAsyncResult
+) -> void:
+	if operation == null:
+		return
+	var request_id: int = operation.get_request_id()
+	if not _profile_delete_operations.has(request_id):
+		return
+	if not _profile_delete_waiters.has(request_id):
+		_cleanup_profile_delete_tracking(request_id)
+	profile_cleanup_task_terminal.emit(
+		StringName("profile-delete:%d" % request_id)
+	)
+
+
+func _poll_profile_delete_operation_terminals() -> void:
+	for request_id_value: Variant in _profile_delete_operations.keys():
+		var request_id: int = GFVariantData.to_int(request_id_value)
+		var operation_value: Variant = GFVariantData.get_option_value(
+			_profile_delete_operations,
+			request_id
 		)
-		var task_value: Variant = GFVariantData.get_option_value(
-			_profile_delete_tasks,
-			work_id
-		)
-		if not (task_value is GFBackgroundWorkTask):
+		if not (operation_value is GFStorageAsyncOperation):
 			continue
-		var task: GFBackgroundWorkTask = task_value
-		var deadline_msec: int = GFVariantData.get_option_int(
-			_profile_delete_deadlines,
-			work_id,
-			0
-		)
+		var operation: GFStorageAsyncOperation = operation_value
 		if (
-			task.is_finished()
-			or deadline_msec <= 0
-			or now_msec < deadline_msec
-			or _profile_delete_timed_out.has(work_id)
+			operation.is_caller_completed()
+			and _profile_delete_waiters.has(request_id)
 		):
-			continue
-		_profile_delete_timed_out[work_id] = true
-		var _deadline_erased: bool = (
-			_profile_delete_deadlines.erase(work_id)
-		)
-		var _cancelled: bool = _background_work.cancel_work(work_id)
-		# 取消运行中线程只是一项请求；项目 deadline 必须立即给等待者
-		# outcome-unknown 终态，GFBackgroundWorkUtility 继续持有晚完成任务。
-		profile_cleanup_task_terminal.emit(work_id)
+			profile_cleanup_task_terminal.emit(
+				StringName("profile-delete:%d" % request_id)
+			)
+		if (
+			_profile_delete_operations.has(request_id)
+			and operation.is_completed()
+			and not _profile_delete_waiters.has(request_id)
+		):
+			_cleanup_profile_delete_tracking(request_id)
+			profile_cleanup_task_terminal.emit(
+				StringName("profile-delete:%d" % request_id)
+			)
 
 
-func _on_background_work_terminal(task: GFBackgroundWorkTask) -> void:
-	if task == null or not _profile_delete_tasks.has(task.work_id):
-		return
-	if not _profile_delete_waiters.has(task.work_id):
-		_cleanup_profile_delete_tracking(task.work_id)
-	profile_cleanup_task_terminal.emit(task.work_id)
-
-
-func _cleanup_profile_delete_tracking(work_id: StringName) -> void:
+func _cleanup_profile_delete_tracking(request_id: int) -> void:
 	var file_name: String = GFVariantData.get_option_string(
 		_profile_delete_file_names,
-		work_id
+		request_id
 	)
-	var task_value: Variant = GFVariantData.get_option_value(
-		_profile_delete_tasks,
-		work_id
+	var operation_value: Variant = GFVariantData.get_option_value(
+		_profile_delete_operations,
+		request_id
 	)
-	if task_value is GFBackgroundWorkTask:
-		var task: GFBackgroundWorkTask = task_value
-		_untrack_async_handle(task)
-	var _task_erased: bool = _profile_delete_tasks.erase(work_id)
-	var _deadline_erased: bool = _profile_delete_deadlines.erase(work_id)
-	var _timeout_erased: bool = _profile_delete_timed_out.erase(work_id)
-	var _waiter_erased: bool = _profile_delete_waiters.erase(work_id)
-	var _file_erased: bool = _profile_delete_file_names.erase(work_id)
+	if operation_value is GFStorageAsyncOperation:
+		var operation: GFStorageAsyncOperation = operation_value
+		_untrack_async_handle(operation)
+	var _operation_erased: bool = _profile_delete_operations.erase(request_id)
+	var _waiter_erased: bool = _profile_delete_waiters.erase(request_id)
+	var _file_erased: bool = _profile_delete_file_names.erase(request_id)
 	if (
 		not file_name.is_empty()
-		and GFVariantData.to_string_name(
-			GFVariantData.get_option_value(
-				_profile_cleanup_paths,
-				file_name
-			)
-		)
-		== work_id
+		and GFVariantData.get_option_int(
+			_profile_cleanup_paths,
+			file_name,
+			0
+		) == request_id
 	):
 		var _path_erased: bool = _profile_cleanup_paths.erase(file_name)
 
@@ -3674,18 +3677,18 @@ func _track_section_operation(
 	)
 
 
-func _track_profile_cleanup_task(
-	task: GFBackgroundWorkTask,
+func _track_profile_cleanup_operation(
+	operation: GFStorageAsyncOperation,
 	profile_file_name: String
 ) -> void:
-	if task == null or task.is_finished():
+	if operation == null or operation.is_completed():
 		return
 	var _tracking_id: int = _track_async_handle(
-		task,
+		operation,
 		&"game_save.profile_cleanup",
 		{
 			&"owner": "GameSaveGraphUtility",
-			&"work_id": String(task.work_id),
+			&"request_id": operation.get_request_id(),
 			&"profile_file": profile_file_name,
 		}
 	)
@@ -3765,26 +3768,10 @@ func _resolve_storage_utility() -> GFStorageUtility:
 	return null
 
 
-func _resolve_background_work_utility() -> GFBackgroundWorkUtility:
-	var value: Object = get_utility(GFBackgroundWorkUtility)
-	if value is GFBackgroundWorkUtility:
-		var utility: GFBackgroundWorkUtility = value
-		return utility
-	return null
-
-
 func _resolve_profile_utility() -> GFSaveProfileUtility:
 	var value: Object = get_utility(GFSaveProfileUtility)
 	if value is GFSaveProfileUtility:
 		var utility: GFSaveProfileUtility = value
-		return utility
-	return null
-
-
-func _resolve_clock_utility() -> GameClockUtility:
-	var value: Object = get_utility(GameClockUtility)
-	if value is GameClockUtility:
-		var utility: GameClockUtility = value
 		return utility
 	return null
 

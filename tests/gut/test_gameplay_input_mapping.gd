@@ -229,6 +229,7 @@ func test_undo_and_redo_clear_blocked_move_intent_before_history_change() -> voi
 
 func test_input_profile_persists_valid_rebind_and_rejects_conflict() -> void:
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	settings.persistence_enabled = false
 	settings.auto_load_on_init = false
 	settings.auto_save_on_change = false
 	settings.register_project_defaults()
@@ -274,6 +275,7 @@ func test_input_profile_persists_valid_rebind_and_rejects_conflict() -> void:
 
 func test_input_timing_mode_defaults_to_realtime_and_is_persistent() -> void:
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	settings.persistence_enabled = false
 	settings.auto_load_on_init = false
 	settings.auto_save_on_change = false
 	settings.register_project_defaults()
@@ -299,6 +301,7 @@ func test_input_timing_mode_defaults_to_realtime_and_is_persistent() -> void:
 
 func test_board_animation_utility_applies_all_three_input_timing_policies() -> void:
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	settings.persistence_enabled = false
 	settings.auto_load_on_init = false
 	settings.auto_save_on_change = false
 	settings.register_project_defaults()
@@ -335,6 +338,7 @@ func test_board_animation_utility_applies_all_three_input_timing_policies() -> v
 
 func test_realtime_retarget_avoids_full_board_rebuild_under_rapid_input() -> void:
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	settings.persistence_enabled = false
 	settings.auto_load_on_init = false
 	settings.auto_save_on_change = false
 	settings.register_project_defaults()

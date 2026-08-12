@@ -15,9 +15,7 @@ signal account_reconciliation_state_changed(pending: bool)
 
 var _catalog: LocalAccountCatalogUtility = null
 var _save_graph: GameSaveGraphUtility = null
-var _storage: GFStorageUtility = null
 var _profile_utility: GFSaveProfileUtility = null
-var _background_work: GFBackgroundWorkUtility = null
 var _signal_utility: GFSignalUtility = null
 ## 仅开发构建安装；发布构建缺失时必须静默降级。
 var _async_tracker: GFAsyncTrackerUtility = null
@@ -43,9 +41,7 @@ var _last_reconciliation_evidence: Dictionary = {}
 
 func get_required_utilities() -> Array[Script]:
 	return [
-		GFStorageUtility,
 		GFSaveProfileUtility,
-		GFBackgroundWorkUtility,
 		GFSignalUtility,
 		GameSaveGraphUtility,
 		LocalAccountCatalogUtility,
@@ -63,9 +59,7 @@ func ready() -> void:
 	_legacy_cleanup_runner_started = false
 	_catalog = _resolve_catalog_utility()
 	_save_graph = _resolve_save_graph_utility()
-	_storage = _resolve_storage_utility()
 	_profile_utility = _resolve_profile_utility()
-	_background_work = _resolve_background_work_utility()
 	_signal_utility = _resolve_signal_utility()
 	_async_tracker = _resolve_optional_async_tracker()
 	if not _is_configured():
@@ -267,9 +261,7 @@ func dispose() -> void:
 	_profile_reconciliation_running = false
 	_catalog = null
 	_save_graph = null
-	_storage = null
 	_profile_utility = null
-	_background_work = null
 	_signal_utility = null
 	_async_tracker = null
 	_pending_operation = null
@@ -2017,9 +2009,7 @@ func _is_configured() -> bool:
 	return (
 		is_instance_valid(_catalog)
 		and is_instance_valid(_save_graph)
-		and is_instance_valid(_storage)
 		and is_instance_valid(_profile_utility)
-		and is_instance_valid(_background_work)
 		and is_instance_valid(_signal_utility)
 	)
 
@@ -2040,27 +2030,11 @@ func _resolve_save_graph_utility() -> GameSaveGraphUtility:
 	return null
 
 
-func _resolve_storage_utility() -> GFStorageUtility:
-	var utility_value: Object = get_utility(GFStorageUtility)
-	if utility_value is GFStorageUtility:
-		var storage: GFStorageUtility = utility_value
-		return storage
-	return null
-
-
 func _resolve_profile_utility() -> GFSaveProfileUtility:
 	var utility_value: Object = get_utility(GFSaveProfileUtility)
 	if utility_value is GFSaveProfileUtility:
 		var profile_utility: GFSaveProfileUtility = utility_value
 		return profile_utility
-	return null
-
-
-func _resolve_background_work_utility() -> GFBackgroundWorkUtility:
-	var utility_value: Object = get_utility(GFBackgroundWorkUtility)
-	if utility_value is GFBackgroundWorkUtility:
-		var background_work: GFBackgroundWorkUtility = utility_value
-		return background_work
 	return null
 
 

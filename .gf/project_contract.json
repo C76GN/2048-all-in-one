@@ -38,6 +38,7 @@
       "gf.standard.input",
       "gf.standard.platform",
       "gf.standard.settings",
+      "gf.standard.settings.storage",
       "gf.standard.spatial",
       "gf.standard.spatial.canvas",
       "gf.standard.state",
@@ -124,6 +125,8 @@
         ],
         "acceptance": [
           "当前账号的 Feature-owned GFSaveSectionProvider 只注册到一个 GFSaveProfile；GFSaveProfileUtility 拥有 typed save/load/flush、generation 合并、有界重试与事务 apply，GameSaveGraphUtility 只保留项目账号路径、恢复策略和业务入口，业务 System 不直接写文件。",
+          "全局设置通过注册为精确 GFSettingsStoreUtility alias 的 GFStorageSettingsStoreUtility 访问 GFStorage；GFSettingsUtility 自身拥有 activation 自动加载、mutation admission、冻结保存记录、多目标 batch/debounce quiesce drain 和 dispose 生命周期，项目只保留恢复授权、未来版本阻断与健康诊断策略。payload 损坏可经同一 Store 覆写恢复；私有 family 结构损坏若无 GF 公开授权重建入口必须失败关闭：激活前由 Storage 阻止架构 READY，已激活后的显式重载只恢复内存默认值并将持久化标记失败、保留证据，项目不得直接修改私有成员。",
+          "项目只持有 GFStorage logical identity，不解析或管理 .gf-storage/v1 的私有 family 成员；Profile 删除必须使用 delete_file_request_async() 的 caller/physical 双终态，caller outcome-unknown 时继续持有账号协调锁与 logical identity，直到物理 completed 终态完成对账。",
           "后期 provider 应用失败必须回滚先前 provider；创建、切换、重命名和删除账号只保留 request_* 类型化异步事务，不保留同步 CRUD 包装或重复 saga；账号切换和退出前的 GFSaveProfileOperation flush barrier 必须覆盖调用时最新 generation。Profile、目录或清理进入 STATUS_OUTCOME_UNKNOWN 时继续持有账号协调锁以及 profile/path 所有权，直到迟到终态、轮询证据或显式对账收敛；目录删除迟到成功还必须等待目标 Profile 清理成功，禁止伪装回滚成功、提前解锁、删除或复用路径；test_game_save_graph_utility.gd 与本地账号测试通过。",
           "跨账号统计只通过一次性异步设备快照读取：请求开始时目录当前账号的规范 Profile 路径必须与 GameSaveGraphUtility 当前路径一致，否则返回带 reconciliation 证据的 ERR_BUSY；一致时当前账号使用内存 section，N 个账号只提交 N-1 个 GFStorage 异步读取，由 GFAsyncBatch 汇总。UI 的模式摘要、分组切换和排序不得重复读取磁盘；即使没有 caller token 也必须在 5 秒内返回 typed partial timeout，取消、dispose 与迟到终态由 token 和 owner-bound GFSignalUtility 收敛。",
           "书签/自定义棋盘产品上限为 16/32，复制前兼容性防线为 20,000/50,000；旧目录完整校验后稳定收敛，满额新增淘汰最旧项。棋盘最多 256 格，书签 replay 最多 8192 步、命令历史最多 2 MiB。目录编辑与回滚复用已验证的不可变 envelope，并经显式 ownership 入口转交。bookmarks、custom_boards 与 progress provider 使用 GFSaveSectionSnapshotOperation 分片并 take_ownership；progress 整节约 8 MiB/131072 节点，单 work unit 约 256 KiB/4096 节点，递归深度最多 8。",
@@ -198,6 +201,7 @@
         ],
         "acceptance": [
           "视觉与音效主题切换以 bank mount token 原子替换并释放旧银行；每个 settled TurnResult 只选择一个规范主音频事件。",
+          "背景音乐启动必须消费 start_bgm_clip() 的 GFBgmStartOperation 唯一终态，并只以成功结果返回的 GFBgmSessionHandle 表达、停止和监听自身播放所有权；不得通过全局 BGM key 或 is_bgm_playing() 推断本请求成功。",
           "未安装显式 GFAudioBackend 时 set_parameter/state/switch 的 false 不得被业务视为成功；语义音频与主题测试通过。"
         ],
         "notes": "当前采用 GFAudioUtility 内置 Godot 播放路径，未安装 middleware backend；state/switch 不作生效承诺。"

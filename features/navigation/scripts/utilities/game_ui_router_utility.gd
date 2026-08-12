@@ -74,7 +74,7 @@ func ready() -> void:
 
 func dispose() -> void:
 	if is_instance_valid(_resource_catalog):
-		var _catalog_unregistered: bool = _resource_catalog.unregister_catalog(_CATALOG_ID, true)
+		var _catalog_unregistered: bool = _resource_catalog.unregister_catalog(_CATALOG_ID)
 	_resource_catalog = null
 	super.dispose()
 

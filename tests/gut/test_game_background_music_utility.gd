@@ -238,6 +238,131 @@ func test_rejected_bgm_request_is_quarantined_and_does_not_emit_false_start() ->
 	_dispose_architecture(setup)
 
 
+func test_superseded_typed_start_does_not_quarantine_or_reclaim_bgm() -> void:
+	var setup: Dictionary = await _create_architecture([
+		_make_entry(_TRACK_A),
+		_make_entry(_TRACK_B),
+	])
+	var music: GameBackgroundMusicUtility = _get_music(setup)
+	var audio: _FakeAudioUtility = _get_audio(setup)
+	var background_work: _FakeBackgroundWorkUtility = _get_background_work(setup)
+	audio.defer_next_start = true
+
+	assert_true(music.start_if_available())
+	background_work.complete_pending(_make_test_ogg_bytes())
+	assert_true(
+		GFVariantData.get_option_bool(
+			music.get_debug_snapshot(),
+			"bgm_start_pending"
+		),
+		"后台读取完成后应显式持有 typed start operation。"
+	)
+
+	audio.supersede_pending_start()
+	assert_true(music.get_current_track_key() == &"")
+	assert_false(
+		background_work.has_pending_work(),
+		"被外部更新请求取代后不得争抢 BGM 通道。"
+	)
+	assert_false(
+		GFVariantData.get_option_packed_string_array(
+			music.get_debug_snapshot(),
+			"unavailable_track_keys"
+		).has(audio.play_attempt_keys[0]),
+		"SUPERSEDED 是所有权终态，不代表曲目素材损坏。"
+	)
+
+	_dispose_architecture(setup)
+
+
+func test_quiesce_stops_exact_owned_session_handle() -> void:
+	var setup: Dictionary = await _create_architecture([
+		_make_entry(_TRACK_A),
+	])
+	var music: GameBackgroundMusicUtility = _get_music(setup)
+	var audio: _FakeAudioUtility = _get_audio(setup)
+	var background_work: _FakeBackgroundWorkUtility = _get_background_work(setup)
+
+	assert_true(music.start_if_available())
+	background_work.complete_pending(_make_test_ogg_bytes())
+	var session_id: int = GFVariantData.get_option_int(
+		music.get_debug_snapshot(),
+		"bgm_session_id"
+	)
+	assert_true(session_id > 0, "成功播放必须持有规范 typed session handle。")
+
+	var quiesce: GFAsyncCompletion = music.begin_quiesce(GFAsyncScope.new())
+	assert_true(quiesce.is_successful())
+	assert_true(
+		audio.stopped_session_ids == PackedInt64Array([session_id]),
+		"quiesce 只能通过句柄停止本 Utility 的精确会话。"
+	)
+	assert_true(music.get_current_track_key() == &"")
+
+	_dispose_architecture(setup)
+
+
+func test_quiesce_stops_late_started_session_after_cancel_acceptance() -> void:
+	var setup: Dictionary = await _create_architecture([
+		_make_entry(_TRACK_A),
+	])
+	var music: GameBackgroundMusicUtility = _get_music(setup)
+	var audio: _FakeAudioUtility = _get_audio(setup)
+	var background_work: _FakeBackgroundWorkUtility = _get_background_work(setup)
+	audio.defer_next_start = true
+	audio.defer_cancel_terminal = true
+
+	assert_true(music.start_if_available())
+	background_work.complete_pending(_make_test_ogg_bytes())
+	var quiesce: GFAsyncCompletion = music.begin_quiesce(GFAsyncScope.new())
+	assert_true(quiesce.is_successful())
+	assert_true(audio.has_cancel_accepted_pending_start())
+
+	audio.complete_cancel_accepted_start_as_success()
+	assert_true(
+		audio.stopped_session_ids.size() == 1,
+		"cancel 已接受后的迟到 STARTED 必须由返回句柄精确停止。"
+	)
+	assert_true(music.get_current_track_key() == &"")
+	assert_false(
+		GFVariantData.get_option_bool(
+			music.get_debug_snapshot(),
+			"bgm_session_active"
+		),
+		"quiesce 后迟到 start 终态不得恢复项目播放所有权。"
+	)
+
+	_dispose_architecture(setup)
+
+
+func test_replaced_session_does_not_autoplay_or_stop_external_owner() -> void:
+	var setup: Dictionary = await _create_architecture([
+		_make_entry(_TRACK_A),
+		_make_entry(_TRACK_B),
+	])
+	var music: GameBackgroundMusicUtility = _get_music(setup)
+	var audio: _FakeAudioUtility = _get_audio(setup)
+	var background_work: _FakeBackgroundWorkUtility = _get_background_work(setup)
+
+	assert_true(music.start_if_available())
+	background_work.complete_pending(_make_test_ogg_bytes())
+	audio.replace_current_track_with_external_owner()
+
+	assert_true(music.get_current_track_key() == &"")
+	assert_false(
+		background_work.has_pending_work(),
+		"REPLACED 后不得自动重夺外部 owner 已接管的 BGM 通道。"
+	)
+	var quiesce: GFAsyncCompletion = music.begin_quiesce(GFAsyncScope.new())
+	assert_true(quiesce.is_successful())
+	assert_true(
+		audio.stopped_session_ids.is_empty(),
+		"已被替换的旧句柄不得停止外部 owner 的新会话。"
+	)
+
+	_dispose_architecture(setup)
+
+
 func test_legacy_wav_package_remains_playable() -> void:
 	var setup: Dictionary = await _create_architecture([
 		_make_entry(
@@ -524,10 +649,20 @@ class _FakeContentCatalogUtility extends ProjectContentCatalogUtility:
 class _FakeAudioUtility extends GFAudioUtility:
 	var played_track_keys: PackedStringArray = PackedStringArray()
 	var play_attempt_keys: PackedStringArray = PackedStringArray()
+	var stopped_session_ids: PackedInt64Array = PackedInt64Array()
 	var current_key: String = ""
 	var playing: bool = false
 	var last_stream: AudioStream = null
 	var reject_next_playback: bool = false
+	var defer_next_start: bool = false
+	var defer_cancel_terminal: bool = false
+	var _request_serial: int = 0
+	var _session_serial: int = 0
+	var _pending_operation: GFBgmStartOperation = null
+	var _pending_key: String = ""
+	var _pending_stream: AudioStream = null
+	var _cancel_accepted: bool = false
+	var _current_session: GFBgmSessionHandle = null
 
 
 	func init() -> void:
@@ -537,35 +672,203 @@ class _FakeAudioUtility extends GFAudioUtility:
 	func dispose() -> void:
 		played_track_keys.clear()
 		play_attempt_keys.clear()
+		stopped_session_ids.clear()
 		current_key = ""
 		playing = false
 		last_stream = null
 		reject_next_playback = false
+		defer_next_start = false
+		defer_cancel_terminal = false
+		_request_serial = 0
+		_session_serial = 0
+		_pending_operation = null
+		_pending_key = ""
+		_pending_stream = null
+		_cancel_accepted = false
+		_current_session = null
 
 
 	## @param clip: 要记录的 BGM clip。
 	## @param _crossfade_seconds: 测试替身忽略的淡变时长。
-	func play_bgm_clip(
+	## @param _owner: 测试替身忽略的会话所有者。
+	func start_bgm_clip(
 		clip: GFAudioClip,
-		_crossfade_seconds: float = -1.0
-	) -> void:
+		_crossfade_seconds: float = -1.0,
+		_owner: Node = null
+	) -> GFBgmStartOperation:
+		_request_serial += 1
+		var operation: GFBgmStartOperation = GFBgmStartOperation.new()
+		var _configured: bool = operation.configure_for_framework(
+			_request_serial,
+			Callable(self, "_cancel_bgm_start")
+		)
 		if clip == null:
-			return
+			_complete_start_failure(
+				operation,
+				"",
+				GFBgmStartResult.Status.REJECTED,
+				GFBgmStartResult.REASON_INVALID_CLIP,
+				ERR_INVALID_PARAMETER
+			)
+			return operation
 		var requested_key: String = clip.path
 		var _attempt_appended: bool = play_attempt_keys.append(requested_key)
 		if reject_next_playback:
 			reject_next_playback = false
+			_complete_start_failure(
+				operation,
+				requested_key,
+				GFBgmStartResult.Status.FAILED,
+				GFBgmStartResult.REASON_LOCAL_PLAYER_REJECTED,
+				ERR_CANT_CREATE
+			)
+			return operation
+		if defer_next_start:
+			defer_next_start = false
+			_pending_operation = operation
+			_pending_key = requested_key
+			_pending_stream = clip.stream
+			return operation
+		_complete_start_success(operation, requested_key, clip.stream)
+		return operation
+
+
+	func _complete_start_success(
+		operation: GFBgmStartOperation,
+		requested_key: String,
+		stream: AudioStream
+	) -> void:
+		if operation == null or not operation.is_pending():
 			return
+		_session_serial += 1
+		var session: GFBgmSessionHandle = GFBgmSessionHandle.new()
+		var session_configured: bool = session.configure_for_framework(
+			_session_serial,
+			operation.get_request_id(),
+			requested_key,
+			GFBgmSessionHandle.OwnerKind.LOCAL,
+			Callable(self, "_stop_bgm_session")
+		)
+		assert(session_configured)
+		var result: GFBgmStartResult = GFBgmStartResult.new()
+		var result_configured: bool = result.configure_for_framework(
+			GFBgmStartResult.Status.STARTED,
+			operation.get_request_id(),
+			GFBgmStartResult.REASON_LOCAL_STARTED,
+			OK,
+			requested_key,
+			GFBgmSessionHandle.OwnerKind.LOCAL,
+			GFBgmStartResult.BackendDisposition.NOT_ATTEMPTED,
+			session
+		)
+		assert(result_configured)
+		_current_session = session
 		current_key = requested_key
 		playing = true
-		last_stream = clip.stream
+		last_stream = stream
 		var _appended: bool = played_track_keys.append(current_key)
+		var _completed: bool = operation.complete_for_framework(result)
+
+
+	func _complete_start_failure(
+		operation: GFBgmStartOperation,
+		requested_key: String,
+		status: GFBgmStartResult.Status,
+		reason: StringName,
+		error_code: Error
+	) -> void:
+		if operation == null or not operation.is_pending():
+			return
+		var result: GFBgmStartResult = GFBgmStartResult.new()
+		var result_configured: bool = result.configure_for_framework(
+			status,
+			operation.get_request_id(),
+			reason,
+			error_code,
+			requested_key,
+			GFBgmSessionHandle.OwnerKind.NONE,
+			GFBgmStartResult.BackendDisposition.NOT_ATTEMPTED
+		)
+		assert(result_configured)
+		var _completed: bool = operation.complete_for_framework(result)
+
+
+	func _cancel_bgm_start(operation: GFBgmStartOperation) -> bool:
+		if operation == null or operation != _pending_operation:
+			return false
+		if defer_cancel_terminal:
+			defer_cancel_terminal = false
+			_cancel_accepted = true
+			return true
+		var requested_key: String = _pending_key
+		_clear_pending_start()
+		_complete_start_failure(
+			operation,
+			requested_key,
+			GFBgmStartResult.Status.CANCELLED,
+			GFBgmStartResult.REASON_CALLER_CANCELLED,
+			ERR_SKIP
+		)
+		return true
+
+
+	func has_cancel_accepted_pending_start() -> bool:
+		return (
+			_cancel_accepted
+			and _pending_operation != null
+			and _pending_operation.is_pending()
+		)
+
+
+	func complete_cancel_accepted_start_as_success() -> void:
+		if not has_cancel_accepted_pending_start():
+			return
+		var operation: GFBgmStartOperation = _pending_operation
+		var requested_key: String = _pending_key
+		var stream: AudioStream = _pending_stream
+		_clear_pending_start()
+		_complete_start_success(operation, requested_key, stream)
+
+
+	func supersede_pending_start() -> void:
+		var operation: GFBgmStartOperation = _pending_operation
+		var requested_key: String = _pending_key
+		_clear_pending_start()
+		_complete_start_failure(
+			operation,
+			requested_key,
+			GFBgmStartResult.Status.SUPERSEDED,
+			GFBgmStartResult.REASON_NEWER_REQUEST,
+			ERR_BUSY
+		)
+		playing = true
+		current_key = "external.bgm"
+
+
+	func _clear_pending_start() -> void:
+		_pending_operation = null
+		_pending_key = ""
+		_pending_stream = null
+		_cancel_accepted = false
+
+
+	func _stop_bgm_session(
+		session: GFBgmSessionHandle,
+		_fade_seconds: float
+	) -> bool:
+		if session == null or session != _current_session or not session.is_active():
+			return false
+		var _appended: bool = stopped_session_ids.append(session.get_session_id())
+		_current_session = null
+		current_key = ""
+		playing = false
+		return session.complete_for_framework(GFBgmSessionHandle.EndKind.STOPPED)
 
 
 	## @param _fade_seconds: 测试替身忽略的停止淡变时长。
 	func stop_bgm(_fade_seconds: float = 0.0) -> void:
-		current_key = ""
-		playing = false
+		if _current_session != null:
+			var _stopped: bool = _current_session.stop(_fade_seconds)
 
 
 	func is_bgm_playing() -> bool:
@@ -577,10 +880,27 @@ class _FakeAudioUtility extends GFAudioUtility:
 
 
 	func finish_current_track() -> void:
-		var finished_key: String = current_key
+		var session: GFBgmSessionHandle = _current_session
+		if session == null:
+			return
+		_current_session = null
 		current_key = ""
 		playing = false
-		bgm_finished.emit(finished_key)
+		var _completed: bool = session.complete_for_framework(
+			GFBgmSessionHandle.EndKind.NATURAL_FINISH
+		)
+
+
+	func replace_current_track_with_external_owner() -> void:
+		var session: GFBgmSessionHandle = _current_session
+		if session == null:
+			return
+		_current_session = null
+		current_key = "external.bgm"
+		playing = true
+		var _completed: bool = session.complete_for_framework(
+			GFBgmSessionHandle.EndKind.REPLACED
+		)
 
 
 class _FakeBackgroundWorkUtility extends GFBackgroundWorkUtility:

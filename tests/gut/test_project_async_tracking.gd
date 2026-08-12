@@ -94,7 +94,7 @@ func test_local_account_operation_is_untracked_on_typed_terminal() -> void:
 	tracker.dispose()
 
 
-func test_catalog_detached_storage_is_tracked_until_real_terminal() -> void:
+func test_catalog_late_storage_is_tracked_until_physical_terminal() -> void:
 	var tracker: GFAsyncTrackerUtility = _make_tracker()
 	var catalog: LocalAccountCatalogUtility = LocalAccountCatalogUtility.new()
 	catalog._async_tracker = tracker
@@ -107,10 +107,11 @@ func test_catalog_detached_storage_is_tracked_until_real_terminal() -> void:
 		)
 	)
 	catalog._track_storage_operation(operation)
-	catalog._detached_storage_operations[operation.get_request_id()] = {
+	catalog._late_storage_operations[operation.get_request_id()] = {
 		&"operation": operation,
 		&"payload": {},
 		&"previous_active_account_id": "",
+		&"signal_observed": true,
 	}
 	_assert_single_label(tracker, &"local_account.catalog_storage")
 
@@ -121,13 +122,18 @@ func test_catalog_detached_storage_is_tracked_until_real_terminal() -> void:
 			operation.get_operation(),
 			operation.get_file_name(),
 			false,
-			ERR_CANT_CREATE
+			ERR_CANT_CREATE,
+			null,
+			GFStorageAsyncResult.WriteFailureKind.IO_FAILED
 		)
 	)
 	assert_true(operation.complete_for_framework(result))
-	catalog._poll_catalog_storage_operations()
+	catalog._on_late_catalog_storage_completed(
+		operation,
+		operation.get_result()
+	)
 
-	assert_true(catalog._detached_storage_operations.is_empty())
+	assert_true(catalog._late_storage_operations.is_empty())
 	assert_true(tracker.get_active_records().is_empty())
 	tracker.dispose()
 

@@ -10,8 +10,7 @@ extends GFUtility
 
 signal account_catalog_changed()
 signal active_account_changed(account_id: String)
-signal catalog_storage_poll()
-## 自定义 deadline 后仍在运行的 GFStorage 请求抵达真实终态。
+## caller deadline 后仍在运行的 GFStorage 请求抵达真实物理终态。
 ##
 ## result 是 GF 的类型化存储终态；candidate_apply_error 仅在迟到写成功后
 ## 应用候选目录失败时非 OK。System 用此边界协调 Profile 与目录权威状态。
@@ -53,8 +52,8 @@ var _active_mutation_lease: GFAsyncGateLease = null
 var _operation_diagnostics: GFOperationDiagnosticsUtility = null
 var _catalog_diagnostic_operation_id: StringName = &""
 var _pending_storage_operation: GFStorageAsyncOperation = null
-var _pending_storage_deadline_msec: int = 0
-var _detached_storage_operations: Dictionary = {}
+var _late_storage_operations: Dictionary = {}
+var _signal_utility: GFSignalUtility = null
 
 
 # --- GF 生命周期方法 ---
@@ -63,6 +62,7 @@ func get_required_utilities() -> Array[Script]:
 	return [
 		GameClockUtility,
 		GFOperationDiagnosticsUtility,
+		GFSignalUtility,
 		GFStorageUtility,
 	]
 
@@ -74,6 +74,7 @@ func ready() -> void:
 	_storage = _resolve_storage_utility()
 	_clock = _resolve_clock_utility()
 	_operation_diagnostics = _resolve_operation_diagnostics_utility()
+	_signal_utility = _resolve_signal_utility()
 	_async_tracker = _resolve_optional_async_tracker()
 	_last_error = _load_catalog()
 	if _last_error != OK:
@@ -83,10 +84,10 @@ func ready() -> void:
 		)
 
 
-## 轮询目录异步写入及其 deadline 后的真实终态。
-## @param _delta: 本帧增量；存储操作使用 GFClock deadline，不使用该值。
+## 驱动目录静默完成检查；caller deadline 与物理终态均由 GFStorage 拥有。
+## @param _delta: 本帧增量；当前实现不直接使用。
 func tick(_delta: float = 0.0) -> void:
-	_poll_catalog_storage_operations()
+	_settle_unobserved_late_storage_operations()
 	_try_complete_quiesce()
 
 
@@ -113,6 +114,17 @@ func begin_quiesce(scope: GFAsyncScope) -> GFAsyncCompletion:
 func dispose() -> void:
 	_disposed = true
 	_quiescing = true
+	# 正常关闭已经通过 begin_quiesce() 等到全部物理终态。forced dispose
+	# 只能结束 caller 观察；GFStorage 继续持有已接纳写入直至真实收敛。
+	if (
+		_pending_storage_operation != null
+		and _pending_storage_operation.is_caller_pending()
+	):
+		var _cancelled_observation: bool = (
+			_pending_storage_operation.cancel_observation(
+				&"local_account_catalog_disposed"
+			)
+		)
 	if _quiesce_completion != null and _quiesce_completion.is_pending():
 		var _cancelled_quiesce: bool = _quiesce_completion.cancel(
 			&"local_account_catalog_disposed"
@@ -124,17 +136,19 @@ func dispose() -> void:
 		{&"component": &"local_account_catalog"}
 	)
 	_active_mutation_lease = null
+	if is_instance_valid(_signal_utility):
+		_signal_utility.disconnect_owner(self)
 	_storage = null
 	_clock = null
 	_operation_diagnostics = null
+	_signal_utility = null
 	_async_tracker = null
 	_accounts.clear()
 	_active_account_id = ""
 	_last_error = OK
 	_last_async_storage_result.clear()
 	_pending_storage_operation = null
-	_pending_storage_deadline_msec = 0
-	_detached_storage_operations.clear()
+	_late_storage_operations.clear()
 	_quiesce_completion = null
 
 
@@ -152,7 +166,7 @@ func get_last_async_storage_result() -> Dictionary:
 
 ## 是否仍有 deadline 后尚未抵达真实终态的目录写入。
 func has_pending_late_storage_settlement() -> bool:
-	return not _detached_storage_operations.is_empty()
+	return not _late_storage_operations.is_empty()
 
 
 ## 返回当前账号目录的只读副本。
@@ -575,8 +589,25 @@ func _save_catalog_async(payload: Dictionary) -> Error:
 			&"error_code": int(ERR_INVALID_DATA),
 		}
 		return ERR_INVALID_DATA
-	var operation: GFStorageAsyncOperation = (
-		_storage.save_data_request_async(CATALOG_FILE_NAME, payload)
+	var request_options: GFStorageAsyncRequestOptions = (
+		GFStorageAsyncRequestOptions.create(
+			self,
+			null,
+			_CATALOG_IO_TIMEOUT_MSEC
+		)
+	)
+	if not request_options.is_valid():
+		_last_async_storage_result = {
+			&"ok": false,
+			&"status": "failed",
+			&"error_code": int(ERR_INVALID_PARAMETER),
+			&"error": "Unable to create Storage caller options.",
+		}
+		return ERR_INVALID_PARAMETER
+	var operation: GFStorageAsyncOperation = _storage.save_data_request_async(
+		CATALOG_FILE_NAME,
+		payload,
+		request_options
 	)
 	if operation == null:
 		_last_async_storage_result = {
@@ -588,26 +619,32 @@ func _save_catalog_async(payload: Dictionary) -> Error:
 		return ERR_CANT_CREATE
 	_track_storage_operation(operation)
 	_pending_storage_operation = operation
-	_pending_storage_deadline_msec = (
-		_clock.get_tick_msec() + _CATALOG_IO_TIMEOUT_MSEC
+	var caller_result: GFStorageAsyncCallerResult = (
+		operation.get_caller_result()
 	)
-	var result: GFStorageAsyncResult = operation.get_result()
-	while (
-		result == null
-		and not _disposed
-		and _clock.get_tick_msec() < _pending_storage_deadline_msec
-	):
-		await catalog_storage_poll
-		result = operation.get_result()
+	if caller_result == null:
+		var caller_signal_result: Variant = await operation.caller_completed
+		if caller_signal_result is GFStorageAsyncCallerResult:
+			caller_result = caller_signal_result
 	if _disposed:
 		return ERR_UNAVAILABLE
 	_pending_storage_operation = null
-	_pending_storage_deadline_msec = 0
-	if result == null:
-		_detached_storage_operations[operation.get_request_id()] = {
+	if caller_result == null:
+		_untrack_storage_operation(operation)
+		_last_async_storage_result = {
+			&"ok": false,
+			&"status": "failed",
+			&"error_code": int(ERR_CANT_CREATE),
+			&"error": "GFStorage caller returned no typed terminal.",
+		}
+		return ERR_CANT_CREATE
+	if caller_result.is_outcome_unknown():
+		_late_storage_operations[operation.get_request_id()] = {
 			&"operation": operation,
 			&"payload": payload.duplicate(true),
 			&"previous_active_account_id": _active_account_id,
+			&"caller_result": caller_result.duplicate_result(),
+			&"signal_observed": true,
 		}
 		_last_async_storage_result = {
 			&"ok": false,
@@ -615,8 +652,37 @@ func _save_catalog_async(payload: Dictionary) -> Error:
 			&"error_code": int(ERR_TIMEOUT),
 			&"request_id": operation.get_request_id(),
 			&"file_name": operation.get_file_name(),
+			&"caller_result": caller_result.to_dict(),
 		}
+		# 保持既有产品错误契约；GF 的 ERR_BUSY 精确表达 caller 不再能
+		# 判断物理副作用，业务层仍以 ERR_TIMEOUT 进入对账状态。
+		# caller signal 恢复后，物理终态可能已经在同一 scheduler generation
+		# 收敛。此时不得连接一个永远不会再发出的 completed；留给下一帧
+		# fallback tick，在调用方先建立 outcome-unknown 对账状态后再应用。
+		if operation.is_completed():
+			var late_entry: Dictionary = GFVariantData.get_option_dictionary(
+				_late_storage_operations,
+				operation.get_request_id()
+			)
+			late_entry[&"signal_observed"] = false
+			_late_storage_operations[operation.get_request_id()] = late_entry
+		else:
+			var late_connection: GFSignalConnection = _signal_utility.connect_once(
+				operation.completed,
+				_on_late_catalog_storage_completed,
+				self,
+				[operation]
+			)
+			if late_connection == null or not late_connection.is_active():
+				var late_entry: Dictionary = GFVariantData.get_option_dictionary(
+					_late_storage_operations,
+					operation.get_request_id()
+				)
+				late_entry[&"signal_observed"] = false
+				_late_storage_operations[operation.get_request_id()] = late_entry
+				_last_async_storage_result[&"terminal_signal_connected"] = false
 		return ERR_TIMEOUT
+	var result: GFStorageAsyncResult = caller_result.get_physical_result()
 	_untrack_storage_operation(operation)
 	_last_async_storage_result = (
 		result.to_dict()
@@ -652,14 +718,14 @@ func _begin_async_catalog_mutation(action: StringName) -> bool:
 	if not _is_configured():
 		_last_error = ERR_UNCONFIGURED
 		return false
-	if not _detached_storage_operations.is_empty():
+	if not _late_storage_operations.is_empty():
 		_last_error = ERR_BUSY
 		_last_async_storage_result = {
 			&"ok": false,
 			&"status": "outcome_unknown",
 			&"error_code": int(ERR_BUSY),
-			&"detached_request_count": (
-				_detached_storage_operations.size()
+			&"late_request_count": (
+				_late_storage_operations.size()
 			),
 		}
 		return false
@@ -748,75 +814,87 @@ func _finish_catalog_diagnostic_operation(error_code: Error) -> void:
 	_catalog_diagnostic_operation_id = &""
 
 
-func _poll_catalog_storage_operations() -> void:
-	if _disposed:
-		return
-	if _pending_storage_operation != null:
-		if (
-			_pending_storage_operation.is_completed()
-			or (
-				is_instance_valid(_clock)
-				and _clock.get_tick_msec()
-				>= _pending_storage_deadline_msec
-			)
-		):
-			catalog_storage_poll.emit()
-	for request_id_value: Variant in (
-		_detached_storage_operations.keys()
-	):
+func _on_late_catalog_storage_completed(
+	operation: GFStorageAsyncOperation,
+	result: GFStorageAsyncResult
+) -> void:
+	_settle_late_catalog_storage(operation, result)
+
+
+func _settle_unobserved_late_storage_operations() -> void:
+	for request_id_value: Variant in _late_storage_operations.keys():
 		var request_id: int = GFVariantData.to_int(request_id_value)
 		var entry: Dictionary = GFVariantData.get_option_dictionary(
-			_detached_storage_operations,
+			_late_storage_operations,
 			request_id
 		)
+		if GFVariantData.get_option_bool(entry, &"signal_observed", true):
+			continue
 		var operation_value: Variant = GFVariantData.get_option_value(
 			entry,
 			&"operation"
 		)
 		if not (operation_value is GFStorageAsyncOperation):
-			var _invalid_erased: bool = (
-				_detached_storage_operations.erase(request_id)
-			)
 			continue
 		var operation: GFStorageAsyncOperation = operation_value
-		if not operation.is_completed():
-			continue
-		var result: GFStorageAsyncResult = operation.get_result()
-		var previous_active_account_id: String = (
-			GFVariantData.get_option_string(
-				entry,
-				&"previous_active_account_id",
-				_active_account_id
-			)
+		if operation.is_completed():
+			_settle_late_catalog_storage(operation, operation.get_result())
+
+
+func _settle_late_catalog_storage(
+	operation: GFStorageAsyncOperation,
+	result: GFStorageAsyncResult
+) -> void:
+	if operation == null:
+		return
+	var request_id: int = operation.get_request_id()
+	var entry: Dictionary = GFVariantData.get_option_dictionary(
+		_late_storage_operations,
+		request_id
+	)
+	if (
+		entry.is_empty()
+		or GFVariantData.get_option_value(entry, &"operation") != operation
+	):
+		return
+	var previous_active_account_id: String = (
+		GFVariantData.get_option_string(
+			entry,
+			&"previous_active_account_id",
+			_active_account_id
 		)
-		var apply_error: Error = ERR_CANT_CREATE
-		if result != null and result.is_successful():
-			apply_error = _apply_catalog_payload(
-				GFVariantData.get_option_dictionary(
-					entry,
-					&"payload"
-				)
-			)
-			if apply_error == OK:
-				# 迟到成功先交换目录权威状态，再把类型化终态交给
-				# LocalAccountSystem 协调 Profile；目录自身只发布一次。
-				if previous_active_account_id != _active_account_id:
-					active_account_changed.emit(_active_account_id)
-				account_catalog_changed.emit()
-		_last_async_storage_result = (
-			result.to_dict()
-			if result != null
-			else {
-				&"ok": false,
-				&"error_code": int(ERR_CANT_CREATE),
-			}
+	)
+	var apply_error: Error = ERR_CANT_CREATE
+	if result != null and result.is_successful() and not _disposed:
+		apply_error = _apply_catalog_payload(
+			GFVariantData.get_option_dictionary(entry, &"payload")
 		)
-		_last_async_storage_result[&"status"] = "late_settled"
-		_last_async_storage_result[&"late_apply_error"] = int(apply_error)
-		_untrack_storage_operation(operation)
-		var _erased: bool = (
-			_detached_storage_operations.erase(request_id)
-		)
+		if apply_error == OK:
+			# 迟到成功先交换目录权威状态，再把类型化终态交给
+			# LocalAccountSystem 协调 Profile；目录自身只发布一次。
+			if previous_active_account_id != _active_account_id:
+				active_account_changed.emit(_active_account_id)
+			account_catalog_changed.emit()
+	_last_async_storage_result = (
+		result.to_dict()
+		if result != null
+		else {
+			&"ok": false,
+			&"error_code": int(ERR_CANT_CREATE),
+		}
+	)
+	_last_async_storage_result[&"status"] = "late_settled"
+	_last_async_storage_result[&"late_apply_error"] = int(apply_error)
+	var caller_value: Variant = GFVariantData.get_option_value(
+		entry,
+		&"caller_result"
+	)
+	if caller_value is GFStorageAsyncCallerResult:
+		var caller_result: GFStorageAsyncCallerResult = caller_value
+		_last_async_storage_result[&"caller_result"] = caller_result.to_dict()
+	_untrack_storage_operation(operation)
+	var _erased: bool = _late_storage_operations.erase(request_id)
+	if not _disposed:
 		catalog_storage_late_settled.emit(
 			result.duplicate_result() if result != null else null,
 			apply_error,
@@ -832,7 +910,7 @@ func _try_complete_quiesce() -> void:
 		or _quiesce_completion == null
 		or not _quiesce_completion.is_pending()
 		or _pending_storage_operation != null
-		or not _detached_storage_operations.is_empty()
+		or not _late_storage_operations.is_empty()
 		or (
 			_active_mutation_lease != null
 			and _active_mutation_lease.is_active()
@@ -954,6 +1032,7 @@ func _is_configured() -> bool:
 		not _disposed
 		and is_instance_valid(_storage)
 		and is_instance_valid(_clock)
+		and is_instance_valid(_signal_utility)
 	)
 
 
@@ -978,4 +1057,12 @@ func _resolve_operation_diagnostics_utility() -> GFOperationDiagnosticsUtility:
 	if utility_value is GFOperationDiagnosticsUtility:
 		var diagnostics: GFOperationDiagnosticsUtility = utility_value
 		return diagnostics
+	return null
+
+
+func _resolve_signal_utility() -> GFSignalUtility:
+	var utility_value: Object = get_utility(GFSignalUtility)
+	if utility_value is GFSignalUtility:
+		var signal_utility: GFSignalUtility = utility_value
+		return signal_utility
 	return null

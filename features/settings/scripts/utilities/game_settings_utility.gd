@@ -29,26 +29,26 @@ var _last_persistence_error: Error = OK
 var _clock: GFClock = GFClock.new()
 var _operation_diagnostics: GFOperationDiagnosticsUtility = null
 var _pending_startup_load_diagnostic: Dictionary = {}
-var _quiescing: bool = false
-var _quiesce_completion: GFAsyncCompletion = null
 
 
 # --- GF 生命周期方法 ---
 
-func init() -> void:
-	var should_auto_load: bool = auto_load_on_init
-	auto_load_on_init = false
-	super.init()
-	auto_load_on_init = should_auto_load
-
-
 func ready() -> void:
-	_quiescing = false
-	_quiesce_completion = null
-	# GF 11 生命周期要求 init 只初始化自身。Storage 已按依赖 DAG 完成
-	# ready 后再读取设置，所有依赖 Settings 的模块仍会在之后观察持久化值。
+	super.ready()
+	_operation_diagnostics = _get_operation_diagnostics_utility()
+
+
+## 在 GF 完成 Store ready 与 Settings 准入激活后，应用项目恢复策略并归档诊断。
+## @param scope: 当前架构激活阶段的协作取消作用域。
+## @return GF Settings 生命周期激活终态；设置文件的产品级恢复结果另行诊断。
+func begin_activation(scope: GFAsyncScope) -> GFAsyncCompletion:
 	var should_auto_load: bool = auto_load_on_init
-	if should_auto_load:
+	# GF 的 Architecture 自动加载入口使用严格恢复策略；项目需要显式提供只允许
+	# corrupt -> reset_to_defaults 的恢复政策，因此由同一 activation 边界接管一次加载。
+	auto_load_on_init = false
+	var completion: GFAsyncCompletion = super.begin_activation(scope)
+	auto_load_on_init = should_auto_load
+	if completion != null and completion.is_successful() and should_auto_load:
 		var started_ticks_usec: int = _clock.get_monotonic_usec()
 		var recovery_policy: GFSettingsRecoveryPolicy = GFSettingsRecoveryPolicy.new()
 		recovery_policy.missing_file_action = (
@@ -57,75 +57,25 @@ func ready() -> void:
 		recovery_policy.corrupt_file_action = (
 			GFSettingsRecoveryPolicy.ACTION_RESET_TO_DEFAULTS
 		)
-		var load_result: GFSettingsLoadResult = load_settings("", recovery_policy)
+		var load_result: GFSettingsLoadResult = super.load_settings("", recovery_policy)
+		_finalize_explicit_storage_recovery(load_result)
 		_capture_startup_load_diagnostic(started_ticks_usec, load_result)
-	_operation_diagnostics = _get_operation_diagnostics_utility()
 	_record_pending_startup_load_diagnostic()
+	return completion
 
 
-## 停止接纳新的设置变更，并在 Storage 仍可用时冲刷 debounce 保存。
-## @param scope: 当前架构静默阶段的协作取消作用域。
-## @return 设置保存抵达明确终态时完成的一次性完成源。
-func begin_quiesce(scope: GFAsyncScope) -> GFAsyncCompletion:
-	if _quiesce_completion != null:
-		return _quiesce_completion
-	_quiescing = true
-	_quiesce_completion = GFAsyncCompletion.new()
-	if scope == null:
-		var _failed_scope: bool = _quiesce_completion.fail(
-			"Settings quiesce scope is unavailable."
-		)
-		return _quiesce_completion
-	var _bound: bool = _quiesce_completion.bind_cancel_token(scope)
-	if not _quiesce_completion.is_pending():
-		return _quiesce_completion
-	var had_queued_save: bool = _save_queued
-	var queued_target: String = _save_queued_file_name
-	# 先兑现已经接纳的 debounce 目标；它可能来自调用方显式切换过的文件名，
-	# 不能被随后打开的 batch 悄悄覆盖或留到依赖关闭后的 dispose。
-	var flush_error: Error = super.flush_pending_save()
-	if _batch_save_requested:
-		# 批处理中的值已经写入内存，但 GFSettings 只在 end_batch 后进入
-		# 普通 debounce 队列；关闭边界必须直接持久化这批已接纳变更。
-		_batch_depth = 0
-		_batch_save_requested = false
-		if (
-			flush_error == OK
-			and (
-				not had_queued_save
-				or queued_target != storage_file_name
-			)
-		):
-			flush_error = save_settings()
-	if flush_error == OK:
-		var _succeeded: bool = _quiesce_completion.succeed({
-			&"component": &"game_settings",
-			&"flushed": true,
-		})
-	else:
-		var _failed_flush: bool = _quiesce_completion.fail(
-			"Pending settings could not be flushed during quiesce.",
-			{&"error_code": int(flush_error)}
-		)
-	return _quiesce_completion
-
-
-func dispose() -> void:
-	super.dispose()
-	_quiescing = true
+func release_dependencies() -> void:
 	_operation_diagnostics = null
 	_pending_startup_load_diagnostic.clear()
-	if _quiesce_completion != null and _quiesce_completion.is_pending():
-		var _cancelled_quiesce: bool = _quiesce_completion.cancel(
-			&"settings_disposed"
-		)
-	_quiesce_completion = null
+	super.release_dependencies()
 
 
 # --- 公共方法 ---
 
 func get_required_utilities() -> Array[Script]:
-	return [GFOperationDiagnosticsUtility, GFStorageUtility]
+	var dependencies: Array[Script] = super.get_required_utilities()
+	dependencies.append(GFOperationDiagnosticsUtility)
+	return dependencies
 
 
 ## 注入 Composition Root 拥有的共享单调时钟；测试可使用 GFManualClock。
@@ -159,10 +109,11 @@ func get_persistence_health_snapshot() -> Dictionary:
 	}
 
 
-## 读取设置，并仅在 GF 已确认显式 reset_to_defaults 恢复后重建物理文件。
+## 读取设置，并仅在 GF 已确认显式 reset_to_defaults 恢复后尝试重建持久化载荷。
 ##
 ## 严格读取和 use_current_state 恢复不得删除底层证据；GFSettingsLoadResult 先决定
-## 是否恢复，项目存储策略再执行获授权的物理重建。
+## 是否恢复，项目存储策略再通过同一 Store 执行获授权的覆写。若 GF 私有 family
+## 结构损坏导致 Store 拒绝覆写，保留内存默认值但把持久化明确标记为失败关闭。
 ## @param file_name: 可选文件名；为空时使用 GF 设置工具配置的默认文件。
 ## @param recovery_policy: 可选显式恢复策略；null 保持 GF 严格失败语义。
 ## @return: GF 返回的结构化加载终态。
@@ -175,16 +126,22 @@ func load_settings(
 		file_name,
 		recovery_policy
 	)
+	_finalize_explicit_storage_recovery(load_result)
+	var error_code: Error = (
+		load_result.get_error_code()
+		if load_result != null
+		else ERR_CANT_ACQUIRE_RESOURCE
+	)
+	var successful: bool = load_result != null and load_result.is_successful()
+	var persistence_error: Error = _get_effective_persistence_error()
+	if successful and persistence_error != OK:
+		successful = false
+		error_code = persistence_error
 	_finish_persistence_diagnostic(
 		diagnostic_id,
-		load_result != null and load_result.is_successful(),
-		(
-			load_result.get_error_code()
-			if load_result != null
-			else ERR_CANT_ACQUIRE_RESOURCE
-		)
+		successful,
+		error_code
 	)
-	_finalize_explicit_storage_recovery(load_result)
 	return load_result
 
 
@@ -200,61 +157,6 @@ func save_settings(file_name: String = "") -> Error:
 	_finish_persistence_diagnostic(diagnostic_id, error == OK, error)
 	_record_persistence_result(error)
 	return error
-
-
-## quiesce 后拒绝新的延迟保存准入；已排队保存由 begin_quiesce 冲刷。
-func queue_save() -> void:
-	if _quiescing:
-		return
-	super.queue_save()
-
-
-## quiesce 后拒绝批量设置应用并返回明确失败报告。
-## @param values: 设置键到候选值的映射。
-## @param options: GF 批量应用选项；拒绝路径不消费其内容。
-## @return 未改变当前状态的标准 GF 设置应用报告。
-func apply_values(
-	values: Dictionary,
-	options: Dictionary = {}
-) -> Dictionary:
-	if not _quiescing:
-		return super.apply_values(values, options)
-	return _make_quiescing_apply_report(false)
-
-
-## quiesce 后拒绝 staged 设置应用，且保留 staged 候选供诊断。
-## @param options: GF staged 应用选项；拒绝路径不消费其内容。
-## @return 未改变当前状态且 staged 候选仍保留的标准报告。
-func apply_staged_values(options: Dictionary = {}) -> Dictionary:
-	if not _quiescing:
-		return super.apply_staged_values(options)
-	return _make_quiescing_apply_report(true)
-
-
-## quiesce 后拒绝重置全部设置。
-## @param save_after_change: 是否请求保存；拒绝路径不会使用该值。
-func reset_all(save_after_change: bool = true) -> void:
-	if _quiescing:
-		return
-	super.reset_all(save_after_change)
-
-
-## quiesce 后拒绝完整替换运行时设置。
-## @param data: 设置序列化字典。
-## @param emit_changes: 是否发出变更信号。
-func replace_from_dict(data: Dictionary, emit_changes: bool = true) -> void:
-	if _quiescing:
-		return
-	super.replace_from_dict(data, emit_changes)
-
-
-## quiesce 后拒绝覆盖合并运行时设置。
-## @param data: 设置序列化字典。
-## @param emit_changes: 是否发出变更信号。
-func merge_from_dict(data: Dictionary, emit_changes: bool = true) -> void:
-	if _quiescing:
-		return
-	super.merge_from_dict(data, emit_changes)
 
 
 ## 注册项目设置定义。
@@ -374,40 +276,9 @@ func register_project_defaults() -> void:
 
 # --- 可重写钩子 ---
 
-func _set_value_internal(
-	key: StringName,
-	value: Variant,
-	emit_change: bool,
-	save_after_change: bool
-) -> void:
-	if _quiescing:
-		return
-	super._set_value_internal(key, value, emit_change, save_after_change)
-
-
-func _reset_value_internal(
-	key: StringName,
-	emit_change: bool,
-	save_after_change: bool
-) -> void:
-	if _quiescing:
-		return
-	super._reset_value_internal(key, emit_change, save_after_change)
-
-
-func _stage_value_internal(
-	key: StringName,
-	value: Variant,
-	emit_change: bool
-) -> void:
-	if _quiescing:
-		return
-	super._stage_value_internal(key, value, emit_change)
-
-
 func _read_persisted_data(file_name: String) -> GFStorageReadResult:
-	# 复用 GFSettings 的统一读取边界（含 Storage 结果隔离与无 Storage 时的
-	# fallback），项目层只叠加健康状态，不复制框架 IO 实现。
+	# 复用 GFSettingsStoreUtility 的统一读取边界；项目层只叠加健康状态，
+	# 不解析或缓存具体 Storage adapter。
 	var read_result: GFStorageReadResult = super._read_persisted_data(file_name)
 	if read_result.ok:
 		_last_storage_recovery.clear()
@@ -452,22 +323,6 @@ func _write_persisted_data(file_name: String, data: Dictionary) -> Error:
 
 # --- 私有/辅助方法 ---
 
-func _make_quiescing_apply_report(include_staged_fields: bool) -> Dictionary:
-	var report: Dictionary = _make_apply_values_report()
-	_add_apply_values_issue(
-		report,
-		"error",
-		"utility_quiescing",
-		&"",
-		"架构正在关闭，设置变更未被接纳。"
-	)
-	_finalize_apply_values_report(report)
-	if include_staged_fields:
-		report["staged_applied_count"] = 0
-		report["staged_remaining_count"] = _staged_values.size()
-		report["staged_applied_keys"] = PackedStringArray()
-	return report
-
 func _finalize_explicit_storage_recovery(
 	load_result: GFSettingsLoadResult
 ) -> void:
@@ -484,18 +339,15 @@ func _finalize_explicit_storage_recovery(
 	var read_result: GFStorageReadResult = load_result.get_storage_result()
 	if not ProjectStorageRecoveryPolicy.should_reset_failed_read(read_result):
 		return
-	var storage: GFStorageUtility = _get_storage_utility()
-	var reset_error: Error = ERR_UNAVAILABLE
-	if storage != null:
-		reset_error = ProjectStorageRecoveryPolicy.reset_failed_file(
-			storage,
-			load_result.get_file_name(),
-			read_result
-		)
-	var recreate_error: Error = reset_error
-	if reset_error == OK:
-		_persistence_blocked_error = OK
-		recreate_error = save_settings(load_result.get_file_name())
+	# GF 已将 reset_to_defaults 应用到内存权威状态。通过同一 Settings Store
+	# 覆盖目标 logical family，避免项目绕过 Store 再管理 Storage 物理生命周期。
+	# 该路径可修复 payload/envelope 损坏；catalog、owner 或事务身份等 family
+	# 结构损坏会由 Store 明确拒绝。项目此时保留内存默认值，但把持久化标记为
+	# 不健康并阻断后续写入，直到 GF 提供 logical-family 授权重建 API。
+	_persistence_blocked_error = OK
+	# 重建属于当前 load/recovery 的同一业务终态；直接委托 GF save 边界，避免把
+	# 一次 activation 恢复拆成额外的项目级 save 诊断。持久化健康仍由写入钩子记录。
+	var recreate_error: Error = super.save_settings(load_result.get_file_name())
 	_last_storage_recovery = {
 		"ok": recreate_error == OK,
 		"recovered": recreate_error == OK,
@@ -505,7 +357,6 @@ func _finalize_explicit_storage_recovery(
 		"discarded_error_code": read_result.error_code,
 		"discarded_error": read_result.error,
 		"discarded_failure_kind": int(read_result.failure_kind),
-		"reset_error_code": reset_error,
 		"recreate_error_code": recreate_error,
 		"persistence_blocked": recreate_error != OK,
 	}

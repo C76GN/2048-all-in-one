@@ -780,6 +780,7 @@ func _create_theme_architecture(
 	)
 	var asset_library: GameAssetLibraryUtility = GameAssetLibraryUtility.new()
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	settings.persistence_enabled = false
 	settings.auto_load_on_init = false
 	settings.auto_save_on_change = false
 	settings.register_project_defaults()

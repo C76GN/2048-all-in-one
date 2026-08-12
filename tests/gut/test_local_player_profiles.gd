@@ -378,7 +378,7 @@ func test_architecture_shutdown_drains_accepted_account_saga_before_dependencies
 	setup.clear()
 
 
-func test_catalog_quiesce_rejects_new_mutations_and_drains_detached_write() -> void:
+func test_catalog_quiesce_rejects_new_mutations_and_drains_late_write() -> void:
 	var storage: _DelayedCatalogStorage = _DelayedCatalogStorage.new()
 	var clock: GFManualClock = GFManualClock.new(0, 1_000_000)
 	var setup: Dictionary = await _create_setup(storage, clock)
@@ -420,14 +420,14 @@ func test_catalog_quiesce_rejects_new_mutations_and_drains_detached_write() -> v
 		GFVariantData.get_option_bool(request_state, &"done")
 		and request_state.get(&"account") == null
 		and catalog.has_pending_late_storage_settlement(),
-		"自定义 deadline 后目录写必须转为 detached typed settlement。"
+		"GF caller deadline 后目录写必须转为 outcome-unknown physical settlement。"
 	)
 
 	var scope: GFAsyncScope = GFAsyncScope.new()
 	var completion: GFAsyncCompletion = catalog.begin_quiesce(scope)
 	assert_true(
 		completion != null and completion.is_pending(),
-		"目录存在 detached 写时 quiesce 不得提前成功。"
+		"目录存在迟到物理写时 quiesce 不得提前成功。"
 	)
 	var rejected_account: LocalPlayerAccount = await catalog.create_account_async(
 		"静默后拒绝账号",
@@ -445,7 +445,7 @@ func test_catalog_quiesce_rejects_new_mutations_and_drains_detached_write() -> v
 	assert_true(
 		completion.is_successful()
 		and not catalog.has_pending_late_storage_settlement(),
-		"detached 目录写抵达真实终态后 quiesce 才能完成。"
+		"迟到目录写抵达真实物理终态后 quiesce 才能完成。"
 	)
 	_dispose_setup(setup)
 
@@ -655,10 +655,10 @@ func test_catalog_late_delete_active_success_publishes_one_account_change() -> v
 
 
 func test_delete_cleanup_outcome_unknown_blocks_until_late_terminal() -> void:
-	var save_graph: _TimeoutCleanupSaveGraph = (
-		_TimeoutCleanupSaveGraph.new()
+	var storage: _HangingProfileDeleteStorage = (
+		_HangingProfileDeleteStorage.new()
 	)
-	var setup: Dictionary = await _create_setup(null, null, save_graph)
+	var setup: Dictionary = await _create_setup(storage)
 	var accounts: LocalAccountSystem = _get_account_system(setup)
 	var first: LocalPlayerAccount = accounts.get_active_account()
 	var create_result: LocalAccountOperationResult = (
@@ -675,7 +675,7 @@ func test_delete_cleanup_outcome_unknown_blocks_until_late_terminal() -> void:
 			deleted.account_id
 		)
 	)
-	save_graph.arm_next_cleanup_timeout(deleted_profile_file)
+	storage.arm_next_cleanup_timeout(deleted_profile_file)
 	var delete_operation: LocalAccountOperation = (
 		accounts.request_delete_account(deleted.account_id)
 	)
@@ -705,7 +705,7 @@ func test_delete_cleanup_outcome_unknown_blocks_until_late_terminal() -> void:
 		)
 		== &"cleanup_outcome_unknown"
 	)
-	save_graph.settle_cleanup_timeout(deleted_profile_file)
+	storage.settle_cleanup_timeout(deleted_profile_file)
 	await _await_account_reconciliation(accounts, setup)
 	assert_true(
 		GFVariantData.get_option_string_name(
@@ -714,9 +714,6 @@ func test_delete_cleanup_outcome_unknown_blocks_until_late_terminal() -> void:
 		)
 		== &"cleanup_outcome_unknown_reconciled"
 	)
-	var storage_value: Variant = setup.get(&"storage")
-	assert_true(storage_value is GFStorageUtility)
-	var storage: GFStorageUtility = storage_value
 	var deleted_profile_read: GFStorageReadResult = storage.load_data(
 		deleted_profile_file
 	)
@@ -728,10 +725,10 @@ func test_delete_cleanup_outcome_unknown_blocks_until_late_terminal() -> void:
 
 
 func test_cleanup_terminal_before_reconciliation_is_observed_by_tick_query() -> void:
-	var save_graph: _TimeoutCleanupSaveGraph = (
-		_TimeoutCleanupSaveGraph.new()
+	var storage: _HangingProfileDeleteStorage = (
+		_HangingProfileDeleteStorage.new()
 	)
-	var setup: Dictionary = await _create_setup(null, null, save_graph)
+	var setup: Dictionary = await _create_setup(storage)
 	var accounts: LocalAccountSystem = _get_account_system(setup)
 	var create_result: LocalAccountOperationResult = (
 		await _await_successful_account_operation(
@@ -747,7 +744,7 @@ func test_cleanup_terminal_before_reconciliation_is_observed_by_tick_query() -> 
 			deleted.account_id
 		)
 	)
-	save_graph.arm_next_cleanup_timeout(deleted_profile_file, true)
+	storage.arm_next_cleanup_timeout(deleted_profile_file, true)
 	var delete_result: LocalAccountOperationResult = (
 		await _await_account_operation(
 			accounts.request_delete_account(deleted.account_id),
@@ -804,7 +801,7 @@ func test_profile_outcome_unknown_keeps_account_and_path_until_late_settle() -> 
 		result != null
 		and result.get_status()
 		== LocalAccountOperationResult.STATUS_PROFILE_OUTCOME_UNKNOWN,
-		"写入重试耗尽且仍有 detached 请求时必须报告专门 outcome_unknown。"
+		"写入重试耗尽且仍有迟到请求时必须报告专门 outcome_unknown。"
 	)
 	var unknown_account: LocalPlayerAccount = (
 		result.get_account() if result != null else null
@@ -1762,7 +1759,21 @@ func _advance_catalog_operation_to_outcome_unknown(
 			break
 	assert_true(
 		operation.is_completed(),
-		"自定义目录 deadline 必须先产生 outcome_unknown 终态。"
+		"GFStorage caller deadline 必须先产生 outcome_unknown 终态。"
+	)
+	var catalog: LocalAccountCatalogUtility = _get_account_catalog(setup)
+	var caller_evidence: Dictionary = GFVariantData.get_option_dictionary(
+		catalog.get_last_async_storage_result(),
+		&"caller_result"
+	)
+	assert_true(
+		GFVariantData.get_option_int(caller_evidence, &"status", -1)
+		== GFStorageAsyncCallerResult.Status.OUTCOME_UNKNOWN
+		and GFVariantData.get_option_int(caller_evidence, &"end_kind", -1)
+		== GFStorageAsyncCallerResult.EndKind.DEADLINE_EXPIRED
+		and GFVariantData.get_option_string_name(caller_evidence, &"reason")
+		== &"deadline_expired",
+		"目录 outcome-unknown 必须保留 GF caller deadline 的 typed 证据。"
 	)
 
 
@@ -1900,7 +1911,6 @@ func _create_setup(
 	storage.save_dir_name = "gut_local_profiles_%s" % (
 		GFUuid.generate_v4().replace("-", "")
 	)
-	storage.create_directories_for_nested_paths = true
 	storage.file_format = GFStorageCodec.Format.BINARY
 	storage.include_storage_metadata = true
 	storage.use_integrity_checksum = true
@@ -1914,6 +1924,10 @@ func _create_setup(
 	assert_true(time_utility.set_clock(clock_source))
 	var clock: GameClockUtility = GameClockUtility.new()
 	assert_true(clock.set_clock(clock_source))
+	assert_true(
+		storage.set_async_clock_for_framework(clock_source),
+		"GFStorage caller deadline 必须使用与测试架构相同的单调时钟。"
+	)
 	var account_catalog: LocalAccountCatalogUtility = (
 		LocalAccountCatalogUtility.new()
 	)
@@ -1943,10 +1957,6 @@ func _create_setup(
 	await architecture.register_utility(
 		GFSaveProfileUtility,
 		GFSaveProfileUtility.new()
-	)
-	await architecture.register_utility(
-		GFBackgroundWorkUtility,
-		GFBackgroundWorkUtility.new()
 	)
 	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
 	await architecture.register_utility(GFLogUtility, GFLogUtility.new())
@@ -2010,9 +2020,7 @@ func _make_isolated_activation_system(
 	var account_system: LocalAccountSystem = LocalAccountSystem.new()
 	account_system._catalog = catalog
 	account_system._save_graph = save_graph
-	account_system._storage = GFStorageUtility.new()
 	account_system._profile_utility = GFSaveProfileUtility.new()
-	account_system._background_work = GFBackgroundWorkUtility.new()
 	account_system._signal_utility = GFSignalUtility.new()
 	return account_system
 
@@ -2207,6 +2215,9 @@ class _DelayedCatalogStorage extends GFStorageUtility:
 		temp_path: String,
 		backup_path: String,
 		transaction_path: String,
+		transaction_pending_path: String,
+		transaction_commit_path: String,
+		transaction_commit_pending_path: String,
 		transaction_id: String,
 		data: Dictionary,
 		codec_options: Dictionary
@@ -2233,6 +2244,9 @@ class _DelayedCatalogStorage extends GFStorageUtility:
 			temp_path,
 			backup_path,
 			transaction_path,
+			transaction_pending_path,
+			transaction_commit_path,
+			transaction_commit_pending_path,
 			transaction_id,
 			data,
 			codec_options
@@ -2266,9 +2280,11 @@ class _FailingCatalogStorage extends GFStorageUtility:
 	## 为账号目录的请求专属异步写入注入一次性 typed 失败。
 	## @param file_name: GFStorage 相对文件名。
 	## @param data: 要持久化的完整数据字典。
+	## @param options: 可选的异步请求选项。
 	func save_data_request_async(
 		file_name: String,
-		data: Dictionary
+		data: Dictionary,
+		options: GFStorageAsyncRequestOptions = null
 	) -> GFStorageAsyncOperation:
 		if file_name == LocalAccountCatalogUtility.CATALOG_FILE_NAME:
 			catalog_save_attempt_count += 1
@@ -2276,7 +2292,7 @@ class _FailingCatalogStorage extends GFStorageUtility:
 			file_name != LocalAccountCatalogUtility.CATALOG_FILE_NAME
 			or next_catalog_save_error == OK
 		):
-			return super.save_data_request_async(file_name, data)
+			return super.save_data_request_async(file_name, data, options)
 		var scripted_error: Error = next_catalog_save_error
 		next_catalog_save_error = OK
 		last_failed_catalog_payload = data.duplicate(true)
@@ -2290,15 +2306,20 @@ class _FailingCatalogStorage extends GFStorageUtility:
 				file_name
 			)
 		)
+		assert(_operation_configured, "目录写失败夹具必须配置有效 Operation。")
 		var result: GFStorageAsyncResult = GFStorageAsyncResult.new()
 		var _result_configured: bool = result.configure_for_framework(
 			request_id,
 			GFStorageAsyncOperation.OPERATION_SAVE,
 			file_name,
 			false,
-			scripted_error
+			scripted_error,
+			null,
+			GFStorageAsyncResult.WriteFailureKind.IO_FAILED
 		)
+		assert(_result_configured, "目录写失败夹具必须配置 typed 写失败。")
 		var _completed: bool = operation.complete_for_framework(result)
+		assert(_completed, "目录写失败夹具必须结算 Operation。")
 		return operation
 
 
@@ -2308,14 +2329,16 @@ class _CountingProfileReadStorage extends GFStorageUtility:
 
 	## 统计 Profile 异步读取请求。
 	## @param file_name: GFStorage 相对文件名。
+	## @param options: 可选的异步请求选项。
 	func load_data_request_async(
-		file_name: String
+		file_name: String,
+		options: GFStorageAsyncRequestOptions = null
 	) -> GFStorageAsyncOperation:
 		if file_name.begins_with(
 			LocalAccountCatalogUtility.PROFILE_DIRECTORY + "/"
 		):
 			profile_load_request_count += 1
-		return super.load_data_request_async(file_name)
+		return super.load_data_request_async(file_name, options)
 
 
 	func reset_profile_load_request_count() -> void:
@@ -2337,12 +2360,14 @@ class _LegacyProfileReadCountingStorage extends GFStorageUtility:
 
 	## 统计 GFSaveProfile 是否完整读取过旧默认 Profile。
 	## @param file_name: GFStorage 相对文件名。
+	## @param options: 可选的异步请求选项。
 	func load_data_request_async(
-		file_name: String
+		file_name: String,
+		options: GFStorageAsyncRequestOptions = null
 	) -> GFStorageAsyncOperation:
 		if file_name == GameSaveGraphUtility.PROFILE_FILE_NAME:
 			legacy_profile_async_read_count += 1
-		return super.load_data_request_async(file_name)
+		return super.load_data_request_async(file_name, options)
 
 
 class _HangingProfileReadStorage extends GFStorageUtility:
@@ -2357,8 +2382,10 @@ class _HangingProfileReadStorage extends GFStorageUtility:
 
 	## 按需挂起 Profile 异步读取请求。
 	## @param file_name: GFStorage 相对文件名。
+	## @param options: 可选的异步请求选项。
 	func load_data_request_async(
-		file_name: String
+		file_name: String,
+		options: GFStorageAsyncRequestOptions = null
 	) -> GFStorageAsyncOperation:
 		if (
 			not hang_profile_reads
@@ -2366,10 +2393,10 @@ class _HangingProfileReadStorage extends GFStorageUtility:
 				LocalAccountCatalogUtility.PROFILE_DIRECTORY + "/"
 			)
 		):
-			return super.load_data_request_async(file_name)
+			return super.load_data_request_async(file_name, options)
 		_profile_read_request_count += 1
 		if _profile_read_request_count < _hang_start_request_number:
-			return super.load_data_request_async(file_name)
+			return super.load_data_request_async(file_name, options)
 		var operation: GFStorageAsyncOperation = GFStorageAsyncOperation.new()
 		var request_id: int = _next_read_request_id
 		_next_read_request_id += 1
@@ -2410,15 +2437,27 @@ class _HangingProfileReadStorage extends GFStorageUtility:
 			var _erased_result: bool = _read_results_by_request_id.erase(
 				operation.get_request_id()
 			)
+			var read_result: GFStorageReadResult = GFStorageReadResult.new()
+			var _read_failure_configured: GFStorageReadResult = read_result.configure_failure(
+				"Scripted hanging Profile read failure.",
+				error_code,
+				{},
+				GFStorageReadResult.IntegrityStatus.NOT_CHECKED,
+				0,
+				GFStorageReadResult.FailureKind.IO_FAILED
+			)
 			var result: GFStorageAsyncResult = GFStorageAsyncResult.new()
 			var _configured: bool = result.configure_for_framework(
 				operation.get_request_id(),
 				GFStorageAsyncOperation.OPERATION_LOAD,
 				operation.get_file_name(),
 				false,
-				error_code
+				error_code,
+				read_result
 			)
+			assert(_configured, "挂起读取夹具必须配置 typed 读取失败。")
 			var _completed: bool = operation.complete_for_framework(result)
+			assert(_completed, "挂起读取失败必须结算 Operation。")
 
 
 	## 以挂起时捕获的真实 typed read 完成全部请求。
@@ -2469,9 +2508,11 @@ class _HangingProfileStorage extends GFStorageUtility:
 	## 挂起目标 Profile opaque payload 写入，其余请求委托真实 GFStorage。
 	## @param file_name: GFStorage 相对文件名。
 	## @param transfer: 此 generation 的单所有者 payload transfer。
+	## @param options: 可选的异步请求选项。
 	func save_payload_request_async(
 		file_name: String,
-		transfer: GFStoragePayloadTransfer
+		transfer: GFStoragePayloadTransfer,
+		options: GFStorageAsyncRequestOptions = null
 	) -> GFStorageAsyncOperation:
 		if (
 			not hang_profile_writes
@@ -2479,7 +2520,7 @@ class _HangingProfileStorage extends GFStorageUtility:
 				LocalAccountCatalogUtility.PROFILE_DIRECTORY + "/"
 			)
 		):
-			return super.save_payload_request_async(file_name, transfer)
+			return super.save_payload_request_async(file_name, transfer, options)
 		var operation: GFStorageAsyncOperation = GFStorageAsyncOperation.new()
 		var request_id: int = _next_request_id
 		_next_request_id += 1
@@ -2584,66 +2625,142 @@ class _HangingProfileStorage extends GFStorageUtility:
 				GFStorageAsyncOperation.OPERATION_SAVE,
 				operation.get_file_name(),
 				completion_error == OK,
-				completion_error
+				completion_error,
+				null,
+				(
+					GFStorageAsyncResult.WriteFailureKind.NONE
+					if completion_error == OK
+					else GFStorageAsyncResult.WriteFailureKind.IO_FAILED
+				)
 			)
+			assert(_configured, "挂起写入夹具必须配置合法 typed 终态。")
 			var _completed: bool = operation.complete_for_framework(result)
+			assert(_completed, "挂起写入夹具必须结算 Operation。")
 
 
-class _TimeoutCleanupSaveGraph extends GameSaveGraphUtility:
+class _HangingProfileDeleteStorage extends GFStorageUtility:
 	var _timeout_cleanup_file: String = ""
-	var _cleanup_timeout_pending: bool = false
 	var _settle_cleanup_before_return: bool = false
+	var _pending_delete_operation: GFStorageAsyncOperation = null
+	var _pending_delete_result: GFStorageAsyncResult = null
+	var _next_delete_request_id: int = 5_000_000
 
 
-	## 配置下一次指定 Profile 清理返回超时。
-	## @param profile_file_name: 要模拟超时的 Profile 文件名。
-	## @param settle_before_return: 返回超时前是否先发布后台清理终态。
+	## 配置下一次指定 Profile delete 先进入 caller outcome_unknown。
+	## @param profile_file_name: 要模拟 caller 超时的 Profile 文件名。
+	## @param settle_before_return: 返回前是否先发布模拟物理终态。
 	func arm_next_cleanup_timeout(
 		profile_file_name: String,
 		settle_before_return: bool = false
 	) -> void:
 		_timeout_cleanup_file = profile_file_name
-		_cleanup_timeout_pending = true
 		_settle_cleanup_before_return = settle_before_return
 
 
-	## 让指定 Profile 的模拟超时清理发布迟到终态。
-	## @param profile_file_name: 要完成模拟清理的 Profile 文件名。
+	## 让同一个请求的模拟物理删除发布迟到成功终态。
+	## @param profile_file_name: 要结算的 Profile 文件名。
 	func settle_cleanup_timeout(profile_file_name: String) -> void:
-		if profile_file_name != _timeout_cleanup_file:
-			return
-		_cleanup_timeout_pending = false
-		profile_cleanup_task_terminal.emit(&"test-cleanup-late-terminal")
-
-
-	## 返回指定 Profile 是否仍由模拟或真实清理任务持有。
-	## @param profile_file_name: 待查询的 Profile 文件名。
-	func is_profile_cleanup_pending(profile_file_name: String) -> bool:
-		return (
-			_cleanup_timeout_pending
-			and profile_file_name == _timeout_cleanup_file
-		) or super.is_profile_cleanup_pending(profile_file_name)
-
-
-	## 模拟指定非活动 Profile 的异步删除。
-	## @param profile_file_name: 要删除的 Profile 文件名。
-	func delete_inactive_profile_async(
-		profile_file_name: String
-	) -> Error:
 		if (
-			_cleanup_timeout_pending
-			and profile_file_name == _timeout_cleanup_file
+			profile_file_name != _timeout_cleanup_file
+			or _pending_delete_operation == null
+			or _pending_delete_result == null
+			or _pending_delete_operation.is_completed()
 		):
-			if _settle_cleanup_before_return:
-				_cleanup_timeout_pending = false
-				_settle_cleanup_before_return = false
-				profile_cleanup_task_terminal.emit(
-					&"test-cleanup-early-terminal"
-				)
-			return ERR_TIMEOUT
-		return await super.delete_inactive_profile_async(
-			profile_file_name
+			return
+		var _completed: bool = _pending_delete_operation.complete_for_framework(
+			_pending_delete_result
 		)
+		_pending_delete_operation = null
+		_pending_delete_result = null
+		_timeout_cleanup_file = ""
+
+
+	## @param file_name: 要删除的 GFStorage 相对文件名。
+	## @param options: 可选的异步请求选项。
+	func delete_file_request_async(
+		file_name: String,
+		options: GFStorageAsyncRequestOptions = null
+	) -> GFStorageAsyncOperation:
+		if file_name != _timeout_cleanup_file:
+			return super.delete_file_request_async(file_name, options)
+		var physical_delete_error: Error = super.delete_file(file_name)
+		var delete_result: GFStorageDeleteResult = GFStorageDeleteResult.new()
+		var failure_kind: GFStorageDeleteResult.FailureKind = (
+			GFStorageDeleteResult.FailureKind.NONE
+			if physical_delete_error == OK
+			else (
+				GFStorageDeleteResult.FailureKind.NOT_FOUND
+				if physical_delete_error == ERR_FILE_NOT_FOUND
+				else GFStorageDeleteResult.FailureKind.IO_FAILED
+			)
+		)
+		var normalized_error: Error = physical_delete_error
+		var _delete_configured: bool = delete_result.configure_for_framework(
+			normalized_error,
+			failure_kind,
+			1 if physical_delete_error == OK else 0,
+			1 if physical_delete_error == OK else 0,
+			0,
+			(
+				GFStorageDeleteResult.FamilyMember.NONE
+				if normalized_error in [OK, ERR_FILE_NOT_FOUND]
+				else GFStorageDeleteResult.FamilyMember.FAMILY_METADATA
+			)
+		)
+		var operation: GFStorageAsyncOperation = GFStorageAsyncOperation.new()
+		var request_id: int = _next_delete_request_id
+		_next_delete_request_id += 1
+		var _operation_configured: bool = operation.configure_for_framework(
+			request_id,
+			GFStorageAsyncOperation.OPERATION_DELETE,
+			file_name
+		)
+		var caller_clock: GFClock = GFClock.new()
+		var effective_options: GFStorageAsyncRequestOptions = (
+			options
+			if options != null
+			else GFStorageAsyncRequestOptions.create(self)
+		)
+		var _consumer_configured: bool = (
+			operation.configure_consumer_for_framework(
+				request_id,
+				effective_options,
+				caller_clock,
+				Callable(self, &"_accept_test_delete_cancel")
+			)
+		)
+		var _accepted: bool = operation.mark_worker_accepted_for_framework()
+		var _caller_result_written: bool = operation.complete_caller_for_framework(
+			GFStorageAsyncCallerResult.Status.OUTCOME_UNKNOWN,
+			GFStorageAsyncCallerResult.EndKind.DEADLINE_EXPIRED,
+			&"deadline_expired"
+		)
+		var async_result: GFStorageAsyncResult = GFStorageAsyncResult.new()
+		var _result_configured: bool = async_result.configure_for_framework(
+			request_id,
+			GFStorageAsyncOperation.OPERATION_DELETE,
+			file_name,
+			normalized_error == OK,
+			normalized_error,
+			null,
+			GFStorageAsyncResult.WriteFailureKind.NONE,
+			{},
+			delete_result
+		)
+		_pending_delete_operation = operation
+		_pending_delete_result = async_result
+		if _settle_cleanup_before_return:
+			_settle_cleanup_before_return = false
+			settle_cleanup_timeout(file_name)
+		return operation
+
+
+	func _accept_test_delete_cancel(
+		_operation: GFStorageAsyncOperation,
+		_end_kind: int,
+		_reason: StringName
+	) -> bool:
+		return true
 
 
 class _FailingBootstrapSaveGraph extends GameSaveGraphUtility:

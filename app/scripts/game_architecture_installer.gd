@@ -206,6 +206,9 @@ func _bind_runtime_foundation_utilities(binder: GFBinder, scope: GFAsyncScope) -
 	await operation_diagnostics_binding.as_singleton()
 	if scope.is_cancel_requested():
 		return
+	await binder.bind_utility(GFStorageSettingsStoreUtility).with_alias(GFSettingsStoreUtility).as_singleton()
+	if scope.is_cancel_requested():
+		return
 	await binder.bind_utility(GameSettingsUtility).from_instance(_create_settings_utility()).with_alias(GFSettingsUtility).as_singleton()
 	if scope.is_cancel_requested():
 		return
@@ -479,7 +482,6 @@ func _bind_gameplay_systems(binder: GFBinder, scope: GFAsyncScope) -> void:
 
 
 func _configure_storage_utility(storage: GFStorageUtility) -> void:
-	storage.create_directories_for_nested_paths = true
 	storage.file_format = GFStorageCodec.Format.BINARY
 	storage.include_storage_metadata = true
 	storage.use_integrity_checksum = true

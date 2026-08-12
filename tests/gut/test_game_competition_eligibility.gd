@@ -136,6 +136,7 @@ func test_legacy_result_and_challenge_identity_fields_are_rejected() -> void:
 func test_accessibility_changes_do_not_affect_competition_eligibility() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	settings.persistence_enabled = false
 	settings.auto_load_on_init = false
 	settings.auto_save_on_change = false
 	settings.register_project_defaults()

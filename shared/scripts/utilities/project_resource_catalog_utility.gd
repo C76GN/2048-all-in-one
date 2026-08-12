@@ -47,7 +47,7 @@ func dispose() -> void:
 	for catalog_id_value: Variant in catalog_ids:
 		var catalog_id: StringName = GFVariantData.to_string_name(catalog_id_value, &"")
 		if catalog_id != &"":
-			var _catalog_unregistered: bool = _unregister_catalog_owned(catalog_id, true)
+			var _catalog_unregistered: bool = _unregister_catalog_owned(catalog_id)
 	_catalogs.clear()
 	_catalog_mutations.clear()
 	_catalog_preload_sessions.clear()
@@ -177,7 +177,7 @@ func register_catalog(
 			catalog_id
 		)
 		return report
-	_release_catalog_asset_group(_get_catalog(catalog_id), true)
+	_release_catalog_asset_group(_get_catalog(catalog_id))
 	if _disposing or _disposed:
 		_end_catalog_mutation(catalog_id)
 		var _disposed_during_release_issue: RefCounted = report.add_error(
@@ -212,8 +212,10 @@ func register_catalog(
 
 ## 注销目录拥有的 Resolver 映射和 Asset 分组。
 ## @param catalog_id: 要注销的稳定目录 ID。
-## @param remove_unreferenced_cache: 是否同时移除分组释放后的无引用缓存。
-func unregister_catalog(catalog_id: StringName, remove_unreferenced_cache: bool = true) -> bool:
+##
+## 在 GF issue #108 修复前，目录 Adapter 只释放自身 membership 与 pin，缓存统一交给
+## GFAssetUtility 的有界 LRU；不得 eager remove 并误伤仍由其他 live group 持有的共享路径。
+func unregister_catalog(catalog_id: StringName) -> bool:
 	if _disposing or _disposed or _catalog_mutations.has(catalog_id):
 		return false
 	var catalog: Dictionary = _get_catalog(catalog_id)
@@ -221,7 +223,7 @@ func unregister_catalog(catalog_id: StringName, remove_unreferenced_cache: bool 
 		return false
 
 	_catalog_mutations[catalog_id] = true
-	var unregistered: bool = _unregister_catalog_owned(catalog_id, remove_unreferenced_cache)
+	var unregistered: bool = _unregister_catalog_owned(catalog_id)
 	_end_catalog_mutation(catalog_id)
 	return unregistered
 
@@ -440,11 +442,12 @@ func _resolve_resource_resolver_utility() -> GFResourceResolverUtility:
 	return null
 
 
-func _release_catalog_asset_group(catalog: Dictionary, remove_unreferenced_cache: bool) -> void:
+func _release_catalog_asset_group(catalog: Dictionary) -> void:
 	var group_id: StringName = _get_catalog_group_id(catalog)
 	var asset_utility: GFAssetUtility = _get_asset_utility()
 	if group_id != &"" and is_instance_valid(asset_utility):
-		asset_utility.unload_group(group_id, remove_unreferenced_cache)
+		# GF issue #108: eager removal currently ignores another group's pin ownership.
+		asset_utility.unload_group(group_id, false)
 
 
 func _start_catalog_preload_session_owned(
@@ -539,7 +542,7 @@ func _start_catalog_preload_session_owned(
 	return session
 
 
-func _unregister_catalog_owned(catalog_id: StringName, remove_unreferenced_cache: bool) -> bool:
+func _unregister_catalog_owned(catalog_id: StringName) -> bool:
 	var catalog: Dictionary = _get_catalog(catalog_id)
 	if catalog.is_empty():
 		return false
@@ -549,7 +552,7 @@ func _unregister_catalog_owned(catalog_id: StringName, remove_unreferenced_cache
 		var _removed_registration_count: int = resolver.unregister_owner(
 			_get_catalog_resolver_owner_id(catalog)
 		)
-	_release_catalog_asset_group(catalog, remove_unreferenced_cache)
+	_release_catalog_asset_group(catalog)
 	var _catalog_erased: bool = _catalogs.erase(catalog_id)
 	return true
 

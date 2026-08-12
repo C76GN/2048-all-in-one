@@ -6,6 +6,7 @@ extends GutTest
 
 func test_project_defaults_register_independent_audio_bus_volumes() -> void:
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	settings.persistence_enabled = false
 	settings.register_project_defaults()
 
 	for bus_name: String in [
@@ -86,6 +87,10 @@ func test_startup_settings_load_records_successful_terminal_diagnostic() -> void
 	assert_true(settings.set_clock(clock), "设置工具应接受共享 GFClock 注入。")
 	settings.register_project_defaults()
 	await architecture.register_utility(GFStorageUtility, storage)
+	await architecture.register_utility_instance_as(
+		GFStorageSettingsStoreUtility.new(),
+		GFSettingsStoreUtility
+	)
 	await architecture.register_utility(
 		GFOperationDiagnosticsUtility,
 		diagnostics
@@ -129,6 +134,10 @@ func test_future_settings_storage_version_is_preserved_and_blocks_writes() -> vo
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
 	settings.register_project_defaults()
 	await architecture.register_utility(GFStorageUtility, storage)
+	await architecture.register_utility_instance_as(
+		GFStorageSettingsStoreUtility.new(),
+		GFSettingsStoreUtility
+	)
 	await architecture.register_utility(
 		GFOperationDiagnosticsUtility,
 		diagnostics
@@ -196,6 +205,7 @@ func test_future_settings_storage_version_is_preserved_and_blocks_writes() -> vo
 
 func test_settings_menu_exposes_blocked_storage_in_compact_layout() -> void:
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	settings.persistence_enabled = false
 	settings._persistence_blocked_error = ERR_INVALID_DATA
 	var menu: SettingsMenu = SettingsMenu.new()
 	var status_label: Label = Label.new()
@@ -300,8 +310,13 @@ func test_settings_menu_handles_cancel_before_synchronous_route_detach() -> void
 
 func test_serialization_failure_updates_health_once_before_storage_write() -> void:
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
-	settings.auto_load_on_init = false
 	settings.register_project_defaults()
+	var store: _RecordingSettingsStore = _RecordingSettingsStore.new()
+	assert_true(
+		settings.set_settings_store_for_framework(store) == OK,
+		"序列化测试应通过公开 Settings Store 端口建立 standalone 持久化。"
+	)
+	settings.init()
 	var circular_value: Dictionary = {}
 	circular_value[&"self"] = circular_value
 	settings.set_value(&"test/circular_value", circular_value, false)
@@ -338,22 +353,24 @@ func test_serialization_failure_updates_health_once_before_storage_write() -> vo
 
 func test_strict_settings_load_preserves_corrupt_storage_evidence() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
-	var storage: GFStorageUtility = _make_storage("gut_strict_game_settings")
+	var storage: _RawFixtureStorage = _make_storage("gut_strict_game_settings")
 	var fixture_error: Error = _write_raw_storage_file(
 		storage,
 		"settings.sav",
 		_make_legacy_storage_bytes({"strict_marker": "preserve-me"})
 	)
 	assert_true(fixture_error == OK, "无法写入严格读取损坏设置夹具。")
-	var storage_path: String = storage.get_storage_directory_path().path_join(
-		"settings.sav"
-	)
+	var storage_path: String = storage.peek_fixture_payload_path("settings.sav")
 	var original_bytes: PackedByteArray = FileAccess.get_file_as_bytes(storage_path)
 
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
 	settings.auto_load_on_init = false
 	settings.register_project_defaults()
 	await architecture.register_utility(GFStorageUtility, storage)
+	await architecture.register_utility_instance_as(
+		GFStorageSettingsStoreUtility.new(),
+		GFSettingsStoreUtility
+	)
 	await architecture.register_utility(
 		GFOperationDiagnosticsUtility,
 		GFOperationDiagnosticsUtility.new()
@@ -393,7 +410,7 @@ func test_strict_settings_load_preserves_corrupt_storage_evidence() -> void:
 
 func test_unreadable_settings_file_is_reset_to_current_format() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
-	var storage: GFStorageUtility = _make_storage("gut_game_settings")
+	var storage: _RawFixtureStorage = _make_storage("gut_game_settings")
 	var fixture_error: Error = _write_raw_storage_file(
 		storage,
 		"settings.sav",
@@ -407,6 +424,10 @@ func test_unreadable_settings_file_is_reset_to_current_format() -> void:
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
 	settings.register_project_defaults()
 	await architecture.register_utility(GFStorageUtility, storage)
+	await architecture.register_utility_instance_as(
+		GFStorageSettingsStoreUtility.new(),
+		GFSettingsStoreUtility
+	)
 	await architecture.register_utility(
 		GFOperationDiagnosticsUtility,
 		diagnostics
@@ -465,6 +486,186 @@ func test_unreadable_settings_file_is_reset_to_current_format() -> void:
 	architecture.dispose()
 
 
+func test_runtime_structural_settings_family_corruption_recovers_memory_but_fails_closed_persistence() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	var storage: _RawFixtureStorage = _make_storage("gut_structural_game_settings")
+	var seed_error: Error = storage.save_data(
+		"settings.sav",
+		{String(GFDisplaySettingsUtility.LOCALE_KEY): "en"}
+	)
+	assert_true(seed_error == OK, "应能构造合法设置 family。")
+	var owner_path: String = storage.peek_fixture_owner_path("settings.sav")
+	var payload_path: String = storage.peek_fixture_payload_path("settings.sav")
+	var original_owner_bytes: PackedByteArray = FileAccess.get_file_as_bytes(
+		owner_path
+	)
+	var original_payload_bytes: PackedByteArray = FileAccess.get_file_as_bytes(
+		payload_path
+	)
+	assert_false(original_owner_bytes.is_empty(), "合法 family 必须包含 owner 记录。")
+	assert_false(original_payload_bytes.is_empty(), "合法 family 必须包含 payload。")
+	var diagnostics: GFOperationDiagnosticsUtility = (
+		GFOperationDiagnosticsUtility.new()
+	)
+	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	settings.auto_load_on_init = false
+	settings.register_project_defaults()
+	await architecture.register_utility(GFStorageUtility, storage)
+	await architecture.register_utility_instance_as(
+		GFStorageSettingsStoreUtility.new(),
+		GFSettingsStoreUtility
+	)
+	await architecture.register_utility(
+		GFOperationDiagnosticsUtility,
+		diagnostics
+	)
+	await architecture.register_utility(GameSettingsUtility, settings)
+	var initialized: bool = await architecture.init()
+	assert_true(initialized, "应在引入结构损坏前完成 GF 架构激活。")
+	settings.set_value(GFDisplaySettingsUtility.LOCALE_KEY, "en", false)
+	var corrupt_error: Error = storage.corrupt_fixture_owner_record("settings.sav")
+	assert_true(corrupt_error == OK, "应能构造运行期 owner 结构损坏夹具。")
+	var corrupt_owner_bytes: PackedByteArray = FileAccess.get_file_as_bytes(
+		owner_path
+	)
+	assert_false(corrupt_owner_bytes.is_empty(), "损坏 owner 证据必须可读。")
+	var recovery_policy: GFSettingsRecoveryPolicy = GFSettingsRecoveryPolicy.new()
+	recovery_policy.corrupt_file_action = (
+		GFSettingsRecoveryPolicy.ACTION_RESET_TO_DEFAULTS
+	)
+	var load_result: GFSettingsLoadResult = settings.load_settings(
+		"",
+		recovery_policy
+	)
+	assert_push_error(
+		"无法按当前 GFStorage 格式重建设置",
+		"结构损坏无法经公开 Store 重建时必须公开失败证据。"
+	)
+	var load_operations: Array[Dictionary] = diagnostics.get_operations(
+		0,
+		{&"operation_type": &"game.settings_persistence"}
+	)
+	assert_true(
+		load_operations.size() == 1,
+		"一次显式加载必须只归档一个设置持久化操作。"
+	)
+	if load_operations.size() == 1:
+		assert_false(
+			GFVariantData.get_option_bool(load_operations[0], &"success", true),
+			"内存恢复成功但持久化失败的加载诊断不得假绿。"
+		)
+		var load_metadata: Dictionary = GFVariantData.get_option_dictionary(
+			load_operations[0],
+			&"metadata"
+		)
+		assert_true(
+			GFVariantData.get_option_int(load_metadata, &"error_code", OK)
+			== ERR_FILE_CORRUPT,
+			"失败加载诊断必须携带结构损坏错误码。"
+		)
+
+	assert_not_null(load_result, "内存恢复必须保留 GFSettingsLoadResult 终态。")
+	if load_result != null:
+		assert_true(load_result.is_successful(), "GF 应完成明确授权的内存默认值恢复。")
+		assert_true(
+			load_result.get_status() == GFSettingsLoadResult.STATUS_RECOVERED,
+			"结构损坏的内存默认值只能标记为 recovered。"
+		)
+		assert_true(load_result.was_recovered(), "内存恢复终态必须标记 recovered。")
+		var storage_result: GFStorageReadResult = load_result.get_storage_result()
+		assert_not_null(storage_result, "内存恢复仍必须保留原始 family 损坏证据。")
+		if storage_result != null:
+			assert_true(
+				storage_result.failure_kind == GFStorageReadResult.FailureKind.CORRUPT,
+				"结构损坏必须保留 CORRUPT 分类。"
+			)
+			assert_true(
+				storage_result.error_code == ERR_FILE_CORRUPT,
+				"结构损坏必须保留 ERR_FILE_CORRUPT。"
+			)
+	assert_true(
+		GFVariantData.to_text(
+			settings.get_value(GFDisplaySettingsUtility.LOCALE_KEY)
+		) == GameSettingsUtility.DEFAULT_LOCALE,
+		"结构损坏时运行期只能使用项目默认设置。"
+	)
+
+	var recovery: Dictionary = settings.get_storage_recovery_snapshot()
+	var health: Dictionary = settings.get_persistence_health_snapshot()
+	assert_false(
+		GFVariantData.get_option_bool(recovery, "ok", true),
+		"内存恢复不得让持久化恢复报告假绿。"
+	)
+	assert_true(
+		GFVariantData.get_option_bool(recovery, "load_recovered", false),
+		"诊断必须区分内存已恢复与物理 family 未修复。"
+	)
+	assert_false(
+		GFVariantData.get_option_bool(recovery, "recovered", true),
+		"结构损坏不得伪装为已完成持久化恢复。"
+	)
+	assert_true(
+		GFVariantData.get_option_bool(recovery, "persistence_blocked", false),
+		"结构损坏必须阻断后续设置写入。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(recovery, "recreate_error_code", OK)
+		== ERR_FILE_CORRUPT,
+		"恢复诊断必须保留 GF family 结构损坏错误码。"
+	)
+	assert_false(
+		GFVariantData.get_option_bool(health, "healthy", true),
+		"内存默认值不能掩盖不可写的持久化状态。"
+	)
+	assert_true(
+		GFVariantData.get_option_bool(health, "persistence_blocked", false),
+		"健康快照必须明确标记持久化已阻断。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(health, "error_code", OK)
+		== ERR_FILE_CORRUPT,
+		"健康快照必须保留结构损坏错误码。"
+	)
+	assert_true(
+		settings.save_settings() == ERR_FILE_CORRUPT,
+		"持久化不健康期间必须拒绝继续覆盖损坏 family。"
+	)
+	var persisted_result: GFStorageReadResult = storage.load_data(
+		settings.storage_file_name
+	)
+	assert_false(persisted_result.ok, "结构损坏证据必须原样保留。")
+	assert_true(
+		persisted_result.failure_kind == GFStorageReadResult.FailureKind.CORRUPT,
+		"重建失败后再次读取仍应给出 CORRUPT。"
+	)
+	assert_true(
+		FileAccess.get_file_as_bytes(payload_path) == original_payload_bytes,
+		"失败关闭不得改写原 payload 证据。"
+	)
+	assert_true(
+		FileAccess.get_file_as_bytes(owner_path) == corrupt_owner_bytes,
+		"失败关闭不得改写损坏 owner 证据。"
+	)
+	assert_true(
+		storage.delete_file(settings.storage_file_name) == ERR_FILE_CORRUPT,
+		"公开删除入口不得伪装成已修复私有结构损坏。"
+	)
+	var restore_error: Error = _write_fixture_bytes(
+		owner_path,
+		original_owner_bytes
+	)
+	assert_true(restore_error == OK, "测试结束前必须恢复 owner 记录。")
+	assert_true(
+		FileAccess.get_file_as_bytes(owner_path) == original_owner_bytes,
+		"测试清理必须精确恢复原 owner 记录。"
+	)
+	assert_true(
+		storage.delete_file(settings.storage_file_name) == OK,
+		"恢复测试夹具结构后应能通过公开入口清理 family。"
+	)
+	architecture.dispose()
+
+
 func test_settings_quiesce_flushes_open_batch_and_closes_mutation_admission() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var storage: GFStorageUtility = _make_storage("gut_quiesce_game_settings")
@@ -472,6 +673,10 @@ func test_settings_quiesce_flushes_open_batch_and_closes_mutation_admission() ->
 	settings.auto_load_on_init = false
 	settings.register_project_defaults()
 	await architecture.register_utility(GFStorageUtility, storage)
+	await architecture.register_utility_instance_as(
+		GFStorageSettingsStoreUtility.new(),
+		GFSettingsStoreUtility
+	)
 	await architecture.register_utility(
 		GFOperationDiagnosticsUtility,
 		GFOperationDiagnosticsUtility.new()
@@ -543,6 +748,10 @@ func test_settings_quiesce_preserves_queued_target_before_flushing_open_batch() 
 	settings.auto_load_on_init = false
 	settings.register_project_defaults()
 	await architecture.register_utility(GFStorageUtility, storage)
+	await architecture.register_utility_instance_as(
+		GFStorageSettingsStoreUtility.new(),
+		GFSettingsStoreUtility
+	)
 	await architecture.register_utility(
 		GFOperationDiagnosticsUtility,
 		GFOperationDiagnosticsUtility.new()
@@ -645,14 +854,24 @@ func _assert_startup_settings_diagnostic(
 	)
 
 func _write_raw_storage_file(
-	storage: GFStorageUtility,
+	storage: _RawFixtureStorage,
 	file_name: String,
 	bytes: PackedByteArray
 ) -> Error:
-	var directory_error: Error = storage.ensure_directory()
-	if directory_error != OK:
+	var path: String = storage.get_fixture_payload_path(file_name)
+	if path.is_empty():
+		return ERR_INVALID_PARAMETER
+	return _write_fixture_bytes(path, bytes)
+
+
+func _write_fixture_bytes(path: String, bytes: PackedByteArray) -> Error:
+	if path.is_empty():
+		return ERR_INVALID_PARAMETER
+	var directory_error: Error = DirAccess.make_dir_recursive_absolute(
+		ProjectSettings.globalize_path(path.get_base_dir())
+	)
+	if directory_error != OK and directory_error != ERR_ALREADY_EXISTS:
 		return directory_error
-	var path: String = storage.get_storage_directory_path().path_join(file_name)
 	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
 		return FileAccess.get_open_error()
@@ -661,10 +880,9 @@ func _write_raw_storage_file(
 	return OK
 
 
-func _make_storage(prefix: String) -> GFStorageUtility:
-	var storage: GFStorageUtility = GFStorageUtility.new()
+func _make_storage(prefix: String) -> _RawFixtureStorage:
+	var storage: _RawFixtureStorage = _RawFixtureStorage.new()
 	storage.save_dir_name = "%s_%d" % [prefix, Time.get_ticks_usec()]
-	storage.create_directories_for_nested_paths = true
 	storage.file_format = GFStorageCodec.Format.BINARY
 	storage.include_storage_metadata = true
 	storage.use_integrity_checksum = true
@@ -680,6 +898,68 @@ func _make_legacy_storage_bytes(data: Dictionary, obfuscation_key: int = 42) -> 
 
 
 # --- 内部类 ---
+
+class _RawFixtureStorage extends GFStorageUtility:
+	## @param file_name: 要准备并解析的 GFStorage 相对文件名。
+	func get_fixture_payload_path(file_name: String) -> String:
+		if _prepare_family_for_write(file_name) != OK:
+			return ""
+		return peek_fixture_payload_path(file_name)
+
+
+	## @param file_name: 要只读解析的 GFStorage 相对文件名。
+	func peek_fixture_payload_path(file_name: String) -> String:
+		var descriptor: Dictionary = _make_family_descriptor(file_name)
+		return GFVariantData.get_option_string(descriptor, "payload_path")
+
+
+	## @param file_name: 要只读解析的 GFStorage 相对文件名。
+	func peek_fixture_owner_path(file_name: String) -> String:
+		var descriptor: Dictionary = _make_family_descriptor(file_name)
+		return GFVariantData.get_option_string(descriptor, "owner_path")
+
+
+	## 将测试 family 的私有 owner 记录改写为不可解析内容。
+	## @param file_name: 已由当前测试 Storage 创建的 logical identity。
+	## @return 写入夹具的 Error；仅供隔离测试验证公开 API 的失败关闭行为。
+	func corrupt_fixture_owner_record(file_name: String) -> Error:
+		var descriptor: Dictionary = _make_family_descriptor(file_name)
+		var owner_path: String = GFVariantData.get_option_string(
+			descriptor,
+			"owner_path"
+		)
+		if owner_path.is_empty() or not FileAccess.file_exists(owner_path):
+			return ERR_FILE_NOT_FOUND
+		var file: FileAccess = FileAccess.open(owner_path, FileAccess.WRITE)
+		if file == null:
+			return FileAccess.get_open_error()
+		var _stored: bool = file.store_string("{")
+		var write_error: Error = file.get_error()
+		file.close()
+		return write_error
+
+
+class _RecordingSettingsStore extends GFSettingsStoreUtility:
+	func is_persistence_enabled() -> bool:
+		return true
+
+
+	## @param _file_name: 测试替身忽略的设置文件名。
+	func read_settings(_file_name: String) -> GFStorageReadResult:
+		return GFStorageReadResult.new().configure_failure(
+			"Settings file does not exist.",
+			ERR_FILE_NOT_FOUND,
+			{},
+			GFStorageReadResult.IntegrityStatus.NOT_CHECKED,
+			0,
+			GFStorageReadResult.FailureKind.NOT_FOUND
+		)
+
+
+	## @param _file_name: 测试替身忽略的设置文件名。
+	## @param _data: 测试替身忽略的设置数据。
+	func write_settings(_file_name: String, _data: Dictionary) -> Error:
+		return OK
 
 class _DetachingSettingsMenu extends SettingsMenu:
 	var back_request_count: int = 0

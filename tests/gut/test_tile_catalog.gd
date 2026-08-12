@@ -432,7 +432,6 @@ func _create_discovery_setup(save_dir_name: String) -> Dictionary:
 	var account_system: LocalAccountSystem = LocalAccountSystem.new()
 
 	storage.save_dir_name = save_dir_name
-	storage.create_directories_for_nested_paths = true
 	storage.file_format = GFStorageCodec.Format.BINARY
 	storage.include_storage_metadata = true
 	storage.use_integrity_checksum = true

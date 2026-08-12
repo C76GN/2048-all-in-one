@@ -4,6 +4,8 @@
 ## 不进入仓库，缺少本地内容包时静默降级。压缩 OGG 或旧版 WAV 文件由
 ## GFBackgroundWorkUtility 在线程中读取，主线程只负责构建对应 AudioStream 并
 ## 委托 GFAudioUtility 播放。新安装包使用 OGG，避免在主线程展开大体积 PCM。
+## 播放提交与播放期分别由 GFBgmStartOperation 和 GFBgmSessionHandle 表达；本
+## Utility 只精确停止自己持有的会话，不从全局 BGM 状态反推播放所有权。
 class_name GameBackgroundMusicUtility
 extends GFUtility
 
@@ -69,6 +71,10 @@ var _pending_load_task: GFBackgroundWorkTask = null
 var _pending_track_key: StringName = &""
 var _pending_track_path: String = ""
 var _pending_track_type_hint: String = ""
+var _pending_start_operation: GFBgmStartOperation = null
+var _pending_start_generation: int = 0
+var _pending_start_track_key: StringName = &""
+var _active_session: GFBgmSessionHandle = null
 var _current_track_key: StringName = &""
 var _unavailable_track_keys: Dictionary = {}
 var _runtime_active: bool = false
@@ -92,6 +98,10 @@ func init() -> void:
 	_pending_track_key = &""
 	_pending_track_path = ""
 	_pending_track_type_hint = ""
+	_pending_start_operation = null
+	_pending_start_generation = 0
+	_pending_start_track_key = &""
+	_active_session = null
 	_current_track_key = &""
 	_unavailable_track_keys.clear()
 	_runtime_active = false
@@ -205,18 +215,14 @@ func refresh_playlist() -> int:
 	var discovered_keys: PackedStringArray = _discover_track_keys()
 	_load_generation += 1
 	_cancel_pending_load()
+	_cancel_pending_start()
 	var previous_current: StringName = _current_track_key
 	var playlist_changed_value: bool = discovered_keys != _track_keys
 	_track_keys = discovered_keys
 	_unavailable_track_keys.clear()
 	_reset_play_queue()
 	if previous_current != &"" and not _track_keys.has(String(previous_current)):
-		if (
-			is_instance_valid(_audio)
-			and _audio.get_current_bgm_key() == String(previous_current)
-		):
-			_audio.stop_bgm(minf(crossfade_seconds, 0.2))
-		_current_track_key = &""
+		_stop_active_session(minf(crossfade_seconds, 0.2))
 	if playlist_changed_value:
 		playlist_changed.emit(_track_keys.duplicate())
 	return _track_keys.size()
@@ -237,11 +243,17 @@ func start_if_available() -> bool:
 		return false
 	if _pending_load_task != null and not _pending_load_task.is_finished():
 		return true
+	if _pending_start_operation != null:
+		return true
+	if _active_session != null:
+		if _active_session.is_active():
+			return true
+		_active_session = null
+		_current_track_key = &""
+	# 这里只保护其他系统拥有的 BGM，不据此认领本 Utility 的会话；自己的播放
+	# 所有权始终只由 _active_session 表达。
 	if _audio.is_bgm_playing():
-		return (
-			_current_track_key != &""
-			and _audio.get_current_bgm_key() == String(_current_track_key)
-		)
+		return false
 	return _request_next_track_load()
 
 
@@ -268,6 +280,24 @@ func get_debug_snapshot() -> Dictionary:
 		"load_pending": (
 			_pending_load_task != null
 			and not _pending_load_task.is_finished()
+		),
+		"bgm_start_pending": (
+			_pending_start_operation != null
+			and _pending_start_operation.is_pending()
+		),
+		"bgm_start_request_id": (
+			_pending_start_operation.get_request_id()
+			if _pending_start_operation != null
+			else 0
+		),
+		"bgm_session_id": (
+			_active_session.get_session_id()
+			if _active_session != null
+			else 0
+		),
+		"bgm_session_active": (
+			_active_session != null
+			and _active_session.is_active()
 		),
 		"shuffle_cycle": _shuffle_cycle,
 		"runtime_active": _runtime_active,
@@ -346,20 +376,11 @@ static func is_allowed_local_track_path(path: String, type_hint: String = "") ->
 # --- 私有/辅助方法 ---
 
 func _connect_runtime_signals() -> void:
-	if (
-		not is_instance_valid(_signals)
-		or not is_instance_valid(_content_catalog)
-		or not is_instance_valid(_audio)
-	):
+	if not is_instance_valid(_signals) or not is_instance_valid(_content_catalog):
 		return
 	var _catalog_connection: GFSignalConnection = _signals.connect_signal(
 		_content_catalog.catalog_refreshed,
 		Callable(self, "_on_catalog_refreshed"),
-		self
-	)
-	var _audio_connection: GFSignalConnection = _signals.connect_signal(
-		_audio.bgm_finished,
-		Callable(self, "_on_bgm_finished"),
 		self
 	)
 
@@ -524,14 +545,40 @@ func _apply_loaded_track(task: GFBackgroundWorkTask) -> bool:
 		"playlist": PLAYLIST_ID,
 		"type_hint": result_type_hint,
 	}
-	_audio.play_bgm_clip(clip, crossfade_seconds)
-	if (
-		not _audio.is_bgm_playing()
-		or _audio.get_current_bgm_key() != String(expected_track_key)
-	):
+	# GF 的 owner 参数要求场景树 Node；GFUtility 不是 Node，因此显式传 null，
+	# 并由本 Utility 持有/cancel Operation、持有/stop Session Handle 来落实所有权。
+	var operation: GFBgmStartOperation = _audio.start_bgm_clip(
+		clip,
+		crossfade_seconds,
+		null
+	)
+	if operation == null:
 		return _reject_track_and_continue(expected_track_key)
-	_current_track_key = expected_track_key
-	track_started.emit(expected_track_key)
+	_pending_start_operation = operation
+	_pending_start_generation = result_generation
+	_pending_start_track_key = expected_track_key
+	if operation.is_completed():
+		return _consume_start_result(
+			operation,
+			operation.get_result(),
+			result_generation,
+			expected_track_key
+		)
+	# start cancel 在 backend dispatch 重入边界上可以晚于 quiesce 收敛；此唯一
+	# one-shot 必须存活到 caller 终态，不能被 disconnect_owner(self) 提前拆除，
+	# 否则迟到 STARTED 会失去精确停止句柄。
+	var completion_callback: Callable = Callable(
+		self,
+		"_on_bgm_start_completed"
+	).bind(operation, result_generation, expected_track_key)
+	@warning_ignore("int_as_enum_without_cast")
+	var connect_error: Error = operation.completed.connect(
+		completion_callback,
+		CONNECT_ONE_SHOT
+	)
+	if connect_error != OK:
+		_cancel_pending_start()
+		return _reject_track_and_continue(expected_track_key)
 	return true
 
 
@@ -654,16 +701,40 @@ func _cancel_pending_load() -> void:
 		var _cancelled: bool = _background_work.cancel_work(task.work_id)
 
 
+func _cancel_pending_start() -> void:
+	var operation: GFBgmStartOperation = _pending_start_operation
+	_pending_start_operation = null
+	_pending_start_generation = 0
+	_pending_start_track_key = &""
+	if operation == null:
+		return
+	if operation.is_pending():
+		var _cancelled: bool = operation.cancel()
+	if operation.is_completed():
+		_stop_session_from_start_result(operation.get_result())
+
+
+func _stop_session_from_start_result(result: GFBgmStartResult) -> void:
+	if result == null or not result.is_successful():
+		return
+	var session: GFBgmSessionHandle = result.get_session_handle()
+	if session != null and session.is_active():
+		var _stopped: bool = session.stop(minf(crossfade_seconds, 0.2))
+
+
+func _stop_active_session(fade_seconds: float) -> void:
+	var session: GFBgmSessionHandle = _active_session
+	_active_session = null
+	_current_track_key = &""
+	if session != null and session.is_active():
+		var _stopped: bool = session.stop(fade_seconds)
+
+
 func _stop_runtime_playback() -> void:
 	_load_generation += 1
 	_cancel_pending_load()
-	if (
-		is_instance_valid(_audio)
-		and _current_track_key != &""
-		and _audio.get_current_bgm_key() == String(_current_track_key)
-	):
-		_audio.stop_bgm(minf(crossfade_seconds, 0.2))
-	_current_track_key = &""
+	_cancel_pending_start()
+	_stop_active_session(minf(crossfade_seconds, 0.2))
 
 
 func _on_catalog_refreshed(_report: Dictionary) -> void:
@@ -674,17 +745,112 @@ func _on_catalog_refreshed(_report: Dictionary) -> void:
 		var _started: bool = start_if_available()
 
 
-func _on_bgm_finished(history_key: String) -> void:
+func _on_bgm_start_completed(
+	result: GFBgmStartResult,
+	operation: GFBgmStartOperation,
+	generation: int,
+	track_key: StringName
+) -> void:
+	var _consumed: bool = _consume_start_result(
+		operation,
+		result,
+		generation,
+		track_key
+	)
+
+
+func _consume_start_result(
+	operation: GFBgmStartOperation,
+	result: GFBgmStartResult,
+	generation: int,
+	track_key: StringName
+) -> bool:
+	if (
+		operation == null
+		or operation != _pending_start_operation
+		or generation != _pending_start_generation
+		or track_key != _pending_start_track_key
+	):
+		_stop_session_from_start_result(result)
+		return true
+	_pending_start_operation = null
+	_pending_start_generation = 0
+	_pending_start_track_key = &""
 	if (
 		not _runtime_active
 		or _quiescing
 		or _disposing
-		or _current_track_key == &""
-		or history_key != String(_current_track_key)
+		or generation != _load_generation
+		or not _track_keys.has(String(track_key))
+	):
+		_stop_session_from_start_result(result)
+		return true
+	if result == null or not result.is_successful():
+		if result == null or _should_quarantine_start_failure(result):
+			return _reject_track_and_continue(track_key)
+		# SUPERSEDED/CANCELLED 以及 Utility、owner、backend topology/reentry
+		# 类失败都是所有权或生命周期终态；本 Utility 不争抢未知的新 owner，
+		# 也不把曲目本身误判为损坏。
+		return true
+	var session: GFBgmSessionHandle = result.get_session_handle()
+	if (
+		session == null
+		or session.get_history_key() != String(track_key)
+		or not session.is_active()
+	):
+		_stop_session_from_start_result(result)
+		return _reject_track_and_continue(track_key)
+	_active_session = session
+	_current_track_key = track_key
+	var connection: GFSignalConnection = _signals.connect_once(
+		session.ended,
+		Callable(self, "_on_bgm_session_ended"),
+		self
+	)
+	if connection == null or not connection.is_active():
+		_stop_active_session(minf(crossfade_seconds, 0.2))
+		return _reject_track_and_continue(track_key)
+	track_started.emit(track_key)
+	return true
+
+
+func _should_quarantine_start_failure(result: GFBgmStartResult) -> bool:
+	if result == null:
+		return true
+	return result.get_reason() in [
+		GFBgmStartResult.REASON_INVALID_CLIP,
+		GFBgmStartResult.REASON_INVALID_PLAYBACK_REGION,
+		GFBgmStartResult.REASON_ASSET_LOAD_FAILED,
+		GFBgmStartResult.REASON_STREAM_UNPLAYABLE,
+		GFBgmStartResult.REASON_BACKEND_REJECTED_AND_LOCAL_FAILED,
+		GFBgmStartResult.REASON_LOCAL_PLAYER_REJECTED,
+	]
+
+
+func _on_bgm_session_ended(
+	session: GFBgmSessionHandle,
+	end_kind: GFBgmSessionHandle.EndKind
+) -> void:
+	if (
+		session == null
+		or session != _active_session
+		or session.get_session_id() != _active_session.get_session_id()
 	):
 		return
+	var ended_track_key: StringName = _current_track_key
+	_active_session = null
 	_current_track_key = &""
-	var _requested: bool = _request_next_track_load()
+	if not _runtime_active or _quiescing or _disposing:
+		return
+	match end_kind:
+		GFBgmSessionHandle.EndKind.NATURAL_FINISH:
+			var _requested: bool = _request_next_track_load()
+		GFBgmSessionHandle.EndKind.PLAYBACK_FAILED:
+			var _rejected: bool = _reject_track_and_continue(ended_track_key)
+		_:
+			# STOPPED/REPLACED/OWNER_RELEASED/UTILITY_DISPOSED 都代表外部或
+			# 生命周期决策；不得自动重夺全局 BGM 通道。
+			pass
 
 
 func _resolve_content_catalog() -> ProjectContentCatalogUtility:

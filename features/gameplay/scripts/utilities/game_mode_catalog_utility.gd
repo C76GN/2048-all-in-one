@@ -68,7 +68,7 @@ func ready() -> void:
 func dispose() -> void:
 	var _rollback_started: bool = rollback_preload_session(&"catalog_disposed")
 	if is_instance_valid(_resource_catalog):
-		var _catalog_unregistered: bool = _resource_catalog.unregister_catalog(_CATALOG_ID, true)
+		var _catalog_unregistered: bool = _resource_catalog.unregister_catalog(_CATALOG_ID)
 	_preload_session = null
 	_resource_catalog = null
 	_setup_failure_reason = &"disposed"

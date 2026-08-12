@@ -184,7 +184,6 @@ func test_architecture_shutdown_quiesces_and_flushes_latest_profile_generation()
 
 	var verifier: GFStorageUtility = GFStorageUtility.new()
 	verifier.save_dir_name = save_dir_name
-	verifier.create_directories_for_nested_paths = true
 	verifier.file_format = GFStorageCodec.Format.BINARY
 	verifier.include_storage_metadata = true
 	verifier.use_integrity_checksum = true
@@ -2550,7 +2549,7 @@ func _create_persistence_architecture(
 	var storage: GFStorageUtility = (
 		storage_override
 		if storage_override != null
-		else GFStorageUtility.new()
+		else _RawFixtureStorage.new()
 	)
 	var save_graph: GameSaveGraphUtility = _make_game_save_graph()
 	var platform: GamePlatformUtility = _TEST_PLATFORM_STUB_SCRIPT.new()
@@ -2576,7 +2575,6 @@ func _create_persistence_architecture(
 		if not save_dir_name.is_empty()
 		else "gut_save_graph_%s" % GFUuid.generate_v4().replace("-", "")
 	)
-	storage.create_directories_for_nested_paths = true
 	storage.file_format = GFStorageCodec.Format.BINARY
 	storage.include_storage_metadata = true
 	storage.use_integrity_checksum = true
@@ -2717,10 +2715,17 @@ func _write_raw_storage_file(
 	file_name: String,
 	bytes: PackedByteArray
 ) -> Error:
-	var directory_error: Error = storage.ensure_directory()
-	if directory_error != OK:
+	if not (storage is _RawFixtureStorage):
+		return ERR_INVALID_PARAMETER
+	var fixture_storage: _RawFixtureStorage = storage
+	var path: String = fixture_storage.get_fixture_payload_path(file_name)
+	if path.is_empty():
+		return ERR_INVALID_PARAMETER
+	var directory_error: Error = DirAccess.make_dir_recursive_absolute(
+		ProjectSettings.globalize_path(path.get_base_dir())
+	)
+	if directory_error != OK and directory_error != ERR_ALREADY_EXISTS:
 		return directory_error
-	var path: String = storage.get_storage_directory_path().path_join(file_name)
 	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
 		return FileAccess.get_open_error()
@@ -3000,6 +3005,14 @@ func _get_custom_board_system(setup: Dictionary) -> CustomBoardSystem:
 
 # --- 内部类 ---
 
+class _RawFixtureStorage extends GFStorageUtility:
+	## @param file_name: 要解析的 GFStorage 相对文件名。
+	func get_fixture_payload_path(file_name: String) -> String:
+		if _prepare_family_for_write(file_name) != OK:
+			return ""
+		var descriptor: Dictionary = _make_family_descriptor(file_name)
+		return GFVariantData.get_option_string(descriptor, "payload_path")
+
 class _RetryStorage extends GFStorageUtility:
 	var profile_save_errors: Array[Error] = []
 	var profile_save_attempt_count: int = 0
@@ -3009,9 +3022,11 @@ class _RetryStorage extends GFStorageUtility:
 	## 按队列为 Profile opaque payload 写入注入可重试错误。
 	## @param file_name: GFStorage 相对文件名。
 	## @param transfer: 此 generation 的单所有者 payload transfer。
+	## @param options: 可选的异步请求选项。
 	func save_payload_request_async(
 		file_name: String,
-		transfer: GFStoragePayloadTransfer
+		transfer: GFStoragePayloadTransfer,
+		options: GFStorageAsyncRequestOptions = null
 	) -> GFStorageAsyncOperation:
 		if (
 			file_name == GameSaveGraphUtility.PROFILE_FILE_NAME
@@ -3078,7 +3093,7 @@ class _RetryStorage extends GFStorageUtility:
 						operation.complete_for_framework(result)
 					)
 					return operation
-		return super.save_payload_request_async(file_name, transfer)
+		return super.save_payload_request_async(file_name, transfer, options)
 
 
 class _HangingProfileStorage extends GFStorageUtility:
@@ -3094,11 +3109,13 @@ class _HangingProfileStorage extends GFStorageUtility:
 
 	## 挂起玩家 Profile 读取，并保留真实读取结果供迟到成功终态。
 	## @param file_name: GFStorage 相对文件名。
+	## @param options: 可选的异步请求选项。
 	func load_data_request_async(
-		file_name: String
+		file_name: String,
+		options: GFStorageAsyncRequestOptions = null
 	) -> GFStorageAsyncOperation:
 		if not hang_profile_reads:
-			return super.load_data_request_async(file_name)
+			return super.load_data_request_async(file_name, options)
 		var read_result: GFStorageReadResult = super.load_data(file_name)
 		var operation: GFStorageAsyncOperation = GFStorageAsyncOperation.new()
 		var request_id: int = _next_read_request_id
@@ -3156,9 +3173,11 @@ class _HangingProfileStorage extends GFStorageUtility:
 	## 挂起玩家 Profile opaque payload，并保留隔离副本供迟到终态故障注入。
 	## @param file_name: GFStorage 相对文件名。
 	## @param transfer: 此 generation 的单所有者 payload transfer。
+	## @param options: 可选的异步请求选项。
 	func save_payload_request_async(
 		file_name: String,
-		transfer: GFStoragePayloadTransfer
+		transfer: GFStoragePayloadTransfer,
+		options: GFStorageAsyncRequestOptions = null
 	) -> GFStorageAsyncOperation:
 		if (
 			not hang_profile_writes
@@ -3168,7 +3187,7 @@ class _HangingProfileStorage extends GFStorageUtility:
 				!= LocalAccountCatalogUtility.PROFILE_DIRECTORY
 			)
 		):
-			return super.save_payload_request_async(file_name, transfer)
+			return super.save_payload_request_async(file_name, transfer, options)
 		var operation: GFStorageAsyncOperation = GFStorageAsyncOperation.new()
 		var request_id: int = _next_request_id
 		_next_request_id += 1
@@ -3279,9 +3298,23 @@ class _HangingProfileStorage extends GFStorageUtility:
 				GFStorageAsyncOperation.OPERATION_SAVE,
 				operation.get_file_name(),
 				error_code == OK,
-				error_code
+				error_code,
+				null,
+				(
+					GFStorageAsyncResult.WriteFailureKind.NONE
+					if error_code == OK
+					else GFStorageAsyncResult.WriteFailureKind.IO_FAILED
+				)
+			)
+			assert(
+				_result_configured,
+				"测试故障注入必须构造符合 GFStorage 写入终态契约的结果。"
 			)
 			var _completed: bool = operation.complete_for_framework(result)
+			assert(
+				_completed,
+				"测试故障注入必须完成唯一物理终态。"
+			)
 
 
 # --- 内部类 ---

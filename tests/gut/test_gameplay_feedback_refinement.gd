@@ -461,6 +461,7 @@ func test_real_gf_duplicate_record_stays_single_without_fake_aggregate_metadata(
 func _make_feedback_architecture() -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
+	settings.persistence_enabled = false
 	settings.auto_load_on_init = false
 	settings.auto_save_on_change = false
 	settings.register_project_defaults()

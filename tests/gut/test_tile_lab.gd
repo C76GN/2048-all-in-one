@@ -546,7 +546,6 @@ func _create_setup(
 		else GFStorageUtility.new()
 	)
 	storage.save_dir_name = "gut_tile_lab_%d" % Time.get_ticks_usec()
-	storage.create_directories_for_nested_paths = true
 	storage.file_format = GFStorageCodec.Format.BINARY
 	storage.include_storage_metadata = true
 	storage.use_integrity_checksum = true
@@ -783,15 +782,17 @@ class _FailingStorage extends GFStorageUtility:
 	## 为 GFSaveProfileUtility 的 opaque payload 写入注入错误队列。
 	## @param file_name: GFStorage 相对文件名。
 	## @param transfer: 此 generation 的单所有者 payload transfer。
+	## @param options: 可选的异步请求选项。
 	func save_payload_request_async(
 		file_name: String,
-		transfer: GFStoragePayloadTransfer
+		transfer: GFStoragePayloadTransfer,
+		options: GFStorageAsyncRequestOptions = null
 	) -> GFStorageAsyncOperation:
 		if async_save_errors.is_empty():
-			return super.save_payload_request_async(file_name, transfer)
+			return super.save_payload_request_async(file_name, transfer, options)
 		var scripted_error: Error = async_save_errors.pop_front()
 		if scripted_error == OK:
-			return super.save_payload_request_async(file_name, transfer)
+			return super.save_payload_request_async(file_name, transfer, options)
 		var operation: GFStorageAsyncOperation = GFStorageAsyncOperation.new()
 		var request_id: int = _next_request_id
 		_next_request_id += 1
