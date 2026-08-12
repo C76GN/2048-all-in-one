@@ -9,6 +9,14 @@ extends GameUiController
 
 ## 单个模式卡片 UI 场景。
 const MODE_CARD_SCENE: PackedScene = preload("res://features/navigation/scenes/ui/mode_card.tscn")
+const MODE_RULE_PROOF_DESCRIPTORS: Array[ModeRuleProofDescriptor] = [
+	preload("res://features/navigation/resources/mode_rule_proofs/classic_rule_proof.tres"),
+	preload("res://features/navigation/resources/mode_rule_proofs/fibonacci_rule_proof.tres"),
+	preload("res://features/navigation/resources/mode_rule_proofs/lucas_fibonacci_rule_proof.tres"),
+	preload("res://features/navigation/resources/mode_rule_proofs/progressive_rule_proof.tres"),
+	preload("res://features/navigation/resources/mode_rule_proofs/step_by_step_rule_proof.tres"),
+	preload("res://features/navigation/resources/mode_rule_proofs/ratio_rule_proof.tres"),
+]
 const _CARD_REVEAL_OFFSET: Vector2 = Vector2(18.0, 0.0)
 const _STATS_EMPTY_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n暂无完整对局统计"
 const _STATS_SUMMARY_FORMAT_FALLBACK: String = "在 %dx%d 尺寸下的最高分：%d\n游玩 %d 局 · 最佳步数 %s · 最大方块 %s\n平均：%s 分 · %s 步\n最近一局：%d 分 · %s 步"
@@ -45,6 +53,10 @@ const _COMPACT_TWO_PANE_SCROLLBAR_RESERVE: float = 14.0
 const _COMPACT_RIGHT_COLUMN_RATIO: float = 0.38
 const _COMPACT_RIGHT_COLUMN_MINIMUM_WIDTH: float = 300.0
 const _COMPACT_RIGHT_COLUMN_MAXIMUM_WIDTH: float = 340.0
+const _DESKTOP_COLUMN_SEPARATION: float = 24.0
+const _DESKTOP_SIDE_COLUMN_RATIO: float = 0.28
+const _DESKTOP_SIDE_COLUMN_PREFERRED_MINIMUM_WIDTH: float = 286.0
+const _DESKTOP_SIDE_COLUMN_PREFERRED_MAXIMUM_WIDTH: float = 340.0
 const _MODE_CARD_MINIMUM_HEIGHT: float = 98.0
 const _MODE_CARD_SEPARATION: float = 12.0
 const _CENTER_SECTION_SEPARATION: float = 14.0
@@ -80,8 +92,14 @@ var _mode_catalog: GameModeCatalogUtility = null
 var _viewport_utility: GFViewportUtility = null
 var _page_scroll: ScrollContainer = null
 var _right_panel_stack_margin: MarginContainer = null
+var _proof_stack_margin: MarginContainer = null
 var _layout_mode: int = GameTaskPageLayoutUtility.LayoutMode.DESKTOP
 var _layout_reference_size: Vector2 = Vector2.ZERO
+var _side_by_side_layout_active: bool = true
+var _three_pane_layout_active: bool = true
+var _proof_pane_minimum_width: float = 0.0
+var _mode_index_pane_minimum_width: float = 0.0
+var _configuration_pane_minimum_width: float = 0.0
 var _layout_update_queued: bool = false
 var _mode_list_rebuild_queued: bool = false
 var _mode_card_slots: Array[ModeCard] = []
@@ -95,6 +113,8 @@ var _info_score_label: Label
 # --- @onready 变量 (节点引用) ---
 
 @onready var _info_panel_container: VBoxContainer = %ModeInfoContainer
+@onready var _left_panel_container: VBoxContainer = %LeftColumn
+@onready var _mode_rule_proof: ModeRuleProof = %ModeRuleProof
 @onready var _right_panel_container: VBoxContainer = %RightColumn
 @onready var _margin_container: MarginContainer = GameTaskPageLayoutUtility.get_margin_container(
 	self,
@@ -213,8 +233,16 @@ func _apply_responsive_layout() -> void:
 	_layout_reference_size = _get_layout_reference_size()
 	_layout_mode = GameTaskPageLayoutUtility.classify_layout(_layout_reference_size)
 	var compact: bool = _layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
-	var side_by_side: bool = _uses_side_by_side_layout(_layout_reference_size)
-	_set_page_scroll_enabled(not side_by_side)
+	_ensure_pane_minimum_width_contracts()
+	_side_by_side_layout_active = _uses_side_by_side_layout(
+		_layout_reference_size
+	)
+	_three_pane_layout_active = (
+		_layout_mode == GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+		and _can_use_three_pane_layout(_layout_reference_size.x)
+	)
+	var proof_stacked: bool = not _three_pane_layout_active
+	_set_page_scroll_enabled(proof_stacked)
 	var first_screen_budget_size: Vector2 = _resolve_first_screen_budget_size(
 		size,
 		_layout_reference_size
@@ -225,21 +253,63 @@ func _apply_responsive_layout() -> void:
 		if _layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
 		else 24.0
 	)
+	var layout_geometry_width: float = minf(
+		size.x,
+		_layout_reference_size.x
+	) if _layout_reference_size.x > 0.0 else size.x
 	var compact_content_width: float = clampf(
-		size.x - compact_horizontal_margins,
+		layout_geometry_width - compact_horizontal_margins,
 		320.0,
 		760.0
 	)
-	_set_right_panel_stacked(not side_by_side)
+	_set_right_panel_stacked(not _side_by_side_layout_active)
+	_set_proof_stacked(proof_stacked)
+	if not _side_by_side_layout_active:
+		_order_stacked_surfaces(
+			_layout_mode != GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE
+		)
 	var center_content_width: float = compact_content_width
+	var proof_panel_width: float = 0.0
 	var right_panel_width: float = 0.0
 	var column_separation: int = 0
 	if _layout_mode == GameTaskPageLayoutUtility.LayoutMode.DESKTOP:
-		center_content_width = 560.0
-		right_panel_width = 390.0
-		column_separation = 34
-	elif side_by_side:
-		var compact_widths: Vector2 = _get_compact_two_pane_widths(size.x)
+		column_separation = roundi(_DESKTOP_COLUMN_SEPARATION)
+		var separator_count: int = 2 if _three_pane_layout_active else 1
+		var desktop_available_width: float = maxf(
+			layout_geometry_width
+			- _get_desktop_horizontal_safe_margin()
+			- float(column_separation * separator_count)
+			- (
+				0.0
+				if _three_pane_layout_active
+				else _COMPACT_TWO_PANE_SCROLLBAR_RESERVE
+			),
+			0.0
+		)
+		var preferred_side_width: float = clampf(
+			desktop_available_width * _DESKTOP_SIDE_COLUMN_RATIO,
+			_DESKTOP_SIDE_COLUMN_PREFERRED_MINIMUM_WIDTH,
+			_DESKTOP_SIDE_COLUMN_PREFERRED_MAXIMUM_WIDTH
+		)
+		right_panel_width = maxf(
+			_configuration_pane_minimum_width,
+			preferred_side_width
+		)
+		if _three_pane_layout_active:
+			proof_panel_width = maxf(
+				_proof_pane_minimum_width,
+				preferred_side_width
+			)
+		center_content_width = maxf(
+			desktop_available_width
+			- proof_panel_width
+			- right_panel_width,
+			_mode_index_pane_minimum_width
+		)
+	elif _side_by_side_layout_active:
+		var compact_widths: Vector2 = _get_compact_two_pane_widths(
+			layout_geometry_width
+		)
 		center_content_width = compact_widths.x
 		right_panel_width = compact_widths.y
 		column_separation = roundi(_COMPACT_TWO_PANE_SEPARATION)
@@ -254,9 +324,13 @@ func _apply_responsive_layout() -> void:
 		10 if compact else roundi(_MODE_CARD_SEPARATION)
 	)
 	_center_content_vbox.custom_minimum_size.x = center_content_width
+	_left_panel_container.custom_minimum_size.x = proof_panel_width
+	_mode_rule_proof.custom_minimum_size.y = 292.0 if proof_stacked else 338.0
 	_right_panel_container.custom_minimum_size.x = right_panel_width
 	_right_panel_container.size_flags_horizontal = (
-		Control.SIZE_FILL if side_by_side else Control.SIZE_EXPAND_FILL
+		Control.SIZE_FILL
+		if _side_by_side_layout_active
+		else Control.SIZE_EXPAND_FILL
 	)
 	_right_panel_container.add_theme_constant_override(
 		"separation",
@@ -272,7 +346,7 @@ func _apply_responsive_layout() -> void:
 		_layout_mode,
 		_DESKTOP_SAFE_AREA_MARGINS
 	)
-	if not side_by_side:
+	if not _side_by_side_layout_active:
 		extra_margins = _STACKED_SAFE_AREA_MARGINS.duplicate(true)
 	_apply_safe_area_margins(extra_margins)
 	if is_instance_valid(_page_scroll) and not compact:
@@ -373,8 +447,8 @@ func _restore_focus_after_responsive_layout(focused_control: Control) -> void:
 		_back_button.grab_focus()
 
 
-## 双栏高度已经由分页预算约束，不再让整页滚动条与分页同时出现。
-## 只有真正堆叠的窄屏布局保留页面级纵向滚动。
+## 桌面三栏由分页预算约束；紧凑布局把规则样张放入同一纵向任务流，
+## 因此统一保留页面滚动，避免样张在两栏几何下被裁切。
 func _set_page_scroll_enabled(enabled: bool) -> void:
 	if not is_instance_valid(_page_scroll) or not is_instance_valid(_margin_container):
 		return
@@ -479,6 +553,68 @@ func _set_right_panel_stacked(stacked: bool) -> void:
 	)
 
 
+## 窄屏把桌面三栏重组为连续任务流，不直接压缩三栏纸面。
+func _set_proof_stacked(stacked: bool) -> void:
+	if stacked:
+		var stack_margin: MarginContainer = _ensure_proof_stack_margin()
+		stack_margin.visible = true
+		if _left_panel_container.get_parent() != stack_margin:
+			_reparent_preserving_scene_owner(_left_panel_container, stack_margin)
+		_center_column.move_child(
+			stack_margin,
+			_center_content_holder.get_index() + 1
+		)
+		if is_instance_valid(_right_panel_stack_margin):
+			_center_column.move_child(
+			_right_panel_stack_margin,
+			stack_margin.get_index() + 1
+			)
+		return
+	if _left_panel_container.get_parent() != _columns_container:
+		_reparent_preserving_scene_owner(_left_panel_container, _columns_container)
+	if is_instance_valid(_proof_stack_margin):
+		_proof_stack_margin.visible = false
+	_columns_container.move_child(_left_panel_container, 0)
+
+
+## 竖屏保持“索引 → 样张 → 作业单”；矮横屏先露出开始操作，再接样张。
+func _order_stacked_surfaces(proof_before_config: bool) -> void:
+	if (
+		not is_instance_valid(_proof_stack_margin)
+		or not is_instance_valid(_right_panel_stack_margin)
+	):
+		return
+	var first_index: int = _center_content_holder.get_index() + 1
+	if proof_before_config:
+		_center_column.move_child(_proof_stack_margin, first_index)
+		_center_column.move_child(_right_panel_stack_margin, first_index + 1)
+		return
+	_center_column.move_child(_right_panel_stack_margin, first_index)
+	_center_column.move_child(_proof_stack_margin, first_index + 1)
+
+
+func _ensure_proof_stack_margin() -> MarginContainer:
+	if is_instance_valid(_proof_stack_margin):
+		return _proof_stack_margin
+	var stack_margin: MarginContainer = MarginContainer.new()
+	stack_margin.name = &"ModeProofStackMargin"
+	stack_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for margin_name: String in _STACKED_SURFACE_OVERFLOW_MARGINS:
+		stack_margin.add_theme_constant_override(
+			"margin_%s" % margin_name,
+			GFVariantData.get_option_int(
+				_STACKED_SURFACE_OVERFLOW_MARGINS,
+				margin_name
+			)
+		)
+	_center_column.add_child(stack_margin)
+	var scene_owner: Node = _center_column.owner
+	if is_instance_valid(scene_owner) and scene_owner.is_ancestor_of(stack_margin):
+		stack_margin.owner = scene_owner
+	_proof_stack_margin = stack_margin
+	return stack_margin
+
+
 func _ensure_right_panel_stack_margin() -> MarginContainer:
 	if is_instance_valid(_right_panel_stack_margin):
 		return _right_panel_stack_margin
@@ -511,6 +647,42 @@ func _reparent_preserving_scene_owner(control: Control, next_parent: Node) -> vo
 		control.owner = scene_owner
 
 
+## 首次布局前冻结三个产品表面的真实最小宽度，后续响应式写入不反向污染预算。
+func _ensure_pane_minimum_width_contracts() -> void:
+	if (
+		_proof_pane_minimum_width > 0.0
+		and _mode_index_pane_minimum_width > 0.0
+		and _configuration_pane_minimum_width > 0.0
+	):
+		return
+	_proof_pane_minimum_width = _left_panel_container.get_combined_minimum_size().x
+	_mode_index_pane_minimum_width = _center_content_vbox.get_combined_minimum_size().x
+	_configuration_pane_minimum_width = (
+		_right_panel_container.get_combined_minimum_size().x
+	)
+
+
+## 判断物理可用宽度能否完整容纳规则样张、模式索引与配置三栏。
+## @param physical_width: GF 物理安全区解析出的宽度。
+func _can_use_three_pane_layout(physical_width: float) -> bool:
+	if physical_width <= 0.0:
+		return false
+	return physical_width + 0.5 >= (
+		_get_desktop_horizontal_safe_margin()
+		+ _proof_pane_minimum_width
+		+ _mode_index_pane_minimum_width
+		+ _configuration_pane_minimum_width
+		+ _DESKTOP_COLUMN_SEPARATION * 2.0
+	)
+
+
+static func _get_desktop_horizontal_safe_margin() -> float:
+	return (
+		GFVariantData.get_option_float(_DESKTOP_SAFE_AREA_MARGINS, &"left")
+		+ GFVariantData.get_option_float(_DESKTOP_SAFE_AREA_MARGINS, &"right")
+	)
+
+
 static func _uses_side_by_side_layout(viewport_size: Vector2) -> bool:
 	var mode: int = GameTaskPageLayoutUtility.classify_layout(viewport_size)
 	if mode == GameTaskPageLayoutUtility.LayoutMode.DESKTOP:
@@ -540,9 +712,7 @@ static func _get_compact_two_pane_widths(viewport_width: float) -> Vector2:
 func _is_compact_two_pane_layout() -> bool:
 	return (
 		_layout_mode == GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE
-		and _uses_side_by_side_layout(
-			_layout_reference_size if not _layout_reference_size.is_zero_approx() else size
-		)
+		and _side_by_side_layout_active
 	)
 
 
@@ -583,12 +753,9 @@ func _apply_selection_detail_visibility() -> void:
 
 
 func _is_stacked_compact_layout() -> bool:
-	var reference_size: Vector2 = (
-		_layout_reference_size if not _layout_reference_size.is_zero_approx() else size
-	)
 	return (
 		_layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
-		and not _uses_side_by_side_layout(reference_size)
+		and not _side_by_side_layout_active
 	)
 
 
@@ -637,7 +804,12 @@ func _refresh_mode_page_and_focus(is_initial_load: bool = false) -> void:
 			card.set_selected(false)
 			continue
 		card.visible = true
-		card.setup(config_path, mode_config, _get_ui_style_utility())
+		card.setup(
+			config_path,
+			mode_config,
+			_get_ui_style_utility(),
+			_get_rule_proof_descriptor(mode_config.ruleset_id)
+		)
 
 	_setup_focus_neighbors()
 
@@ -786,7 +958,9 @@ func _setup_focus_neighbors() -> void:
 
 func _apply_mode_focus_graph(cards: Array[Control]) -> void:
 	var vertical_order: Array[Control] = [_back_button]
-	var stacked: bool = not _uses_side_by_side_layout(size)
+	# 焦点图必须消费本轮物理安全区已经解析出的布局状态，不能再用
+	# EXPAND 后的逻辑 Control.size 重算一次断点。
+	var stacked: bool = not _side_by_side_layout_active
 	for card: Control in cards:
 		vertical_order.append(card)
 		card.focus_neighbor_right = (
@@ -869,6 +1043,7 @@ func _update_ui_for_selection(animate_detail: bool = true) -> void:
 		return
 
 	_right_panel_container.visible = true
+	_left_panel_container.visible = true
 	_apply_selection_detail_visibility()
 
 	_populate_right_panel()
@@ -890,6 +1065,8 @@ func _show_default_info() -> void:
 	if is_instance_valid(_info_score_label):
 		_info_score_label.visible = false
 	_right_panel_container.visible = false
+	if is_instance_valid(_left_panel_container):
+		_left_panel_container.visible = false
 	if is_instance_valid(_start_game_button):
 		_start_game_button.disabled = true
 
@@ -930,6 +1107,20 @@ func _populate_left_panel() -> void:
 	_info_name_label.text = tr(_selected_mode_config.mode_name)
 	if is_instance_valid(_info_desc_label):
 		_info_desc_label.text = tr(_selected_mode_config.mode_description)
+	if is_instance_valid(_mode_rule_proof):
+		var proof_descriptor: ModeRuleProofDescriptor = _get_rule_proof_descriptor(
+			_selected_mode_config.ruleset_id
+		)
+		_mode_rule_proof.present(
+			proof_descriptor,
+			_selected_mode_config,
+			_get_ui_style_utility()
+		)
+		if not is_instance_valid(proof_descriptor):
+			push_error(
+				"[ModeSelection] 缺少规则集的导航样张：%s。" %
+				String(_selected_mode_config.ruleset_id)
+			)
 
 	_update_high_score_label()
 
@@ -1228,6 +1419,19 @@ func _reveal_selection_detail() -> void:
 	var _detail_tween: Tween = motion_utility.play_content_switch(
 		_info_panel_container
 	)
+	if is_instance_valid(_mode_rule_proof):
+		var _proof_tween: Tween = motion_utility.play_content_switch(
+			_mode_rule_proof
+		)
+
+
+static func _get_rule_proof_descriptor(
+	ruleset_id: StringName
+) -> ModeRuleProofDescriptor:
+	for descriptor: ModeRuleProofDescriptor in MODE_RULE_PROOF_DESCRIPTORS:
+		if is_instance_valid(descriptor) and descriptor.ruleset_id == ruleset_id:
+			return descriptor
+	return null
 
 
 func _advance_mode_page(direction: int) -> void:

@@ -227,6 +227,7 @@ func _run() -> void:
 		push_error("[UiVfxMatrix] Cannot prepare the isolated output directory.")
 		_finish(74)
 		return
+	_register_surface_contract_ids()
 	if DisplayServer.get_name() == "headless":
 		push_error("[UiVfxMatrix] Capture requires rendering display mode.")
 		_finish(64)
@@ -3545,3 +3546,14 @@ func _finish_after_cleanup(exit_code: int) -> void:
 	if effective_exit_code == 0:
 		print("[UiVfxMatrix] completed captures=%d" % _capture_count)
 	quit(effective_exit_code)
+
+
+func _register_surface_contract_ids() -> void:
+	if not is_instance_valid(_artifact_session):
+		return
+	for contract_id: StringName in [
+		&"navigation/main-menu",
+		&"navigation/mode-selection",
+		&"settings/calibration-task-page",
+	]:
+		_artifact_session.add_surface_contract_id(contract_id)

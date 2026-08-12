@@ -131,6 +131,43 @@ func test_turn_subtitle_and_announcement_share_one_canonical_result() -> void:
 	assert_true(GFVariantData.get_option_int(turn_payload, &"score_delta", 0) == 4)
 
 
+func test_turn_subtitle_exposes_rule_specific_causal_feedback() -> void:
+	var snapshot: Dictionary = _build_sparse_snapshot()
+	var turn_result: TurnResult = _build_turn_result()
+	var merge: TileMergeResult = turn_result.merges[0]
+	merge.interaction.feedback_cue_id = &"tile.merge.lucas_bridge"
+	var utility: GameAccessibilitySummaryUtility = (
+		GameAccessibilitySummaryUtility.new()
+	)
+	var summary: GameAccessibilitySummary = utility.build_turn_summary(
+		turn_result,
+		snapshot
+	)
+
+	assert_not_null(summary)
+	if not is_instance_valid(summary):
+		return
+	assert_true(
+		summary.subtitle_text.contains("数列桥接 ×1"),
+		"难以从数值变化理解的特殊规则必须把权威 feedback cue 投影成局部因果反馈。"
+	)
+	var turn_payload: Dictionary = GFVariantData.get_option_dictionary(
+		summary.canonical_payload,
+		&"turn"
+	)
+	var feedback_counts: Dictionary = GFVariantData.get_option_dictionary(
+		turn_payload,
+		&"feedback_cue_counts"
+	)
+	assert_true(
+		GFVariantData.get_option_int(
+			feedback_counts,
+			&"tile.merge.lucas_bridge",
+			0
+		) == 1
+	)
+
+
 func test_precomputed_board_checksum_preserves_published_turn_summary() -> void:
 	var snapshot: Dictionary = _build_sparse_snapshot()
 	var turn_result: TurnResult = _build_turn_result()

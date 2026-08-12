@@ -14,6 +14,7 @@ var _suite_id: String = ""
 var _output_directory: String = ""
 var _expected_screenshots: PackedStringArray = PackedStringArray()
 var _recorded_screenshots: PackedStringArray = PackedStringArray()
+var _surface_contract_ids: PackedStringArray = PackedStringArray()
 var _began: bool = false
 
 
@@ -97,6 +98,17 @@ func record_screenshot(file_name: String) -> void:
 		)
 
 
+## 声明本次截图套件验证的玩家界面意图合同。
+##
+## 这里只记录稳定的 Feature/page contract ID，不读取或执行外部文档。
+## @param contract_id: 例如 navigation/mode-selection。
+func add_surface_contract_id(contract_id: StringName) -> void:
+	var normalized_id: String = String(contract_id).strip_edges()
+	if normalized_id.is_empty() or normalized_id in _surface_contract_ids:
+		return
+	var _contract_appended: bool = _surface_contract_ids.append(normalized_id)
+
+
 ## 写入终态 manifest，并在声明成功但产物与固定计划不一致时返回非零错误码。
 func finalize(
 	exit_code: int,
@@ -114,6 +126,8 @@ func finalize(
 	expected.sort()
 	recorded.sort()
 	actual_screenshots.sort()
+	var surface_contract_ids: PackedStringArray = _surface_contract_ids.duplicate()
+	surface_contract_ids.sort()
 	var missing: PackedStringArray = PackedStringArray()
 	for file_name: String in expected:
 		if file_name not in actual_screenshots:
@@ -142,6 +156,7 @@ func finalize(
 		"recorded_screenshots": Array(recorded),
 		"missing_screenshots": Array(missing),
 		"unexpected_screenshots": Array(unexpected),
+		"surface_contract_ids": Array(surface_contract_ids),
 		"terminal": {
 			"state": terminal_state,
 			"exit_code": effective_exit_code,

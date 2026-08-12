@@ -249,20 +249,36 @@ func _bind_board_motif_interactions() -> void:
 	if not is_instance_valid(_board_motif):
 		return
 	var buttons: Array[BaseButton] = _get_menu_button_sequence()
+	var interaction_kinds: Array[MainMenuBoardMotif.InteractionKind] = [
+		MainMenuBoardMotif.InteractionKind.START_EXPERIMENT,
+		MainMenuBoardMotif.InteractionKind.CONTINUE_EXPERIMENT,
+		MainMenuBoardMotif.InteractionKind.FROZEN_PROOF,
+		MainMenuBoardMotif.InteractionKind.PROCESS_TAPE,
+		MainMenuBoardMotif.InteractionKind.SAMPLE_ATLAS,
+		MainMenuBoardMotif.InteractionKind.RULE_WORKBENCH,
+		MainMenuBoardMotif.InteractionKind.OPERATOR_PROFILE,
+		MainMenuBoardMotif.InteractionKind.ACHIEVEMENT_STAMPS,
+		MainMenuBoardMotif.InteractionKind.CALIBRATION,
+		MainMenuBoardMotif.InteractionKind.LEAVE_LAB,
+	]
 	for index: int in range(buttons.size()):
 		var button: BaseButton = buttons[index]
 		if not is_instance_valid(button):
 			continue
-		var callback: Callable = _play_board_motif_interaction.bind(index)
+		var callback: Callable = _play_board_motif_interaction.bind(
+			interaction_kinds[index]
+		)
 		if not button.focus_entered.is_connected(callback):
 			var _focus_connection: int = button.focus_entered.connect(callback)
 		if not button.mouse_entered.is_connected(callback):
 			var _hover_connection: int = button.mouse_entered.connect(callback)
 
 
-func _play_board_motif_interaction(slot_index: int) -> void:
+func _play_board_motif_interaction(
+	interaction_kind: MainMenuBoardMotif.InteractionKind
+) -> void:
 	if is_instance_valid(_board_motif):
-		_board_motif.play_interaction_response(slot_index)
+		_board_motif.play_semantic_response(interaction_kind)
 
 
 func _prime_scene_for_button(button: Button, scene_path: String) -> void:
@@ -459,7 +475,13 @@ func _apply_responsive_layout() -> void:
 		task_layout_mode == GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE
 	)
 	_content.vertical = compact
-	_board_preview_frame.visible = not compact
+	_board_preview_frame.visible = true
+	_board_preview_frame.custom_minimum_size = _get_board_preview_minimum_size(
+		task_layout_mode
+	)
+	_board_preview_frame.size_flags_vertical = (
+		Control.SIZE_SHRINK_CENTER if compact else Control.SIZE_EXPAND_FILL
+	)
 	_showcase.size_flags_vertical = (
 		Control.SIZE_SHRINK_BEGIN if compact else Control.SIZE_EXPAND_FILL
 	)
@@ -507,6 +529,18 @@ func _apply_responsive_layout() -> void:
 	if is_instance_valid(_content_scroll) and not _initial_scroll_restored:
 		_initial_scroll_restored = true
 		call_deferred(&"_restore_initial_scroll_position")
+
+
+static func _get_board_preview_minimum_size(
+	page_layout_mode: GameTaskPageLayoutUtility.LayoutMode
+) -> Vector2:
+	match page_layout_mode:
+		GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE:
+			return Vector2(224.0, 128.0)
+		GameTaskPageLayoutUtility.LayoutMode.PORTRAIT:
+			return Vector2(240.0, 164.0)
+		_:
+			return Vector2(440.0, 378.0)
 
 
 func _restore_initial_scroll_position() -> void:

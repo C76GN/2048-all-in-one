@@ -84,6 +84,14 @@ theme_override_colors/font_color = Color(0.28, 0.3, 0.34, 0.82)
 text = "书签 0/16"
 horizontal_alignment = 1
 
+[node name="DrawerGuideLabel" type="Label" parent="MarginContainer/ColumnsContainer/CenterColumn" index="2"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.46666667, 0.45882353, 0.43529412, 0.92)
+theme_override_font_sizes/font_size = 14
+text = "冻结样张 · 棋盘状态是主要辨识对象"
+horizontal_alignment = 1
+
 [node name="ListSurface" type="PanelContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder" index="0"]
 custom_minimum_size = Vector2(580, 540)
 layout_mode = 2
@@ -105,12 +113,13 @@ size_flags_vertical = 3
 follow_focus = true
 horizontal_scroll_mode = 0
 
-[node name="ItemsContainer" type="VBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/ListSurface/ListMargin/ScrollContainer" index="0" unique_id=2000056779]
+[node name="ItemsContainer" type="GridContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/ListSurface/ListMargin/ScrollContainer" index="0" unique_id=2000056779]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_constants/separation = 10
+columns = 2
 
 [node name="LoadButton" type="Button" parent="MarginContainer/ColumnsContainer/LeftColumn" index="4" unique_id=1536874276]
 unique_name_in_owner = true

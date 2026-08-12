@@ -3,6 +3,23 @@ class_name MainMenuBoardMotif
 extends Control
 
 
+# --- 枚举 ---
+
+## 首页动作在微缩棋盘上的产品语义。
+enum InteractionKind {
+	START_EXPERIMENT,
+	CONTINUE_EXPERIMENT,
+	FROZEN_PROOF,
+	PROCESS_TAPE,
+	SAMPLE_ATLAS,
+	RULE_WORKBENCH,
+	OPERATOR_PROFILE,
+	ACHIEVEMENT_STAMPS,
+	CALIBRATION,
+	LEAVE_LAB,
+}
+
+
 # --- 常量 ---
 
 const _GRID_SIZE: int = 4
@@ -34,9 +51,6 @@ const _TILE_VALUES: Array[int] = [
 	2, 0, 32, 4,
 	64, 0, 8, 128,
 ]
-const _INTERACTION_TILE_INDICES: Array[int] = [
-	0, 1, 2, 3, 5, 8, 10, 11, 12, 14,
-]
 
 
 # --- 私有变量 ---
@@ -44,7 +58,7 @@ const _INTERACTION_TILE_INDICES: Array[int] = [
 var _intro_progress: float = 1.0
 var _demo_progress: float = 1.0
 var _interaction_progress: float = 0.0
-var _interaction_tile_index: int = 0
+var _interaction_kind: InteractionKind = InteractionKind.START_EXPERIMENT
 var _reduced_motion: bool = false
 var _intro_tween: Tween = null
 var _interaction_tween: Tween = null
@@ -118,6 +132,7 @@ func _draw() -> void:
 			board_size,
 			font
 		)
+	_draw_semantic_overlay(board_rect, board_progress)
 
 
 # --- 公共方法 ---
@@ -187,21 +202,22 @@ func finish_intro() -> void:
 	set_process(false)
 
 
-## 在首页控件获得焦点或鼠标指向时，让一个已落定方块给出短促响应。
+## 在首页控件获得焦点或鼠标指向时，用对应的工坊动作响应。
 ##
-## 该反馈由 Tween 直接驱动重绘；静止状态不启用逐帧处理。
-## @param slot_index: 首页交互控件在稳定顺序中的索引。
-func play_interaction_response(slot_index: int) -> void:
+## 常规模式由 Tween 直接驱动重绘；Reduced Motion 改为静态峰值标记。
+## @param interaction_kind: 首页动作的产品语义，而不是控件排列索引。
+func play_semantic_response(interaction_kind: InteractionKind) -> void:
 	if (
-		_reduced_motion
-		or _intro_progress < 1.0
+		_intro_progress < 1.0
 		or _demo_progress < 1.0
 		or not is_visible_in_tree()
 	):
 		return
 	_cancel_interaction_response()
-	var mapped_index: int = posmod(slot_index, _INTERACTION_TILE_INDICES.size())
-	_interaction_tile_index = _INTERACTION_TILE_INDICES[mapped_index]
+	_interaction_kind = interaction_kind
+	if _reduced_motion:
+		_set_interaction_progress(0.5)
+		return
 	_interaction_tween = create_tween()
 	var _pause_mode_result: Tween = _interaction_tween.set_pause_mode(
 		Tween.TWEEN_PAUSE_PROCESS
@@ -248,14 +264,7 @@ func _draw_intro_tile(
 	var eased_progress: float = _ease_out_back(tile_progress)
 	var entry_distance: float = cell_rect.size.x * 0.34
 	var entry_direction: Vector2 = _get_entry_direction(index)
-	var interaction_amount: float = 0.0
-	if (
-		not _reduced_motion
-		and _intro_progress >= 1.0
-		and value != 0
-		and index == _interaction_tile_index
-	):
-		interaction_amount = sin(_interaction_progress * PI)
+	var interaction_amount: float = _get_tile_interaction_amount(index, value)
 	var center: Vector2 = cell_rect.get_center()
 	center += entry_direction * entry_distance * (1.0 - tile_progress)
 	center.y -= _INTERACTION_LIFT * interaction_amount
@@ -449,6 +458,89 @@ func _draw_tile_text(
 		font_size,
 		_with_alpha(_get_text_color(fill), alpha)
 	)
+
+
+func _draw_semantic_overlay(board_rect: Rect2, board_progress: float) -> void:
+	if _interaction_progress <= 0.0 or _intro_progress < 1.0:
+		return
+	var response_amount: float = sin(_interaction_progress * PI)
+	var ink: Color = _INK_COLOR
+	ink.a = 0.72 * response_amount * board_progress
+	match _interaction_kind:
+		InteractionKind.PROCESS_TAPE:
+			var tape_y: float = board_rect.end.y - board_rect.size.y * 0.075
+			var tape_start: Vector2 = Vector2(
+				board_rect.position.x + board_rect.size.x * 0.12,
+				tape_y
+			)
+			var tape_end: Vector2 = Vector2(
+				board_rect.end.x - board_rect.size.x * 0.12,
+				tape_y
+			)
+			draw_line(tape_start, tape_end, ink, 2.0, true)
+			for marker_index: int in range(4):
+				var marker_progress: float = float(marker_index) / 3.0
+				draw_circle(tape_start.lerp(tape_end, marker_progress), 3.5, ink)
+		InteractionKind.FROZEN_PROOF:
+			var pin_center: Vector2 = board_rect.position + board_rect.size * Vector2(0.82, 0.16)
+			draw_circle(pin_center, board_rect.size.x * 0.018, ink)
+			draw_line(
+				pin_center,
+				pin_center + Vector2(-5.0, 10.0),
+				ink,
+				2.0,
+				true
+			)
+		InteractionKind.CALIBRATION:
+			var center: Vector2 = board_rect.get_center()
+			var arm: float = board_rect.size.x * 0.065
+			draw_line(center - Vector2(arm, 0.0), center + Vector2(arm, 0.0), ink, 2.0, true)
+			draw_line(center - Vector2(0.0, arm), center + Vector2(0.0, arm), ink, 2.0, true)
+		InteractionKind.SAMPLE_ATLAS:
+			var swatch_size: Vector2 = board_rect.size * Vector2(0.055, 0.018)
+			for swatch_index: int in range(4):
+				var swatch_rect: Rect2 = Rect2(
+					board_rect.position + Vector2(
+						board_rect.size.x * (0.12 + float(swatch_index) * 0.08),
+						board_rect.size.y * 0.06
+					),
+					swatch_size
+				)
+				draw_rect(
+					swatch_rect,
+					_with_alpha(_get_tile_color(2 << swatch_index), ink.a),
+					true
+				)
+		_:
+			pass
+
+
+func _get_tile_interaction_amount(index: int, value: int) -> float:
+	if _interaction_progress <= 0.0 or _intro_progress < 1.0 or value == 0:
+		return 0.0
+	var response_amount: float = sin(_interaction_progress * PI)
+	match _interaction_kind:
+		InteractionKind.START_EXPERIMENT:
+			return response_amount if index == 0 or index == 1 else 0.0
+		InteractionKind.CONTINUE_EXPERIMENT:
+			return response_amount if index == 5 else 0.0
+		InteractionKind.FROZEN_PROOF:
+			return response_amount if index == 10 else 0.0
+		InteractionKind.PROCESS_TAPE:
+			return response_amount if index < _GRID_SIZE else 0.0
+		InteractionKind.SAMPLE_ATLAS:
+			return response_amount if index in [2, 5, 10, 12] else 0.0
+		InteractionKind.RULE_WORKBENCH:
+			return response_amount if index == 10 or index == 11 else 0.0
+		InteractionKind.OPERATOR_PROFILE:
+			return response_amount if index == 12 else 0.0
+		InteractionKind.ACHIEVEMENT_STAMPS:
+			return response_amount if index == 14 else 0.0
+		InteractionKind.CALIBRATION:
+			return response_amount if index == 5 or index == 10 else 0.0
+		InteractionKind.LEAVE_LAB:
+			return response_amount * 0.55 if index == 3 else 0.0
+	return 0.0
 
 
 func _get_entry_direction(index: int) -> Vector2:

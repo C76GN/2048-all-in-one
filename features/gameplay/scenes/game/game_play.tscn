@@ -11,6 +11,7 @@
 [ext_resource type="Script" path="res://features/gameplay/scripts/ui/board_feedback_canvas.gd" id="10_feedback_canvas"]
 [ext_resource type="Script" path="res://features/gameplay/scripts/ui/board_motion_backdrop.gd" id="11_motion_backdrop"]
 [ext_resource type="Script" path="res://addons/gf/standard/utilities/spatial_canvas/gf_spatial_canvas_2d.gd" id="12_spatial_canvas"]
+[ext_resource type="PackedScene" path="res://features/replays/scenes/ui/replay_timeline.tscn" id="13_replay_timeline"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_background"]
 shader = ExtResource("6_background_shader")
@@ -96,17 +97,22 @@ layout_mode = 2
 text = "0 / 0"
 horizontal_alignment = 1
 
-[node name="ReplayMarkerPicker" type="OptionButton" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="1"]
+[node name="ReplayTimeline" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="1" instance=ExtResource("13_replay_timeline")]
+unique_name_in_owner = true
+focus_neighbor_top = NodePath("../Transport/ReplayExitButton")
+focus_neighbor_bottom = NodePath("../ReplayMarkerPicker")
+
+[node name="ReplayMarkerPicker" type="OptionButton" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="2"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
-focus_neighbor_top = NodePath("../Transport/ReplayExitButton")
+focus_neighbor_top = NodePath("../ReplayTimeline")
 focus_neighbor_bottom = NodePath("../MarkerTransport/ReplayPrevMarkerButton")
 fit_to_longest_item = false
 allow_reselect = true
 text_overrun_behavior = 3
 
-[node name="MarkerTransport" type="GridContainer" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="2"]
+[node name="MarkerTransport" type="GridContainer" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="3"]
 layout_mode = 2
 theme_override_constants/separation = 8
 columns = 2
@@ -127,7 +133,7 @@ focus_neighbor_top = NodePath("../../ReplayMarkerPicker")
 focus_neighbor_bottom = NodePath("../../Transport/ReplayNextButton")
 text = "下一标记"
 
-[node name="Transport" type="GridContainer" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="3"]
+[node name="Transport" type="GridContainer" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="4"]
 layout_mode = 2
 theme_override_constants/separation = 8
 columns = 2
@@ -153,7 +159,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(128, 44)
 layout_mode = 2
 focus_neighbor_top = NodePath("../ReplayPrevButton")
-focus_neighbor_bottom = NodePath("../../ReplayMarkerPicker")
+focus_neighbor_bottom = NodePath("../../ReplayTimeline")
 text = "从此继续"
 
 [node name="ReplayExitButton" type="Button" parent="ReplayControlsContainer/MarginContainer/VBoxContainer/Transport" index="3"]
@@ -161,10 +167,10 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(128, 44)
 layout_mode = 2
 focus_neighbor_top = NodePath("../ReplayNextButton")
-focus_neighbor_bottom = NodePath("../../ReplayMarkerPicker")
+focus_neighbor_bottom = NodePath("../../ReplayTimeline")
 text = "退出回放"
 
-[node name="ReplayEligibilityLabel" type="Label" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="4"]
+[node name="ReplayEligibilityLabel" type="Label" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="5"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 42)
 layout_mode = 2

@@ -67,7 +67,11 @@ func _setup_item(item: Control, data: Resource) -> void:
 
 	var bookmark_item: BookmarkListItem = item
 	var bookmark_data: BookmarkData = data
-	bookmark_item.setup(bookmark_data, _get_mode_display_name(bookmark_data.mode_config_path))
+	bookmark_item.setup(
+		bookmark_data,
+		_get_mode_display_name(bookmark_data.mode_config_path),
+		_get_mode_config(bookmark_data.mode_config_path)
+	)
 
 
 func _update_preview(data: Resource) -> void:
@@ -118,13 +122,26 @@ func _update_preview(data: Resource) -> void:
 
 func _update_ui_text() -> void:
 	if is_instance_valid(page_title):
-		page_title.text = tr("TITLE_LOAD_SAVE")
+		page_title.text = _translate_with_fallback(
+			"TITLE_BOOKMARK_DRAWER",
+			"样张抽屉"
+		)
+	var drawer_guide_node: Node = get_node_or_null("%DrawerGuideLabel")
+	if drawer_guide_node is Label:
+		var drawer_guide: Label = drawer_guide_node
+		drawer_guide.text = _translate_with_fallback(
+			"BOOKMARK_DRAWER_GUIDE",
+			"冻结样张 · 棋盘状态是主要辨识对象"
+		)
 
 	var left_column: Node = get_node_or_null("%LeftColumn")
 	if left_column and left_column.get_child_count() > 0:
 		var preview_label: Label = _get_first_label_child(left_column)
 		if is_instance_valid(preview_label):
-			preview_label.text = tr("TITLE_SAVE_PREVIEW")
+			preview_label.text = _translate_with_fallback(
+				"TITLE_BOOKMARK_PROOF",
+				"冻结样张"
+			)
 
 	if is_instance_valid(_primary_button):
 		_primary_button.text = tr("BTN_LOAD_SAVE")
@@ -183,6 +200,66 @@ func _update_capacity_text(count: int) -> void:
 	)
 
 
+func _apply_list_focus_order(items: Array[Control]) -> void:
+	if items.is_empty():
+		return
+	var compact: bool = (
+		_layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+	)
+	var grid_columns: int = 1 if compact else 2
+	for item_index: int in range(items.size()):
+		var item: Control = items[item_index]
+		var column_index: int = item_index % grid_columns
+		var top_index: int = item_index - grid_columns
+		if top_index < 0:
+			top_index = column_index
+			while top_index + grid_columns < items.size():
+				top_index += grid_columns
+		var bottom_index: int = item_index + grid_columns
+		if bottom_index >= items.size():
+			bottom_index = column_index
+		item.focus_neighbor_left = item.get_path_to(
+			items[item_index - 1]
+			if column_index > 0
+			else (_primary_button if is_instance_valid(_primary_button) else item)
+		)
+		item.focus_neighbor_right = item.get_path_to(
+			items[item_index + 1]
+			if column_index < grid_columns - 1 and item_index + 1 < items.size()
+			else (_primary_button if is_instance_valid(_primary_button) else item)
+		)
+		item.focus_neighbor_top = item.get_path_to(items[top_index])
+		item.focus_neighbor_bottom = item.get_path_to(items[bottom_index])
+	var focus_order: Array[Control] = items.duplicate()
+	if compact:
+		for action_control: Control in [_primary_button, _delete_button, back_button]:
+			if is_instance_valid(action_control):
+				focus_order.append(action_control)
+	var focus_report: Dictionary = GFControlFocusUtility.apply_focus_order(
+		focus_order,
+		{
+			"axis": GFControlFocusUtility.AXIS_NONE,
+			"wrap": true,
+			"wire_tab_order": true,
+			"preserve_unwired_directional_neighbors": true,
+		}
+	)
+	if not GFVariantData.get_option_bool(focus_report, "ok", false):
+		push_error("[BookmarkList] GF 样张抽屉焦点顺序应用失败。")
+
+
+func _apply_responsive_layout() -> void:
+	super._apply_responsive_layout()
+	if items_container is GridContainer:
+		var grid: GridContainer = items_container
+		grid.columns = (
+			1
+			if _layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
+			else 2
+		)
+	_apply_list_focus_order(_get_list_item_controls())
+
+
 func _get_mode_display_name(mode_config_path: String) -> String:
 	if mode_config_path.is_empty():
 		return tr("UNKNOWN_MODE")
@@ -192,6 +269,11 @@ func _get_mode_display_name(mode_config_path: String) -> String:
 		return tr(mode_config.mode_name)
 
 	return tr("CONFIG_MISSING")
+
+
+func _translate_with_fallback(key: String, fallback: String) -> String:
+	var translated: String = tr(key)
+	return fallback if translated == key or translated.is_empty() else translated
 
 
 func _get_app_config_model() -> AppConfigModel:

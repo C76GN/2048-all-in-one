@@ -47,6 +47,8 @@ func test_begin_removes_stale_evidence_and_completed_manifest_is_traceable() -> 
 	)
 	assert_true(_write_text("fresh.png", "current run"))
 	session.record_screenshot("fresh.png")
+	session.add_surface_contract_id(&"navigation/mode-selection")
+	session.add_surface_contract_id(&"navigation/mode-selection")
 	assert_true(session.finalize(OK, "capture completed") == OK)
 
 	var manifest: Dictionary = _read_manifest()
@@ -66,6 +68,13 @@ func test_begin_removes_stale_evidence_and_completed_manifest_is_traceable() -> 
 			manifest,
 			"actual_screenshots"
 		) == ["fresh.png"]
+	)
+	assert_true(
+		GFVariantData.get_option_array(
+			manifest,
+			"surface_contract_ids"
+		) == ["navigation/mode-selection"],
+		"manifest 必须绑定本次视觉证据所验证的页面意图合同。"
 	)
 	var git_identity: Dictionary = GFVariantData.get_option_dictionary(
 		manifest,

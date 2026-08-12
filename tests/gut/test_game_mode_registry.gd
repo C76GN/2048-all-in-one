@@ -464,15 +464,32 @@ func test_mode_validation_rejects_unknown_spawn_definition_reference() -> void:
 	assert_true(resource is GameModeConfig, "应加载比值模式配置。")
 	if not resource is GameModeConfig:
 		return
+	var production_mode_config: GameModeConfig = resource
 	var mode_config: GameModeConfig = resource.duplicate(true)
+	var isolated_spawn_rules: Array[SpawnRule] = mode_config.spawn_rules.duplicate()
 	var ratio_spawn_rule: ProbabilisticRatioSpawnRule = null
-	for spawn_rule: SpawnRule in mode_config.spawn_rules:
+	var production_alternate_definition_id: StringName = &""
+	for rule_index: int in range(isolated_spawn_rules.size()):
+		var spawn_rule: SpawnRule = isolated_spawn_rules[rule_index]
 		if spawn_rule is ProbabilisticRatioSpawnRule:
-			ratio_spawn_rule = spawn_rule
+			var production_ratio_rule: ProbabilisticRatioSpawnRule = spawn_rule
+			var isolated_rule_value: Resource = spawn_rule.duplicate(true)
+			assert_true(
+				isolated_rule_value is ProbabilisticRatioSpawnRule,
+				"未知定义负例必须使用独立的概率 SpawnRule 副本。"
+			)
+			if not isolated_rule_value is ProbabilisticRatioSpawnRule:
+				return
+			ratio_spawn_rule = isolated_rule_value
+			isolated_spawn_rules[rule_index] = ratio_spawn_rule
+			production_alternate_definition_id = (
+				production_ratio_rule.alternate_definition_id
+			)
 			break
 	assert_not_null(ratio_spawn_rule, "比值模式应包含概率因子方块生成规则。")
 	if ratio_spawn_rule == null:
 		return
+	mode_config.spawn_rules = isolated_spawn_rules
 	ratio_spawn_rule.alternate_definition_id = &"tile.ratio.unknown"
 
 	var report: GFValidationReport = mode_config.get_validation_report()
@@ -481,6 +498,15 @@ func test_mode_validation_rejects_unknown_spawn_definition_reference() -> void:
 		GFVariantData.get_option_int(report.get_issue_counts_by_kind(), &"unknown_spawn_definition_id") == 1,
 		"模式校验应明确报告未知的生成 definition_id。"
 	)
+	for production_rule: SpawnRule in production_mode_config.spawn_rules:
+		if production_rule is ProbabilisticRatioSpawnRule:
+			var production_ratio_rule: ProbabilisticRatioSpawnRule = production_rule
+			assert_true(
+				production_ratio_rule.alternate_definition_id
+				== production_alternate_definition_id,
+				"负例校验不得污染缓存中的生产 Ratio SpawnRule。"
+			)
+			break
 
 
 func test_mode_validation_rejects_unimplemented_timer_spawn_trigger() -> void:

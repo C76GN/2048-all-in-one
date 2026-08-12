@@ -104,6 +104,7 @@ var _dragging_audio_buses: Dictionary = {}
 @onready var _controls_section_title: Label = %ControlsSectionTitle
 @onready var _auto_save_label: Label = %AutoSaveLabel
 @onready var _accessibility_title: Label = %AccessibilityTitle
+@onready var _calibration_preview: SettingsCalibrationPreview = %CalibrationPreview
 @onready var _language_option: OptionButton = %LanguageOptionButton
 @onready var _window_mode_option: OptionButton = %WindowModeOptionButton
 @onready var _vsync_option: OptionButton = %VSyncOptionButton
@@ -701,6 +702,28 @@ func _sync_controls_from_settings() -> void:
 				false
 			)
 		)
+	_sync_calibration_preview()
+
+
+func _sync_calibration_preview() -> void:
+	if not is_instance_valid(_calibration_preview):
+		return
+	var vfx_quality: int = GameAccessibilityState.VfxQuality.FULL
+	if is_instance_valid(_vfx_quality_option):
+		vfx_quality = GFVariantData.to_int(
+			_get_option_metadata(
+				_vfx_quality_option,
+				_vfx_quality_option.selected,
+				GameAccessibilityState.VfxQuality.FULL
+			),
+			GameAccessibilityState.VfxQuality.FULL
+		)
+	_calibration_preview.configure_preview(
+		_reduced_motion_toggle.button_pressed,
+		_high_contrast_toggle.button_pressed,
+		_shader_effects_toggle.button_pressed,
+		vfx_quality
+	)
 
 
 func _get_current_locale() -> String:
@@ -1390,6 +1413,7 @@ func _on_form_field_changed(key: StringName, value: Variant) -> void:
 					GameSettingsUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
 					GFVariantData.to_bool(value, false)
 				)
+	_sync_calibration_preview()
 
 
 func _on_persistence_health_changed(_snapshot: Dictionary) -> void:

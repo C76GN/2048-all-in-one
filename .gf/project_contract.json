@@ -628,6 +628,17 @@
         "docs/ai_maintenance.md",
         "docs/save_model.md"
       ]
+    },
+    {
+      "id": "playable_print_lab_experience",
+      "status": "accepted",
+      "statement": "玩家是无限合并实验室的规则编排者与数字印刷工坊操作者；核心玩家页面必须把规则、棋盘、样张和过程记录作为可操作对象，而不是只给通用列表、卡片或表单套用纸媒皮肤。",
+      "rationale": "项目已有 CMYK 半调纸媒材质与稳定动效语法，但产品身份和页面交互隐喻此前未形成统一合同。模式选择采用规则样张台，回放采用过程时间带，书签采用冻结样张抽屉，主菜单采用实验室总台；工具性设置、错误、账号和高风险确认仍优先保持常规清晰与无障碍。",
+      "evidence": [
+        "docs/ui_surface_intent.md",
+        "docs/visual_style.md",
+        "docs/validation.md"
+      ]
     }
   ],
   "verification": {

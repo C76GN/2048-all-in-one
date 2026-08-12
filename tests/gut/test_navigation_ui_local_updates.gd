@@ -22,7 +22,9 @@ func test_main_menu_board_motif_stops_processing_after_settle() -> void:
 		motif.is_processing(),
 		"首页棋盘落定后不得继续用逐帧处理制造无意义漂移。"
 	)
-	motif.play_interaction_response(0)
+	motif.play_semantic_response(
+		MainMenuBoardMotif.InteractionKind.START_EXPERIMENT
+	)
 	assert_not_null(
 		motif._interaction_tween,
 		"首页控件交互仍应触发一次短促棋盘响应。"
@@ -35,24 +37,63 @@ func test_main_menu_board_motif_stops_processing_after_settle() -> void:
 	)
 
 
+func test_main_menu_board_motif_keeps_semantic_response_in_reduced_motion() -> void:
+	var motif: MainMenuBoardMotif = MainMenuBoardMotif.new()
+	motif.custom_minimum_size = Vector2(220.0, 140.0)
+	add_child_autoqfree(motif)
+
+	motif.play_intro(true)
+	motif.play_semantic_response(MainMenuBoardMotif.InteractionKind.CALIBRATION)
+
+	assert_null(motif._interaction_tween)
+	assert_true(
+		motif._interaction_kind == MainMenuBoardMotif.InteractionKind.CALIBRATION
+	)
+	assert_almost_eq(
+		motif._interaction_progress,
+		0.5,
+		0.001,
+		"Reduced Motion 应保留静态套印标记，而不是完全丢失动作语义。"
+	)
+
+
+func test_main_menu_keeps_micro_board_in_compact_layouts() -> void:
+	assert_true(
+		MainMenu._get_board_preview_minimum_size(
+			GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE
+		) == Vector2(224.0, 128.0),
+		"紧凑横屏仍应保留可识别的微缩棋盘，而不是退化为按钮页。"
+	)
+	assert_true(
+		MainMenu._get_board_preview_minimum_size(
+			GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
+		) == Vector2(240.0, 164.0),
+		"竖屏应保留棋盘工坊主物件。"
+	)
+
+
 func test_mode_selection_switches_only_the_detail_surface() -> void:
 	var motion: _MotionProbe = _MotionProbe.new()
 	var selection: _ModeSelectionProbe = _ModeSelectionProbe.new()
 	var detail: VBoxContainer = VBoxContainer.new()
+	var proof: ModeRuleProof = ModeRuleProof.new()
 	var configuration: VBoxContainer = VBoxContainer.new()
 	autofree(selection)
 	selection.add_child(detail)
+	selection.add_child(proof)
 	selection.add_child(configuration)
 	selection.motion_probe = motion
 	selection._info_panel_container = detail
+	selection._mode_rule_proof = proof
 	selection._right_panel_container = configuration
 
 	selection._reveal_selection_detail()
 
-	assert_true(motion.switched_controls.size() == 1)
+	assert_true(motion.switched_controls.size() == 2)
 	assert_true(
-		motion.switched_controls[0] == detail,
-		"模式焦点切换只应更新详情面板，不得重播整个配置栏。"
+		motion.switched_controls.has(detail)
+		and motion.switched_controls.has(proof),
+		"模式焦点切换只应更新详情与规则样张，不得重播整个配置栏。"
 	)
 	assert_false(motion.switched_controls.has(configuration))
 

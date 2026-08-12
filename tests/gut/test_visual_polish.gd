@@ -28,6 +28,9 @@ const _BOOT_SPLASH_TEXTURE_PATH: String = "res://features/asset_library/resource
 const _UI_STYLE_UTILITY_PATH: String = "res://features/themes/scripts/utilities/game_ui_style_utility.gd"
 const _HUD_SCRIPT_PATH: String = "res://features/gameplay/scripts/ui/hud.gd"
 const _MAIN_MENU_BOARD_MOTIF_PATH: String = "res://features/navigation/scripts/ui/main_menu_board_motif.gd"
+const _SETTINGS_CALIBRATION_PREVIEW_SCRIPT: GDScript = preload(
+	"res://features/settings/scripts/ui/settings_calibration_preview.gd"
+)
 const _SCENE_PRELOAD_MAP: GFScenePreloadMap = preload("res://features/navigation/resources/scene_preload_map.tres")
 const _GAMEPLAY_VISUAL_WARMUP_SCRIPT: GDScript = preload("res://features/gameplay/scripts/ui/gameplay_visual_warmup.gd")
 const _GAME_PLAY_CONTROLLER_PATH: String = "res://features/gameplay/scripts/controllers/game_play_controller.gd"
@@ -334,6 +337,34 @@ func test_main_menu_board_motif_uses_neutral_palette_without_dense_patterns() ->
 	assert_true(motif_source.contains("_draw_tile_surface"), "主菜单方块应通过统一表面绘制保留克制的层次。")
 	assert_true(motif_source.contains("_draw_demo_row"), "首页微缩棋盘应在组装后演示一次真实滑动与合并。")
 	assert_true(motif_source.contains("_DEMO_NEW_TILE_START"), "首页棋盘演示应以新方块生成完成动作闭环。")
+	assert_true(
+		motif_source.contains("play_semantic_response")
+		and motif_source.contains("InteractionKind.CALIBRATION")
+		and motif_source.contains("InteractionKind.PROCESS_TAPE"),
+		"首页动作应映射到规则工坊语义，而不是仅按按钮顺序随机点亮方块。"
+	)
+
+
+func test_settings_calibration_preview_reports_static_equivalent_state() -> void:
+	var preview: SettingsCalibrationPreview = _SETTINGS_CALIBRATION_PREVIEW_SCRIPT.new()
+	add_child_autoqfree(preview)
+
+	preview.configure_preview(
+		true,
+		true,
+		false,
+		GameAccessibilityState.VfxQuality.MINIMAL
+	)
+	var snapshot: Dictionary = preview.get_preview_snapshot()
+
+	assert_true(GFVariantData.get_option_bool(snapshot, &"reduced_motion"))
+	assert_true(GFVariantData.get_option_bool(snapshot, &"high_contrast"))
+	assert_false(GFVariantData.get_option_bool(snapshot, &"shader_effects_enabled"))
+	assert_true(
+		GFVariantData.get_option_string_name(snapshot, &"motion_expression")
+		== &"static_peak",
+		"校准样张必须为 Reduced Motion 提供静态等价表达。"
+	)
 
 
 func test_navigation_scene_preload_map_is_valid_and_preloads_gameplay_from_mode_selection() -> void:

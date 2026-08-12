@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "reviewed_at": "2026-08-12",
+  "reviewed_at": "2026-08-13",
   "godot_version": "4.7",
   "gf_version": "11.0.0-dev.0",
   "gut_version": "9.7.1",
   "gf_source_commit": "2bbde26c4fa9bdeaa9278aed73c69b7b29c6f02e",
   "gf_vendor_tree_sha256": "308fb74c419d5a4a7e44fa056af7e945a2ad8d2c75054e8297f54f841c0d32a7",
   "gf_global_script_class_count": 840,
-  "project_runtime_script_class_count": 236,
+  "project_runtime_script_class_count": 241,
   "scope": "Headless GUT shutdown after all project tests. Raw counts include Godot-held global script classes; they may only be recalibrated after an audited pinned GF vendor-tree or project runtime class-set change, and must not grow while both inputs remain unchanged.",
-  "calibration_reason": "The exact official GF 11.0.0-dev.0 development snapshot advances from 91975abe to 2bbde26c after the canonical full validation and merge gate succeeded. The vendor adds typed Storage family deletion, scoped Storage operation lifecycle, typed BGM start/session ownership, bounded cross-domain capabilities, and lifecycle-aware Settings persistence, increasing the repository scanner's declared GF class set from 810 to 840 (838 concrete global classes plus two code-generation templates). Replacing the project-owned ProfileFileCleanupUtility with GFStorageUtility.delete_file_request_async removes one project runtime class, reducing the audited project set from 237 to 236. The reviewed ObjectDB, Resource, RID, and PagedAllocator ceilings are intentionally retained without increase pending full-suite evidence.",
+  "calibration_reason": "The exact official GF 11.0.0-dev.0 development snapshot remains pinned to 2bbde26c after the canonical full validation and merge gate succeeded. The vendor class set remains 840 (838 concrete global classes plus two code-generation templates). Replacing the project-owned ProfileFileCleanupUtility with GFStorageUtility.delete_file_request_async reduced the audited project set from 237 to 236; adding the project-owned ModeRuleProofDescriptor, ModeRuleProof, ReplayTimeline, BookmarkBoardStamp, and SettingsCalibrationPreview for the UI surface-intent contracts increases it to 241. The reviewed ObjectDB, Resource, RID, and PagedAllocator ceilings are intentionally retained without increase pending full-suite evidence.",
   "max_objectdb_instances": 319,
   "max_resources_in_use": 141,
   "max_rid_allocations_by_type": {

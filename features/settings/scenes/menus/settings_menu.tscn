@@ -1,7 +1,8 @@
-[gd_scene load_steps=5 format=3 uid="uid://c8j6k4m2n5qax"]
+[gd_scene load_steps=6 format=3 uid="uid://c8j6k4m2n5qax"]
 
 [ext_resource type="Script" uid="uid://cgipf2t7wpn1v" path="res://features/settings/scripts/menus/settings_menu.gd" id="1_script"]
 [ext_resource type="Shader" uid="uid://bcbbruhugjje" path="res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader" id="2_background_shader"]
+[ext_resource type="Script" uid="uid://b4c4l1br4t10n" path="res://features/settings/scripts/ui/settings_calibration_preview.gd" id="3_calibration_preview"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_settings_background"]
 shader = ExtResource("2_background_shader")
@@ -201,6 +202,13 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "无障碍与性能"
+
+[node name="CalibrationPreview" type="Control" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 118)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("3_calibration_preview")
 
 [node name="VfxQualityContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
 layout_mode = 2

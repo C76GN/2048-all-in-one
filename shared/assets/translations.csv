@@ -3,6 +3,32 @@ UNKNOWN_MODE,（未知模式）,(Unknown Mode)
 CONFIG_MISSING,（模式配置丢失）,(Config Missing)
 TIME_PARSE_ERROR,无法解析时间,Invalid Time
 NO_PREVIEW_DATA,暂无预览数据,No Preview Data
+LABEL_REPLAY_TIMELINE,过程时间带,Process timeline
+REPLAY_TIMELINE_HINT,拖动跳转；方向键选择步骤后按确认。,Drag to jump; use directional input to select a step, then confirm.
+TITLE_BOOKMARK_DRAWER,样张抽屉,Proof drawer
+BOOKMARK_DRAWER_GUIDE,冻结样张 · 棋盘状态是主要辨识对象,Frozen proofs · Board state is the primary identifier
+TITLE_BOOKMARK_PROOF,冻结样张,Frozen proof
+SETTINGS_CALIBRATION_PREVIEW_TITLE,校准样张,Calibration proof
+SETTINGS_CALIBRATION_MOTION_STATIC,静态峰值反馈,Static peak feedback
+SETTINGS_CALIBRATION_MOTION_ACTIVE,短促过渡反馈,Brief transition feedback
+SETTINGS_CALIBRATION_CONTRAST_HIGH,高对比描边,High-contrast outlines
+SETTINGS_CALIBRATION_CONTRAST_STANDARD,标准纸墨对比,Standard paper/ink contrast
+SETTINGS_CALIBRATION_SHADER_ON,Shader 通道启用,Shader channel enabled
+SETTINGS_CALIBRATION_SHADER_OFF,Shader 通道关闭,Shader channel disabled
+MODE_PROOF_KICKER,规则样张,RULE PROOF
+MODE_PROOF_NUMBER_FORMAT,样张 %s,PROOF %s
+MODE_PROOF_CLASSIC_FORMULA,同值翻倍,Equal values double
+MODE_PROOF_CLASSIC_OUTCOME,两个相同数值合并为两倍。,Two equal values merge into their double.
+MODE_PROOF_FIBONACCI_FORMULA,相邻序列项相加,Adjacent sequence terms add
+MODE_PROOF_FIBONACCI_OUTCOME,相邻斐波那契数相加得到下一项。,Adjacent Fibonacci values add into the next term.
+MODE_PROOF_LUCAS_FORMULA,桥接项合成 Lucas 数,Bridge terms form a Lucas value
+MODE_PROOF_LUCAS_OUTCOME,F(n-1) 与 F(n+1) 合成 L(n)。,F(n-1) and F(n+1) synthesize L(n).
+MODE_PROOF_PROGRESSIVE_FORMULA,高值合并扩展生成池,High merges expand the spawn pool
+MODE_PROOF_PROGRESSIVE_OUTCOME,合并出 2048 后将 8 加入生成池。,Merging 2048 adds 8 to the spawn pool.
+MODE_PROOF_STEP_FORMULA,每个指令移动一格,One cell per command
+MODE_PROOF_STEP_OUTCOME,方块每次只移动一格；移动后沿用经典规则在随机空位生成新方块。,Tiles move one cell; after a move classic spawning places a new tile in a random empty cell.
+MODE_PROOF_RATIO_FORMULA,跨族方块按商化简,Cross-family tiles resolve by quotient
+MODE_PROOF_RATIO_OUTCOME,不同族的数值以大除以小，结果最小为 1。,Different families divide larger by smaller, with a minimum of 1.
 BOOKMARK_INFO_FORMAT,"%s | %s %d | %s %dx%d","%s | %s %d | %s %dx%d"
 REPLAY_INFO_FORMAT,"%s | %s %d | %s %dx%d","%s | %s %d | %s %dx%d"
 LIST_RECORD_META_FORMAT,%s · %dx%d · %d 步,%s · %dx%d · %d moves
@@ -198,12 +224,12 @@ MODE_PROGRESSIVE_DESC,"玩法说明:
 Starts with 2 and 4.
 Merging 2048 unlocks 8.
 Merging 4096 unlocks 16, and so on."
-MODE_STEP_NAME,步进对边模式,Step-by-Step Mode
+MODE_STEP_NAME,步进模式,Step-by-Step Mode
 MODE_STEP_DESC,"玩法说明:
 移动规则: 每次滑动，所有方块只移动一格。
-生成规则: 新方块会生成在您滑动方向的对向边缘。","How to play:
+生成规则: 每次有效移动后，按经典规则在随机空位生成一个新方块。","How to play:
 Movement: Tiles move only one step per slide.
-Spawn: New tiles appear on the edge opposite to your slide direction."
+Spawn: After each effective move classic spawning places one new tile in a random empty cell."
 MODE_RATIO_NAME,比值模式,Ratio Mode
 MODE_RATIO_DESC,"玩法说明:
 同定义的等值方块相加；不同定义的方块相遇时，以较大数除以较小数，商至少为 1。
@@ -362,7 +388,7 @@ TITLE_GAME_STATUS,游戏状态,Game Status
 LABEL_REPLAY_CONTROLS,回放控制,Replay Controls
 LABEL_REPLAY_PROGRESS,回放进度: %d / %d,Replay Step: %d / %d
 LABEL_REPLAY_OOS,回放在第 %d 步失去同步,Replay desynchronized at step %d
-REPLAY_KEYS_STEP_HINT,上一步: A / ←    下一步: D / → / Space / Enter,Prev: A / ←    Next: D / → / Space / Enter
+REPLAY_KEYS_STEP_HINT,即时步进: A / D · 时间带: 方向键选择后确认,Immediate step: A / D · Timeline: choose with directions then confirm
 REPLAY_KEYS_ACTION_HINT,从此继续: C    返回列表: Esc / B,Continue: C    Back: Esc / B
 BTN_REPLAY_PREV,上一步,Previous
 BTN_REPLAY_NEXT,下一步,Next
@@ -452,6 +478,10 @@ ACCESSIBILITY_CELL_INACTIVE,不可用,Inactive
 ACCESSIBILITY_BOARD_ROW_FORMAT,"第 %d 行：%s。","Row %d: %s."
 ACCESSIBILITY_BOARD_HEADER_FORMAT,"棋盘 %d×%d，%d 个有效格，%d 个方块，最大方块 %d。","Board %d×%d with %d active cells, %d tiles, and highest tile %d."
 ACCESSIBILITY_TURN_FORMAT,"向%s移动：%d 个方块位移，合并 %d 次，生成 %d 个，变化 %d 个，得分 %+d。","Move %s: %d tiles moved, %d merges, %d spawns, %d transforms, score %+d."
+ACCESSIBILITY_TURN_RULE_LUCAS_BRIDGE,数列桥接 ×%d。,Sequence bridge ×%d.
+ACCESSIBILITY_TURN_RULE_LUCAS,卢卡斯相邻合并 ×%d。,Lucas adjacency ×%d.
+ACCESSIBILITY_TURN_RULE_FIBONACCI,斐波那契相邻合并 ×%d。,Fibonacci adjacency ×%d.
+ACCESSIBILITY_TURN_RULE_RATIO,比例换算 ×%d。,Ratio conversion ×%d.
 ACCESSIBILITY_COPY_BOARD_SUMMARY,复制棋盘说明,Copy Board Description
 ACCESSIBILITY_BOARD_SUMMARY_LOADING,正在生成棋盘说明……,Preparing board description…
 ACCESSIBILITY_BOARD_SUMMARY_COPIED,棋盘说明已复制。,Board description copied.

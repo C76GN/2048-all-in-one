@@ -32,6 +32,10 @@ const _BOARD_ROW_FALLBACK: String = "第 %d 行：%s。"
 const _TURN_FALLBACK: String = (
 	"向%s移动：%d 个方块位移，合并 %d 次，生成 %d 个，变化 %d 个，得分 %+d。"
 )
+const _TURN_RULE_LUCAS_BRIDGE_FALLBACK: String = "数列桥接 ×%d。"
+const _TURN_RULE_LUCAS_FALLBACK: String = "卢卡斯相邻合并 ×%d。"
+const _TURN_RULE_FIBONACCI_FALLBACK: String = "斐波那契相邻合并 ×%d。"
+const _TURN_RULE_RATIO_FALLBACK: String = "比例换算 ×%d。"
 const _GOAL_OPEN_FALLBACK: String = "目标：继续合成更高方块；当前最大方块 %d。"
 const _GOAL_PENDING_FALLBACK: String = "目标：合成 %d；当前最大方块 %d。"
 const _GOAL_REACHED_FALLBACK: String = "目标 %d 已达成；当前最大方块 %d。"
@@ -297,6 +301,7 @@ func _build_turn_payload(turn_result: TurnResult) -> Dictionary:
 	if direction_key == &"":
 		return {}
 	var merges: Array[Dictionary] = []
+	var feedback_cue_counts: Dictionary = {}
 	for merge: TileMergeResult in turn_result.merges:
 		if merge == null or not merge.is_valid_result():
 			continue
@@ -306,7 +311,17 @@ func _build_turn_payload(turn_result: TurnResult) -> Dictionary:
 			&"to": merge.to_cell,
 			&"result_value": merge.interaction.survivor.value,
 			&"rule_id": merge.interaction.interaction_rule_id,
+			&"feedback_cue_id": merge.interaction.feedback_cue_id,
 		})
+		var feedback_cue_id: StringName = merge.interaction.feedback_cue_id
+		if feedback_cue_id != &"":
+			feedback_cue_counts[feedback_cue_id] = (
+				GFVariantData.get_option_int(
+					feedback_cue_counts,
+					feedback_cue_id,
+					0
+				) + 1
+			)
 	var spawns: Array[Dictionary] = []
 	for spawn: TileSpawnResult in turn_result.spawns:
 		if spawn == null or not spawn.is_valid_result():
@@ -334,6 +349,8 @@ func _build_turn_payload(turn_result: TurnResult) -> Dictionary:
 		&"transform_count": transforms.size(),
 		&"score_delta": turn_result.score_delta,
 		&"max_merge_value": turn_result.max_merge_value,
+		&"ratio_resolution_count": turn_result.ratio_resolution_count,
+		&"feedback_cue_counts": feedback_cue_counts,
 		&"merges": merges,
 		&"spawns": spawns,
 		&"transforms": transforms,
@@ -466,7 +483,7 @@ func _format_turn_text(turn_payload: Dictionary) -> String:
 		GFVariantData.get_option_string_name(turn_payload, &"direction_key"),
 		direction_fallback
 	)
-	return GameTextFormatUtility.format_template(
+	var base_text: String = GameTextFormatUtility.format_template(
 		_translated(&"ACCESSIBILITY_TURN_FORMAT", _TURN_FALLBACK),
 		_TURN_FALLBACK,
 		[
@@ -478,6 +495,58 @@ func _format_turn_text(turn_payload: Dictionary) -> String:
 			GFVariantData.get_option_int(turn_payload, &"score_delta", 0),
 		]
 	)
+	var rule_feedback: String = _format_turn_rule_feedback(turn_payload)
+	return (
+		base_text
+		if rule_feedback.is_empty()
+		else "%s %s" % [base_text, rule_feedback]
+	)
+
+
+func _format_turn_rule_feedback(turn_payload: Dictionary) -> String:
+	var feedback_cue_counts: Dictionary = GFVariantData.get_option_dictionary(
+		turn_payload,
+		&"feedback_cue_counts"
+	)
+	var fragments: PackedStringArray = PackedStringArray()
+	var cue_ids: Array[StringName] = [
+		&"tile.merge.lucas_bridge",
+		&"tile.merge.lucas",
+		&"tile.merge.fibonacci",
+		&"tile.ratio.resolve",
+	]
+	var translation_keys: Array[StringName] = [
+		&"ACCESSIBILITY_TURN_RULE_LUCAS_BRIDGE",
+		&"ACCESSIBILITY_TURN_RULE_LUCAS",
+		&"ACCESSIBILITY_TURN_RULE_FIBONACCI",
+		&"ACCESSIBILITY_TURN_RULE_RATIO",
+	]
+	var fallbacks: Array[String] = [
+		_TURN_RULE_LUCAS_BRIDGE_FALLBACK,
+		_TURN_RULE_LUCAS_FALLBACK,
+		_TURN_RULE_FIBONACCI_FALLBACK,
+		_TURN_RULE_RATIO_FALLBACK,
+	]
+	for cue_index: int in range(cue_ids.size()):
+		var cue_id: StringName = cue_ids[cue_index]
+		var cue_count: int = GFVariantData.get_option_int(
+			feedback_cue_counts,
+			cue_id,
+			0
+		)
+		if cue_count <= 0:
+			continue
+		var fallback: String = fallbacks[cue_index]
+		var rule_text: String = GameTextFormatUtility.format_template(
+			_translated(
+				translation_keys[cue_index],
+				fallback
+			),
+			fallback,
+			[cue_count]
+		)
+		var _fragment_appended: bool = fragments.append(rule_text)
+	return " ".join(fragments)
 
 
 func _format_board_status(board_payload: Dictionary) -> String:

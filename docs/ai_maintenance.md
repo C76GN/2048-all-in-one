@@ -46,11 +46,12 @@
 ## 开发流程
 
 1. 先确认变更属于哪一类：玩法规则、UI/菜单、存档/回放、gf 示例用法、gf 框架反哺或维护测试。
-2. 找到已有 gf 用法并复用。例如跨模块通信优先用事件或 Model，玩家操作优先走 `GFCommandHistoryUtility`，输入优先走 `GFInputMappingUtility`，场景跳转优先走 `SceneRouterSystem` / `GFSceneUtility`。
-3. 保持边界清晰。规则资源不要直接触达全局 `Gf`；需要上下文时优先使用 `RuleContext` 或由 System 注入。
-4. 涉及资源组合时，同步检查 `.gd`、`.tres`、`.tscn`、翻译和 README 是否仍一致。
-5. 涉及公开方法、信号、导出变量、Resource 字段或存档格式时，同步补齐 `##` 文档和聚焦测试。
-6. 修改后优先运行安全静态验证；如需 GUT，必须使用隔离用户数据目录和日志策略。如果无法运行，明确说明原因和剩余风险。
+2. 新玩家页面或中/大型 UI 结构改版先按 `docs/ui_surface_intent.md` 写短 `UI Surface Intent Brief`，明确玩家目标、身份、首要对象、交互隐喻、传统结构的保留理由、跨输入、Reduced Motion、首反馈和验收截图；局部修复不增加文档负担。
+3. 找到已有 gf 用法并复用。例如跨模块通信优先用事件或 Model，玩家操作优先走 `GFCommandHistoryUtility`，输入优先走 `GFInputMappingUtility`，场景跳转优先走 `SceneRouterSystem` / `GFSceneUtility`。
+4. 保持边界清晰。规则资源不要直接触达全局 `Gf`；需要上下文时优先使用 `RuleContext` 或由 System 注入。
+5. 涉及资源组合时，同步检查 `.gd`、`.tres`、`.tscn`、翻译和 README 是否仍一致。
+6. 涉及公开方法、信号、导出变量、Resource 字段或存档格式时，同步补齐 `##` 文档和聚焦测试。
+7. 修改后优先运行安全静态验证；如需 GUT，必须使用隔离用户数据目录和日志策略。如果无法运行，明确说明原因和剩余风险。
 
 ## GF 包管理
 
@@ -165,8 +166,9 @@ python addons/gf/tools/ai_developer/gf_ai_project.py snapshot --project-root .
 - `shared/assets/translations.csv`
 - `features/themes/resources/themes/**`
 - `docs/visual_style.md`
+- `docs/ui_surface_intent.md`
 
-表现层应继续通过事件接收业务结果，不要把棋盘算法或存档语义写进 UI 节点。静态颜色、StyleBox、文本角色和焦点 Shader 归 `GameUiStyleUtility`，Tween 与交互反馈归 `GameUiMotionUtility`；界面脚本不得复制主题色值。视觉改动必须保持 `docs/visual_style.md` 定义的 **CMYK 半调纸媒游戏**方向：灰白纸底、深墨边框、局部印刷色与克制机械动效；“柔和”只表示低对比背景和有限运动，不得被解释成泛用暖色扁平风，也要避免刺眼、粗糙或马赛克噪点。
+表现层应继续通过事件接收业务结果，不要把棋盘算法或存档语义写进 UI 节点。新页面先确定玩家正在操作的对象与因果关系，不能从 List/Grid/Card 的组件名直接推导页面概念；概念明确后仍应使用 GF 的可靠路由、列表、焦点和输入机制。静态颜色、StyleBox、文本角色和焦点 Shader 归 `GameUiStyleUtility`，Tween 与交互反馈归 `GameUiMotionUtility`；界面脚本不得复制主题色值。视觉改动必须保持 `docs/visual_style.md` 定义的 **CMYK 半调纸媒游戏**方向：灰白纸底、深墨边框、局部印刷色与克制机械动效；“柔和”只表示低对比背景和有限运动，不得被解释成泛用暖色扁平风，也要避免刺眼、粗糙或马赛克噪点。
 
 ### GF 上游反馈与 vendor 更新
 

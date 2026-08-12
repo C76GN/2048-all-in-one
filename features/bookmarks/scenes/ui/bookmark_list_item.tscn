@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://ug4imooux68t"]
 
 [ext_resource type="Script" uid="uid://kyyfmk6itxgt" path="res://features/bookmarks/scripts/ui/bookmark_list_item.gd" id="1_e3x5i"]
+[ext_resource type="Script" uid="uid://b4ammncug2ofd" path="res://features/bookmarks/scripts/ui/bookmark_board_stamp.gd" id="2_stamp"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_1"]
 bg_color = Color(0.61960787, 0.85882354, 0.8352941, 0.7)
@@ -15,11 +16,12 @@ corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
 [node name="BookmarkListItem" type="Button" unique_id=169103514]
-custom_minimum_size = Vector2(0, 88)
+custom_minimum_size = Vector2(250, 180)
 anchors_preset = 10
 anchor_right = 1.0
-offset_bottom = 88.0
+offset_bottom = 180.0
 grow_horizontal = 2
+size_flags_horizontal = 3
 text = " "
 alignment = 0
 script = ExtResource("1_e3x5i")
@@ -43,15 +45,22 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-theme_override_constants/margin_left = 18
-theme_override_constants/margin_top = 14
-theme_override_constants/margin_right = 18
-theme_override_constants/margin_bottom = 14
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
 
 [node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer" unique_id=930925225]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 18
+theme_override_constants/separation = 14
+
+[node name="BoardStamp" type="Control" parent="MarginContainer/HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(104, 104)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("2_stamp")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer/HBoxContainer" unique_id=607154414]
 layout_mode = 2
@@ -65,6 +74,7 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
 theme_override_font_sizes/font_size = 20
 text = "Mode Name"
+text_overrun_behavior = 3
 
 [node name="InfoLabel" type="Label" parent="MarginContainer/HBoxContainer/VBoxContainer" unique_id=1197231734]
 unique_name_in_owner = true
@@ -72,13 +82,13 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.46666667, 0.45882353, 0.43529412, 0.92)
 theme_override_font_sizes/font_size = 15
 text = "Info"
+autowrap_mode = 2
 
-[node name="ScoreLabel" type="Label" parent="MarginContainer/HBoxContainer" unique_id=169103515]
+[node name="ScoreLabel" type="Label" parent="MarginContainer/HBoxContainer/VBoxContainer" unique_id=169103515]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(110, 0)
+custom_minimum_size = Vector2(0, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.5803922, 0.26666668, 0.19215687, 1)
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 18
 text = "0 pts"
-horizontal_alignment = 2
-vertical_alignment = 1
+horizontal_alignment = 0

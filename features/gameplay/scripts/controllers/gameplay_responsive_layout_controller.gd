@@ -49,7 +49,7 @@ const _PORTRAIT_BOARD_FIT_INSETS: Dictionary = {
 	"bottom": 328.0,
 	"right": 8.0,
 }
-const _REPLAY_CONTROLS_HEIGHT: float = 320.0
+const _REPLAY_CONTROLS_HEIGHT: float = 372.0
 
 
 # --- 导出变量 ---

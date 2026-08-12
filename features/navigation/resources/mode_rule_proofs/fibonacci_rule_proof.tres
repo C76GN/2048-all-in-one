@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="ModeRuleProofDescriptor" format=3]
+
+[ext_resource type="Script" path="res://features/navigation/scripts/data/mode_rule_proof_descriptor.gd" id="1_descriptor"]
+
+[resource]
+script = ExtResource("1_descriptor")
+ruleset_id = &"gameplay.fibonacci"
+proof_number = "02"
+formula_key = &"MODE_PROOF_FIBONACCI_FORMULA"
+source_a = "2"
+source_a_tag = "F₃"
+operator_symbol = "+"
+source_b = "3"
+source_b_tag = "F₄"
+result = "5"
+result_tag = "F₅"
+outcome_key = &"MODE_PROOF_FIBONACCI_OUTCOME"
+accent_role = 2

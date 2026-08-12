@@ -195,7 +195,7 @@ powershell -ExecutionPolicy Bypass -File tools/invoke_godot_project_tool.ps1 -Sc
 
 验收时必须确认 `validation_report.json` 为 `[]`，并逐页查看截图。Windows 桌面会把高于工作区的实体窗口限制在任务栏上方；不得通过手动放大根节点伪造 `720×1558` 截图，因为那只会拉高渲染背景，Container 仍按受限窗口高度布局。桌面自动化矩阵使用可真实承载的 `720×960` 竖屏；更高设备比例仍需在目标设备或可控离屏渲染环境中复验。
 
-人工签字至少核对裁切、层级、触控安全区、文字对比、首帧承接、键盘/手柄焦点、44px 命中根和 Reduced Motion 静态终态；纸片、旋转、描边、硬投影与焦点环的视觉包络不得越过控件根包络或最近裁剪祖先。
+人工签字至少核对裁切、层级、触控安全区、文字对比、首帧承接、键盘/手柄焦点、44px 命中根和 Reduced Motion 静态终态；纸片、旋转、描边、硬投影与焦点环的视觉包络不得越过控件根包络或最近裁剪祖先。新玩家页面或中/大型结构改版还必须读取对应 `UI Surface Intent Brief`，在三秒内指出玩家当前操作对象、当前选择和主动作，并确认隐喻确实改变了信息组织或因果反馈，而不是只增加装饰。截图 manifest 中的 `surface_contract_ids` 必须覆盖本次适用合同。
 
 `capture_visual_review.gd` 负责实际移动命令、稳定帧和耗时证据；`capture_ui_vfx_matrix.gd` 负责页面与状态矩阵。两者用途不同，不以其中一个替代另一个。
 

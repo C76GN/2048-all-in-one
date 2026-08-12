@@ -71,6 +71,7 @@ func _run_capture() -> void:
 		push_error("[VisualReview] Cannot prepare the isolated output directory.")
 		_request_exit(74)
 		return
+	_register_surface_contract_ids()
 	if DisplayServer.get_name() == "headless":
 		push_error("[VisualReview] Capture requires the rendering display mode.")
 		_request_exit(64)
@@ -287,6 +288,19 @@ func _finish_capture(exit_code: int) -> void:
 	quit(effective_exit_code)
 
 
+func _register_surface_contract_ids() -> void:
+	if not is_instance_valid(_artifact_session):
+		return
+	for contract_id: StringName in [
+		&"navigation/main-menu",
+		&"navigation/mode-selection",
+		&"bookmarks/frozen-proof-drawer",
+		&"replays/process-timeline",
+		&"settings/calibration-task-page",
+	]:
+		_artifact_session.add_surface_contract_id(contract_id)
+
+
 func _open_route(source: Node, button_name: StringName, target_name: StringName) -> Node:
 	if not is_instance_valid(source):
 		return null
@@ -378,7 +392,15 @@ func _inject_bookmark_preview(page: Node) -> bool:
 	bookmark.highest_tile = 128
 	bookmark.target_tile_value = 2048
 	bookmark.board_snapshot = _make_preview_snapshot(topology)
-	return await _inject_list_item(page, _BOOKMARK_ITEM_SCENE, bookmark)
+	var injected: bool = await _inject_list_item(
+		page,
+		_BOOKMARK_ITEM_SCENE,
+		bookmark
+	)
+	if injected and page is BookmarkList:
+		var bookmark_list: BookmarkList = page
+		bookmark_list._update_capacity_text(1)
+	return injected
 
 
 func _inject_list_item(
@@ -748,6 +770,10 @@ func _make_preview_checkpoint(step_index: int, score: int) -> ReplayCheckpoint:
 	checkpoint.board_checksum = "0".repeat(64)
 	checkpoint.rng_checksum = "0".repeat(64)
 	checkpoint.score = score
+	checkpoint.metadata_available = true
+	checkpoint.merge_count = 1
+	checkpoint.max_merge_value = 4
+	checkpoint.highest_tile = 4
 	return checkpoint
 
 

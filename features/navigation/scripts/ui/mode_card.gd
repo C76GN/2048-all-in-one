@@ -13,6 +13,7 @@ extends Button
 ## @param config_path: 卡片所代表的 GameModeConfig 资源路径。
 signal card_focused(config_path: String)
 
+
 # --- 私有变量 ---
 
 var _config_path: String
@@ -20,6 +21,8 @@ var _mode_config: GameModeConfig = null
 var _is_selected: bool = false
 var _style_utility: GameUiStyleUtility = null
 var _accent_strip: ColorRect = null
+var _proof_descriptor: ModeRuleProofDescriptor = null
+
 
 # --- @onready 变量 (节点引用) ---
 
@@ -43,14 +46,17 @@ func _ready() -> void:
 ## @param config_path: 指向 GameModeConfig 资源文件的路径。
 ## @param mode_config: 已由父控制器通过 GF 架构解析出的模式配置。
 ## @param style_utility: 父控制器注入的主题静态样式服务。
+## @param proof_descriptor: 与模式规则集对应的导航层静态样张描述；允许为空。
 func setup(
 	config_path: String,
 	mode_config: GameModeConfig,
-	style_utility: GameUiStyleUtility
+	style_utility: GameUiStyleUtility,
+	proof_descriptor: ModeRuleProofDescriptor = null
 ) -> void:
 	_config_path = config_path
 	_mode_config = mode_config
 	_style_utility = style_utility
+	_proof_descriptor = proof_descriptor
 	_accent_strip = _accent_strip_node
 	if not is_instance_valid(_style_utility):
 		push_error("[ModeCard] 缺少 GameUiStyleUtility，无法应用卡片语义样式。")
@@ -62,7 +68,11 @@ func setup(
 func update_text() -> void:
 	if is_instance_valid(_mode_config):
 		_title_label.text = tr(_mode_config.mode_name)
-		_description_label.text = _get_summary_line(tr(_mode_config.mode_description))
+		_description_label.text = (
+			_get_proof_formula_text(_proof_descriptor)
+			if is_instance_valid(_proof_descriptor)
+			else _get_summary_line(tr(_mode_config.mode_description))
+		)
 	else:
 		_title_label.text = tr("UI_ERROR")
 		_description_label.text = tr("ERR_LOAD_CONFIG")
@@ -89,6 +99,14 @@ func _get_summary_line(description: String) -> String:
 			continue
 		return line
 	return tr("DESC_SELECT_MODE_PREFIX") + tr(_mode_config.mode_name)
+
+
+func _get_proof_formula_text(descriptor: ModeRuleProofDescriptor) -> String:
+	var translated: String = tr(descriptor.formula_key)
+	if translated != String(descriptor.formula_key):
+		return translated
+	return ModeRuleProof._get_formula_fallback(descriptor.ruleset_id)
+
 
 func _update_style() -> void:
 	if not is_instance_valid(_style_utility):
@@ -131,7 +149,11 @@ func _update_accent_strip() -> void:
 		Color(0.8745098, 0.29411766, 0.6039216, 0.82),
 		Color(0.9372549, 0.81960785, 0.3647059, 0.88),
 	]
-	var color_index: int = absi(_config_path.hash()) % accent_colors.size()
+	var color_index: int = (
+		clampi(int(_proof_descriptor.accent_role), 0, accent_colors.size() - 1)
+		if is_instance_valid(_proof_descriptor)
+		else absi(_config_path.hash()) % accent_colors.size()
+	)
 	var accent: Color = accent_colors[color_index]
 	if _is_selected:
 		accent = accent.lightened(0.08)

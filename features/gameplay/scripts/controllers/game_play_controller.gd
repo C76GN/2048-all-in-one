@@ -28,6 +28,8 @@ const _REPLAY_MARKER_FAILURE_FORMAT_FALLBACK: String = "第 %d 步 · 对局失�
 const _REPLAY_MARKER_OOS_FORMAT_FALLBACK: String = "第 %d 步 · OOS"
 const _REPLAY_CONTINUE_NOTE_FALLBACK: String = "从此继续会退出回放，并标记为不参与竞赛成绩。"
 const _REPLAY_CONTINUE_OOS_NOTE_FALLBACK: String = "回放已 OOS，不能从当前状态继续。"
+const _REPLAY_TIMELINE_LABEL_FALLBACK: String = "过程时间带"
+const _REPLAY_TIMELINE_HINT_FALLBACK: String = "拖动跳转；方向键选择步骤后按确认。"
 const _GAME_THEME_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_theme_utility.gd")
 const _GAME_UI_MOTION_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_ui_motion_utility.gd")
 
@@ -69,6 +71,7 @@ var _is_cleaned_up: bool = false
 @onready var _page_title: Label = %PageTitle
 @onready var replay_controls_container: PanelContainer = %ReplayControlsContainer
 @onready var replay_progress_label: Label = %ReplayProgressLabel
+@onready var replay_timeline: ReplayTimeline = %ReplayTimeline
 @onready var replay_prev_button: Button = %ReplayPrevButton
 @onready var replay_next_button: Button = %ReplayNextButton
 @onready var replay_marker_picker: OptionButton = %ReplayMarkerPicker
@@ -155,6 +158,17 @@ func _update_static_ui_text() -> void:
 		replay_continue_button.text = tr("BTN_REPLAY_CONTINUE_FROM_HERE")
 	if is_instance_valid(replay_exit_button):
 		replay_exit_button.text = tr("BTN_REPLAY_EXIT")
+	if is_instance_valid(replay_timeline):
+		replay_timeline.set_context_text(
+			_resolve_replay_text(
+				"LABEL_REPLAY_TIMELINE",
+				_REPLAY_TIMELINE_LABEL_FALLBACK
+			),
+			_resolve_replay_text(
+				"REPLAY_TIMELINE_HINT",
+				_REPLAY_TIMELINE_HINT_FALLBACK
+			)
+		)
 	_refresh_replay_marker_picker()
 	_update_replay_eligibility_note()
 
@@ -185,6 +199,9 @@ func _connect_replay_control_signals() -> void:
 	)
 	var _marker_selected_connection: int = replay_marker_picker.item_selected.connect(
 		_on_replay_marker_selected
+	)
+	var _timeline_connection: int = replay_timeline.step_requested.connect(
+		_on_replay_timeline_step_requested
 	)
 	var _continue_connection: int = replay_continue_button.pressed.connect(_on_replay_continue_pressed)
 	var _exit_connection: int = replay_exit_button.pressed.connect(_on_replay_exit_pressed)
@@ -311,6 +328,9 @@ func _configure_ui_for_mode() -> void:
 		_replay_markers = _replay_system.get_markers()
 		_refresh_replay_marker_picker()
 		call_deferred(&"_focus_replay_controls")
+	else:
+		_replay_markers.clear()
+	_refresh_replay_timeline_catalog()
 	_update_replay_ui()
 
 
@@ -326,6 +346,11 @@ func _update_replay_ui() -> void:
 	var total_steps: int = _replay_system.get_total_steps()
 	var is_desynchronized: bool = _replay_system.is_playback_desynchronized()
 	var is_jumping: bool = _replay_system.is_jump_in_progress()
+	if is_instance_valid(replay_timeline):
+		replay_timeline.set_progress(current_step)
+		replay_timeline.set_interaction_enabled(
+			not is_desynchronized and not is_jumping and total_steps > 0
+		)
 	if is_instance_valid(replay_progress_label):
 		if is_desynchronized:
 			var oos_report: Dictionary = _replay_system.get_oos_report()
@@ -403,6 +428,15 @@ func _refresh_replay_marker_picker() -> void:
 	)
 	replay_marker_picker.select(-1)
 	_is_syncing_marker_picker = false
+
+
+func _refresh_replay_timeline_catalog() -> void:
+	if not is_instance_valid(replay_timeline):
+		return
+	var total_steps: int = 0
+	if _is_replay_mode() and is_instance_valid(_replay_system):
+		total_steps = _replay_system.get_total_steps()
+	replay_timeline.configure(total_steps, _replay_markers)
 
 
 func _format_replay_marker(marker: ReplayMarker) -> String:
@@ -576,6 +610,13 @@ func _apply_mode_visual_theme(mode_config: GameModeConfig, refresh_snapshot: boo
 func _apply_current_ui_theme() -> void:
 	if is_instance_valid(_theme_utility):
 		var _theme_apply_count: int = _theme_utility.apply_current_theme_to_tree(self)
+		var current_theme: GameTheme = _theme_utility.get_current_visual_theme()
+		if (
+			is_instance_valid(current_theme)
+			and is_instance_valid(current_theme.ui_palette)
+			and is_instance_valid(replay_timeline)
+		):
+			replay_timeline.apply_palette(current_theme.ui_palette)
 
 	var motion_utility: GameUiMotionUtility = _get_ui_motion_utility()
 	if is_instance_valid(motion_utility):
@@ -875,6 +916,7 @@ func _on_replay_markers_changed(markers: Array) -> void:
 			var marker: ReplayMarker = marker_value
 			_replay_markers.append(marker)
 	_refresh_replay_marker_picker()
+	_refresh_replay_timeline_catalog()
 	_update_replay_ui()
 
 
@@ -918,6 +960,15 @@ func _on_replay_marker_selected(marker_index: int) -> void:
 		return
 	if not _replay_system.jump_to_marker(replay_marker_index):
 		_sync_marker_picker_to_step(_replay_system.get_current_step())
+
+
+func _on_replay_timeline_step_requested(step_index: int) -> void:
+	if not is_instance_valid(_replay_system):
+		return
+	if not _replay_system.jump_to_step(step_index) and is_instance_valid(
+		replay_timeline
+	):
+		replay_timeline.set_progress(_replay_system.get_current_step())
 
 
 func _on_replay_continue_pressed() -> void:

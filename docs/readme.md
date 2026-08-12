@@ -16,6 +16,7 @@
 - [架构与 Feature 所有权](./architecture.md)
 - [存档与 schema 真值](./save_model.md)
 - [视觉、UI 与特效规范](./visual_style.md)
+- [玩家界面意图合同](./ui_surface_intent.md)
 - [编码规范](./coding_style.md)
 - [AI / 维护工作流](./ai_maintenance.md)
 - [验证策略](./validation.md)

@@ -22,6 +22,7 @@ var _mode_display_name: String = ""
 @onready var _mode_name_label: Label = %ModeNameLabel
 @onready var _info_label: Label = %InfoLabel
 @onready var _score_label: Label = %ScoreLabel
+@onready var _board_stamp: BookmarkBoardStamp = %BoardStamp
 
 
 # --- 公共方法 ---
@@ -29,10 +30,17 @@ var _mode_display_name: String = ""
 ## 使用 BookmarkData 资源来配置此列表项。
 ## @param bookmark_data: 用于填充UI的书签数据资源。
 ## @param mode_display_name: 已由父菜单通过 GF 架构解析出的模式名称。
-func setup(bookmark_data: BookmarkData, mode_display_name: String) -> void:
+## @param mode_config: 用于绘制棋盘样张的模式视觉配置。
+func setup(
+	bookmark_data: BookmarkData,
+	mode_display_name: String,
+	mode_config: GameModeConfig = null
+) -> void:
 	_mode_display_name = mode_display_name
 	# 设置基类数据并触发刷新
 	setup_item(bookmark_data)
+	if is_instance_valid(_board_stamp):
+		_board_stamp.configure(bookmark_data.board_snapshot, mode_config)
 
 
 ## 获取关联的 BookmarkData。
@@ -78,3 +86,8 @@ func _update_display() -> void:
 		_SCORE_FORMAT_FALLBACK,
 		[bookmark_data.score]
 	)
+	tooltip_text = "%s\n%s\n%s" % [
+		_mode_name_label.text,
+		_info_label.text,
+		_score_label.text,
+	]

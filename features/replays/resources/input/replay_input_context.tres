@@ -21,38 +21,10 @@ script = ExtResource("3_binding")
 input_event = SubResource("Key_replay_prev_a")
 display_name = "A"
 
-[sub_resource type="InputEventKey" id="Key_replay_prev_left"]
-keycode = 4194319
-
-[sub_resource type="Resource" id="Binding_replay_prev_left"]
-script = ExtResource("3_binding")
-input_event = SubResource("Key_replay_prev_left")
-display_name = "Left"
-
-[sub_resource type="InputEventJoypadButton" id="Joy_replay_prev_dpad"]
-device = -1
-button_index = 13
-
-[sub_resource type="Resource" id="Binding_replay_prev_dpad"]
-script = ExtResource("3_binding")
-input_event = SubResource("Joy_replay_prev_dpad")
-display_name = "D-pad Left"
-
-[sub_resource type="InputEventJoypadMotion" id="Joy_replay_prev_axis"]
-device = -1
-axis_value = -1.0
-
-[sub_resource type="Resource" id="Binding_replay_prev_axis"]
-script = ExtResource("3_binding")
-input_event = SubResource("Joy_replay_prev_axis")
-value_target = 3
-deadzone = 0.5
-display_name = "Left Stick Left"
-
 [sub_resource type="Resource" id="Mapping_replay_prev_step"]
 script = ExtResource("4_mapping")
 action = SubResource("Action_replay_prev_step")
-bindings = Array[ExtResource("3_binding")]([SubResource("Binding_replay_prev_a"), SubResource("Binding_replay_prev_left"), SubResource("Binding_replay_prev_dpad"), SubResource("Binding_replay_prev_axis")])
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_replay_prev_a")])
 
 [sub_resource type="Resource" id="Action_replay_next_step"]
 script = ExtResource("2_action")
@@ -68,62 +40,10 @@ script = ExtResource("3_binding")
 input_event = SubResource("Key_replay_next_d")
 display_name = "D"
 
-[sub_resource type="InputEventKey" id="Key_replay_next_right"]
-keycode = 4194321
-
-[sub_resource type="Resource" id="Binding_replay_next_right"]
-script = ExtResource("3_binding")
-input_event = SubResource("Key_replay_next_right")
-display_name = "Right"
-
-[sub_resource type="InputEventKey" id="Key_replay_next_space"]
-keycode = 32
-
-[sub_resource type="Resource" id="Binding_replay_next_space"]
-script = ExtResource("3_binding")
-input_event = SubResource("Key_replay_next_space")
-display_name = "Space"
-
-[sub_resource type="InputEventKey" id="Key_replay_next_enter"]
-keycode = 4194309
-
-[sub_resource type="Resource" id="Binding_replay_next_enter"]
-script = ExtResource("3_binding")
-input_event = SubResource("Key_replay_next_enter")
-display_name = "Enter"
-
-[sub_resource type="InputEventJoypadButton" id="Joy_replay_next_dpad"]
-device = -1
-button_index = 14
-
-[sub_resource type="Resource" id="Binding_replay_next_dpad"]
-script = ExtResource("3_binding")
-input_event = SubResource("Joy_replay_next_dpad")
-display_name = "D-pad Right"
-
-[sub_resource type="InputEventJoypadButton" id="Joy_replay_next_a"]
-device = -1
-
-[sub_resource type="Resource" id="Binding_replay_next_a"]
-script = ExtResource("3_binding")
-input_event = SubResource("Joy_replay_next_a")
-display_name = "A Button"
-
-[sub_resource type="InputEventJoypadMotion" id="Joy_replay_next_axis"]
-device = -1
-axis_value = 1.0
-
-[sub_resource type="Resource" id="Binding_replay_next_axis"]
-script = ExtResource("3_binding")
-input_event = SubResource("Joy_replay_next_axis")
-value_target = 2
-deadzone = 0.5
-display_name = "Left Stick Right"
-
 [sub_resource type="Resource" id="Mapping_replay_next_step"]
 script = ExtResource("4_mapping")
 action = SubResource("Action_replay_next_step")
-bindings = Array[ExtResource("3_binding")]([SubResource("Binding_replay_next_d"), SubResource("Binding_replay_next_right"), SubResource("Binding_replay_next_space"), SubResource("Binding_replay_next_enter"), SubResource("Binding_replay_next_dpad"), SubResource("Binding_replay_next_a"), SubResource("Binding_replay_next_axis")])
+bindings = Array[ExtResource("3_binding")]([SubResource("Binding_replay_next_d")])
 
 [sub_resource type="Resource" id="Action_replay_prev_marker"]
 script = ExtResource("2_action")

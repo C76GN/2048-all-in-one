@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="ModeRuleProofDescriptor" format=3]
+
+[ext_resource type="Script" path="res://features/navigation/scripts/data/mode_rule_proof_descriptor.gd" id="1_descriptor"]
+
+[resource]
+script = ExtResource("1_descriptor")
+ruleset_id = &"gameplay.progressive"
+proof_number = "04"
+formula_key = &"MODE_PROOF_PROGRESSIVE_FORMULA"
+source_a = "1024"
+source_a_tag = "N"
+operator_symbol = "+"
+source_b = "1024"
+source_b_tag = "N"
+result = "2048"
+result_tag = "+ 8"
+outcome_key = &"MODE_PROOF_PROGRESSIVE_OUTCOME"
+accent_role = 0
