@@ -114,14 +114,6 @@ const _EXPECTED_SCREENSHOTS: Array[String] = [
 	"mode_selection_850x838.png",
 	"mode_selection_850x838_scroll_end.png",
 	"mode_selection_960x540.png",
-	"mode_selection_960x540_scroll_end.png",
-	"mode_selection_page_2_1280x720.png",
-	"mode_selection_page_2_720x960.png",
-	"mode_selection_page_2_960x540.png",
-	"mode_selection_page_2_960x540_scroll_end.png",
-	"mode_selection_page_2_973x781.png",
-	"mode_selection_page_2_973x781_scroll_end.png",
-	"mode_selection_page_3_960x540.png",
 	"mode_selection_reduced_motion_1280x720.png",
 	"mode_selection_reduced_motion_720x960.png",
 	"pause_menu_1280x720.png",
@@ -271,9 +263,6 @@ func _run() -> void:
 		_finish(3)
 		return
 	await _capture_page_matrix(mode_selection, &"mode_selection")
-	if not await _capture_mode_selection_second_page(mode_selection):
-		_finish(24)
-		return
 
 	if not await _capture_board_editor_player_flow(mode_selection):
 		_finish(20)
@@ -426,6 +415,8 @@ func _capture_page_matrix(page: Node, page_id: StringName) -> void:
 			)
 		_record_page_geometry(page, page_id, resolution, logical_resolution)
 		_validate_page_structure(page, page_id, logical_resolution, resolution)
+		if page_id == &"mode_selection":
+			_validate_mode_selection_single_page(page, resolution)
 		if page_id != &"boot":
 			_validate_visible_touch_targets(
 				page,
@@ -493,6 +484,8 @@ func _capture_reduced_motion_page_states(
 			root.get_visible_rect().size.round()
 		)
 		_validate_page_structure(page, page_id, logical_resolution, resolution)
+		if page_id == &"mode_selection":
+			_validate_mode_selection_single_page(page, resolution)
 		_validate_visible_touch_targets(
 			page,
 			logical_resolution,
@@ -888,226 +881,37 @@ func _wait_for_ui_motion(seconds: float) -> void:
 	await RenderingServer.frame_post_draw
 
 
-func _capture_mode_selection_second_page(mode_selection: Node) -> bool:
-	var next_node: Node = mode_selection.find_child(
-		"NextPageButton",
-		true,
-		false
-	)
-	var previous_node: Node = mode_selection.find_child(
-		"PrevPageButton",
-		true,
-		false
-	)
-	if not next_node is Button:
-		_record_error("mode_selection 缺少第二页入口 NextPageButton。")
-		return false
-	if not previous_node is Button:
-		_record_error("mode_selection 缺少返回第一页入口 PrevPageButton。")
-		return false
-	var next_button: Button = next_node
-	var previous_button: Button = previous_node
-
-	for resolution: Vector2i in _PLAYER_FLOW_RESOLUTIONS:
-		_set_resolution(resolution)
-		await _settle_frames(5)
-		_queue_container_layout(mode_selection)
-		await _settle_frames(6)
-		if not await _move_mode_selection_to_first_page(
-			mode_selection,
-			previous_button
-		):
-			return false
-		if not next_button.is_visible_in_tree() or next_button.disabled:
-			_record_error(
-				"mode_selection @ %s 第二页入口不可操作。"
-				% resolution
-			)
-			return false
-		# 每次改变分辨率后都从第一页执行真实“下一页”操作。模式页会按
-		# 当前尺寸重算每页容量；只复用上个尺寸的页状态会造成文件名与画面错位。
-		next_button.grab_focus()
-		next_button.pressed.emit()
-		# 页切换会重新播放右侧详情的交错 reveal；等完整节拍结束后再截图，
-		# 否则底部的种子与开始按钮仍处于低透明度中，看起来像被裁掉。
-		await _settle_frames(36)
-		# NextPageButton 获得焦点时，ScrollContainer 会自动把分页按钮滚进
-		# 可视区。基础截图必须回到页面起点；只有存在真实滚动余量时才另存
-		# scroll_end 证据。
-		var scroll_node: Node = mode_selection.find_child(
-			"ModeSelectionScroll",
-			true,
-			false
-		)
-		if scroll_node is ScrollContainer:
-			var page_scroll: ScrollContainer = scroll_node
-			page_scroll.scroll_vertical = 0
-			await _settle_frames(3)
-		var current_page: int = _get_mode_selection_page_index(
-			mode_selection
-		)
-		if current_page != 1:
-			_record_error(
-				"mode_selection @ %s 执行下一页后实际页码为 %d。"
-				% [resolution, current_page + 1]
-			)
-			return false
-		var logical_resolution: Vector2i = Vector2i(
-			root.get_visible_rect().size.round()
-		)
-		_validate_page_structure(
-			mode_selection,
-			&"mode_selection",
-			logical_resolution,
-			resolution
-		)
-		_record_page_geometry(
-			mode_selection,
-			&"mode_selection_page_2",
-			resolution,
-			logical_resolution
-		)
-		_save_viewport(
-			"mode_selection_page_2_%dx%d.png"
-			% [resolution.x, resolution.y],
-			resolution
-		)
-		if (
-			not ModeSelection._uses_side_by_side_layout(
-				Vector2(resolution)
-			)
-		):
-			await _capture_named_scroll_end(
-				mode_selection,
-				&"ModeSelectionScroll",
-				&"StartGameButton",
-				&"mode_selection_page_2",
-				resolution,
-				logical_resolution
-			)
-		if not await _capture_mode_selection_last_page_if_needed(
-			mode_selection,
-			next_button,
-			resolution
-		):
-			return false
-
-	_set_resolution(_PLAYER_FLOW_RESOLUTIONS[0])
-	await _settle_frames(8)
-	return await _move_mode_selection_to_first_page(
-		mode_selection,
-		previous_button
-	)
-
-
-func _move_mode_selection_to_first_page(
+func _validate_mode_selection_single_page(
 	mode_selection: Node,
-	previous_button: Button
-) -> bool:
+	physical_resolution: Vector2i
+) -> void:
 	var total_pages: int = GFVariantData.to_int(
 		mode_selection.get("_total_pages"),
 		0
 	)
-	if total_pages < 2:
-		_record_error("mode_selection 没有可供截图的第二页。")
-		return false
-	for _attempt: int in range(total_pages):
-		var current_page: int = _get_mode_selection_page_index(
-			mode_selection
-		)
-		if current_page == 0:
-			return true
-		if (
-			not previous_button.is_visible_in_tree()
-			or previous_button.disabled
-		):
-			_record_error("mode_selection 无法通过真实上一页操作归回第一页。")
-			return false
-		previous_button.grab_focus()
-		previous_button.pressed.emit()
-		await _settle_frames(8)
-	_record_error("mode_selection 在有限分页操作后仍未归回第一页。")
-	return false
-
-
-func _get_mode_selection_page_index(mode_selection: Node) -> int:
-	return GFVariantData.to_int(
+	var current_page: int = GFVariantData.to_int(
 		mode_selection.get("_current_page"),
 		-1
 	)
-
-
-func _capture_mode_selection_last_page_if_needed(
-	mode_selection: Node,
-	next_button: Button,
-	physical_resolution: Vector2i
-) -> bool:
-	var total_pages: int = GFVariantData.to_int(
-		mode_selection.get("_total_pages"),
-		0
-	)
-	var current_page: int = _get_mode_selection_page_index(mode_selection)
-	while current_page >= 0 and current_page < total_pages - 1:
-		if not next_button.is_visible_in_tree() or next_button.disabled:
-			_record_error(
-				"mode_selection @ %s 无法通过真实下一页操作到达末页。"
-				% physical_resolution
-			)
-			return false
-		next_button.grab_focus()
-		next_button.pressed.emit()
-		await _settle_frames(8)
-		current_page = _get_mode_selection_page_index(mode_selection)
-	if current_page != total_pages - 1:
+	if total_pages != 1 or current_page != 0:
 		_record_error(
-			"mode_selection @ %s 未到达末页：%d / %d。"
+			"mode_selection @ %s 必须把六个模式保持在同一页，实际为第 %d / %d 页。"
 			% [physical_resolution, current_page + 1, total_pages]
 		)
-		return false
-	if not _mode_selection_has_visible_ratio_card(mode_selection):
+	var pagination_node: Node = mode_selection.find_child(
+		"PaginationContainer",
+		true,
+		false
+	)
+	if (
+		pagination_node is Control
+		and (pagination_node as Control).is_visible_in_tree()
+	):
 		_record_error(
-			"mode_selection @ %s 末页未覆盖比例模式。"
+			"mode_selection @ %s 只有一页时仍显示分页控件。"
 			% physical_resolution
 		)
-		return false
-	if current_page == 1:
-		return true
-
-	_queue_container_layout(mode_selection)
-	await _settle_frames(6)
-	var logical_resolution: Vector2i = Vector2i(
-		root.get_visible_rect().size.round()
-	)
-	var capture_id: StringName = StringName(
-		"mode_selection_page_%d" % (current_page + 1)
-	)
-	_validate_page_structure(
-		mode_selection,
-		&"mode_selection",
-		logical_resolution,
-		physical_resolution
-	)
-	_record_page_geometry(
-		mode_selection,
-		capture_id,
-		physical_resolution,
-		logical_resolution
-	)
-	_save_viewport(
-		"%s_%dx%d.png"
-		% [
-			String(capture_id),
-			physical_resolution.x,
-			physical_resolution.y,
-		],
-		physical_resolution
-	)
-	return true
-
-
-func _mode_selection_has_visible_ratio_card(
-	mode_selection: Node
-) -> bool:
+	var visible_config_paths: Dictionary = {}
 	for card_node: Node in mode_selection.find_children(
 		"*",
 		"ModeCard",
@@ -1117,14 +921,20 @@ func _mode_selection_has_visible_ratio_card(
 		if not card_node is ModeCard:
 			continue
 		var card: ModeCard = card_node
-		if (
-			card.is_visible_in_tree()
-			and card.get_config_path().ends_with(
-				"/ratio_mode_config.tres"
-			)
-		):
-			return true
-	return false
+		if card.is_visible_in_tree():
+			visible_config_paths[card.get_config_path()] = true
+	if visible_config_paths.size() != 6:
+		_record_error(
+			"mode_selection @ %s 当前页必须同时显示六张模式卡，实际为 %d。"
+			% [physical_resolution, visible_config_paths.size()]
+		)
+	if not visible_config_paths.has(
+		"res://features/gameplay/resources/modes/ratio_mode_config.tres"
+	):
+		_record_error(
+			"mode_selection @ %s 当前单页未覆盖比例模式。"
+			% physical_resolution
+		)
 
 
 func _capture_settings_section_states(settings_menu: Node) -> bool:

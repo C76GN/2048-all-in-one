@@ -19,7 +19,7 @@ GF 路由、输入、列表或生命周期机制；它回答的是这些机制�
 | 玩家页面 | 交互隐喻 | 首要对象 | 传统结构的角色 |
 |---|---|---|---|
 | 主菜单 | 实验室总台 / Atlas 封面 | 可响应的微型棋盘 | 文本按钮保持明确导航 |
-| 模式选择 | 规则样张台 | 当前规则的输入与结果样张 | 模式索引和实验工单 |
+| 模式选择 | 规则索引与实验工单 | 六个模式及当前选择 | 紧凑数值样张只辅助确认规则 |
 | 棋盘编辑器 | 版面工作台 | 可编辑棋盘版面 | 工具栏、历史和精确数值 |
 | 玩法 | 正在运行的合并实验 | 权威棋盘 | HUD 只显示状态与动作 |
 | 方块图鉴 | 样本 Atlas | 方块样本及发现关系 | 表格负责筛选与比较 |
@@ -42,13 +42,13 @@ id: navigation/mode-selection
 owner: navigation
 player_goal: 选择并理解一套玩法规则
 player_role_or_fantasy: 规则编排者
-interaction_metaphor: 规则样张台
+interaction_metaphor: 规则索引与实验工单
 functional_mapping:
   - 选择模式 -> 更换规则印版与静态样张
   - 调整参数 -> 更新本次实验工单
-primary_object: 当前规则样张
+primary_object: 六项规则索引与当前选择
 primary_action: 开始本次实验
-reading_order: [样张, 规则差异, 参数, 开始]
+reading_order: [模式差异, 当前选择, 基础参数, 开始]
 states: [rest, focus, selected, disabled, loading, error]
 input_equivalence: [mouse, keyboard, controller, touch]
 causal_feedback: 选择 -> 样张更新 -> 本地确认 -> 可开始
@@ -58,7 +58,8 @@ performance:
   usable_before_ceremony: true
 references: []
 rejected_options:
-  - 等权卡片网格：不能把模式规则变成首要对象
+  - 永久三栏样张台：样张、索引、配置等权会制造重复信息和视觉拥挤
+  - 分页六项索引：少量模式不值得增加翻页与隐藏选项
 acceptance_assertions:
   - 三秒内能指出当前规则和主动作
   - selected、focus、pressed 在静态图中可区分
@@ -72,15 +73,18 @@ descriptor；领域配置仍只描述玩法真相。
 
 ## 首批页面合同
 
-### 模式选择：规则样张台
+### 模式选择：规则索引与实验工单
 
 Surface contract ID：`navigation/mode-selection`。
 
-- 首读顺序是样张、规则差异、实验工单、开始。
+- 首读顺序是六个模式差异、当前选择、基础参数、开始。
 - 六个模式由同一种 descriptor 数据驱动，不创建六套定制场景。
-- 样张必须忠于真实规则；未知模式退回清晰文本，而不是猜测行为。
-- 窄屏仍先保留样张和当前选择，不把桌面三列机械压成纵向卡片堆。
-- Reduced Motion 同时展示输入与结果静态态，不依赖动画解释合并。
+- 六项在同一页完整呈现；规则示例只作为右侧工单里的紧凑数值确认，
+  不重复模式名、长说明、样张编号或结果段落。
+- 默认工单只露出棋盘大小与开始；自定义棋盘、种子和比赛信息进入
+  “高级设置”，不能与主动作等权。
+- 窄屏把模式索引与一张完整工单依次堆叠，不复制桌面栏，也不产生
+  独立样张表面。Reduced Motion 仍可直接替换静态数值关系。
 
 ### 回放：过程时间带
 

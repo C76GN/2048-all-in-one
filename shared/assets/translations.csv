@@ -164,6 +164,8 @@ ERR_LOAD_CONFIG,错误: 无法加载模式配置,Error: Failed to load mode conf
 ERR_NO_MODE_SELECTED,无法开始游戏：没有选中的模式。,Cannot start: No mode selected.
 TITLE_MODE_SELECTION,模式选择,Mode Selection
 LABEL_MODE_CONFIG,模式配置,Configuration
+LABEL_START_SETUP,开始设置,Start setup
+BTN_ADVANCED_SETTINGS,高级设置,Advanced settings
 LABEL_GRID_SIZE,棋盘大小：,Grid Size:
 LABEL_GAME_SEED,游戏种子：,Game Seed:
 HINT_SEED_PLACEHOLDER,留空则随机,Empty for random

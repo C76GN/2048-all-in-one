@@ -75,30 +75,26 @@ func test_main_menu_keeps_micro_board_in_compact_layouts() -> void:
 func test_mode_selection_switches_only_the_detail_surface() -> void:
 	var motion: _MotionProbe = _MotionProbe.new()
 	var selection: _ModeSelectionProbe = _ModeSelectionProbe.new()
-	var detail: VBoxContainer = VBoxContainer.new()
 	var proof: ModeRuleProof = ModeRuleProof.new()
 	var configuration: VBoxContainer = VBoxContainer.new()
 	autofree(selection)
-	selection.add_child(detail)
 	selection.add_child(proof)
 	selection.add_child(configuration)
 	selection.motion_probe = motion
-	selection._info_panel_container = detail
 	selection._mode_rule_proof = proof
 	selection._right_panel_container = configuration
 
 	selection._reveal_selection_detail()
 
-	assert_true(motion.switched_controls.size() == 2)
+	assert_true(motion.switched_controls.size() == 1)
 	assert_true(
-		motion.switched_controls.has(detail)
-		and motion.switched_controls.has(proof),
-		"模式焦点切换只应更新详情与规则样张，不得重播整个配置栏。"
+		motion.switched_controls.has(proof),
+		"模式焦点切换只应更新紧凑规则示例，不得重播整个配置栏。"
 	)
 	assert_false(motion.switched_controls.has(configuration))
 
 
-func test_mode_pagination_rebinds_persistent_slots_without_frame_churn() -> void:
+func test_mode_single_page_reuses_persistent_slots_without_frame_churn() -> void:
 	var source: String = FileAccess.get_file_as_string(
 		"res://features/navigation/scripts/menus/mode_selection.gd"
 	)
@@ -114,17 +110,17 @@ func test_mode_pagination_rebinds_persistent_slots_without_frame_churn() -> void
 	assert_true(
 		source.contains("var _mode_card_slots: Array[ModeCard]")
 		and method_source.contains("_ensure_mode_card_slots(_items_per_page)"),
-		"模式分页必须复用固定 ModeCard 卡槽并按页重绑。"
+		"六项单页模式索引必须复用固定 ModeCard 卡槽。"
 	)
 	assert_false(
 		method_source.contains("queue_free(")
 		or method_source.contains("GFAsyncWaitUtility.next_frame(")
 		or method_source.contains("await "),
-		"模式翻页不得销毁卡片或等待两帧制造交互空窗。"
+		"模式索引刷新不得销毁卡片或等待两帧制造交互空窗。"
 	)
 
 
-func test_mode_pagination_slot_growth_preserves_identity_and_focus() -> void:
+func test_mode_slot_growth_preserves_identity_and_focus() -> void:
 	var selection_node: Node = _MODE_SELECTION_SCENE.instantiate()
 	selection_node.set_script(_ModeSelectionProbe)
 	var selection: _ModeSelectionProbe = selection_node as _ModeSelectionProbe
@@ -146,7 +142,7 @@ func test_mode_pagination_slot_growth_preserves_identity_and_focus() -> void:
 	assert_true(
 		selection._mode_card_slots.size() == 5
 		and selection._mode_card_slots[0].get_instance_id() == first_instance_id,
-		"响应式页容量增长只能追加卡槽，不得替换已经物化的 ModeCard。"
+		"模式目录增长只能追加卡槽，不得替换已经物化的 ModeCard。"
 	)
 	assert_same(
 		get_viewport().gui_get_focus_owner(),

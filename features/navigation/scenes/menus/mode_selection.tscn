@@ -9,15 +9,11 @@ script = ExtResource("2_script")
 game_play_scene_path = "res://features/gameplay/scenes/game/game_play.tscn"
 
 [node name="LeftColumn" parent="MarginContainer/ColumnsContainer" index="0"]
-custom_minimum_size = Vector2(320, 0)
-
-[node name="ModeRuleProof" parent="MarginContainer/ColumnsContainer/LeftColumn" index="0" instance=ExtResource("3_proof")]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 3
+visible = false
+custom_minimum_size = Vector2(0, 0)
 
 [node name="RightColumn" parent="MarginContainer/ColumnsContainer" index="2"]
-custom_minimum_size = Vector2(330, 0)
+custom_minimum_size = Vector2(360, 0)
 
 [node name="PageTitle" parent="MarginContainer/ColumnsContainer/CenterColumn" index="0"]
 theme_override_font_sizes/font_size = 40
@@ -26,17 +22,20 @@ horizontal_alignment = 0
 
 [node name="CenterContentVBox" type="VBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder" index="0" unique_id=634851095]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(390, 0)
+custom_minimum_size = Vector2(620, 0)
 layout_mode = 2
 theme_override_constants/separation = 14
 
-[node name="ModeListContainer" type="VBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="0" unique_id=1460570638]
+[node name="ModeListContainer" type="GridContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="0" unique_id=1460570638]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
-theme_override_constants/separation = 12
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 12
+columns = 2
 
 [node name="PaginationContainer" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/CenterContentVBox" index="1" unique_id=1466536365]
+visible = false
 layout_mode = 2
 theme_override_constants/separation = 20
 alignment = 1
@@ -65,18 +64,17 @@ text = "下一页"
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
-focus_neighbor_top = NodePath("../PaginationContainer/PrevPageButton")
 text = "返回"
 
-[node name="ModeInfoContainer" type="VBoxContainer" parent="MarginContainer/ColumnsContainer/RightColumn" index="0"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_constants/separation = 9
-
-[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/RightColumn" index="1" unique_id=1647236253]
+[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/RightColumn" index="0" unique_id=1647236253]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
-text = "模式配置"
+text = "开始设置"
+
+[node name="ModeRuleProof" parent="MarginContainer/ColumnsContainer/RightColumn" index="1" instance=ExtResource("3_proof")]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
 
 [node name="HSeparator" type="HSeparator" parent="MarginContainer/ColumnsContainer/RightColumn" index="2" unique_id=339780803]
 layout_mode = 2
@@ -94,38 +92,59 @@ custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 focus_neighbor_left = NodePath("../../../CenterColumn/CenterContentHolder/CenterContentVBox/ModeListContainer")
 focus_neighbor_top = NodePath("../../StartGameButton")
-focus_neighbor_bottom = NodePath("../../EditBoardButton")
+focus_neighbor_bottom = NodePath("../../StartGameButton")
 
-[node name="EditBoardButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="4"]
+[node name="StartGameButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="4" unique_id=1679984735]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(44, 44)
+custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 focus_neighbor_left = NodePath("../../CenterColumn/CenterContentHolder/CenterContentVBox/ModeListContainer")
 focus_neighbor_top = NodePath("../GridSizeContainer/GridSizeOptionButton")
+focus_neighbor_bottom = NodePath("../AdvancedSettingsButton")
+disabled = true
+text = "开始游戏"
+
+[node name="AdvancedSettingsButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="5"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+toggle_mode = true
+text = "高级设置"
+
+[node name="AdvancedSettingsContainer" type="VBoxContainer" parent="MarginContainer/ColumnsContainer/RightColumn" index="6"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="EditBoardButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn/AdvancedSettingsContainer" index="0"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+focus_neighbor_top = NodePath("../../AdvancedSettingsButton")
 focus_neighbor_bottom = NodePath("../SeedContainer/SeedLineEdit")
 text = "自定义棋盘"
 
-[node name="SeedContainer" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/RightColumn" index="5" unique_id=1939648011]
+[node name="SeedContainer" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/RightColumn/AdvancedSettingsContainer" index="1" unique_id=1939648011]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/RightColumn/SeedContainer" index="0" unique_id=556242207]
+[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/RightColumn/AdvancedSettingsContainer/SeedContainer" index="0" unique_id=556242207]
 layout_mode = 2
 text = "游戏种子："
 
-[node name="SeedLineEdit" type="LineEdit" parent="MarginContainer/ColumnsContainer/RightColumn/SeedContainer" index="1" unique_id=244994606]
+[node name="SeedLineEdit" type="LineEdit" parent="MarginContainer/ColumnsContainer/RightColumn/AdvancedSettingsContainer/SeedContainer" index="1" unique_id=244994606]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(150, 44)
 layout_mode = 2
-focus_neighbor_left = NodePath("../../../CenterColumn/CenterContentHolder/CenterContentVBox/ModeListContainer")
 focus_neighbor_top = NodePath("../../EditBoardButton")
 focus_neighbor_right = NodePath("../RefreshSeedButton")
-focus_neighbor_bottom = NodePath("../../StartGameButton")
+focus_neighbor_bottom = NodePath("../../../AdvancedSettingsButton")
 text = "1655834524"
 placeholder_text = "留空则随机"
 select_all_on_focus = true
 caret_blink = true
 
-[node name="RefreshSeedButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn/SeedContainer" index="2" unique_id=1216658248]
+[node name="RefreshSeedButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn/AdvancedSettingsContainer/SeedContainer" index="2" unique_id=1216658248]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(46, 44)
 layout_mode = 2
@@ -133,24 +152,10 @@ tooltip_text = "点击以生成新的随机种子"
 focus_neighbor_left = NodePath("../SeedLineEdit")
 focus_neighbor_top = NodePath("../../EditBoardButton")
 focus_neighbor_right = NodePath("../SeedLineEdit")
-focus_neighbor_bottom = NodePath("../../StartGameButton")
+focus_neighbor_bottom = NodePath("../../../AdvancedSettingsButton")
 
-[node name="CompetitionStatusLabel" type="Label" parent="MarginContainer/ColumnsContainer/RightColumn" index="6"]
+[node name="CompetitionStatusLabel" type="Label" parent="MarginContainer/ColumnsContainer/RightColumn/AdvancedSettingsContainer" index="2"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "本地比赛榜"
 autowrap_mode = 3
-
-[node name="Spacer" type="Control" parent="MarginContainer/ColumnsContainer/RightColumn" index="7" unique_id=360129159]
-custom_minimum_size = Vector2(0, 20)
-layout_mode = 2
-
-[node name="StartGameButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="8" unique_id=1679984735]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 48)
-layout_mode = 2
-focus_neighbor_left = NodePath("../../CenterColumn/CenterContentHolder/CenterContentVBox/ModeListContainer")
-focus_neighbor_top = NodePath("../SeedContainer/SeedLineEdit")
-focus_neighbor_bottom = NodePath("../GridSizeContainer/GridSizeOptionButton")
-disabled = true
-text = "开始游戏"

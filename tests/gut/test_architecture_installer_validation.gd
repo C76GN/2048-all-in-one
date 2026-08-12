@@ -457,7 +457,8 @@ func test_mode_selection_focus_graph_keeps_vertical_loop_and_cross_column_target
 	autofree(menu)
 	var root: Control = Control.new()
 	add_child_autofree(root)
-	var list: VBoxContainer = VBoxContainer.new()
+	var list: GridContainer = GridContainer.new()
+	list.columns = 2
 	var pagination: HBoxContainer = HBoxContainer.new()
 	var back: Button = Button.new()
 	var previous_page: Button = Button.new()
@@ -471,6 +472,7 @@ func test_mode_selection_focus_graph_keeps_vertical_loop_and_cross_column_target
 	root.add_child(pagination)
 	root.add_child(back)
 	root.add_child(grid_size)
+	pagination.visible = false
 	pagination.add_child(previous_page)
 	pagination.add_child(next_page)
 	list.add_child(first_card)
@@ -487,11 +489,11 @@ func test_mode_selection_focus_graph_keeps_vertical_loop_and_cross_column_target
 
 	assert_true(back.get_node_or_null(back.focus_neighbor_bottom) == first_card, "返回键向下应进入第一张模式卡。")
 	assert_true(first_card.get_node_or_null(first_card.focus_neighbor_top) == back, "第一张模式卡向上应返回。")
-	assert_true(first_card.get_node_or_null(first_card.focus_neighbor_bottom) == last_card, "模式卡应按 GF 顺序向下移动。")
-	assert_true(last_card.get_node_or_null(last_card.focus_neighbor_bottom) == previous_page, "末张模式卡向下应进入分页。")
-	assert_true(previous_page.get_node_or_null(previous_page.focus_neighbor_bottom) == back, "分页向下应闭环到返回键。")
-	assert_true(next_page.get_node_or_null(next_page.focus_neighbor_top) == last_card, "下一页按钮向上应回到末张模式卡。")
-	assert_true(first_card.get_node_or_null(first_card.focus_neighbor_right) == grid_size, "模式卡向右应进入配置列。")
+	assert_true(first_card.get_node_or_null(first_card.focus_neighbor_right) == last_card, "两列模式索引应在同行向右移动。")
+	assert_true(first_card.get_node_or_null(first_card.focus_neighbor_bottom) == back, "只有一行时向下应回到返回键。")
+	assert_true(last_card.get_node_or_null(last_card.focus_neighbor_bottom) == back, "单页末张模式卡向下应闭环到返回键。")
+	assert_true(next_page.focus_neighbor_top.is_empty(), "单页隐藏分页不得参与焦点图。")
+	assert_true(last_card.get_node_or_null(last_card.focus_neighbor_right) == grid_size, "行末模式卡向右应进入配置列。")
 
 
 func test_mode_selection_exposes_configuration_leaderboard_without_daily_control() -> void:
@@ -503,17 +505,12 @@ func test_mode_selection_exposes_configuration_leaderboard_without_daily_control
 		"模式选择场景不得保留已删除的 Daily Challenge 控件。"
 	)
 	assert_true(scene_source.contains("CompetitionStatusLabel"))
+	assert_true(scene_source.contains("AdvancedSettingsButton"))
+	assert_true(scene_source.contains("AdvancedSettingsContainer"))
 	assert_true(
-		scene_source.contains(
-			"focus_neighbor_bottom = NodePath(\"../../StartGameButton\")"
-		),
-		"seed 控件应直接把向下焦点交给开始游戏。"
-	)
-	assert_true(
-		scene_source.contains(
-			"focus_neighbor_top = NodePath(\"../SeedContainer/SeedLineEdit\")"
-		),
-		"开始游戏应向上回到 seed 输入。"
+		scene_source.contains("visible = false")
+		and script_source.contains("_set_advanced_settings_visible(false)"),
+		"种子、自定义棋盘和比赛信息必须默认折叠。"
 	)
 	assert_true(
 		script_source.contains("get_local_leaderboard(")

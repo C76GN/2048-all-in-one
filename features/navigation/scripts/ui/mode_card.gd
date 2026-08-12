@@ -111,19 +111,16 @@ func _get_proof_formula_text(descriptor: ModeRuleProofDescriptor) -> String:
 func _update_style() -> void:
 	if not is_instance_valid(_style_utility):
 		return
-	var surface_role: GameUiStyleUtility.SurfaceRole = (
-		GameUiStyleUtility.SurfaceRole.SELECTED
-		if _is_selected
-		else GameUiStyleUtility.SurfaceRole.PANEL
-	)
+	# 选中态只使用边框建立层级，不再叠加高饱和底色、粗边与色条三重强调。
+	var surface_role: GameUiStyleUtility.SurfaceRole = GameUiStyleUtility.SurfaceRole.PANEL
 	var border_role: GameUiStyleUtility.BorderRole = GameUiStyleUtility.BorderRole.DEFAULT
-	var border_width: int = 2
+	var border_width: int = 1
 	if has_focus():
 		border_role = GameUiStyleUtility.BorderRole.FOCUS
-		border_width = 4 if _is_selected else 3
+		border_width = 3
 	elif _is_selected:
 		border_role = GameUiStyleUtility.BorderRole.SELECTED
-		border_width = 3
+		border_width = 2
 	_style_utility.style_panel(_panel, surface_role, border_role, border_width)
 	_update_label_colors()
 	_update_accent_strip()
@@ -155,10 +152,9 @@ func _update_accent_strip() -> void:
 		else absi(_config_path.hash()) % accent_colors.size()
 	)
 	var accent: Color = accent_colors[color_index]
-	if _is_selected:
-		accent = accent.lightened(0.08)
-	if has_focus():
-		accent.a = 1.0
+	accent.a = 0.42
+	if _is_selected or has_focus():
+		accent.a = 0.82
 	_accent_strip.color = accent
 
 
@@ -174,12 +170,5 @@ func _on_focus_exited() -> void:
 
 
 func _on_pressed() -> void:
-	# 点击时尝试将焦点移向右侧（如 GridSize 选项），模仿配置流程的下一步
-	var neighbor_path: NodePath = get_focus_neighbor(SIDE_RIGHT)
-
-	if not neighbor_path.is_empty():
-		var right_neighbor: Node = get_node_or_null(neighbor_path)
-
-		if right_neighbor is Control:
-			var right_control: Control = right_neighbor
-			right_control.grab_focus()
+	# 按下只确认当前模式；不擅自跳过同行卡片或抢走指针焦点。
+	grab_focus()

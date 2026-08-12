@@ -51,7 +51,7 @@ func test_proofs_match_canonical_rule_examples() -> void:
 	_assert_proof(&"gameplay.ratio", "8", "÷", "2", "4")
 
 
-func test_every_proof_notation_stays_inside_the_three_pane_width_contract() -> void:
+func test_every_proof_notation_stays_inside_the_compact_job_sheet_contract() -> void:
 	var scene: PackedScene = preload(
 		"res://features/navigation/scenes/ui/mode_rule_proof.tscn"
 	)
@@ -67,8 +67,14 @@ func test_every_proof_notation_stays_inside_the_three_pane_width_contract() -> v
 		await get_tree().process_frame
 		assert_lte(
 			proof.get_combined_minimum_size().x,
-			300.5,
-			"规则样张的短记号不得在切换模式后撑破桌面三栏：%s。" %
+			340.0,
+			"紧凑规则示例不得撑破右侧任务单：%s。" %
+			String(descriptor.ruleset_id)
+		)
+		assert_lte(
+			proof.get_combined_minimum_size().y,
+			150.0,
+			"紧凑规则示例不得重新演变为整块说明面板：%s。" %
 			String(descriptor.ruleset_id)
 		)
 
@@ -99,7 +105,7 @@ func test_step_and_ratio_spawn_claims_are_bound_to_production_mode_rules() -> vo
 	)
 
 
-func test_proof_is_primary_desktop_surface_and_recomposes_for_compact_layout() -> void:
+func test_proof_is_a_compact_child_of_the_start_job_sheet() -> void:
 	var selection_node: Node = _MODE_SELECTION_SCENE.instantiate()
 	selection_node.set_script(_ModeSelectionProbe)
 	var selection: _ModeSelectionProbe = selection_node as _ModeSelectionProbe
@@ -111,14 +117,13 @@ func test_proof_is_primary_desktop_surface_and_recomposes_for_compact_layout() -
 	await get_tree().process_frame
 	selection._apply_responsive_layout()
 
-	assert_same(selection._columns_container.get_child(0), selection._left_panel_container)
 	assert_true(selection._mode_rule_proof is ModeRuleProof)
-	selection._set_proof_stacked(true)
 	assert_same(
-		selection._left_panel_container.get_parent(),
-		selection._proof_stack_margin,
-		"窄屏必须把完整样张插入任务流，而不是隐藏或压缩桌面主对象。"
+		selection._mode_rule_proof.get_parent(),
+		selection._right_panel_container,
+		"规则示例必须从永久第三栏降级为开始任务单内的紧凑提示。"
 	)
+	assert_false(selection._left_panel_container.visible, "旧左侧样张栏必须保持隐藏。")
 
 
 func test_proof_explanation_does_not_depend_on_motion() -> void:
@@ -139,8 +144,31 @@ func test_proof_explanation_does_not_depend_on_motion() -> void:
 	assert_true(proof._source_a_value.text == "2")
 	assert_true(proof._source_b_value.text == "3")
 	assert_true(proof._result_value.text == "5")
-	assert_false(proof._outcome_label.text.is_empty())
 	assert_false(proof.is_processing(), "静态样张不得靠逐帧动画承载规则解释。")
+
+
+func test_compact_proof_contains_no_repeated_prose_fields() -> void:
+	var scene: PackedScene = preload(
+		"res://features/navigation/scenes/ui/mode_rule_proof.tscn"
+	)
+	var proof: ModeRuleProof = scene.instantiate() as ModeRuleProof
+	assert_not_null(proof)
+	if proof == null:
+		return
+	add_child_autoqfree(proof)
+	await get_tree().process_frame
+
+	for removed_node_name: String in [
+		"ProofKickerLabel",
+		"ProofNumberLabel",
+		"ProofModeNameLabel",
+		"ProofFormulaLabel",
+		"OutcomeLabel",
+	]:
+		assert_null(
+			proof.find_child(removed_node_name, true, false),
+			"紧凑示例不得恢复重复文案节点：%s。" % removed_node_name
+		)
 
 
 # --- 测试辅助方法 ---

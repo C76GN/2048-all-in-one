@@ -58,10 +58,10 @@ func test_task_page_classifier_covers_desktop_compact_and_portrait_targets() -> 
 	)
 
 
-func test_mode_selection_stacks_960x540_to_keep_actions_in_view() -> void:
-	assert_false(
+func test_mode_selection_keeps_960x540_two_pane_after_density_reduction() -> void:
+	assert_true(
 		ModeSelection._uses_side_by_side_layout(Vector2(960.0, 540.0)),
-		"960×540 应采用单列纸面，避免配置和开始操作被压到首屏以下。"
+		"删去独立样张栏并折叠高级设置后，960×540 应保留紧凑双栏。"
 	)
 	assert_true(
 		ModeSelection._uses_side_by_side_layout(Vector2(1280.0, 720.0)),
@@ -112,29 +112,36 @@ func test_mode_selection_uses_physical_safe_window_for_runtime_structure() -> vo
 			true,
 			false
 		) as CenterContainer
+		menu._left_panel_container = menu.find_child(
+			"LeftColumn",
+			true,
+			false
+		) as VBoxContainer
 		menu._right_panel_container = menu.find_child(
 			"RightColumn",
 			true,
 			false
 		) as VBoxContainer
-		menu._set_right_panel_stacked(
-			not ModeSelection._uses_side_by_side_layout(physical_size)
-		)
-		var stack_margin: Node = menu.find_child(
-			"RightPanelStackMargin",
-			true,
-			false
-		)
-		assert_true(stack_margin is MarginContainer)
+		menu._set_right_panel_stacked(false)
+		var proof: Node = menu.find_child("ModeRuleProof", true, false)
 		assert_same(
 			menu._right_panel_container.get_parent(),
-			stack_margin,
-			"物理 960×540 运行时结构必须把配置纸面堆叠到模式列表下方。"
+			menu._columns_container,
+			"物理 960×540 运行时结构必须保留模式索引与唯一作业单双栏。"
+		)
+		assert_true(
+			is_instance_valid(proof)
+			and menu._right_panel_container.is_ancestor_of(proof),
+			"紧凑规则示例必须并入右侧作业单，不得再次成为独立纸面。"
+		)
+		assert_false(
+			menu._left_panel_container.visible,
+			"两栏重构后旧 LeftColumn 必须保持隐藏，不能占据第三栏预算。"
 		)
 	menu_node.free()
 
 
-func test_mode_selection_physical_960x540_focus_graph_matches_stacked_layout() -> void:
+func test_mode_selection_physical_960x540_focus_graph_matches_two_pane_layout() -> void:
 	var menu: _ModeSelectionLayoutProbe = _make_mode_selection_layout_probe(
 		Vector2i(960, 540),
 		Vector2(1280.0, 720.0)
@@ -143,41 +150,78 @@ func test_mode_selection_physical_960x540_focus_graph_matches_stacked_layout() -
 	await get_tree().process_frame
 
 	assert_true(menu._layout_reference_size == Vector2(960.0, 540.0))
-	assert_false(
+	assert_true(
 		menu._side_by_side_layout_active,
-		"960×540 物理窗口必须把视觉布局和焦点图统一解析为单列。"
+		"960×540 物理窗口必须把视觉布局和焦点图统一解析为紧凑双栏。"
+	)
+	assert_same(
+		menu._right_panel_container.get_parent(),
+		menu._columns_container,
+		"配置作业单必须保留为模式索引右侧的唯一第二栏。"
+	)
+	assert_false(
+		menu._left_panel_container.visible,
+		"单列任务流只能堆叠一张作业单，旧规则栏必须保持隐藏。"
 	)
 	assert_true(
-		menu._right_panel_container.get_parent() is MarginContainer,
-		"配置作业单必须真实堆叠到模式索引下方。"
+		menu._right_panel_container.is_ancestor_of(menu._mode_rule_proof),
+		"规则示例必须留在被堆叠的右侧作业单内。"
 	)
-	assert_true(
-		menu._left_panel_container.get_parent() is MarginContainer,
-		"规则样张必须属于同一可滚动单列任务流。"
+	assert_false(
+		menu._advanced_settings_container.visible,
+		"首屏默认只保留棋盘尺寸、开始与高级设置入口。"
 	)
 	var card: ModeCard = menu._mode_card_slots[0]
+	var row_end_card: ModeCard = menu._mode_card_slots[1]
+	assert_same(
+		card.get_node_or_null(card.focus_neighbor_right),
+		row_end_card,
+		"两列模式索引应先在同行移动。"
+	)
 	var expected_order: Array[Control] = [
 		menu._grid_size_option_button,
-		menu._edit_board_button,
-		menu._seed_line_edit,
-		menu._refresh_seed_button,
 		menu._start_game_button,
+		menu._advanced_settings_button,
 	]
-	var current: Control = card
+	var current: Control = row_end_card
 	for expected_control: Control in expected_order:
-		var next_node: Node = current.get_node_or_null(
-			current.focus_neighbor_bottom
+		var focus_path: NodePath = (
+			current.focus_neighbor_right
+			if current == row_end_card
+			else current.focus_neighbor_bottom
 		)
+		var next_node: Node = current.get_node_or_null(focus_path)
 		assert_same(
 			next_node,
 			expected_control,
-			"单列焦点顺序必须从模式卡连续到达完整配置与开始操作。"
+			"紧凑双栏焦点必须从模式卡横向进入棋盘尺寸，再连续到达开始与高级设置。"
 		)
 		current = expected_control
-	assert_true(card.focus_neighbor_right.is_empty(), "单列模式卡不得指向不存在的右栏。")
+
+	menu._set_advanced_settings_visible(true)
+	menu._setup_focus_neighbors()
+	assert_true(menu._advanced_settings_container.visible)
+	var visible_controls: Array[Control] = menu._get_visible_configuration_controls()
+	assert_true(visible_controls.has(menu._edit_board_button))
+	assert_true(visible_controls.has(menu._seed_line_edit))
+	assert_true(visible_controls.has(menu._refresh_seed_button))
+	assert_same(
+		menu._edit_board_button.get_node_or_null(
+			menu._edit_board_button.focus_neighbor_bottom
+		),
+		menu._seed_line_edit,
+		"展开高级设置后，自定义棋盘必须能向下抵达种子输入。"
+	)
+	assert_same(
+		menu._seed_line_edit.get_node_or_null(
+			menu._seed_line_edit.focus_neighbor_right
+		),
+		menu._refresh_seed_button,
+		"种子输入必须能横向抵达随机种子操作。"
+	)
 
 
-func test_mode_selection_compact_two_pane_stacks_proof_without_horizontal_clip() -> void:
+func test_mode_selection_compact_landscape_keeps_one_right_job_sheet() -> void:
 	for physical_size: Vector2i in [
 		Vector2i(1152, 648),
 		Vector2i(1280, 600),
@@ -200,36 +244,43 @@ func test_mode_selection_compact_two_pane_stacks_proof_without_horizontal_clip()
 			menu._columns_container,
 			"紧凑双栏必须让配置作业单留在第二栏。"
 		)
+		assert_true(
+			menu._right_panel_container.is_ancestor_of(menu._mode_rule_proof),
+			"规则示例必须成为第二栏作业单的一部分。"
+		)
 		assert_false(
-			menu._left_panel_container.get_parent() == menu._columns_container,
-			"紧凑双栏不得再把规则样张作为未预算的第三栏。"
+			menu._left_panel_container.visible,
+			"1152px 及矮横屏不能重新显示旧第三栏。"
+		)
+		assert_false(
+			menu._page_scroll.visible,
+			"可容纳双栏时不应为了已删除的第三栏启用页面级滚动。"
 		)
 		assert_true(
-			menu._page_scroll.visible
-			and menu._page_scroll.follow_focus
-			and menu._page_scroll.horizontal_scroll_mode
-			== ScrollContainer.SCROLL_MODE_DISABLED,
-			"紧凑双栏应以纵向滚动承接样张，且禁止横向裁切补救。"
+			menu._mode_list_container.columns == 2,
+			"非竖屏模式列表必须使用两列网格一次呈现六种模式。"
+		)
+		var compact_widths: Vector2 = ModeSelection._get_compact_two_pane_widths(
+			float(physical_size.x)
 		)
 		assert_lte(
-			menu._columns_container.get_combined_minimum_size().x,
-			menu._page_scroll.size.x + 0.5,
-			"模式索引与配置双栏的最小宽度必须落在真实可用区域内。"
+			compact_widths.x + compact_widths.y + 56.0,
+			float(physical_size.x) + 0.5,
+			"模式索引与作业单的宽度预算必须落在物理视口内。"
 		)
-		var card: ModeCard = menu._mode_card_slots[0]
+		var card: ModeCard = menu._mode_card_slots[1]
 		assert_same(
 			card.get_node_or_null(card.focus_neighbor_right),
 			menu._grid_size_option_button,
 			"双栏模式卡必须能直接抵达配置作业单。"
 		)
 		assert_true(
-			menu._start_game_button.is_visible_in_tree()
-			and menu._page_scroll.follow_focus,
-			"开始操作必须可见或可由同一跟焦滚动视口抵达。"
+			menu._start_game_button.is_visible_in_tree(),
+			"两栏首屏必须直接显示开始操作。"
 		)
 
 
-func test_mode_selection_1180x620_uses_safe_two_pane_breakpoint() -> void:
+func test_mode_selection_1180x620_uses_complete_two_pane_desktop() -> void:
 	var menu: _ModeSelectionLayoutProbe = _make_mode_selection_layout_probe(
 		Vector2i(1180, 620),
 		Vector2(1280.0, 720.0)
@@ -241,27 +292,28 @@ func test_mode_selection_1180x620_uses_safe_two_pane_breakpoint() -> void:
 
 	assert_true(
 		menu._layout_mode == GameTaskPageLayoutUtility.LayoutMode.DESKTOP,
-		"1180×620 仍命中共享桌面分类，但页面必须继续验证真实三栏预算。"
+		"1180×620 应命中共享桌面分类。"
 	)
 	assert_true(menu._side_by_side_layout_active)
 	assert_false(
-		menu._three_pane_layout_active,
-		"规则样张、模式索引与配置的真实最小宽度超出 1180px 时必须降为双栏。"
+		menu._left_panel_container.visible,
+		"桌面构图也只能保留模式索引与开始作业单两栏。"
 	)
 	assert_same(menu._right_panel_container.get_parent(), menu._columns_container)
-	assert_false(menu._left_panel_container.get_parent() == menu._columns_container)
 	assert_true(
-		menu._page_scroll.visible
-		and menu._page_scroll.follow_focus
-		and menu._page_scroll.horizontal_scroll_mode
-		== ScrollContainer.SCROLL_MODE_DISABLED
+		menu._right_panel_container.is_ancestor_of(menu._mode_rule_proof),
+		"规则示例必须留在右侧作业单内。"
+	)
+	assert_false(
+		menu._page_scroll.visible,
+		"1180×620 两栏工作区不需要页面级滚动。"
 	)
 	assert_lte(
 		menu._columns_container.get_combined_minimum_size().x,
-		menu._page_scroll.size.x + 0.5,
-		"1180×620 的生产双栏最小宽度必须落在可用视口内。"
+		menu._margin_container.size.x + 0.5,
+		"1180×620 的两栏最小宽度必须落在可用视口内。"
 	)
-	var card: ModeCard = menu._mode_card_slots[0]
+	var card: ModeCard = menu._mode_card_slots[1]
 	assert_same(
 		card.get_node_or_null(card.focus_neighbor_right),
 		menu._grid_size_option_button,
@@ -270,7 +322,7 @@ func test_mode_selection_1180x620_uses_safe_two_pane_breakpoint() -> void:
 	assert_true(menu._start_game_button.is_visible_in_tree())
 
 
-func test_mode_selection_1280x720_preserves_full_three_pane_desktop() -> void:
+func test_mode_selection_1280x720_preserves_relaxed_two_pane_desktop() -> void:
 	var menu: _ModeSelectionLayoutProbe = _make_mode_selection_layout_probe(
 		Vector2i(1280, 720),
 		Vector2(1280.0, 720.0)
@@ -280,112 +332,141 @@ func test_mode_selection_1280x720_preserves_full_three_pane_desktop() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	assert_true(menu._three_pane_layout_active, "1280×720 应保留完整三栏工作台。")
-	assert_same(menu._left_panel_container.get_parent(), menu._columns_container)
+	assert_true(menu._side_by_side_layout_active, "1280×720 应保留完整两栏工作区。")
+	assert_false(menu._left_panel_container.visible, "旧规则栏不得作为第三个等权纸面出现。")
 	assert_same(menu._right_panel_container.get_parent(), menu._columns_container)
-	assert_false(menu._page_scroll.visible, "完整三栏不需要页面级滚动。")
+	assert_true(menu._right_panel_container.is_ancestor_of(menu._mode_rule_proof))
+	assert_true(menu._mode_list_container.columns == 2)
+	assert_false(menu._page_scroll.visible, "完整两栏不需要页面级滚动。")
+	assert_true(
+		menu._center_content_holder.size_flags_vertical == Control.SIZE_SHRINK_BEGIN,
+		"桌面模式索引必须紧接标题顶对齐，不能在右侧工单旁垂直漂到页面中段。"
+	)
 	assert_lte(
 		menu._columns_container.get_combined_minimum_size().x,
 		menu._margin_container.size.x + 0.5,
-		"1280×720 三栏 combined minimum 必须落在桌面安全区域内。"
+		"1280×720 两栏 combined minimum 必须落在桌面安全区域内。"
 	)
-	var card: ModeCard = menu._mode_card_slots[0]
+	var card: ModeCard = menu._mode_card_slots[1]
 	assert_same(
 		card.get_node_or_null(card.focus_neighbor_right),
 		menu._grid_size_option_button,
-		"桌面三栏仍必须从模式索引横向进入配置。"
+		"桌面模式索引必须能横向进入开始作业单。"
 	)
 
 
-func test_mode_selection_prioritizes_action_before_proof_only_in_short_landscape() -> void:
-	var menu_node: Node = _MODE_SELECTION_SCENE.instantiate()
-	assert_true(menu_node is ModeSelection)
-	if not menu_node is ModeSelection:
-		menu_node.free()
-		return
-	var menu: ModeSelection = menu_node
-	var columns_node: Node = menu.find_child("ColumnsContainer", true, false)
-	var center_node: Node = menu.find_child("CenterColumn", true, false)
-	var holder_node: Node = menu.find_child("CenterContentHolder", true, false)
-	var left_node: Node = menu.find_child("LeftColumn", true, false)
-	var right_node: Node = menu.find_child("RightColumn", true, false)
-	assert_true(
-		columns_node is HBoxContainer
-		and center_node is VBoxContainer
-		and holder_node is CenterContainer
-		and left_node is VBoxContainer
-		and right_node is VBoxContainer
+func test_mode_selection_grid_switches_only_for_portrait() -> void:
+	var landscape: _ModeSelectionLayoutProbe = _make_mode_selection_layout_probe(
+		Vector2i(1152, 648),
+		Vector2(1152.0, 648.0)
 	)
-	if (
-		not columns_node is HBoxContainer
-		or not center_node is VBoxContainer
-		or not holder_node is CenterContainer
-		or not left_node is VBoxContainer
-		or not right_node is VBoxContainer
-	):
-		menu_node.free()
-		return
-	menu._columns_container = columns_node
-	menu._center_column = center_node
-	menu._center_content_holder = holder_node
-	menu._left_panel_container = left_node
-	menu._right_panel_container = right_node
-	menu._set_right_panel_stacked(true)
-	menu._set_proof_stacked(true)
-	menu._order_stacked_surfaces(false)
-	assert_true(
-		menu._right_panel_stack_margin.get_index()
-		< menu._proof_stack_margin.get_index(),
-		"矮横屏应先露出开始操作，再让玩家继续滚动查看完整规则样张。"
-	)
-	menu._order_stacked_surfaces(true)
-	assert_true(
-		menu._proof_stack_margin.get_index()
-		< menu._right_panel_stack_margin.get_index(),
-		"竖屏应保持规则样张先于作业单的概念阅读顺序。"
-	)
-	menu_node.free()
+	landscape._apply_responsive_layout()
+	await get_tree().process_frame
+	assert_true(landscape._mode_list_container.columns == 2)
 
-
-func test_mode_selection_paginates_from_available_first_screen_height() -> void:
+	var portrait: _ModeSelectionLayoutProbe = _make_mode_selection_layout_probe(
+		Vector2i(720, 960),
+		Vector2(720.0, 960.0)
+	)
+	portrait._apply_responsive_layout()
+	await get_tree().process_frame
 	assert_true(
-		ModeSelection._get_items_per_page_for_viewport(Vector2(1280.0, 720.0)) == 4,
-		"720px 高桌面页只能放四张模式卡，必须为分页和返回按钮保留首屏空间。"
+		portrait._layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
 	)
 	assert_true(
-		ModeSelection._get_items_per_page_for_viewport(Vector2(960.0, 540.0)) == 2,
-		"540px 高单列横屏只放两张模式卡，为同一首屏内的配置与开始操作保留空间。"
+		portrait._mode_list_container.columns == 1,
+		"竖屏必须把六个模式改为单列阅读。"
 	)
 	assert_true(
-		ModeSelection._get_items_per_page_for_viewport(Vector2(720.0, 1558.0)) == 5,
-		"高竖屏可以使用完整的五项分页上限。"
+		portrait._right_panel_container.get_parent() is MarginContainer,
+		"竖屏应在模式列表后堆叠一张完整作业单。"
+	)
+	assert_same(
+		portrait._back_button.get_parent(),
+		portrait._center_column,
+		"页级返回操作必须在堆叠模式索引之前，不得切断选择到开始的流程。"
+	)
+	assert_true(
+		portrait._back_button.get_index() < portrait._center_content_holder.get_index()
+	)
+	assert_true(
+		portrait._right_panel_container.is_ancestor_of(portrait._mode_rule_proof),
+		"竖屏不得把规则示例拆成第二张堆叠纸面。"
 	)
 
 
-func test_mode_selection_clamps_ultrawide_budget_to_logical_canvas_height() -> void:
-	var ultrawide_budget: Vector2 = ModeSelection._resolve_first_screen_budget_size(
-		Vector2(1430.0, 720.0),
-		Vector2(1906.0, 943.0)
-	)
-	assert_true(
-		ultrawide_budget == Vector2(1906.0, 720.0),
-		"超宽物理窗口不得把 943px 高度直接当作 720px 逻辑画布的首屏预算。"
-	)
-	assert_true(
-		ModeSelection._get_items_per_page_for_viewport(ultrawide_budget) == 4,
-		"逻辑 720px 高画布最多物化四张卡，避免中心内容向顶部安全区负向溢出。"
-	)
+func test_mode_selection_stacked_grid_exits_down_into_start_job_sheet() -> void:
+	for layout_case: Dictionary in [
+		{
+			&"physical_size": Vector2i(720, 960),
+			&"logical_size": Vector2(720.0, 960.0),
+		},
+		{
+			&"physical_size": Vector2i(850, 838),
+			&"logical_size": Vector2(730.0, 720.0),
+		},
+	]:
+		var physical_size: Vector2i = layout_case[&"physical_size"]
+		var logical_size: Vector2 = layout_case[&"logical_size"]
+		var menu: _ModeSelectionLayoutProbe = _make_mode_selection_layout_probe(
+			physical_size,
+			logical_size
+		)
+		menu._apply_responsive_layout()
+		await get_tree().process_frame
 
-	var compact_budget: Vector2 = ModeSelection._resolve_first_screen_budget_size(
-		Vector2(1280.0, 720.0),
-		Vector2(960.0, 540.0)
+		assert_false(
+			menu._side_by_side_layout_active,
+			"%s 应使用模式索引接开始作业单的堆叠任务流。" % physical_size
+		)
+		var column_count: int = menu._mode_list_container.columns
+		var cards: Array[ModeCard] = menu._mode_card_slots
+		for index: int in range(cards.size()):
+			if index + column_count < cards.size():
+				continue
+			var card: ModeCard = cards[index]
+			assert_same(
+				card.get_node_or_null(card.focus_neighbor_bottom),
+				menu._grid_size_option_button,
+				"堆叠模式网格末行向下必须进入棋盘大小，不能回到返回按钮。"
+			)
+
+
+func test_mode_selection_keeps_six_modes_on_one_page_and_folds_advanced_settings() -> void:
+	var menu: _ModeSelectionLayoutProbe = _make_mode_selection_layout_probe(
+		Vector2i(1280, 720),
+		Vector2(1280.0, 720.0)
 	)
-	assert_true(compact_budget == Vector2(960.0, 540.0))
+	menu._mode_config_paths = PackedStringArray([
+		"classic",
+		"fibonacci",
+		"lucas",
+		"progressive",
+		"step",
+		"ratio",
+	])
+	menu._update_pagination_buttons_visibility()
+
+	assert_true(menu._items_per_page == 6, "当前六种模式必须在同一页完整呈现。")
+	assert_true(menu._total_pages == 1)
+	assert_false(menu._pagination_container.visible, "六项模式不应引入上一页/下一页。")
 	assert_false(
-		ModeSelection._uses_side_by_side_layout(compact_budget),
-		"逻辑高度保护不得破坏物理 960×540 的单列契约。"
+		menu._advanced_settings_container.visible,
+		"自定义棋盘、种子和比赛信息默认应折叠。"
 	)
+	for control: Control in [
+		menu._edit_board_button,
+		menu._seed_line_edit,
+		menu._refresh_seed_button,
+	]:
+		assert_true(
+			menu._advanced_settings_container.is_ancestor_of(control),
+			"高级功能必须保留，但统一归入折叠容器。"
+		)
+	assert_true(menu._advanced_settings_button.is_visible_in_tree())
 
+
+func test_mode_selection_center_holder_preserves_centered_axis() -> void:
 	var menu: Node = _MODE_SELECTION_SCENE.instantiate()
 	var center_holder: CenterContainer = menu.find_child(
 		"CenterContentHolder",
@@ -396,7 +477,7 @@ func test_mode_selection_clamps_ultrawide_budget_to_logical_canvas_height() -> v
 	if center_holder != null:
 		assert_false(
 			center_holder.use_top_left,
-			"分页预算已经约束内容高度；CenterContainer 必须保留原生居中语义，避免内容列向左偏移半个宽度。"
+			"两栏工作区必须保留原生居中语义，避免模式网格向左偏移半个宽度。"
 		)
 	menu.free()
 
@@ -409,6 +490,7 @@ func test_mode_selection_key_controls_preserve_touch_target_contract() -> void:
 		&"NextPageButton",
 		&"BackButton",
 		&"GridSizeOptionButton",
+		&"AdvancedSettingsButton",
 		&"EditBoardButton",
 		&"SeedLineEdit",
 		&"RefreshSeedButton",
@@ -647,8 +729,7 @@ func test_capture_matrix_exercises_real_player_gameplay_route_chain() -> void:
 		'"%s 初始焦点" % String(page_id)',
 		"_validate_visible_touch_targets",
 		'"%s 空态" % page_id',
-		"_move_mode_selection_to_first_page",
-		"_mode_selection_has_visible_ratio_card",
+		"_validate_mode_selection_single_page",
 		"settings_controls_bindings",
 		"_validate_leaderboard_filter_label",
 		"label.contains(\"board_template.\")",
@@ -799,8 +880,8 @@ func test_visual_capture_tools_publish_single_run_manifests() -> void:
 	var screenshot_pattern: RegEx = RegEx.new()
 	assert_true(screenshot_pattern.compile('"[^"]+\\.png"') == OK)
 	assert_true(
-		screenshot_pattern.search_all(plan_source).size() == 171,
-		"UI 矩阵必须在运行前独立声明完整的 171 张截图契约。"
+		screenshot_pattern.search_all(plan_source).size() == 163,
+		"UI 矩阵必须在运行前独立声明完整的 163 张截图契约。"
 	)
 	assert_false(
 		matrix_source.contains("_artifact_session.expect_screenshot(file_name)"),
@@ -1033,9 +1114,10 @@ func _make_mode_selection_layout_probe(
 	menu._viewport_utility = menu.viewport_probe
 	menu._pagination_container.visible = false
 	menu._start_game_button.disabled = false
-	var card: ModeCard = ModeSelection.MODE_CARD_SCENE.instantiate() as ModeCard
-	menu._mode_list_container.add_child(card)
-	menu._mode_card_slots.append(card)
+	for _slot_index: int in range(6):
+		var card: ModeCard = ModeSelection.MODE_CARD_SCENE.instantiate() as ModeCard
+		menu._mode_list_container.add_child(card)
+		menu._mode_card_slots.append(card)
 	return menu
 
 

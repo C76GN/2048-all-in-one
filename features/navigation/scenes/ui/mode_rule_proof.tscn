@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://features/navigation/scripts/ui/mode_rule_proof.gd" id="1_proof"]
 
 [node name="ModeRuleProof" type="VBoxContainer"]
-custom_minimum_size = Vector2(300, 338)
+custom_minimum_size = Vector2(280, 112)
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 0
@@ -11,70 +11,43 @@ script = ExtResource("1_proof")
 
 [node name="Margin" type="MarginContainer" parent="."]
 layout_mode = 2
-theme_override_constants/margin_left = 20
-theme_override_constants/margin_top = 18
-theme_override_constants/margin_right = 20
-theme_override_constants/margin_bottom = 20
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
 
-[node name="Content" type="VBoxContainer" parent="Margin"]
+[node name="Content" type="HBoxContainer" parent="Margin"]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="Header" type="HBoxContainer" parent="Margin/Content"]
-layout_mode = 2
-
-[node name="ProofKickerLabel" type="Label" parent="Margin/Content/Header"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-text = "规则样张"
-
-[node name="ProofNumberLabel" type="Label" parent="Margin/Content/Header"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "PROOF 01"
-horizontal_alignment = 2
-
 [node name="AccentBar" type="ColorRect" parent="Margin/Content"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 5)
+custom_minimum_size = Vector2(3, 0)
 layout_mode = 2
 mouse_filter = 2
-color = Color(0.294118, 0.741176, 0.772549, 1)
-
-[node name="ProofModeNameLabel" type="Label" parent="Margin/Content"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "经典模式"
-autowrap_mode = 2
-
-[node name="ProofFormulaLabel" type="Label" parent="Margin/Content"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "等值同版相加"
-autowrap_mode = 2
+color = Color(0.294118, 0.741176, 0.772549, 0.72)
 
 [node name="ProofDiagram" type="HBoxContainer" parent="Margin/Content"]
 layout_mode = 2
-size_flags_vertical = 3
+size_flags_horizontal = 3
 theme_override_constants/separation = 4
 alignment = 1
 
 [node name="SourceAPlate" type="PanelContainer" parent="Margin/Content/ProofDiagram"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(66, 84)
+custom_minimum_size = Vector2(54, 58)
 layout_mode = 2
 
 [node name="Margin" type="MarginContainer" parent="Margin/Content/ProofDiagram/SourceAPlate"]
 layout_mode = 2
-theme_override_constants/margin_left = 6
-theme_override_constants/margin_top = 8
-theme_override_constants/margin_right = 6
-theme_override_constants/margin_bottom = 7
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
 
 [node name="Values" type="VBoxContainer" parent="Margin/Content/ProofDiagram/SourceAPlate/Margin"]
 layout_mode = 2
-theme_override_constants/separation = 2
+theme_override_constants/separation = 0
 alignment = 1
 
 [node name="SourceAValue" type="Label" parent="Margin/Content/ProofDiagram/SourceAPlate/Margin/Values"]
@@ -92,7 +65,7 @@ clip_text = true
 
 [node name="OperatorLabel" type="Label" parent="Margin/Content/ProofDiagram"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(20, 0)
+custom_minimum_size = Vector2(18, 0)
 layout_mode = 2
 text = "+"
 horizontal_alignment = 1
@@ -100,19 +73,19 @@ vertical_alignment = 1
 
 [node name="SourceBPlate" type="PanelContainer" parent="Margin/Content/ProofDiagram"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(66, 84)
+custom_minimum_size = Vector2(54, 58)
 layout_mode = 2
 
 [node name="Margin" type="MarginContainer" parent="Margin/Content/ProofDiagram/SourceBPlate"]
 layout_mode = 2
-theme_override_constants/margin_left = 6
-theme_override_constants/margin_top = 8
-theme_override_constants/margin_right = 6
-theme_override_constants/margin_bottom = 7
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
 
 [node name="Values" type="VBoxContainer" parent="Margin/Content/ProofDiagram/SourceBPlate/Margin"]
 layout_mode = 2
-theme_override_constants/separation = 2
+theme_override_constants/separation = 0
 alignment = 1
 
 [node name="SourceBValue" type="Label" parent="Margin/Content/ProofDiagram/SourceBPlate/Margin/Values"]
@@ -129,28 +102,27 @@ horizontal_alignment = 1
 clip_text = true
 
 [node name="EqualsLabel" type="Label" parent="Margin/Content/ProofDiagram"]
-custom_minimum_size = Vector2(20, 0)
+custom_minimum_size = Vector2(18, 0)
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
 text = "="
 horizontal_alignment = 1
 vertical_alignment = 1
 
 [node name="ResultPlate" type="PanelContainer" parent="Margin/Content/ProofDiagram"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(72, 92)
+custom_minimum_size = Vector2(58, 62)
 layout_mode = 2
 
 [node name="Margin" type="MarginContainer" parent="Margin/Content/ProofDiagram/ResultPlate"]
 layout_mode = 2
-theme_override_constants/margin_left = 6
-theme_override_constants/margin_top = 8
-theme_override_constants/margin_right = 6
-theme_override_constants/margin_bottom = 7
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
 
 [node name="Values" type="VBoxContainer" parent="Margin/Content/ProofDiagram/ResultPlate/Margin"]
 layout_mode = 2
-theme_override_constants/separation = 2
+theme_override_constants/separation = 0
 alignment = 1
 
 [node name="ResultValue" type="Label" parent="Margin/Content/ProofDiagram/ResultPlate/Margin/Values"]
@@ -165,10 +137,3 @@ layout_mode = 2
 text = "N"
 horizontal_alignment = 1
 clip_text = true
-
-[node name="OutcomeLabel" type="Label" parent="Margin/Content"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "结果占据移动目标位置。"
-autowrap_mode = 2
-max_lines_visible = 3

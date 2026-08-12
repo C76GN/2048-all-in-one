@@ -2022,7 +2022,7 @@ func test_mode_selection_seed_action_uses_packaged_icon_instead_of_emoji() -> vo
 	if scene_root == null:
 		return
 	var seed_button_node: Node = scene_root.get_node_or_null(
-		"MarginContainer/ColumnsContainer/RightColumn/SeedContainer/RefreshSeedButton"
+		"MarginContainer/ColumnsContainer/RightColumn/AdvancedSettingsContainer/SeedContainer/RefreshSeedButton"
 	)
 	assert_true(seed_button_node is Button, "模式配置应保留独立的随机种子按钮。")
 	if seed_button_node is Button:
