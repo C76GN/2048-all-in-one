@@ -156,7 +156,8 @@ func _goto_scene(scene_path: String, property_name: String) -> void:
 func _start_popup_intent_preload_after_first_draw() -> void:
 	if not is_inside_tree() or is_instance_valid(_popup_intent_preload_session):
 		return
-	if DisplayServer.get_name() == "headless":
+	var platform_utility: GamePlatformUtility = _get_platform_utility()
+	if not is_instance_valid(platform_utility) or platform_utility.is_headless_runtime():
 		await get_tree().process_frame
 	else:
 		await RenderingServer.frame_post_draw
@@ -573,6 +574,14 @@ func _get_viewport_utility() -> GFViewportUtility:
 	if utility_value is GFViewportUtility:
 		var viewport_utility: GFViewportUtility = utility_value
 		return viewport_utility
+	return null
+
+
+func _get_platform_utility() -> GamePlatformUtility:
+	var utility_value: Object = get_utility(GamePlatformUtility)
+	if utility_value is GamePlatformUtility:
+		var platform_utility: GamePlatformUtility = utility_value
+		return platform_utility
 	return null
 
 

@@ -5,6 +5,9 @@ extends GutTest
 # --- 常量 ---
 
 const PROJECT_INSTALLER_PATH: String = "res://app/scripts/game_architecture_installer.gd"
+const PROJECT_REQUIRED_BINDING_PATH: String = (
+	"res://shared/scripts/foundation/project_required_binding.gd"
+)
 const BOOT_RUNTIME_PATH: String = "res://app/scripts/boot_runtime.gd"
 const STARTUP_RENDER_WARMUP_MANIFEST: GFRenderWarmupManifest = preload(
 	"res://features/themes/resources/themes/boot/startup_render_warmup_manifest.tres"
@@ -124,8 +127,11 @@ func test_project_installer_does_not_bind_extension_owned_modules() -> void:
 
 func test_project_installer_binds_signal_utility_before_theme_consumers() -> void:
 	var source: String = _read_text(PROJECT_INSTALLER_PATH)
-	var signal_position: int = source.find("bind_utility(GFSignalUtility)")
-	var theme_position: int = source.find("bind_utility(_GAME_THEME_UTILITY_SCRIPT)")
+	var signal_position: int = _find_project_binding_position(source, "GFSignalUtility")
+	var theme_position: int = _find_project_binding_position(
+		source,
+		"_GAME_THEME_UTILITY_SCRIPT"
+	)
 
 	assert_true(signal_position >= 0, "项目 Installer 应注册 GFSignalUtility。")
 	assert_true(theme_position >= 0, "项目 Installer 应注册 GameThemeUtility。")
@@ -137,12 +143,13 @@ func test_project_installer_binds_signal_utility_before_theme_consumers() -> voi
 
 func test_project_installer_shares_resource_broker_before_load_consumers() -> void:
 	var source: String = _read_text(PROJECT_INSTALLER_PATH)
-	var broker_position: int = source.find("bind_utility(GFResourceBroker)")
-	var background_work_position: int = source.find(
-		"bind_utility(GFBackgroundWorkUtility)"
+	var broker_position: int = _find_project_binding_position(source, "GFResourceBroker")
+	var background_work_position: int = _find_project_binding_position(
+		source,
+		"GFBackgroundWorkUtility"
 	)
-	var asset_position: int = source.find("bind_utility(GFAssetUtility)")
-	var scene_position: int = source.find("bind_utility(GFSceneUtility)")
+	var asset_position: int = _find_project_binding_position(source, "GFAssetUtility")
+	var scene_position: int = _find_project_binding_position(source, "GFSceneUtility")
 
 	assert_true(broker_position >= 0, "Composition Root 应注册共享 GFResourceBroker。")
 	assert_true(background_work_position >= 0, "Composition Root 应注册 GFBackgroundWorkUtility。")
@@ -235,11 +242,11 @@ func test_project_installer_groups_internal_bindings_by_runtime_ownership() -> v
 			"Composition Root 应保留内部装配分组：%s。" % helper_name
 		)
 	assert_true(
-		source.contains("bind_system(ProgressStatsSystem)"),
+		_source_binds_symbol(source, "ProgressStatsSystem"),
 		"进度统计所有者必须以 ProgressStatsSystem 的准确语义注册。"
 	)
 	assert_true(
-		source.contains("bind_system(TileLabSystem)"),
+		_source_binds_symbol(source, "TileLabSystem"),
 		"方块试验台必须由项目 Composition Root 注册为独立 System。"
 	)
 	assert_true(
@@ -247,19 +254,20 @@ func test_project_installer_groups_internal_bindings_by_runtime_ownership() -> v
 		"方块蓝图必须进入统一玩家 SaveGraph。"
 	)
 	assert_false(
-		source.contains("bind_system(SaveSystem)"),
+		_source_binds_symbol(source, "SaveSystem"),
 		"Composition Root 不得再暗示项目存在第二个通用存档 System。"
 	)
 
 
 func test_project_installer_binds_input_device_before_input_mapping() -> void:
 	var source: String = _read_text(PROJECT_INSTALLER_PATH)
-	var canonical_timer_position: int = source.find("bind_utility(GFTimerUtility)")
-	var device_position: int = source.find("bind_utility(GFInputDeviceUtility)")
-	var realtime_timer_position: int = source.find(
-		"bind_utility(_GAME_REALTIME_TIMER_UTILITY_SCRIPT)"
+	var canonical_timer_position: int = _find_project_binding_position(source, "GFTimerUtility")
+	var device_position: int = _find_project_binding_position(source, "GFInputDeviceUtility")
+	var realtime_timer_position: int = _find_project_binding_position(
+		source,
+		"_GAME_REALTIME_TIMER_UTILITY_SCRIPT"
 	)
-	var mapping_position: int = source.find("bind_utility(GFInputMappingUtility)")
+	var mapping_position: int = _find_project_binding_position(source, "GFInputMappingUtility")
 
 	assert_true(canonical_timer_position >= 0, "项目 Installer 应保留随 GFTime 推进的 canonical GFTimerUtility。")
 	assert_true(device_position >= 0, "项目 Installer 应注册 GFInputDeviceUtility。")
@@ -281,15 +289,21 @@ func test_project_installer_binds_input_device_before_input_mapping() -> void:
 
 func test_project_installer_orders_input_profile_and_board_animation_adapters() -> void:
 	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)
-	var input_mapping_position: int = installer_source.find("bind_utility(GFInputMappingUtility)")
-	var input_assist_position: int = installer_source.find(
-		"bind_utility(GFInputAssistUtility)"
+	var input_mapping_position: int = _find_project_binding_position(
+		installer_source,
+		"GFInputMappingUtility"
 	)
-	var input_profile_position: int = installer_source.find(
-		"bind_utility(_GAME_INPUT_PROFILE_UTILITY_SCRIPT)"
+	var input_assist_position: int = _find_project_binding_position(
+		installer_source,
+		"GFInputAssistUtility"
 	)
-	var board_animation_position: int = installer_source.find(
-		"bind_utility(_GAME_BOARD_ANIMATION_UTILITY_SCRIPT)"
+	var input_profile_position: int = _find_project_binding_position(
+		installer_source,
+		"_GAME_INPUT_PROFILE_UTILITY_SCRIPT"
+	)
+	var board_animation_position: int = _find_project_binding_position(
+		installer_source,
+		"_GAME_BOARD_ANIMATION_UTILITY_SCRIPT"
 	)
 	var input_profile_source: String = _read_text(GAME_INPUT_PROFILE_UTILITY_PATH)
 	var board_animation_source: String = _read_text(GAME_BOARD_ANIMATION_UTILITY_PATH)
@@ -310,10 +324,13 @@ func test_project_installer_orders_input_profile_and_board_animation_adapters() 
 func test_project_installer_registers_platform_primitives_before_platform_boundary() -> void:
 	var source: String = _read_text(PROJECT_INSTALLER_PATH)
 	var smoke_source: String = _read_text(PLATFORM_SMOKE_CONTROLLER_PATH)
-	var runtime_position: int = source.find("bind_utility(GFPlatformRuntime)")
-	var viewport_position: int = source.find("bind_utility(GFViewportUtility)")
-	var http_position: int = source.find("bind_utility(GFHttpClientUtility)")
-	var platform_position: int = source.find("bind_utility(_GAME_PLATFORM_UTILITY_SCRIPT)")
+	var runtime_position: int = _find_project_binding_position(source, "GFPlatformRuntime")
+	var viewport_position: int = _find_project_binding_position(source, "GFViewportUtility")
+	var http_position: int = _find_project_binding_position(source, "GFHttpClientUtility")
+	var platform_position: int = _find_project_binding_position(
+		source,
+		"_GAME_PLATFORM_UTILITY_SCRIPT"
+	)
 
 	assert_true(runtime_position >= 0, "项目 Installer 应注册 GFPlatformRuntime。")
 	assert_true(viewport_position >= 0, "项目 Installer 应注册 GFViewportUtility。")
@@ -323,7 +340,7 @@ func test_project_installer_registers_platform_primitives_before_platform_bounda
 		"GFHttpClientUtility 只能在 platform_smoke 构建边界注册。"
 	)
 	assert_false(
-		source.contains("bind_utility(GFPointerGestureUtility)"),
+		_source_binds_symbol(source, "GFPointerGestureUtility"),
 		"可变配置的指针手势工具不得作为跨画布 singleton 注册。"
 	)
 	assert_true(
@@ -338,8 +355,11 @@ func test_project_installer_registers_platform_primitives_before_platform_bounda
 
 func test_project_installer_binds_pause_adapter_after_gf_time_provider() -> void:
 	var source: String = _read_text(PROJECT_INSTALLER_PATH)
-	var time_position: int = source.find("bind_utility(GFTimeUtility)")
-	var pause_position: int = source.find("bind_utility(_GAME_PAUSE_UTILITY_SCRIPT)")
+	var time_position: int = _find_project_binding_position(source, "GFTimeUtility")
+	var pause_position: int = _find_project_binding_position(
+		source,
+		"_GAME_PAUSE_UTILITY_SCRIPT"
+	)
 
 	assert_true(time_position >= 0, "项目 Installer 应注册 GFTimeUtility。")
 	assert_true(pause_position >= 0, "项目 Installer 应注册 GamePauseUtility。")
@@ -374,10 +394,11 @@ func test_project_clock_adapts_one_shared_gf_clock() -> void:
 
 func test_project_installer_binds_storage_settings_store_before_game_settings() -> void:
 	var source: String = _read_text(PROJECT_INSTALLER_PATH)
-	var store_position: int = source.find(
-		"bind_utility(GFStorageSettingsStoreUtility)"
+	var store_position: int = _find_project_binding_position(
+		source,
+		"GFStorageSettingsStoreUtility"
 	)
-	var settings_position: int = source.find("bind_utility(GameSettingsUtility)")
+	var settings_position: int = _find_project_binding_position(source, "GameSettingsUtility")
 
 	assert_true(store_position >= 0, "项目 Installer 应注册 GF Storage Settings Store。")
 	assert_true(
@@ -396,7 +417,7 @@ func test_startup_render_warmup_uses_gf_manifest_and_utility() -> void:
 	var boot_source: String = _read_text(BOOT_RUNTIME_PATH)
 
 	assert_true(
-		installer_source.contains("bind_utility(GFRenderWarmupUtility)"),
+		_source_binds_symbol(installer_source, "GFRenderWarmupUtility"),
 		"项目 Installer 应注册 GFRenderWarmupUtility。"
 	)
 	assert_true(
@@ -546,14 +567,30 @@ func test_removed_daily_challenge_types_cannot_reenter_composition_root() -> voi
 
 func test_project_installer_binds_asset_library_before_ui_consumers() -> void:
 	var source: String = _read_text(PROJECT_INSTALLER_PATH)
-	var project_catalog_position: int = source.find("bind_utility(_PROJECT_CONTENT_CATALOG_UTILITY_SCRIPT)")
-	var asset_library_position: int = source.find("bind_utility(_GAME_ASSET_LIBRARY_UTILITY_SCRIPT)")
-	var background_music_position: int = source.find(
-		"bind_utility(_GAME_BACKGROUND_MUSIC_UTILITY_SCRIPT)"
+	var project_catalog_position: int = _find_project_binding_position(
+		source,
+		"_PROJECT_CONTENT_CATALOG_UTILITY_SCRIPT"
 	)
-	var style_position: int = source.find("bind_utility(_GAME_UI_STYLE_UTILITY_SCRIPT)")
-	var motion_position: int = source.find("bind_utility(_GAME_UI_MOTION_UTILITY_SCRIPT)")
-	var board_feedback_position: int = source.find("bind_utility(_GAME_BOARD_FEEDBACK_UTILITY_SCRIPT)")
+	var asset_library_position: int = _find_project_binding_position(
+		source,
+		"_GAME_ASSET_LIBRARY_UTILITY_SCRIPT"
+	)
+	var background_music_position: int = _find_project_binding_position(
+		source,
+		"_GAME_BACKGROUND_MUSIC_UTILITY_SCRIPT"
+	)
+	var style_position: int = _find_project_binding_position(
+		source,
+		"_GAME_UI_STYLE_UTILITY_SCRIPT"
+	)
+	var motion_position: int = _find_project_binding_position(
+		source,
+		"_GAME_UI_MOTION_UTILITY_SCRIPT"
+	)
+	var board_feedback_position: int = _find_project_binding_position(
+		source,
+		"_GAME_BOARD_FEEDBACK_UTILITY_SCRIPT"
+	)
 
 	assert_true(project_catalog_position >= 0, "项目 Installer 应注册唯一内容包目录 Utility。")
 	assert_true(asset_library_position >= 0, "项目 Installer 应注册 GameAssetLibraryUtility。")
@@ -611,7 +648,7 @@ func test_project_installer_binds_gf_standard_observability_tools_for_dev_builds
 	assert_false(source.contains("OS.is_debug_build()"), "普通 debug 运行不得自动承担 diagnostics 启动成本。")
 	assert_true(source.contains("_DEV_TOOLS_INSTALLER_PATH"), "Composition Root 应按需加载 diagnostics Installer。")
 	assert_true(
-		source.contains("bind_utility(GFDiagnosticsUtility)"),
+		_source_binds_symbol(source, "GFDiagnosticsUtility"),
 		"运行时应直接绑定 GF Diagnostics 聚合核心。"
 	)
 	assert_false(
@@ -619,7 +656,7 @@ func test_project_installer_binds_gf_standard_observability_tools_for_dev_builds
 		"GF 11 已修复可选 Console 查询，运行时不得保留项目适配。"
 	)
 	assert_true(
-		source.contains("bind_utility(GFSessionTraceUtility)"),
+		_source_binds_symbol(source, "GFSessionTraceUtility"),
 		"运行时应绑定 GF 有界 Session Trace 核心。"
 	)
 	assert_true(
@@ -680,18 +717,13 @@ func test_runtime_diagnostics_still_binds_console_when_dev_tools_install_it() ->
 
 func test_runtime_uses_official_gf_audio_and_diagnostics_utilities() -> void:
 	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)
-	var singleton_suffix: String = ".as_" + "singleton()"
 
 	assert_true(
-		installer_source.contains(
-			"binder.bind_utility(GFAudioUtility)" + singleton_suffix
-		),
+		_source_binds_symbol(installer_source, "GFAudioUtility"),
 		"GF 11 已修复 BGM teardown，运行时应直接绑定官方 GFAudioUtility。"
 	)
 	assert_true(
-		installer_source.contains(
-			"binder.bind_utility(GFDiagnosticsUtility)" + singleton_suffix
-		),
+		_source_binds_symbol(installer_source, "GFDiagnosticsUtility"),
 		"GF 11 已修复可选依赖查询，运行时应直接绑定官方 GFDiagnosticsUtility。"
 	)
 	assert_false(
@@ -712,7 +744,7 @@ func test_async_installers_check_scope_after_every_await() -> void:
 	]:
 		var source: String = _read_text(installer_path)
 		assert_true(
-			source.contains("\n\tawait "),
+			source.contains("\n\tawait ") or source.contains("if not await _bind_required("),
 			"%s 应至少包含一个需要取消检查的异步安装步骤。" % installer_path
 		)
 		for issue: String in _collect_missing_cancel_checkpoints(installer_path, source):
@@ -722,6 +754,36 @@ func test_async_installers_check_scope_after_every_await() -> void:
 		issues.is_empty(),
 		"GF Installer 必须在每个 await 恢复后立即检查取消作用域：\n%s"
 		% _join_lines(issues)
+	)
+
+
+func test_required_project_singleton_results_are_centralized() -> void:
+	var singleton_method_call: String = "." + "as_singleton()"
+	for installer_path: String in [
+		PROJECT_INSTALLER_PATH,
+		GAME_DIAGNOSTICS_INSTALLER_PATH,
+	]:
+		var source: String = _read_text(installer_path)
+		assert_false(
+			source.contains(singleton_method_call),
+			"%s 的必需绑定必须通过 ProjectRequiredBinding 消费 bool 终态。" % installer_path
+		)
+		assert_true(
+			source.contains("if not await _bind_required("),
+			"%s 必须在首个失败绑定后立即退出。" % installer_path
+		)
+
+	var helper_source: String = _read_text(PROJECT_REQUIRED_BINDING_PATH)
+	assert_true(
+		helper_source.count(singleton_method_call) == 1,
+		"只有项目绑定终态 helper 可以直接提交 GF singleton 绑定。"
+	)
+	assert_true(
+		helper_source.contains("binding_succeeded = await binding.as_singleton()")
+		and helper_source.contains("if scope.is_cancel_requested():")
+		and helper_source.contains("_alias_resolves_to_target(")
+		and helper_source.contains("architecture.fail_initialization(failure_reason)"),
+		"统一 helper 必须观察 bool、检查 scope、验证 alias 并失败候选架构。"
 	)
 
 
@@ -737,6 +799,264 @@ func test_cancelled_project_installer_does_not_mutate_candidate_architecture() -
 		architecture.get_local_model(AppConfigModel),
 		"已取消的项目 Installer 不得向候选架构注册首个 Model。"
 	)
+	architecture.dispose()
+
+
+func test_rejected_required_model_binding_fails_candidate_and_stops_later_bindings() -> void:
+	var architecture: _RecordingBindingArchitecture = _RecordingBindingArchitecture.new()
+	var storage: GFStorageUtility = GFStorageUtility.new()
+	assert_true(await architecture.register_utility(GFStorageUtility, storage))
+	assert_true(await architecture.register_model(AppConfigModel, AppConfigModel.new()))
+	architecture.model_binding_attempts.clear()
+	assert_true(
+		architecture.begin_project_installers(),
+		"测试必须真实进入 GF project installers-running 状态。"
+	)
+	var initialization_failures: Array[String] = []
+	var _connected_initialization_failure: int = architecture.initialization_failed.connect(
+		func(reason: String) -> void:
+			initialization_failures.append(reason)
+	)
+	var scope: GFAsyncScope = GFAsyncScope.new()
+	var installer: GameArchitectureInstaller = GameArchitectureInstaller.new()
+	installer.install(architecture, scope)
+
+	await installer._bind_models(architecture.create_binder(), scope)
+	assert_push_warning("类型已注册", "测试应触发真实的重复 Model 拒绝。")
+	assert_push_error("必需 model 绑定失败", "项目应报告首个失败的绑定种类。")
+
+	assert_true(scope.is_cancel_requested(), "绑定失败必须取消 Installer scope。")
+	assert_true(
+		architecture.model_binding_attempts == [AppConfigModel],
+		"首个必需 Model 失败后不得继续尝试 GridModel。"
+	)
+	assert_true(architecture.has_initialization_failed(), "绑定失败必须失败候选架构。")
+	assert_true(initialization_failures.size() == 1, "候选架构只能进入一次失败终态。")
+	assert_true(
+		architecture.last_initialization_error.contains("AppConfigModel"),
+		"失败原因必须识别首个失败目标。"
+	)
+	assert_false(scope.cancel("second terminal"), "Installer scope 只能进入一次取消终态。")
+	architecture.dispose()
+
+
+func test_rejected_required_utility_binding_fails_candidate_and_stops_later_bindings() -> void:
+	var architecture: _RecordingBindingArchitecture = _RecordingBindingArchitecture.new()
+	var storage: GFStorageUtility = GFStorageUtility.new()
+	assert_true(await architecture.register_utility(GFStorageUtility, storage))
+	assert_true(
+		await architecture.register_utility(GFResourceBroker, GFResourceBroker.new())
+	)
+	architecture.utility_binding_attempts.clear()
+	assert_true(
+		architecture.begin_project_installers(),
+		"测试必须真实进入 GF project installers-running 状态。"
+	)
+	var initialization_failures: Array[String] = []
+	var _connected_initialization_failure: int = architecture.initialization_failed.connect(
+		func(reason: String) -> void:
+			initialization_failures.append(reason)
+	)
+	var scope: GFAsyncScope = GFAsyncScope.new()
+	var installer: GameArchitectureInstaller = GameArchitectureInstaller.new()
+	installer.install(architecture, scope)
+
+	await installer._bind_runtime_foundation_utilities(architecture.create_binder(), scope)
+	assert_push_warning("类型已注册", "测试应触发真实的重复 Utility 拒绝。")
+	assert_push_error("必需 utility 绑定失败", "项目应报告首个失败的绑定种类。")
+
+	assert_true(scope.is_cancel_requested(), "绑定失败必须取消 Installer scope。")
+	assert_true(
+		architecture.utility_binding_attempts == [GFResourceBroker],
+		"首个必需 Utility 失败后不得继续尝试 GFBackgroundWorkUtility。"
+	)
+	assert_true(architecture.has_initialization_failed(), "绑定失败必须失败候选架构。")
+	assert_true(initialization_failures.size() == 1, "候选架构只能进入一次失败终态。")
+	assert_true(
+		architecture.last_initialization_error.contains("GFResourceBroker"),
+		"失败原因必须识别首个失败目标。"
+	)
+	assert_false(scope.cancel("second terminal"), "Installer scope 只能进入一次取消终态。")
+	architecture.dispose()
+
+
+func test_rejected_required_system_binding_fails_candidate_and_stops_later_bindings() -> void:
+	var architecture: _RecordingBindingArchitecture = _RecordingBindingArchitecture.new()
+	var storage: GFStorageUtility = GFStorageUtility.new()
+	assert_true(await architecture.register_utility(GFStorageUtility, storage))
+	assert_true(await architecture.register_system(GameStateSystem, GameStateSystem.new()))
+	architecture.system_binding_attempts.clear()
+	assert_true(
+		architecture.begin_project_installers(),
+		"测试必须真实进入 GF project installers-running 状态。"
+	)
+	var initialization_failures: Array[String] = []
+	var _connected_initialization_failure: int = architecture.initialization_failed.connect(
+		func(reason: String) -> void:
+			initialization_failures.append(reason)
+	)
+	var scope: GFAsyncScope = GFAsyncScope.new()
+	var installer: GameArchitectureInstaller = GameArchitectureInstaller.new()
+	installer.install(architecture, scope)
+
+	await installer._bind_state_and_navigation_systems(architecture.create_binder(), scope)
+	assert_push_warning("类型已注册", "测试应触发真实的重复 System 拒绝。")
+	assert_push_error("必需 system 绑定失败", "项目应报告首个失败的绑定种类。")
+
+	assert_true(scope.is_cancel_requested(), "绑定失败必须取消 Installer scope。")
+	assert_true(
+		architecture.system_binding_attempts == [GameStateSystem],
+		"首个必需 System 失败后不得继续尝试 SceneRouterSystem。"
+	)
+	assert_true(architecture.has_initialization_failed(), "绑定失败必须失败候选架构。")
+	assert_true(initialization_failures.size() == 1, "候选架构只能进入一次失败终态。")
+	assert_true(
+		architecture.last_initialization_error.contains("GameStateSystem"),
+		"失败原因必须识别首个失败目标。"
+	)
+	assert_false(scope.cancel("second terminal"), "Installer scope 只能进入一次取消终态。")
+	architecture.dispose()
+
+
+func test_rejected_alias_binding_fails_candidate_and_stops_later_bindings() -> void:
+	var architecture: _RecordingBindingArchitecture = _RecordingBindingArchitecture.new()
+	var storage: GFStorageUtility = GFStorageUtility.new()
+	assert_true(await architecture.register_utility(GFStorageUtility, storage))
+	architecture.utility_binding_attempts.clear()
+	assert_true(
+		architecture.begin_project_installers(),
+		"测试必须真实进入 GF project installers-running 状态。"
+	)
+	var initialization_failures: Array[String] = []
+	var _connected_initialization_failure: int = architecture.initialization_failed.connect(
+		func(reason: String) -> void:
+			initialization_failures.append(reason)
+	)
+	var scope: GFAsyncScope = GFAsyncScope.new()
+	var installer: GameArchitectureInstaller = GameArchitectureInstaller.new()
+	installer.install(architecture, scope)
+	var binder: GFBinder = architecture.create_binder()
+	var incompatible_alias_binding: GFBindBuilder = binder.bind_utility(
+		GFConsoleUtility
+	).with_alias(
+		GFSettingsStoreUtility
+	)
+
+	var alias_succeeded: bool = await installer._bind_required(
+		incompatible_alias_binding,
+		scope,
+		&"utility",
+		GFConsoleUtility,
+		GFSettingsStoreUtility
+	)
+	if alias_succeeded:
+		await installer._bind_required(
+			binder.bind_utility(GFSupportReportUtility),
+			scope,
+			&"utility",
+			GFSupportReportUtility
+		)
+	assert_push_error("target 必须继承或等于 alias", "测试应触发真实的 GF alias 拒绝。")
+	assert_push_error("必需 utility alias 绑定失败", "项目应区分 alias 绑定失败种类。")
+
+	assert_false(alias_succeeded, "真实 alias 拒绝必须转换为项目绑定失败。")
+	assert_true(scope.is_cancel_requested(), "alias 绑定失败必须取消 Installer scope。")
+	assert_true(
+		architecture.utility_binding_attempts == [GFConsoleUtility],
+		"首个 alias 失败后不得提交 GFSupportReportUtility。"
+	)
+	assert_true(architecture.has_initialization_failed(), "alias 失败必须失败候选架构。")
+	assert_true(initialization_failures.size() == 1, "候选架构只能进入一次失败终态。")
+	assert_true(
+		architecture.last_initialization_error.contains("GFConsoleUtility")
+		and architecture.last_initialization_error.contains("GFSettingsStoreUtility"),
+		"失败原因必须同时识别首个 target 与 alias。"
+	)
+	assert_false(scope.cancel("second terminal"), "Installer scope 只能进入一次取消终态。")
+	architecture.dispose()
+
+
+func test_rejected_diagnostics_binding_fails_candidate_and_stops_later_bindings() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	assert_true(
+		architecture.begin_project_installers(),
+		"测试必须真实进入 GF project installers-running 状态。"
+	)
+	var initialization_failures: Array[String] = []
+	var _connected_initialization_failure: int = architecture.initialization_failed.connect(
+		func(reason: String) -> void:
+			initialization_failures.append(reason)
+	)
+	var scope: GFAsyncScope = GFAsyncScope.new()
+	var installer: GameDiagnosticsInstaller = GameDiagnosticsInstaller.new()
+	installer.install(architecture, scope)
+	var binder: _RejectingBinder = _RejectingBinder.new(
+		architecture,
+		null,
+		GFConsoleUtility
+	)
+
+	await installer.install_bindings(binder, scope)
+	assert_push_error("必需 utility 绑定失败", "diagnostics 应报告首个失败的绑定种类。")
+
+	assert_true(scope.is_cancel_requested(), "diagnostics 绑定失败必须取消 Installer scope。")
+	assert_true(binder.binding_attempts.size() == 1, "首个 diagnostics 绑定失败后不得继续提交。")
+	var raw_failed_target: Variant = binder.binding_attempts[0].get("target")
+	var failed_target: Script = raw_failed_target if raw_failed_target is Script else null
+	assert_same(
+		failed_target,
+		GFConsoleUtility,
+		"diagnostics 失败记录必须识别具体绑定目标。"
+	)
+	assert_true(architecture.has_initialization_failed(), "diagnostics 失败必须失败候选架构。")
+	assert_true(initialization_failures.size() == 1, "候选架构只能进入一次失败终态。")
+	assert_true(
+		architecture.last_initialization_error.contains("GFConsoleUtility"),
+		"失败原因必须识别首个 diagnostics 目标。"
+	)
+	assert_false(scope.cancel("second terminal"), "Installer scope 只能进入一次取消终态。")
+	architecture.dispose()
+
+
+func test_false_binding_still_fails_candidate_when_builder_cancels_scope() -> void:
+	var architecture: GFArchitecture = GFArchitecture.new()
+	assert_true(
+		architecture.begin_project_installers(),
+		"测试必须真实进入 GF project installers-running 状态。"
+	)
+	var initialization_failures: Array[String] = []
+	var _connected_initialization_failure: int = architecture.initialization_failed.connect(
+		func(reason: String) -> void:
+			initialization_failures.append(reason)
+	)
+	var scope: GFAsyncScope = GFAsyncScope.new()
+	var installer: GameDiagnosticsInstaller = GameDiagnosticsInstaller.new()
+	installer.install(architecture, scope)
+	var binder: _RejectingBinder = _RejectingBinder.new(
+		architecture,
+		null,
+		GFConsoleUtility,
+		scope
+	)
+
+	await installer.install_bindings(binder, scope)
+	assert_push_error("必需 utility 绑定失败", "false 终态不能被同期 scope 取消吞掉。")
+
+	assert_true(scope.is_cancel_requested(), "Builder 先取消后 scope 必须保持取消终态。")
+	assert_true(
+		String(scope.get_cancel_reason()) == "builder cancelled before returning false",
+		"重复 cancel 不得覆盖 scope 的首次终态原因。"
+	)
+	assert_true(
+		architecture.has_initialization_failed(),
+		"as_singleton false 即使与取消同期发生也必须失败候选架构。"
+	)
+	assert_true(initialization_failures.size() == 1, "候选架构只能进入一次失败终态。")
+	assert_true(
+		architecture.last_initialization_error.contains("GFConsoleUtility"),
+		"同期取消时仍必须记录首个失败绑定目标。"
+	)
+	assert_false(scope.cancel("second terminal"), "Installer scope 只能进入一次取消终态。")
 	architecture.dispose()
 
 
@@ -875,28 +1195,28 @@ func test_tile_composition_uses_capability_extension_ownership() -> void:
 
 	assert_true(settings_source.contains("\"gf.capability\""), "项目应显式启用 gf.capability 扩展。")
 	assert_true(
-		installer_source.contains("bind_utility(_TILE_COMPOSITION_UTILITY_SCRIPT)"),
+		_source_binds_symbol(installer_source, "_TILE_COMPOSITION_UTILITY_SCRIPT"),
 		"项目 Installer 应注册项目侧 TileCompositionUtility。"
 	)
 	assert_true(
-		installer_source.contains("bind_utility(_TILE_CATALOG_UTILITY_SCRIPT)"),
+		_source_binds_symbol(installer_source, "_TILE_CATALOG_UTILITY_SCRIPT"),
 		"项目 Installer 应注册项目侧 TileCatalogUtility。"
 	)
 	assert_true(
-		installer_source.find("bind_utility(_TILE_CATALOG_UTILITY_SCRIPT)")
-		< installer_source.find("bind_utility(_TILE_COMPOSITION_UTILITY_SCRIPT)"),
+		_find_project_binding_position(installer_source, "_TILE_CATALOG_UTILITY_SCRIPT")
+		< _find_project_binding_position(installer_source, "_TILE_COMPOSITION_UTILITY_SCRIPT"),
 		"静态方块目录必须先于运行时组合 Utility 注册。"
 	)
 	assert_true(
-		installer_source.contains("bind_system(TileDiscoverySystem)"),
+		_source_binds_symbol(installer_source, "TileDiscoverySystem"),
 		"项目 Installer 应注册方块发现系统。"
 	)
 	assert_true(
-		installer_source.contains("bind_utility(_ACHIEVEMENT_CATALOG_UTILITY_SCRIPT)"),
+		_source_binds_symbol(installer_source, "_ACHIEVEMENT_CATALOG_UTILITY_SCRIPT"),
 		"项目 Installer 应注册项目侧 AchievementCatalogUtility。"
 	)
 	assert_true(
-		installer_source.contains("bind_system(AchievementSystem)"),
+		_source_binds_symbol(installer_source, "AchievementSystem"),
 		"项目 Installer 应注册成就进度系统。"
 	)
 	assert_false(
@@ -920,7 +1240,10 @@ func test_transient_feedback_uses_gf_notification_utility_only() -> void:
 	var hud_source: String = _read_text(HUD_PATH)
 	var bookmark_source: String = _read_text(BOOKMARK_DATA_PATH)
 
-	assert_true(installer_source.contains("bind_utility(GFNotificationUtility)"), "项目 Installer 应注册 GFNotificationUtility。")
+	assert_true(
+		_source_binds_symbol(installer_source, "GFNotificationUtility"),
+		"项目 Installer 应注册 GFNotificationUtility。"
+	)
 	assert_true(flow_source.contains("push_notification("), "游戏流程反馈应写入 GF 通知队列。")
 	assert_true(input_source.contains("push_notification("), "输入反馈应写入 GF 通知队列。")
 	assert_true(hud_source.contains("notification_started"), "HUD 应消费 GF 通知生命周期信号。")
@@ -951,7 +1274,10 @@ func test_move_turn_pipeline_uses_gf_turn_action_lifecycle() -> void:
 	var event_source: String = _read_text(EVENT_NAMES_PATH)
 
 	assert_true(settings_source.contains("\"gf.turn_based\""), "项目应显式启用 gf.turn_based 扩展。")
-	assert_true(installer_source.contains("bind_system(GameTurnSystem)"), "项目 Installer 应注册移动回合 Adapter。")
+	assert_true(
+		_source_binds_symbol(installer_source, "GameTurnSystem"),
+		"项目 Installer 应注册移动回合 Adapter。"
+	)
 	assert_true(turn_source.contains("get_system(GFTurnFlowSystem)"), "回合 Adapter 应使用扩展拥有的 GFTurnFlowSystem。")
 	assert_true(turn_source.contains("enqueue_action(GameMoveTurnAction.new"), "有效移动应进入 GF 回合行动队列。")
 	assert_true(turn_source.contains("resolve_actions()"), "回合行动只能由 GFTurnFlowSystem 解析。")
@@ -1058,29 +1384,19 @@ func _find_next_code_line(lines: PackedStringArray, start_index: int) -> int:
 
 
 func _source_binds_symbol(source: String, symbol: String) -> bool:
-	var lines: PackedStringArray = source.split("\n")
-	for line_index: int in range(lines.size()):
-		var line: String = _get_packed_line(lines, line_index).strip_edges()
-		if line.begins_with("#"):
-			continue
-		if _line_binds_symbol(line, symbol):
-			return true
-	return false
+	return _find_project_binding_position(source, symbol) >= 0
 
 
-func _line_binds_symbol(line: String, symbol: String) -> bool:
-	var bind_patterns: Array[String] = [
-		"bind_utility(%s" % symbol,
-		"bind_system(%s" % symbol,
-		"register_utility(%s" % symbol,
-		"register_system(%s" % symbol,
-		"register_utility_instance(%s.new()" % symbol,
-		"register_system_instance(%s.new()" % symbol,
-	]
-	for pattern: String in bind_patterns:
-		if line.contains(pattern):
-			return true
-	return false
+func _find_project_binding_position(source: String, symbol: String) -> int:
+	var binding_function_name: String = "_bind_" + "models"
+	var bindings_start: int = source.find("func %s(" % binding_function_name)
+	var bindings_end: int = source.find("func _configure_storage_utility(", bindings_start)
+	if bindings_start < 0 or bindings_end < 0:
+		return -1
+	var symbol_position: int = source.find(symbol, bindings_start)
+	if symbol_position < 0 or symbol_position >= bindings_end:
+		return -1
+	return symbol_position
 
 
 func _get_packed_line(lines: PackedStringArray, index: int) -> String:
@@ -1105,3 +1421,111 @@ func _join_lines(lines: Array[String]) -> String:
 
 func _append_string(target: Array[String], value: String) -> void:
 	target.append(value)
+
+
+# --- 内部类 ---
+
+class _RecordingBindingArchitecture extends GFArchitecture:
+	var model_binding_attempts: Array[Script] = []
+	var utility_binding_attempts: Array[Script] = []
+	var system_binding_attempts: Array[Script] = []
+
+	## @param instance: 要记录并交给 GF 注册的 Model 实例。
+	func register_model_instance(instance: Object) -> bool:
+		var raw_script: Variant = instance.get_script()
+		var instance_script: Script = raw_script if raw_script is Script else null
+		model_binding_attempts.append(instance_script)
+		return await super.register_model_instance(instance)
+
+	## @param instance: 要记录并交给 GF 注册的 Utility 实例。
+	func register_utility_instance(instance: Object) -> bool:
+		var raw_script: Variant = instance.get_script()
+		var instance_script: Script = raw_script if raw_script is Script else null
+		utility_binding_attempts.append(instance_script)
+		return await super.register_utility_instance(instance)
+
+	## @param instance: 要记录并交给 GF 注册的 System 实例。
+	func register_system_instance(instance: Object) -> bool:
+		var raw_script: Variant = instance.get_script()
+		var instance_script: Script = raw_script if raw_script is Script else null
+		system_binding_attempts.append(instance_script)
+		return await super.register_system_instance(instance)
+
+
+class _AliasPlanBindBuilder extends GFBindBuilder:
+	var _binding_attempts: Array[Dictionary] = []
+	var _rejected_alias: Script = null
+	var _rejected_target: Script = null
+	var _scope_to_cancel: GFAsyncScope = null
+	var _target_script: Script = null
+	var _alias_script: Script = null
+
+	func _init(
+		architecture: GFArchitecture,
+		binding_attempts: Array[Dictionary],
+		rejected_alias: Script,
+		rejected_target: Script,
+		scope_to_cancel: GFAsyncScope,
+		target_script: Script
+	) -> void:
+		super(architecture, GFBindBuilder.TargetKind.UTILITY, target_script)
+		_binding_attempts = binding_attempts
+		_rejected_alias = rejected_alias
+		_rejected_target = rejected_target
+		_scope_to_cancel = scope_to_cancel
+		_target_script = target_script
+
+	## @param _unused_instance: 测试不使用的绑定实例。
+	func from_instance(_unused_instance: Object) -> GFBindBuilder:
+		return self
+
+	## @param alias_script: 要记录到绑定尝试中的查询 alias。
+	func with_alias(alias_script: Script) -> GFBindBuilder:
+		_alias_script = alias_script
+		return self
+
+	func as_singleton() -> bool:
+		_binding_attempts.append({
+			"target": _target_script,
+			"alias": _alias_script,
+		})
+		var binding_succeeded: bool = (
+			(_rejected_alias == null or _alias_script != _rejected_alias)
+			and (_rejected_target == null or _target_script != _rejected_target)
+		)
+		if not binding_succeeded and _scope_to_cancel != null:
+			var _cancelled_before_failure: bool = _scope_to_cancel.cancel(
+				"builder cancelled before returning false"
+			)
+		return binding_succeeded
+
+
+class _RejectingBinder extends GFBinder:
+	var binding_attempts: Array[Dictionary] = []
+	var rejected_alias: Script = null
+	var rejected_target: Script = null
+	var scope_to_cancel: GFAsyncScope = null
+	var _candidate_architecture: GFArchitecture = null
+
+	func _init(
+		architecture: GFArchitecture,
+		alias_script: Script,
+		target_script: Script = null,
+		cancel_scope: GFAsyncScope = null
+	) -> void:
+		super(architecture)
+		_candidate_architecture = architecture
+		rejected_alias = alias_script
+		rejected_target = target_script
+		scope_to_cancel = cancel_scope
+
+	## @param script_cls: 要创建记录型 Builder 的 Utility 目标。
+	func bind_utility(script_cls: Script) -> GFBindBuilder:
+		return _AliasPlanBindBuilder.new(
+			_candidate_architecture,
+			binding_attempts,
+			rejected_alias,
+			rejected_target,
+			scope_to_cancel,
+			script_cls
+		)

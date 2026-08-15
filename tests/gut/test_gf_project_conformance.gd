@@ -28,6 +28,77 @@ const PLATFORM_CONTEXT_CONSUMER_PATHS: Array[String] = [
 	"res://features/gameplay/scripts/controllers/gameplay_responsive_layout_controller.gd",
 	"res://features/board_editor/scripts/ui/board_editor_responsive_layout_controller.gd",
 ]
+## 当前唯一宿主探测 owner；使用精确文件而不是排除整个 platform_runtime Feature。
+const PLATFORM_PROBE_OWNER_PATHS: Array[String] = [
+	"res://features/platform_runtime/scripts/adapters/local_platform_adapter.gd",
+]
+## settings UI 仅把这些类型/枚举值传给 GFDisplaySettingsUtility；它们不读取宿主事实。
+const DISPLAY_SERVER_ENUM_ONLY_MEMBERS: Array[String] = [
+	"WindowMode",
+	"VSyncMode",
+	"WINDOW_MODE_WINDOWED",
+	"WINDOW_MODE_FULLSCREEN",
+	"WINDOW_MODE_EXCLUSIVE_FULLSCREEN",
+	"WINDOW_MODE_MAXIMIZED",
+	"WINDOW_MODE_MINIMIZED",
+	"VSYNC_DISABLED",
+	"VSYNC_ENABLED",
+	"VSYNC_ADAPTIVE",
+	"VSYNC_MAILBOX",
+]
+## 非 Adapter 例外按精确文件和精确调用片段声明，避免同成员换参数或换用途后仍被放行。
+## Composition Root 只读取既有构建 feature/headless 启动事实；开发诊断只读取启用条件。
+const PLATFORM_PROBE_EXCEPTIONS: Dictionary = {
+	"res://app/scripts/boot.gd": {
+		"allowed_fragments": [
+			"OS.has_feature(\"with_dev_tools\")",
+			"DisplayServer.get_name() == \"headless\"",
+		],
+		"reason": "Composition Root 构建 feature 与 headless 启动选择。",
+	},
+	"res://app/scripts/boot_runtime.gd": {
+		"allowed_fragments": [
+			"OS.has_feature(_PLATFORM_SMOKE_FEATURE)",
+			"DisplayServer.get_name() == \"headless\"",
+			"DisplayServer.get_name() != \"headless\"",
+		],
+		"reason": "Composition Root 场景选择与首帧启动编排。",
+	},
+	"res://app/scripts/game_architecture_installer.gd": {
+		"allowed_fragments": [
+			"OS.has_feature(_PLATFORM_SMOKE_FEATURE)",
+			"OS.has_feature(_DEV_TOOLS_FEATURE)",
+			"OS.has_feature(_VERBOSE_LOGGING_FEATURE)",
+		],
+		"reason": "Composition Root 构建 feature 组合。",
+	},
+	"res://features/diagnostics/scripts/installers/game_diagnostics_installer.gd": {
+		"allowed_fragments": [
+			"OS.has_feature(_VERBOSE_LOGGING_FEATURE)",
+		],
+		"reason": "仅开发诊断安装条件。",
+	},
+	"res://features/diagnostics/scripts/utilities/test_tool_utility.gd": {
+		"allowed_fragments": [
+			"DisplayServer.get_name().to_lower() != \"headless\"",
+			"OS.has_feature(\"web\")",
+			"OS.has_feature(\"mobile\")",
+			"OS.has_feature(\"android\")",
+			"OS.has_feature(\"ios\")",
+		],
+		"reason": "仅开发测试工具可用性诊断。",
+	},
+}
+const PLATFORM_PROBE_REJECTION_FIXTURE_PATH: String = (
+	"res://tests/gut/fixtures/direct_platform_probe_feature.gd.txt"
+)
+const PLATFORM_PROBE_REJECTION_VIRTUAL_PATH: String = (
+	"res://features/regression_fixture/scripts/direct_platform_probe.gd"
+)
+const PLATFORM_PROBE_EXCEPTION_MISUSE_FIXTURE_PATH: String = (
+	"res://tests/gut/fixtures/platform_probe_exception_misuse.gd.txt"
+)
+const MAIN_MENU_SCRIPT_PATH: String = "res://features/navigation/scripts/menus/main_menu.gd"
 const GF_MODULE_BASE_PATHS: Array[String] = [
 	"res://addons/gf/kernel/base/gf_model.gd",
 	"res://addons/gf/kernel/base/gf_system.gd",
@@ -88,6 +159,11 @@ const SHARED_TEXT_RESOURCE_EXTENSIONS: Array[String] = [
 	"tres",
 	"tscn",
 ]
+
+
+# --- 私有变量 ---
+
+var _platform_static_member_regex_cache: Dictionary = {}
 
 
 # --- 测试用例 ---
@@ -216,6 +292,97 @@ func test_responsive_layouts_consume_gf_platform_capabilities() -> void:
 		issues.is_empty(),
 		"响应式布局只消费 GFPlatformRuntime 投影，宿主探测必须集中在平台 Adapter：\n%s"
 		% _join_lines(issues)
+	)
+
+
+func test_production_code_does_not_probe_host_platform_outside_boundary() -> void:
+	var issues: Array[String] = []
+	for path: String in _collect_project_script_paths():
+		issues.append_array(_collect_direct_platform_probe_issues(path, _read_text(path)))
+
+	assert_true(
+		issues.is_empty(),
+		"OS/DisplayServer 宿主探测必须由 LocalPlatformAdapter 投影；"
+		+ "Composition Root 与开发诊断只保留精确声明的调用，DisplayServer 类型/枚举不算探测：\n"
+		+ _join_lines(issues)
+	)
+
+
+func test_main_menu_preserves_projected_first_draw_wait() -> void:
+	var source: String = _read_text(MAIN_MENU_SCRIPT_PATH)
+
+	assert_true(
+		source.contains("var platform_utility: GamePlatformUtility = _get_platform_utility()"),
+		"MainMenu 应从所属架构获取 GamePlatformUtility。"
+	)
+	assert_true(
+		source.contains("platform_utility.is_headless_runtime()"),
+		"MainMenu 应消费平台上下文投影的 headless 事实。"
+	)
+	assert_true(
+		source.contains("await get_tree().process_frame"),
+		"headless 或平台上下文缺失时必须保留 process_frame 等待。"
+	)
+	assert_true(
+		source.contains("await RenderingServer.frame_post_draw"),
+		"图形运行时必须保留 frame_post_draw 等待。"
+	)
+
+
+func test_platform_probe_guard_rejects_feature_fixture() -> void:
+	var fixture_source: String = _read_text(PLATFORM_PROBE_REJECTION_FIXTURE_PATH)
+	var issues: Array[String] = _collect_direct_platform_probe_issues(
+		PLATFORM_PROBE_REJECTION_VIRTUAL_PATH,
+		fixture_source
+	)
+
+	assert_false(fixture_source.is_empty(), "平台探测拒绝 fixture 必须可读取。")
+	assert_true(
+		issues.size() == 2,
+		"Feature 中的 OS 与 DisplayServer 探测都必须被拒绝。"
+	)
+	assert_true(_join_lines(issues).contains(PLATFORM_PROBE_REJECTION_VIRTUAL_PATH))
+
+
+func test_platform_probe_guard_keeps_documented_exceptions_narrow() -> void:
+	var composition_source: String = (
+		"func select_build() -> bool:\n"
+		+ "\treturn OS.has_feature(\"with_dev_tools\") "
+		+ "and DisplayServer.get_name() == \"headless\"\n"
+	)
+	assert_true(
+		_collect_direct_platform_probe_issues(
+			"res://app/scripts/boot.gd",
+			composition_source
+		).is_empty(),
+		"Composition Root 的已声明构建/headless 检查应保留。"
+	)
+	var misuse_fixture: String = _read_text(PLATFORM_PROBE_EXCEPTION_MISUSE_FIXTURE_PATH)
+	assert_false(misuse_fixture.is_empty(), "平台例外误用 fixture 必须可读取。")
+	assert_true(
+		_collect_direct_platform_probe_issues(
+			"res://app/scripts/boot.gd",
+			misuse_fixture
+		).size() == 3,
+		"同一 Composition Root 文件中，错误 feature 参数、非 headless 比较与裸名称读取都必须被拒绝。"
+	)
+	assert_true(
+		_collect_direct_platform_probe_issues(
+			"res://features/diagnostics/scripts/utilities/test_tool_utility.gd",
+			"func probe_size() -> Vector2i:\n\treturn DisplayServer.window_get_size()\n"
+		).size() == 1,
+		"开发诊断不应获得任意 DisplayServer 调用权限。"
+	)
+	var enum_only_source: String = (
+		"func default_mode() -> DisplayServer.WindowMode:\n"
+		+ "\treturn DisplayServer.WINDOW_MODE_WINDOWED\n"
+	)
+	assert_true(
+		_collect_direct_platform_probe_issues(
+			"res://features/settings/scripts/menus/enum_fixture.gd",
+			enum_only_source
+		).is_empty(),
+		"DisplayServer 类型与枚举只表达 GFDisplaySettingsUtility 的参数，不是宿主探测。"
 	)
 
 
@@ -357,6 +524,74 @@ func _collect_feature_class_owners() -> Dictionary:
 		var declared_class_name: String = _parse_class_name(_read_text(path))
 		if not declared_class_name.is_empty():
 			result[declared_class_name] = path
+	return result
+
+
+func _collect_direct_platform_probe_issues(path: String, source: String) -> Array[String]:
+	var issues: Array[String] = []
+	var lines: PackedStringArray = source.split("\n")
+	for line_index: int in range(lines.size()):
+		var code: String = _get_code_line(_get_packed_line(lines, line_index))
+		if not code.contains("OS") and not code.contains("DisplayServer"):
+			continue
+		if PLATFORM_PROBE_OWNER_PATHS.has(path):
+			continue
+		var unapproved_code: String = _remove_allowed_platform_probe_fragments(path, code)
+		var os_members: Array[String] = _collect_static_members(unapproved_code, "OS")
+		var display_server_members: Array[String] = _collect_direct_display_server_members(
+			unapproved_code
+		)
+		if os_members.is_empty() and display_server_members.is_empty():
+			continue
+		_append_string(issues, "%s:%d 直接探测了 OS/DisplayServer 宿主事实。" % [
+			path,
+			line_index + 1,
+		])
+	return issues
+
+
+func _remove_allowed_platform_probe_fragments(path: String, code: String) -> String:
+	if not PLATFORM_PROBE_EXCEPTIONS.has(path):
+		return code
+	var exception: Dictionary = _get_dictionary(PLATFORM_PROBE_EXCEPTIONS, path)
+	var result: String = code
+	for fragment: String in _get_string_array(exception, "allowed_fragments"):
+		result = result.replace(fragment, "")
+	return result
+
+
+func _collect_static_members(
+	code: String,
+	owner_name: String
+) -> Array[String]:
+	var result: Array[String] = []
+	var member_regex: RegEx = _get_platform_static_member_regex(owner_name)
+	if member_regex == null:
+		return result
+	for match_value: RegExMatch in member_regex.search_all(code):
+		var member_name: String = match_value.get_string(1)
+		if not member_name.is_empty() and not result.has(member_name):
+			result.append(member_name)
+	return result
+
+
+func _get_platform_static_member_regex(owner_name: String) -> RegEx:
+	var cached_value: Variant = _platform_static_member_regex_cache.get(owner_name)
+	if cached_value is RegEx:
+		return cached_value
+	var pattern: String = "\\b%s\\s*\\.\\s*([A-Za-z_][A-Za-z0-9_]*)" % owner_name
+	var member_regex: RegEx = _compile_regex(pattern)
+	if member_regex != null:
+		_platform_static_member_regex_cache[owner_name] = member_regex
+	return member_regex
+
+
+func _collect_direct_display_server_members(code: String) -> Array[String]:
+	var result: Array[String] = []
+	for member_name: String in _collect_static_members(code, "DisplayServer"):
+		if DISPLAY_SERVER_ENUM_ONLY_MEMBERS.has(member_name):
+			continue
+		result.append(member_name)
 	return result
 
 

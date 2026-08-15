@@ -13,6 +13,34 @@ const SOURCE_ROOTS: Array[String] = [
 const SOURCE_EXCLUDED_ROOTS: Array[String] = [
 	"res://features/asset_library/resources/source_packs",
 ]
+const PROJECT_DOCUMENTATION_ROOTS: Array[String] = [
+	"res://app",
+	"res://docs",
+	"res://features",
+	"res://shared",
+]
+const PROJECT_DOCUMENTATION_FILES: Array[String] = [
+	"res://README.md",
+]
+const ARCHITECTURE_DOC_PATH: String = "res://docs/architecture.md"
+const REMOVED_GF_API_SYMBOLS: Array[String] = [
+	"fail_on_missing_declared_dependencies",
+]
+const ARCHITECTURE_STARTUP_SECTION_HEADING: String = "## 启动与装配"
+const GF11_ARCHITECTURE_STARTUP_DOC_PATTERNS: Array[Dictionary] = [
+	{
+		"pattern": "\\bBootRuntime\\b.{0,180}\\bstrict_dependency_lookup\\b",
+		"contract": "BootRuntime 启用 strict_dependency_lookup",
+	},
+	{
+		"pattern": "\\bGF 11\\b.{0,180}声明依赖.{0,80}强生命周期契约",
+		"contract": "GF 11 声明依赖是强生命周期契约",
+	},
+	{
+		"pattern": "Gf\\.init\\(\\).{0,180}false.{0,120}启动失败",
+		"contract": "Gf" + ".init() 返回 false 时启动失败",
+	},
+]
 
 
 # --- 测试用例 ---
@@ -29,12 +57,100 @@ func test_documented_params_match_function_signatures() -> void:
 	)
 
 
+func test_gf11_architecture_startup_documentation_has_no_api_drift() -> void:
+	var issues: Array[String] = []
+	for path: String in _collect_project_markdown_files():
+		var source: String = _read_text(path)
+		for removed_symbol: String in REMOVED_GF_API_SYMBOLS:
+			if source.contains(removed_symbol):
+				_append_string(issues, "%s 仍引用已移除的 GF API `%s`" % [path, removed_symbol])
+
+	var architecture_doc: String = _read_text(ARCHITECTURE_DOC_PATH)
+	var startup_section: String = _extract_markdown_section(
+		architecture_doc,
+		ARCHITECTURE_STARTUP_SECTION_HEADING
+	)
+	var normalized_startup_section: String = _normalize_whitespace(startup_section)
+	if startup_section.is_empty():
+		_append_string(
+			issues,
+			"%s 缺少 %s 章节" % [
+				ARCHITECTURE_DOC_PATH,
+				ARCHITECTURE_STARTUP_SECTION_HEADING,
+			]
+		)
+	for contract_record: Dictionary in GF11_ARCHITECTURE_STARTUP_DOC_PATTERNS:
+		var pattern: String = str(contract_record.get("pattern", ""))
+		if not _regex_matches(normalized_startup_section, pattern):
+			_append_string(
+				issues,
+				"%s 的 %s 章节缺少 GF 11 启动契约：%s" % [
+					ARCHITECTURE_DOC_PATH,
+					ARCHITECTURE_STARTUP_SECTION_HEADING,
+					str(contract_record.get("contract", "")),
+				]
+			)
+
+	assert_true(
+		issues.is_empty(),
+		"项目文档必须与 GF 11 架构依赖及启动失败契约一致：\n%s" % _join_lines(issues)
+	)
+
+
+func test_markdown_section_extraction_does_not_accept_misplaced_contract_text() -> void:
+	var source: String = (
+		"## 其他章节\n"
+		+ "BootRuntime strict_dependency_lookup GF 11 声明依赖强生命周期契约 "
+		+ "Gf" + ".init() false 启动失败\n\n"
+		+ "## 启动与装配\n当前章节没有契约。\n\n"
+		+ "## 后续章节\n尾声。\n"
+	)
+	var startup_section: String = _extract_markdown_section(
+		source,
+		ARCHITECTURE_STARTUP_SECTION_HEADING
+	)
+
+	assert_true(startup_section.strip_edges() == "当前章节没有契约。")
+	for contract_record: Dictionary in GF11_ARCHITECTURE_STARTUP_DOC_PATTERNS:
+		assert_false(
+			_regex_matches(
+				_normalize_whitespace(startup_section),
+				str(contract_record.get("pattern", ""))
+			),
+			"其他章节中的契约文字不得让启动章节守卫误判为通过。"
+		)
+
+
 # --- 私有/辅助方法 ---
 
 func _collect_project_gdscript_files() -> Array[String]:
 	var result: Array[String] = []
 	for source_root: String in SOURCE_ROOTS:
 		result.append_array(_collect_gdscript_files(source_root))
+	result.sort()
+	return result
+
+
+func _collect_project_markdown_files() -> Array[String]:
+	var result: Array[String] = []
+	result.append_array(PROJECT_DOCUMENTATION_FILES)
+	for documentation_root: String in PROJECT_DOCUMENTATION_ROOTS:
+		var scan_report: Dictionary = GFPathEnumerationTools.scan_files(documentation_root, {
+			"recursive": true,
+			"include_hidden": false,
+			"extensions": PackedStringArray(["md"]),
+			"max_file_count": 2000,
+			"sort": true,
+		})
+		assert_true(GFVariantData.get_option_bool(scan_report, "ok"), "项目文档路径扫描应成功。")
+		assert_false(
+			GFVariantData.get_option_bool(scan_report, "truncated"),
+			"项目文档路径扫描不应达到安全上限。"
+		)
+		for path: String in GFVariantData.get_option_packed_string_array(scan_report, "paths"):
+			if _is_excluded_source_path(path):
+				continue
+			_append_string(result, path)
 	result.sort()
 	return result
 
@@ -111,6 +227,46 @@ func _collect_param_doc_issues(path: String) -> Array[String]:
 			doc_lines.clear()
 		line_index += 1
 	return issues
+
+
+func _read_text(path: String) -> String:
+	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+	assert_true(file != null, "%s 应可读取。" % path)
+	if file == null:
+		return ""
+	var text: String = file.get_as_text()
+	file.close()
+	return text
+
+
+func _extract_markdown_section(source: String, heading: String) -> String:
+	var heading_start: int = source.find(heading)
+	if heading_start < 0:
+		return ""
+	var content_start: int = source.find("\n", heading_start + heading.length())
+	if content_start < 0:
+		return ""
+	content_start += 1
+	var next_heading: int = source.find("\n## ", content_start)
+	if next_heading < 0:
+		return source.substr(content_start)
+	return source.substr(content_start, next_heading - content_start)
+
+
+func _normalize_whitespace(source: String) -> String:
+	var whitespace_regex: RegEx = RegEx.new()
+	if whitespace_regex.compile("\\s+") != OK:
+		return source
+	return whitespace_regex.sub(source, " ", true).strip_edges()
+
+
+func _regex_matches(source: String, pattern: String) -> bool:
+	if pattern.is_empty():
+		return false
+	var regex: RegEx = RegEx.new()
+	if regex.compile(pattern) != OK:
+		return false
+	return regex.search(source) != null
 
 
 func _line_starts_function(trimmed: String) -> bool:

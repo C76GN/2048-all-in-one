@@ -1,0 +1,7 @@
+extends RefCounted
+
+
+func probes_host_directly() -> bool:
+	var is_web: bool = OS.has_feature("web")
+	var is_headless: bool = DisplayServer.get_name() == "headless"
+	return is_web or is_headless

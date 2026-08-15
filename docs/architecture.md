@@ -66,7 +66,7 @@ Feature 的 `scripts/` 内可以继续使用 `models/`、`systems/`、`utilities
 
 1. `app/scenes/boot.tscn` 加载不引用 GF 或玩法资源的极轻 `app/scripts/boot.gd`，立即承接原生静态首帧并显示低成本扫条。
 2. 轻量 Boot 通过 `ResourceLoader.load_threaded_request()` 加载 `app/scripts/boot_runtime.gd`；正式编排器就绪后仍复用同一静态启动壳，只向它发布 `GFAsyncProgress`，并在壳的遮挡下加载完整依赖链。
-3. BootRuntime 创建根 `GFArchitecture`，启用 `strict_dependency_lookup` 与 `fail_on_missing_declared_dependencies`，再调用 `await Gf.init()`。
+3. BootRuntime 创建根 `GFArchitecture` 并启用 `strict_dependency_lookup`；GF 11 中声明依赖始终是强生命周期契约。随后调用 `await Gf.init()`；若 `Gf.init()` 返回 `false`，则按启动失败处理并终止后续启动流程。
 4. GF 根据 `project.godot` 的 `gf/project/installers` 执行 `GameArchitectureInstaller`。
 5. `app/scripts/game_architecture_installer.gd` 声明项目 Model、System、Utility；GF 扩展拥有的模块由扩展 Installer 自动装配。
 6. BootRuntime 通过 `GFSceneUtility` 预热主菜单，并配置 Feature-Cohesive 的 `features/navigation/resources/scene_preload_map.tres`；场景图只预热最高频相邻路径。随后每次 `SceneRouterSystem.request_scene_change()` 都在覆盖转场前显式调用一次 `prime_scene()`，正式 `load_scene_with_transition()` 将 `preload_before_change` 保持为 `false`，由 `GFSceneUtility.load_scene_async()` 直接复用已缓存或仍在进行中的同资源请求，禁止在正式切换阶段再次提交第二次预载。

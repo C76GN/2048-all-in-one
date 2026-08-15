@@ -14,7 +14,32 @@ const _GAME_DIAGNOSTICS_UTILITY_SCRIPT: Script = preload(
 )
 
 
+# --- 私有变量 ---
+
+var _architecture: GFArchitecture = null
+
+
 # --- 公共方法 ---
+
+## 捕获当前尚未发布的候选架构，供必需绑定失败时设置终态。
+## @param architecture: GF 尚未发布的候选架构。
+## @param scope: 当前 Installer 的协作取消作用域。
+func install(architecture: GFArchitecture, scope: GFAsyncScope) -> void:
+	if architecture == null or scope == null:
+		var invalid_reason: String = (
+			"[GameDiagnosticsInstaller] install 失败：候选架构或 scope 为空。"
+		)
+		if architecture != null:
+			architecture.fail_initialization(invalid_reason)
+		else:
+			push_error(invalid_reason)
+		if scope != null:
+			var _cancelled_invalid_install: bool = scope.cancel(invalid_reason)
+		return
+	if scope.is_cancel_requested():
+		return
+	_architecture = architecture
+
 
 ## 注册只在显式开发构建中启用的诊断模块。
 ## @param binder: GF 传入的声明式绑定器。
@@ -28,44 +53,69 @@ func install_bindings(binder: Variant, scope: GFAsyncScope) -> void:
 		return
 	if scope.is_cancel_requested():
 		return
+	if _architecture == null:
+		var missing_architecture_reason: String = (
+			"[GameDiagnosticsInstaller] install_bindings 失败：未配置候选架构。"
+		)
+		push_error(missing_architecture_reason)
+		var _cancelled_missing_architecture: bool = scope.cancel(
+			missing_architecture_reason
+		)
+		return
 	var gf_binder: GFBinder = binder
 
-	await gf_binder.bind_utility(GFConsoleUtility).as_singleton()
-	if scope.is_cancel_requested():
+	if not await _bind_required(
+		gf_binder.bind_utility(GFConsoleUtility), scope, GFConsoleUtility
+	):
 		return
 	var tracker_binding: GFBindBuilder = gf_binder.bind_utility(
 		GFAsyncTrackerUtility
 	).from_instance(_create_async_tracker_utility())
-	await tracker_binding.as_singleton()
-	if scope.is_cancel_requested():
+	if not await _bind_required(tracker_binding, scope, GFAsyncTrackerUtility):
 		return
-	await gf_binder.bind_utility(GFSupportReportUtility).as_singleton()
-	if scope.is_cancel_requested():
+	if not await _bind_required(
+		gf_binder.bind_utility(GFSupportReportUtility), scope, GFSupportReportUtility
+	):
 		return
 	var overlay_binding: GFBindBuilder = gf_binder.bind_utility(GFDebugOverlayUtility)
 	overlay_binding = overlay_binding.from_instance(_create_debug_overlay_utility())
-	await overlay_binding.as_singleton()
-	if scope.is_cancel_requested():
+	if not await _bind_required(overlay_binding, scope, GFDebugOverlayUtility):
 		return
 	var inspector_binding: GFBindBuilder = gf_binder.bind_utility(GFRuntimeInspectorUtility)
 	inspector_binding = inspector_binding.from_instance(_create_runtime_inspector_utility())
-	await inspector_binding.as_singleton()
-	if scope.is_cancel_requested():
+	if not await _bind_required(inspector_binding, scope, GFRuntimeInspectorUtility):
 		return
 	var screenshot_binding: GFBindBuilder = gf_binder.bind_utility(GFScreenshotUtility)
 	screenshot_binding = screenshot_binding.from_instance(_create_screenshot_utility())
-	await screenshot_binding.as_singleton()
-	if scope.is_cancel_requested():
+	if not await _bind_required(screenshot_binding, scope, GFScreenshotUtility):
 		return
-	await gf_binder.bind_utility(_GAME_DIAGNOSTICS_UTILITY_SCRIPT).as_singleton()
-	if scope.is_cancel_requested():
+	if not await _bind_required(
+		gf_binder.bind_utility(_GAME_DIAGNOSTICS_UTILITY_SCRIPT),
+		scope,
+		_GAME_DIAGNOSTICS_UTILITY_SCRIPT
+	):
 		return
-	await gf_binder.bind_utility(TestToolUtility).as_singleton()
-	if scope.is_cancel_requested():
+	if not await _bind_required(
+		gf_binder.bind_utility(TestToolUtility), scope, TestToolUtility
+	):
 		return
 
 
 # --- 私有/辅助方法 ---
+
+func _bind_required(
+	binding: GFBindBuilder,
+	scope: GFAsyncScope,
+	target_script: Script
+) -> bool:
+	return await ProjectRequiredBinding.bind_singleton(
+		binding,
+		_architecture,
+		scope,
+		&"utility",
+		target_script
+	)
+
 
 func _create_async_tracker_utility() -> GFAsyncTrackerUtility:
 	var tracker: GFAsyncTrackerUtility = GFAsyncTrackerUtility.new()
