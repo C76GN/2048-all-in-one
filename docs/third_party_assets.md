@@ -26,7 +26,25 @@ This inventory distinguishes runtime-distributed assets from review-only source 
 - Source: https://fonts.google.com/noto/specimen/Noto+Sans+SC
 - License: SIL Open Font License 1.1
 - Usage: the shared runtime body, display, and numeric font at `shared/assets/fonts/noto_sans_sc_variable.ttf`.
+- Diagnostic derivative: `shared/assets/fonts/wechat_smoke_sans_subset.ttf` is used only by the
+  `wechat_minigame_smoke` export feature. It contains ASCII plus the glyphs referenced by the Boot,
+  platform-smoke, and local-platform-adapter sources. The modified font's internal family name is
+  `2048 WeChat Smoke Sans`, avoiding the upstream reserved font name. It was generated with
+  fontTools 4.63.0 and is pinned at SHA-256
+  `38BDD2457E67C2C1721F5734FEE67059BC1B961563AFB4F3E0F8B8C8B8049C22`.
 - Bundled notice: `shared/assets/fonts/noto_sans_sc_ofl.txt`.
+
+### Godot Mini Game 4.7 Template (Build-Time Only)
+
+- Maintainer: GodotHub / `godothub/godot-minigame` contributors.
+- Source: https://github.com/godothub/godot-minigame/releases/tag/4.7
+- Repository license: MIT.
+- Usage: `tools/export_wechat_minigame_smoke.ps1` downloads or accepts the pinned
+  `minigame4.7.tpz`, verifies its exact size and SHA-256, and creates an ignored local WeChat
+  DevTools smoke project under `build/`. The archive is not vendored into the repository.
+- Distribution boundary: the generated project is for local toolchain validation. Public preview,
+  upload, or release still requires an AppID, device validation, and a separate license audit of all
+  files carried by the generated template.
 
 ### Kenney Pattern Pack 2
 

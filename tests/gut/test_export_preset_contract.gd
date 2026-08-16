@@ -31,6 +31,7 @@ const _REQUIRED_EXCLUDE_ROOT_FILTERS: Array[String] = [
 	"tests",
 	"addons/gut",
 	"addons/gf/tools",
+	"addons/wechat_minigame_smoke_export",
 	"tools",
 	"build",
 ]

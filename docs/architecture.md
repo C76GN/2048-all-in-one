@@ -13,7 +13,8 @@
 - `tools/`：项目级验证、构建和维护工具。
 - `docs/`：项目级架构、规范和维护文档。
 - `build/`：验证报告、导出检查和其他可再生产物；由 GF 合同中的 `generated_artifacts` 模块拥有，不得混入手写源码或运行时资源。
-- `addons/`：vendored GF 与 GUT，不属于项目业务 Feature。
+- `addons/gf/` 与 `addons/gut/`：vendored GF 与 GUT，不属于项目业务 Feature。
+- `addons/wechat_minigame_smoke_export/`：项目自有、由验证模块拥有的 EditorExportPlugin；只为微信工具链冒烟定制资源，并从所有发布预设排除。
 
 旧的 `scripts/`、`scenes/`、`resources/`、`assets/` 和 `asset_library/` 根目录不再承载项目文件，也不提供旧路径别名。
 

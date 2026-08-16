@@ -59,3 +59,60 @@ func test_missing_templates_skip_export_instead_of_claiming_success() -> void:
 		),
 		"缺少模板时必须给出可审计的 skip 原因。"
 	)
+
+
+func test_wechat_cli_detection_uses_ordered_fallbacks_and_records_source() -> void:
+	var source: String = FileAccess.get_file_as_string(_READINESS_TOOL_PATH)
+	var parameter_index: int = source.find('-Source "parameter"')
+	var environment_index: int = source.find('-Source "environment"')
+	var default_index: int = source.find('-Source "default"')
+	var path_index: int = source.find('Get-Command "cli.bat"')
+	var registry_index: int = source.find("$wechatRegistryRoots")
+	var install_directory_index: int = source.find("$wechatInstallDirectories")
+
+	assert_true(
+		parameter_index >= 0
+		and environment_index > parameter_index
+		and default_index > environment_index
+		and path_index > default_index
+		and registry_index > path_index
+		and install_directory_index > registry_index,
+		"微信 CLI 探测顺序必须是显式参数、环境变量、默认路径、PATH、注册表、安装目录。"
+	)
+	assert_true(
+		source.contains("$env:WECHAT_DEVTOOLS_PATH")
+		and source.contains("registry_display_icon")
+		and source.contains("discovery_source = $weChatDiscoverySource"),
+		"报告必须记录 CLI 的发现来源，并支持非 C 盘注册表安装。"
+	)
+
+
+func test_wechat_cli_presence_is_not_reported_as_automation_or_publish_readiness() -> void:
+	var source: String = FileAccess.get_file_as_string(_READINESS_TOOL_PATH)
+
+	assert_true(
+		source.contains("cli_detected = -not [string]::IsNullOrWhiteSpace")
+		and source.contains("automation_ready = $false")
+		and source.contains('publishing_status = "not_verified"'),
+		"CLI 文件、自动化通道和发布能力必须作为独立证据报告。"
+	)
+	assert_true(
+		source.contains('-ArgumentList "islogin"')
+		and source.contains("-RedirectStandardInput $stdinPath")
+		and source.contains("2048-wechat-cli-probe-")
+		and source.contains("Stop-StartedProcessTree")
+		and source.contains('Get-Command "taskkill.exe"')
+		and source.contains("/PID $startedProcessId")
+		and source.contains("/T")
+		and source.contains("/F")
+		and source.contains('service_port_status = "disabled"')
+		and source.contains("session_authorized = $false"),
+		"自动化探测必须只读，并明确识别服务端口关闭或会话未授权。"
+	)
+	assert_true(
+		source.contains("elseif (-not $weChatAutomation.automation_ready)")
+		and source.contains("local automation is not ready")
+		and source.contains('status = "inconclusive"')
+		and source.contains("Automation and publishing readiness were not inferred."),
+		"仅找到 CLI 文件时，平台就绪结果仍必须保持阻塞。"
+	)

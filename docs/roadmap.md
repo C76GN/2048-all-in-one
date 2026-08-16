@@ -12,8 +12,8 @@
 
 ### P0-01 在正式工具链复跑目标平台产物
 
-- **当前状态**：项目侧检查与临时导出路径已经就绪；实际工具链和工作站环境阻塞只以当次 `build/platform_environment_report.json` 为准。
-- **结果**：安装匹配模板后，由 `tools/check_platform_readiness.ps1` 在系统临时目录完成真实 Web release export；锁定微信插件、SDK 与 CLI 后执行微信导入和编译 smoke。
+- **当前状态**：Web 临时导出与微信 `toolchain_smoke` 已锁定项目侧路径；微信开发者工具已能导入并绘制模板加载页，当前阻塞是模拟器单次读取大 PCK 时的 ArrayBuffer/Base64 桥接失败。工作站状态只以当次报告和 DevTools 终态日志为准。
+- **结果**：由 `tools/check_platform_readiness.ps1` 完成真实 Web release export；由 `tools/export_wechat_minigame_smoke.ps1` 生成带分块大文件读取兼容层的微信工程，并完成模拟器与真机 smoke。
 - **边界**：静态配置扫描不得冒充成功产物；临时验证不得修改项目 release 输出或把生成物提交为规范。
 - **验收**：环境报告中的 `web_export.status` 为 `passed`、临时产物已清理，微信 smoke 保存明确的 CLI 版本与终态证据。
 

@@ -400,7 +400,8 @@
         "responsibility": "拥有跨 Feature 合同测试、项目维护测试和显式人工调用的验证脚本；不进入发布运行时。",
         "roots": [
           "res://tests",
-          "res://tools"
+          "res://tools",
+          "res://addons/wechat_minigame_smoke_export"
         ],
         "allowed_dependencies": [
           "shared_foundation",
@@ -786,7 +787,7 @@
     },
     {
       "id": "wechat_export_toolchain",
-      "question": "最终微信小游戏导出插件、SDK 版本和 CI 发布环境尚未锁定。",
+      "question": "本地 toolchain_smoke 已锁定 godothub/godot-minigame 4.7 模板、项目自有确定性导出器和 4 MiB 异步分块大文件读取层；离线 JS、产物与包内门禁已通过，开发者工具模拟器复验、真机、平台 SDK capability 范围、完整游戏资源交付和 CI 发布环境仍未锁定。",
       "blocking": false
     }
   ]

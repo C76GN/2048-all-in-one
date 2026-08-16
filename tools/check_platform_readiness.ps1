@@ -4,6 +4,8 @@ param(
 	[string]$ExportTemplateRoot = "",
 	[string]$WeChatDevToolsPath = "",
 	[switch]$AllowEnvironmentBlockers,
+	[ValidateRange(1, 30)]
+	[int]$WeChatProbeTimeoutSeconds = 10,
 	[ValidateRange(1, 3600)]
 	[int]$TimeoutSeconds = 300
 )
@@ -37,6 +39,262 @@ function ConvertTo-NativeCommandLineArgument {
 		$quotedBody = $argumentPrefix + ("\" * ($trailingBackslashCount * 2))
 	}
 	return '"' + $quotedBody + '"'
+}
+
+function Stop-StartedProcessTree {
+	param(
+		[Parameter(Mandatory = $true)]
+		[Diagnostics.Process]$Process,
+		[Parameter(Mandatory = $true)]
+		[string]$Label
+	)
+
+	if ($Process.HasExited) {
+		return
+	}
+	$startedProcessId = [int]$Process.Id
+	$taskKillCommand = Get-Command "taskkill.exe" -CommandType Application -ErrorAction Stop
+	$taskKillOutput = & $taskKillCommand.Source `
+		/PID $startedProcessId `
+		/T `
+		/F 2>&1
+	$taskKillExitCode = $LASTEXITCODE
+	$null = $Process.WaitForExit(5000)
+	if (-not $Process.HasExited) {
+		throw "$Label process tree did not terminate after taskkill (PID $startedProcessId)."
+	}
+	if ($taskKillExitCode -ne 0) {
+		Write-Warning (
+			"$Label process tree ended while taskkill reported exit $taskKillExitCode`: " +
+			([string]::Join([Environment]::NewLine, @($taskKillOutput)))
+		)
+	}
+}
+
+function Add-WeChatCliCandidate {
+	param(
+		[Parameter(Mandatory = $true)]
+		[AllowEmptyCollection()]
+		[System.Collections.Generic.List[object]]$Candidates,
+		[string]$Path,
+		[Parameter(Mandatory = $true)]
+		[string]$Source
+	)
+
+	if ([string]::IsNullOrWhiteSpace($Path)) {
+		return
+	}
+
+	$expandedPath = [Environment]::ExpandEnvironmentVariables($Path.Trim().Trim('"'))
+	if (Test-Path -LiteralPath $expandedPath -PathType Container) {
+		$expandedPath = Join-Path $expandedPath "cli.bat"
+	}
+	elseif ((Split-Path -Leaf $expandedPath) -ine "cli.bat") {
+		$expandedPath = Join-Path (Split-Path -Parent $expandedPath) "cli.bat"
+	}
+
+	$Candidates.Add([pscustomobject]@{
+		path = $expandedPath
+		source = $Source
+	})
+}
+
+function Get-RegistryExecutablePath {
+	param([string]$Value)
+
+	if ([string]::IsNullOrWhiteSpace($Value)) {
+		return ""
+	}
+
+	$match = [regex]::Match($Value, '^\s*"([^"]+\.exe)"')
+	if ($match.Success) {
+		return $match.Groups[1].Value
+	}
+	$match = [regex]::Match($Value, '^\s*([^,]+?\.exe)(?:\s|,|$)')
+	if ($match.Success) {
+		return $match.Groups[1].Value.Trim()
+	}
+	return ""
+}
+
+function Invoke-WeChatCliReadinessProbe {
+	param(
+		[string]$CliPath,
+		[ValidateRange(1, 30)]
+		[int]$ProbeTimeoutSeconds = 10
+	)
+
+	$probe = [ordered]@{
+		status = "not_run"
+		automation_ready = $false
+		service_port_status = "unknown"
+		session_authorized = $null
+		account_login_status = "unknown"
+		publishing_status = "not_verified"
+		exit_code = $null
+		reason = "WeChat DevTools CLI was not found, so automation was not probed."
+	}
+	if ([string]::IsNullOrWhiteSpace($CliPath)) {
+		return $probe
+	}
+
+	$probe.status = "failed"
+	$probe.reason = "The CLI path was found, but the automation probe did not complete."
+	$probeTempPath = ""
+	try {
+		$tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+		$probeTempPath = [IO.Path]::GetFullPath(
+			(Join-Path $tempRoot ("2048-wechat-cli-probe-" + [Guid]::NewGuid().ToString("N")))
+		)
+		$probeTempPrefix = [IO.Path]::GetFullPath(
+			(Join-Path $tempRoot "2048-wechat-cli-probe-")
+		)
+		if (-not $probeTempPath.StartsWith(
+			$probeTempPrefix,
+			[StringComparison]::OrdinalIgnoreCase
+		)) {
+			throw "Resolved WeChat CLI probe directory escaped the temporary root: $probeTempPath"
+		}
+		$null = New-Item -ItemType Directory -Path $probeTempPath
+		$stdinPath = Join-Path $probeTempPath "stdin.txt"
+		$stdoutPath = Join-Path $probeTempPath "stdout.txt"
+		$stderrPath = Join-Path $probeTempPath "stderr.txt"
+		[IO.File]::WriteAllText($stdinPath, "", [Text.UTF8Encoding]::new($false))
+
+		# Start-Process handles .bat invocation correctly on Windows PowerShell 5.1.
+		# Empty redirected stdin prevents the CLI from accepting a prompt that would
+		# enable its service port or grant authorization during this read-only check.
+		$probeProcess = Start-Process `
+			-FilePath $CliPath `
+			-ArgumentList "islogin" `
+			-WorkingDirectory (Split-Path -Parent $CliPath) `
+			-NoNewWindow `
+			-RedirectStandardInput $stdinPath `
+			-RedirectStandardOutput $stdoutPath `
+			-RedirectStandardError $stderrPath `
+			-PassThru
+		$completedInTime = $probeProcess.WaitForExit($ProbeTimeoutSeconds * 1000)
+		if (-not $completedInTime) {
+			Stop-StartedProcessTree `
+				-Process $probeProcess `
+				-Label "WeChat CLI readiness probe"
+			$probe.status = "timed_out"
+			$probe.reason = "The CLI automation probe timed out after $ProbeTimeoutSeconds seconds."
+			return $probe
+		}
+
+		$probeProcess.WaitForExit()
+		$probe.exit_code = $probeProcess.ExitCode
+		$probeOutput = (
+			[IO.File]::ReadAllText($stdoutPath, [Text.Encoding]::UTF8) +
+			[Environment]::NewLine +
+			[IO.File]::ReadAllText($stderrPath, [Text.Encoding]::UTF8)
+		).Trim()
+
+		$servicePortDisabledPattern = (
+			'(?i)service\s+port\s+(?:is\s+)?(?:disabled|off|closed)|' +
+			'\u670d\u52a1\u7aef\u53e3.{0,16}(?:\u5173\u95ed|\u672a\u5f00\u542f)'
+		)
+		$authorizationRequiredPattern = (
+			'(?i)(?:client\s+)?(?:not\s+authorized|unauthorized)|' +
+			'\u672a\u6388\u6743|\u9700\u8981\u6388\u6743|' +
+			'\u6388\u6743.{0,12}(?:\u5931\u8d25|\u8d85\u65f6)'
+		)
+		$connectionFailurePattern = (
+			'(?i)ECONNREFUSED|connection\s+(?:refused|failed)|' +
+			'\u65e0\u6cd5\u8fde\u63a5|\u8fde\u63a5.{0,12}\u5931\u8d25'
+		)
+
+		if ($probeOutput -match $servicePortDisabledPattern) {
+			$probe.status = "blocked"
+			$probe.service_port_status = "disabled"
+			$probe.session_authorized = $false
+			$probe.reason = (
+				"The CLI file exists, but the WeChat DevTools service port is disabled. " +
+				"Enable it manually in DevTools Settings > Security Settings before using CLI automation."
+			)
+			return $probe
+		}
+		if ($probeOutput -match $authorizationRequiredPattern) {
+			$probe.status = "blocked"
+			$probe.session_authorized = $false
+			$probe.reason = (
+				"The CLI file exists, but this automation session is not authorized. " +
+				"Authorize it manually in WeChat DevTools before retrying."
+			)
+			return $probe
+		}
+		if ($probeOutput -match $connectionFailurePattern) {
+			$probe.status = "failed"
+			$probe.reason = "The CLI file exists, but the DevTools automation endpoint was unreachable."
+			return $probe
+		}
+		$loginMatch = [regex]::Match(
+			$probeOutput,
+			'(?im)(?:"?(?:is[_-]?login|isLogin|login|logged_in)"?|' +
+			'\u662f\u5426\u767b\u5f55|\u767b\u5f55\u72b6\u6001)\s*[:=\uFF1A]\s*(true|false)|' +
+			'^\s*(true|false)\s*$'
+		)
+		if ($null -ne $probeProcess.ExitCode -and $probeProcess.ExitCode -ne 0) {
+			$probe.status = "failed"
+			$probe.reason = "The CLI automation probe failed with exit code $($probeProcess.ExitCode)."
+			return $probe
+		}
+		if (-not $loginMatch.Success) {
+			$probe.status = "inconclusive"
+			$probe.reason = (
+				"The CLI command completed, but its islogin response could not be recognized. " +
+				"Automation and publishing readiness were not inferred."
+			)
+			return $probe
+		}
+
+		# A successful islogin response proves only that the local CLI automation
+		# channel answered. It does not prove account login or publish permission.
+		$probe.status = "passed"
+		$probe.automation_ready = $true
+		$probe.service_port_status = "enabled"
+		$probe.session_authorized = $true
+		$loginValue = if (-not [string]::IsNullOrWhiteSpace($loginMatch.Groups[1].Value)) {
+			$loginMatch.Groups[1].Value
+		}
+		else {
+			$loginMatch.Groups[2].Value
+		}
+		$probe.account_login_status = if ($loginValue -ieq "true") {
+			"logged_in"
+		}
+		else {
+			"logged_out"
+		}
+		$probe.reason = (
+			"The local CLI answered the non-mutating islogin probe. " +
+			"Account login and publishing permission remain separately reported and are not inferred from the CLI path."
+		)
+	}
+	catch {
+		$probe.status = "failed"
+		$probe.reason = "The CLI automation probe failed: $($_.Exception.Message)"
+	}
+	finally {
+		if (-not [string]::IsNullOrWhiteSpace($probeTempPath) -and (Test-Path -LiteralPath $probeTempPath)) {
+			$resolvedProbeCleanupPath = [IO.Path]::GetFullPath(
+				(Resolve-Path -LiteralPath $probeTempPath).Path
+			)
+			$tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+			$probeTempPrefix = [IO.Path]::GetFullPath(
+				(Join-Path $tempRoot "2048-wechat-cli-probe-")
+			)
+			if (-not $resolvedProbeCleanupPath.StartsWith(
+				$probeTempPrefix,
+				[StringComparison]::OrdinalIgnoreCase
+			)) {
+				throw "Refusing to clean unexpected WeChat CLI probe path: $resolvedProbeCleanupPath"
+			}
+			Remove-Item -LiteralPath $resolvedProbeCleanupPath -Recurse -Force
+		}
+	}
+	return $probe
 }
 
 & "$PSScriptRoot\invoke_godot_project_tool.ps1" `
@@ -76,25 +334,102 @@ foreach ($root in $templateRoots | Select-Object -Unique) {
 	}
 }
 
-$wechatCandidates = [System.Collections.Generic.List[string]]::new()
-if (-not [string]::IsNullOrWhiteSpace($WeChatDevToolsPath)) {
-	$wechatCandidates.Add($WeChatDevToolsPath)
-}
-if (-not [string]::IsNullOrWhiteSpace($env:WECHAT_DEVTOOLS_PATH)) {
-	$wechatCandidates.Add($env:WECHAT_DEVTOOLS_PATH)
-}
-$wechatCandidates.Add("C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat")
+$wechatCandidates = [System.Collections.Generic.List[object]]::new()
+Add-WeChatCliCandidate -Candidates $wechatCandidates -Path $WeChatDevToolsPath -Source "parameter"
+Add-WeChatCliCandidate -Candidates $wechatCandidates -Path $env:WECHAT_DEVTOOLS_PATH -Source "environment"
+Add-WeChatCliCandidate `
+	-Candidates $wechatCandidates `
+	-Path "C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat" `
+	-Source "default"
 if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
-	$wechatCandidates.Add((Join-Path $env:LOCALAPPDATA "微信开发者工具\cli.bat"))
+	Add-WeChatCliCandidate `
+		-Candidates $wechatCandidates `
+		-Path (Join-Path $env:LOCALAPPDATA "微信开发者工具\cli.bat") `
+		-Source "default"
+}
+
+$pathCliCommand = Get-Command "cli.bat" -CommandType Application -ErrorAction SilentlyContinue |
+	Select-Object -First 1
+if ($null -ne $pathCliCommand) {
+	Add-WeChatCliCandidate `
+		-Candidates $wechatCandidates `
+		-Path $pathCliCommand.Source `
+		-Source "path"
+}
+
+$wechatRegistryRoots = @(
+	"HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+	"HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*",
+	"HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+)
+foreach ($registryRoot in $wechatRegistryRoots) {
+	$registryEntries = Get-ItemProperty -Path $registryRoot -ErrorAction SilentlyContinue |
+		Where-Object {
+			$_.DisplayName -match '\u5fae\u4fe1\u5f00\u53d1\u8005\u5de5\u5177|WeChat.*DevTools'
+		}
+	foreach ($registryEntry in $registryEntries) {
+		Add-WeChatCliCandidate `
+			-Candidates $wechatCandidates `
+			-Path $registryEntry.InstallLocation `
+			-Source "registry_install_location"
+		Add-WeChatCliCandidate `
+			-Candidates $wechatCandidates `
+			-Path (Get-RegistryExecutablePath -Value $registryEntry.DisplayIcon) `
+			-Source "registry_display_icon"
+		Add-WeChatCliCandidate `
+			-Candidates $wechatCandidates `
+			-Path (Get-RegistryExecutablePath -Value $registryEntry.UninstallString) `
+			-Source "registry_uninstall_command"
+	}
+}
+
+$wechatInstallDirectories = @(
+	$(if (-not [string]::IsNullOrWhiteSpace(${env:ProgramFiles(x86)})) {
+		$wechatLegacyDirectoryName = (
+			[regex]::Unescape('\u5fae\u4fe1') + "web" +
+			[regex]::Unescape('\u5f00\u53d1\u8005\u5de5\u5177')
+		)
+		Join-Path ${env:ProgramFiles(x86)} (Join-Path "Tencent" $wechatLegacyDirectoryName)
+	}),
+	$(if (-not [string]::IsNullOrWhiteSpace($env:ProgramFiles)) {
+		$wechatDirectoryName = [regex]::Unescape(
+			'\u5fae\u4fe1\u5f00\u53d1\u8005\u5de5\u5177'
+		)
+		Join-Path $env:ProgramFiles (Join-Path "Tencent" $wechatDirectoryName)
+	}),
+	$(if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+		$wechatDirectoryName = [regex]::Unescape(
+			'\u5fae\u4fe1\u5f00\u53d1\u8005\u5de5\u5177'
+		)
+		Join-Path $env:LOCALAPPDATA (Join-Path "Programs" $wechatDirectoryName)
+	})
+)
+foreach ($installDirectory in $wechatInstallDirectories) {
+	Add-WeChatCliCandidate `
+		-Candidates $wechatCandidates `
+		-Path $installDirectory `
+		-Source "install_directory"
 }
 
 $resolvedWeChatPath = ""
-foreach ($candidate in $wechatCandidates | Select-Object -Unique) {
-	if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path -LiteralPath $candidate -PathType Leaf)) {
-		$resolvedWeChatPath = $candidate
+$weChatDiscoverySource = ""
+$seenWeChatCandidatePaths = [System.Collections.Generic.HashSet[string]]::new(
+	[StringComparer]::OrdinalIgnoreCase
+)
+foreach ($candidate in $wechatCandidates) {
+	if (
+		-not [string]::IsNullOrWhiteSpace($candidate.path) -and
+		$seenWeChatCandidatePaths.Add($candidate.path) -and
+		(Test-Path -LiteralPath $candidate.path -PathType Leaf)
+	) {
+		$resolvedWeChatPath = (Resolve-Path -LiteralPath $candidate.path).Path
+		$weChatDiscoverySource = $candidate.source
 		break
 	}
 }
+$weChatAutomation = Invoke-WeChatCliReadinessProbe `
+	-CliPath $resolvedWeChatPath `
+	-ProbeTimeoutSeconds $WeChatProbeTimeoutSeconds
 
 $webExportEvidence = [ordered]@{
 	status = "skipped"
@@ -152,8 +487,9 @@ if (-not [string]::IsNullOrWhiteSpace($matchingTemplatePath)) {
 		$stderrTask = $exportProcess.StandardError.ReadToEndAsync()
 		$completedInTime = $exportProcess.WaitForExit($TimeoutSeconds * 1000)
 		if (-not $completedInTime) {
-			$exportProcess.Kill()
-			$exportProcess.WaitForExit()
+			Stop-StartedProcessTree `
+				-Process $exportProcess `
+				-Label "temporary Godot Web export"
 			$webExportEvidence.reason = "Temporary Web export timed out after $TimeoutSeconds seconds."
 		}
 		else {
@@ -221,6 +557,11 @@ elseif ($webExportEvidence.status -ne "passed") {
 if ([string]::IsNullOrWhiteSpace($resolvedWeChatPath)) {
 	$blockers.Add("WeChat DevTools CLI was not found.")
 }
+elseif (-not $weChatAutomation.automation_ready) {
+	$blockers.Add(
+		"WeChat DevTools CLI was found, but local automation is not ready: $($weChatAutomation.reason)"
+	)
+}
 
 $environmentReport = [ordered]@{
 	ok = ($blockers.Count -eq 0)
@@ -234,7 +575,10 @@ $environmentReport = [ordered]@{
 		template_roots = @($templateRoots | Select-Object -Unique)
 	}
 	wechat_devtools = [ordered]@{
+		cli_detected = -not [string]::IsNullOrWhiteSpace($resolvedWeChatPath)
 		cli_path = $resolvedWeChatPath
+		discovery_source = $weChatDiscoverySource
+		automation = $weChatAutomation
 	}
 	web_export = $webExportEvidence
 	blockers = @($blockers)
@@ -244,6 +588,8 @@ $environmentReportPath = Join-Path $ProjectRoot "build\platform_environment_repo
 $environmentReport | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $environmentReportPath -Encoding UTF8
 Write-Host "Platform environment: $($(if ($environmentReport.ok) { 'PASS' } else { 'BLOCKED' })) ($($blockers.Count) blockers)"
 Write-Host "Web export smoke: $($webExportEvidence.status.ToUpperInvariant()) - $($webExportEvidence.reason)"
+Write-Host "WeChat CLI detection: $($(if ([string]::IsNullOrWhiteSpace($resolvedWeChatPath)) { 'MISSING' } else { 'FOUND' }))$($(if ([string]::IsNullOrWhiteSpace($weChatDiscoverySource)) { '' } else { " via $weChatDiscoverySource" }))"
+Write-Host "WeChat CLI automation: $($weChatAutomation.status.ToUpperInvariant()) - $($weChatAutomation.reason)"
 
 if (-not $environmentReport.ok -and -not $AllowEnvironmentBlockers) {
 	throw "Platform environment has blockers. See $environmentReportPath"

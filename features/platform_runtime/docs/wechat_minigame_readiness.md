@@ -23,10 +23,54 @@
 powershell -ExecutionPolicy Bypass -File tools/check_platform_readiness.ps1 -GodotExecutable godot -AllowEnvironmentBlockers
 ```
 
+微信小游戏工具链冒烟导出：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/export_wechat_minigame_smoke.ps1 `
+  -GodotExecutable godot
+```
+
+脚本把已校验的社区 `godothub/godot-minigame` 4.7 模板与 Godot
+`--export-pack` 产物组装为 `build/wechat_minigame_smoke/wxgame`。模板必须精确为
+11,763,895 bytes、SHA-256
+`AE5BDEB5BA1CE9712D4EFC35D337CB5ECBEF3AD5BFB0F7D06AE9CB662C1F2D71`；导出器会删除
+示例 PCK、示例分包、示例 AppID 和 private config，将项目 PCK 改为微信允许的 `.bin`，
+并把 loader 绑定到同一路径。模板默认缓存在 `build/wechat_toolchain/4.7/`，也可通过
+`-TemplateArchivePath` 传入同一份已校验归档。模板是社区工具链，不是 Godot 或微信官方支持的导出器。
+发布 stage 在替换旧输出前会在不含项目资源的临时最小 Godot 宿主中调用同一份可测试的产物验证器，
+检查 JSON、loader、精确文件白名单、AppID、包体预算、包内字体重映射和编辑器插件泄漏；失败时不会
+覆盖旧输出。完整包内检查必须由该隔离宿主执行，避免工作区中的同路径资源掩盖 PCK 缺失；在项目宿主中
+只能独立复核不挂载 PCK 的结构部分：
+
+```powershell
+godot --headless --path . `
+  --script res://tools/wechat_minigame_artifact_check.gd -- `
+  --artifact-root build/wechat_minigame_smoke/wxgame
+```
+
+社区模板原始 `fsUtils.localFetch()` 会用一次异步 `readFile` 读取整个 ArrayBuffer。当前项目的
+WASM 与 PCK 分别约 8.4 MB 和 15.4 MB；微信开发者工具 2.02.2607271 的模拟器桥在大 PCK
+响应上会进入内部 `coverRes -> atob` 错误。导出器因此复制项目自有的
+`tools/wechat_minigame/chunked_file_loader.js`，只对这两个构建时精确计量的资源按 4 MiB 串行分块，
+使用 `position + length` 读取并逐块验证返回类型与长度；目标资源失败、短读或超时都直接失败，不回退到
+原来的整文件读取。算法回归可独立执行：
+
+```powershell
+node --test tests/tooling/wechat_chunked_file_loader.test.cjs
+```
+
+开发者工具必须启用上游模板要求的 Experimental WebAssembly。重新编译后，Console 应看到两个资源
+合计 7 个 `[wechat-chunked-fetch] chunk`、随后 `engine init`、`Engine has started!`，并进入
+Godot 平台冒烟场景；缺少任一终态都不能签字。若当前输出被已打开的 DevTools 占用，可用
+`-OutputPath build/wechat_minigame_smoke_candidate/wxgame` 生成独立候选工程，不能强删或覆盖被占用目录。
+候选产物固定 `projectname = "2048 Chunked Toolchain Smoke"`；DevTools 项目标题必须显示该名称且模式
+必须为“小游戏”。标题仍为 `wxgame` 或顶部显示“小程序模式”时，说明导入的是旧目录，不能用于验证分块修复。
+
 报告：
 
 - `build/platform_readiness_report.json`：GFCompatibilityPreflight 项目契约；
 - `build/platform_environment_report.json`：编辑器、匹配导出模板和微信开发者工具环境。
+- `build/wechat_minigame_smoke/export-report.json`：模板身份、精确发布白名单、主包/引擎分包字节数和预算结论。
 
 CI 或正式导出不得传 `-AllowEnvironmentBlockers`。本地仅审查项目配置时才允许该开关。
 
@@ -38,14 +82,20 @@ Web 冒烟预设名为 `Web Compatibility Smoke`，并固定：
 - 关闭 Web extension support；
 - 启用移动纹理压缩；
 - 启用虚拟键盘输入。
+- `addons/wechat_minigame_smoke_export` 仅在 `wechat_minigame_smoke` feature 下通过 Godot 资源定制接口把完整 Noto Sans SC 重映射为诊断字形子集；子集禁用系统字体 fallback，并由 GUT 从 Boot、BootRuntime、Boot 场景和平台冒烟控制器的字符串字面量逐码点验证。正式桌面、Web 和游戏构建不启用该定制，继续使用完整字体。
 
 该预设会由 Boot 路由到 `platform_smoke_test.tscn`，验证安全区、生命周期、手势、本地存储、HTTPS、音频用户手势和代表性 Shader。
+
+微信冒烟工程固定横屏，把 `engine/` 声明为普通分包，并使用保守的十进制预算：主包硬上限
+4,000,000 bytes、总包硬上限 30,000,000 bytes；软预算分别为 3,600,000 与
+27,000,000 bytes。任何 `.pck`、`.html`、未压缩 `.wasm`、未知模板文件或上游示例 AppID
+都会使导出失败。该结果只表示 `toolchain_smoke`，不得冒充全游戏可发布。
 
 ## 环境状态与签字边界
 
 编辑器版本、导出模板和微信开发者工具 CLI 都是工作站易变状态，只以当次 `build/platform_environment_report.json` 为准，不在长期文档中复制为“当前环境”。报告出现 blocker 时，可以继续做项目侧静态审查，但不能签字微信开发者工具或真机通过。
 
-匹配的 Godot 导出工具链与微信开发者工具 CLI 就绪后，还必须接入实际微信导出适配器并执行下方真机矩阵。GF vendor 版本与上游修复状态以 `addons/gf/plugin.cfg`、`.gf/vendor.lock.json` 和当前 vendor 源码为准；本项目不得保留临时 GF 补丁。
+匹配的 Godot 导出工具链与微信开发者工具 CLI 就绪后，还必须在开发者工具和真机执行下方矩阵。`project.config.json` 默认不写入 AppID；首次导入时由开发者工具填写项目自己的小游戏 AppID，或者在本地调用导出器时传 `-AppId`。脚本会保留已生成输出中的有效本机 AppID 与 `project.private.config.json` 的本地 IDE 偏好，但会把私有配置里的 `appid` / `compileType` 提升到已验证的公共配置或移除，禁止其覆盖产物身份和编译目标；`build/` 始终被 Git 忽略。GF vendor 版本与上游修复状态以 `addons/gf/plugin.cfg`、`.gf/vendor.lock.json` 和当前 vendor 源码为准；本项目不得保留临时 GF 补丁。
 
 ## 真机签字矩阵
 
@@ -67,7 +117,8 @@ Web 冒烟预设名为 `Web Compatibility Smoke`，并固定：
 
 ## 后续实施顺序
 
-1. 准备与当前项目匹配的导出工具链、微信开发者工具 CLI 和实际微信导出适配器，完成开发者工具与真机冒烟签字。
-2. 根据产品范围先定义登录、存储、分享、支付和开放数据域中真正需要的 capability / bridge contract，再实现并注册 `WeChatMinigamePlatformAdapter`；未选择的能力不得被 UI 假定存在。
-3. 将现有本地成就、图鉴与本地排行榜分别接到平台 bridge；线上排行榜和平台成就同步由平台或服务端裁决，本地 Profile 只保留离线状态与待同步事实。
-4. 在每次 Godot、GF、微信导出适配器或关键 Shader 更新后重跑项目预检、环境检查和真机矩阵，不沿用历史 Web 报告代替新签字。
+1. 用固定 4.7 模板完成 `toolchain_smoke` 的开发者工具编译、模拟器启动和 Android/iOS 真机签字；当前本机 CLI 仍需用户开启服务端口或授权 clientName。
+2. 为完整游戏设计字体、资源分包或远程资产策略，使正式 PCK 与引擎壳持续低于总包预算，再新增无 `platform_smoke` 的发布产物。
+3. 根据产品范围先定义登录、存储、分享、支付和开放数据域中真正需要的 capability / bridge contract，再实现并注册 `WeChatMinigamePlatformAdapter`；未选择的能力不得被 UI 假定存在。
+4. 将现有本地成就、图鉴与本地排行榜分别接到平台 bridge；线上排行榜和平台成就同步由平台或服务端裁决，本地 Profile 只保留离线状态与待同步事实。
+5. 在每次 Godot、GF、微信模板、平台 Adapter 或关键 Shader 更新后重跑项目预检、环境检查、包体门禁和真机矩阵，不沿用历史 Web 报告代替新签字。
