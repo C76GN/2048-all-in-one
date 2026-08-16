@@ -42,6 +42,17 @@ enum _GuardStatus {
 	CONTINUE,
 }
 
+enum _PrewarmMode {
+	BATCH,
+	BUDGET,
+}
+
+enum _PoolLifecycleTransition {
+	NONE,
+	INITIALIZE,
+	DISPOSE,
+}
+
 
 # --- 常量 ---
 
@@ -108,6 +119,11 @@ var _available_pools: Dictionary = {}
 
 # 每个 PackedScene 尚未提交的预热容量总账。
 var _prewarm_reserved_counts: Dictionary = {}
+var _active_prewarm_requests: Dictionary = {}
+var _next_prewarm_request_id: int = 1
+var _prewarm_request_id_mutex: Mutex = Mutex.new()
+var _pool_lifecycle_transition: int = _PoolLifecycleTransition.NONE
+var _queued_pool_lifecycle_transition: int = _PoolLifecycleTransition.NONE
 var _active_generations: Dictionary = {}
 var _transition_generations: Dictionary = {}
 var _operation_generation: int = 0
@@ -122,41 +138,14 @@ var _is_disposed: bool = false
 ## [br]
 ## @api public
 func init() -> void:
-	_lifecycle_serial += 1
-	_is_disposed = false
-	if is_instance_valid(_pool_root):
-		_queue_free_detached(_pool_root)
-	_all_nodes = {}
-	_available_pools = {}
-	_prewarm_reserved_counts = {}
-	_active_generations = {}
-	_transition_generations = {}
-	_pool_root = null
+	_request_pool_lifecycle_transition(_PoolLifecycleTransition.INITIALIZE)
 
 
 ## 销毁阶段：释放所有池中的节点。
 ## [br]
 ## @api public
 func dispose() -> void:
-	_lifecycle_serial += 1
-	_is_disposed = true
-	for scene_key: Variant in _all_nodes:
-		var scene: PackedScene = _variant_to_packed_scene(scene_key)
-		if scene == null:
-			continue
-		var pool: Array = _get_all_nodes_pool(scene)
-		for node_variant: Variant in pool:
-			var node: Node = _get_valid_pool_node(node_variant)
-			if node != null:
-				_queue_free_detached(node)
-	if is_instance_valid(_pool_root):
-		_queue_free_detached(_pool_root)
-	_all_nodes.clear()
-	_available_pools.clear()
-	_prewarm_reserved_counts.clear()
-	_active_generations.clear()
-	_transition_generations.clear()
-	_pool_root = null
+	_request_pool_lifecycle_transition(_PoolLifecycleTransition.DISPOSE)
 
 
 # --- 公共方法 ---
@@ -429,30 +418,26 @@ func prewarm_async(
 	if _is_disposed:
 		push_warning("[GFObjectPoolUtility] 对象池已销毁，忽略 prewarm_async。")
 		return
-	if not _ensure_scene_pool(scene):
+	if not is_instance_valid(scene):
+		push_error("[GFObjectPoolUtility] 传入了无效的 PackedScene。")
 		return
 	if count <= 0:
 		return
-	if batch_size <= 0:
-		prewarm(scene, parent, count, before_add)
-		return
-
-	var current_serial: int = _lifecycle_serial
-	var reserved_remaining: int = _reserve_prewarm_capacity(scene, count)
-	var scene_tree: SceneTree = _get_scene_tree()
-	var created_count: int = 0
-	while reserved_remaining > 0:
-		if not _is_prewarm_context_valid(scene, parent, current_serial):
-			break
-		var node_created: bool = _prewarm_node(scene, parent, before_add, current_serial)
-		_release_prewarm_capacity(scene, 1, current_serial)
-		reserved_remaining -= 1
-		if not node_created:
-			break
-		created_count += 1
-		if scene_tree != null and created_count % batch_size == 0:
-			await scene_tree.process_frame
-	_release_prewarm_capacity(scene, reserved_remaining, current_serial)
+	var prepare_callback: Callable = func(node: Node) -> Error:
+		_call_before_add(before_add, node)
+		return OK
+	var operation: GFObjectPoolPrewarmOperation = prewarm_request_async(
+		scene,
+		parent,
+		count,
+		batch_size,
+		null,
+		null,
+		prepare_callback
+	)
+	if operation.is_pending():
+		var _legacy_result: GFObjectPoolPrewarmResult = await operation.completed
+	_report_legacy_prewarm_failure(operation.get_result())
 
 
 ## 按单帧时间预算预热对象池，适合复杂度差异较大的 PackedScene。
@@ -480,40 +465,120 @@ func prewarm_async_budget(
 	if _is_disposed:
 		push_warning("[GFObjectPoolUtility] 对象池已销毁，忽略 prewarm_async_budget。")
 		return
-	if not _ensure_scene_pool(scene):
+	if not is_instance_valid(scene):
+		push_error("[GFObjectPoolUtility] 传入了无效的 PackedScene。")
 		return
 	if count <= 0:
 		return
-	if msec_budget_per_frame <= 0.0:
-		prewarm(scene, parent, count, before_add)
-		return
+	var prepare_callback: Callable = func(node: Node) -> Error:
+		_call_before_add(before_add, node)
+		return OK
+	var operation: GFObjectPoolPrewarmOperation = prewarm_budget_request_async(
+		scene,
+		parent,
+		count,
+		msec_budget_per_frame,
+		null,
+		null,
+		prepare_callback
+	)
+	if operation.is_pending():
+		var _legacy_result: GFObjectPoolPrewarmResult = await operation.completed
+	_report_legacy_prewarm_failure(operation.get_result())
 
-	var current_serial: int = _lifecycle_serial
-	var reserved_remaining: int = _reserve_prewarm_capacity(scene, count)
-	var scene_tree: SceneTree = _get_scene_tree()
-	var stopped: bool = false
-	while reserved_remaining > 0 and not stopped:
-		var frame_start_usec: int = Time.get_ticks_usec()
-		var created_this_frame: int = 0
-		while reserved_remaining > 0:
-			if not _is_prewarm_context_valid(scene, parent, current_serial):
-				stopped = true
-				break
-			var node_created: bool = _prewarm_node(scene, parent, before_add, current_serial)
-			_release_prewarm_capacity(scene, 1, current_serial)
-			reserved_remaining -= 1
-			if not node_created:
-				stopped = true
-				break
-			created_this_frame += 1
 
-			var elapsed_msec: float = float(Time.get_ticks_usec() - frame_start_usec) / 1000.0
-			if created_this_frame > 0 and elapsed_msec >= msec_budget_per_frame:
-				break
+## 创建一个按每帧批量驱动的 request-scoped 类型化预热请求。
+## [br]
+## 请求只释放自身尚未消费的容量 reservation；取消不会回滚已经提交的节点。
+## `batch_size <= 0` 时保留旧 API 的同步退化语义。同步终态可能在方法返回前完成。
+## 该入口只接受主线程调用；其他线程会同步返回 `INVALID/main_thread_required`，且不改变池状态。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param scene: 要预热的 PackedScene 资源。
+## [br]
+## @param parent: 可选挂载父节点；null 表示 detached prewarm。
+## [br]
+## @param count: 请求数量；0 立即完成，负数返回 INVALID。
+## [br]
+## @param batch_size: 每帧最多创建数量；小于等于 0 时同步执行。
+## [br]
+## @param owner: 可选请求生命周期 owner；Node 必须已在场景树中。
+## [br]
+## @param cancellation_token: 可选取消令牌或 GFAsyncScope。
+## [br]
+## @param prepare_callback: 可选 `func(node: Node) -> Error`；非 OK 终止请求。
+## [br]
+## @return 请求专属 Operation；调用方应先检查同步终态再连接 completed。
+func prewarm_request_async(
+	scene: PackedScene,
+	parent: Node,
+	count: int,
+	batch_size: int = 32,
+	owner: Object = null,
+	cancellation_token: GFCancellationToken = null,
+	prepare_callback: Callable = Callable()
+) -> GFObjectPoolPrewarmOperation:
+	return _begin_prewarm_request(
+		scene,
+		parent,
+		count,
+		_PrewarmMode.BATCH,
+		batch_size,
+		0.0,
+		owner,
+		cancellation_token,
+		prepare_callback
+	)
 
-		if reserved_remaining > 0 and not stopped and scene_tree != null:
-			await scene_tree.process_frame
-	_release_prewarm_capacity(scene, reserved_remaining, current_serial)
+
+## 创建一个按每帧时间预算驱动的 request-scoped 类型化预热请求。
+## [br]
+## 请求只释放自身尚未消费的容量 reservation；取消不会回滚已经提交的节点。
+## `msec_budget_per_frame <= 0` 时保留旧 API 的同步退化语义。
+## 该入口只接受主线程调用；其他线程会同步返回 `INVALID/main_thread_required`，且不改变池状态。
+## [br]
+## @api public
+## [br]
+## @since unreleased
+## [br]
+## @param scene: 要预热的 PackedScene 资源。
+## [br]
+## @param parent: 可选挂载父节点；null 表示 detached prewarm。
+## [br]
+## @param count: 请求数量；0 立即完成，负数返回 INVALID。
+## [br]
+## @param msec_budget_per_frame: 每帧预算；小于等于 0 时同步执行。
+## [br]
+## @param owner: 可选请求生命周期 owner；Node 必须已在场景树中。
+## [br]
+## @param cancellation_token: 可选取消令牌或 GFAsyncScope。
+## [br]
+## @param prepare_callback: 可选 `func(node: Node) -> Error`；非 OK 终止请求。
+## [br]
+## @return 请求专属 Operation；调用方应先检查同步终态再连接 completed。
+func prewarm_budget_request_async(
+	scene: PackedScene,
+	parent: Node,
+	count: int,
+	msec_budget_per_frame: float = 8.0,
+	owner: Object = null,
+	cancellation_token: GFCancellationToken = null,
+	prepare_callback: Callable = Callable()
+) -> GFObjectPoolPrewarmOperation:
+	return _begin_prewarm_request(
+		scene,
+		parent,
+		count,
+		_PrewarmMode.BUDGET,
+		0,
+		msec_budget_per_frame,
+		owner,
+		cancellation_token,
+		prepare_callback
+	)
 
 
 ## 获取指定场景当前池中可用（未使用）的节点数量。
@@ -602,6 +667,48 @@ func get_debug_snapshot() -> Dictionary:
 
 
 # --- 私有/辅助方法 ---
+
+func _request_pool_lifecycle_transition(transition: int) -> void:
+	if transition not in [_PoolLifecycleTransition.INITIALIZE, _PoolLifecycleTransition.DISPOSE]:
+		return
+	if _pool_lifecycle_transition != _PoolLifecycleTransition.NONE:
+		_queued_pool_lifecycle_transition = transition
+		return
+	var current_transition: int = transition
+	while current_transition != _PoolLifecycleTransition.NONE:
+		_pool_lifecycle_transition = current_transition
+		_queued_pool_lifecycle_transition = _PoolLifecycleTransition.NONE
+		_perform_pool_lifecycle_transition(current_transition)
+		current_transition = _queued_pool_lifecycle_transition
+	_pool_lifecycle_transition = _PoolLifecycleTransition.NONE
+	_queued_pool_lifecycle_transition = _PoolLifecycleTransition.NONE
+
+
+func _perform_pool_lifecycle_transition(transition: int) -> void:
+	_is_disposed = true
+	_finish_all_prewarm_requests()
+	_lifecycle_serial += 1
+	if transition == _PoolLifecycleTransition.DISPOSE:
+		for scene_key: Variant in _all_nodes:
+			var scene: PackedScene = _variant_to_packed_scene(scene_key)
+			if scene == null:
+				continue
+			var pool: Array = _get_all_nodes_pool(scene)
+			for node_variant: Variant in pool:
+				var node: Node = _get_valid_pool_node(node_variant)
+				if node != null:
+					_queue_free_detached(node)
+	if is_instance_valid(_pool_root):
+		_queue_free_detached(_pool_root)
+	_all_nodes.clear()
+	_available_pools.clear()
+	_prewarm_reserved_counts.clear()
+	_active_prewarm_requests.clear()
+	_active_generations.clear()
+	_transition_generations.clear()
+	_pool_root = null
+	_is_disposed = transition == _PoolLifecycleTransition.DISPOSE
+
 
 func _take_operation_generation() -> int:
 	_operation_generation += 1
@@ -1005,6 +1112,1326 @@ func _ensure_scene_pool(scene: PackedScene) -> bool:
 	return true
 
 
+func _begin_prewarm_request(
+	scene: PackedScene,
+	parent: Node,
+	count: int,
+	mode: int,
+	batch_size: int,
+	budget_msec: float,
+	owner: Object,
+	cancellation_token: GFCancellationToken,
+	prepare_callback: Callable
+) -> GFObjectPoolPrewarmOperation:
+	var request_id: int = _take_prewarm_request_id()
+	var requested_count: int = maxi(count, 0)
+	var operation: GFObjectPoolPrewarmOperation = GFObjectPoolPrewarmOperation.new()
+	if not Thread.is_main_thread():
+		var _worker_configured: bool = operation.configure_terminal_for_framework(
+			request_id,
+			requested_count,
+			GFObjectPoolPrewarmResult.Status.INVALID,
+			GFObjectPoolPrewarmResult.REASON_MAIN_THREAD_REQUIRED,
+			ERR_INVALID_PARAMETER
+		)
+		return operation
+	var cancel_delegate: Callable = _make_rejecting_prewarm_cancel_delegate()
+	if _is_disposed or _pool_lifecycle_transition != _PoolLifecycleTransition.NONE:
+		var disposed_reason: StringName = GFObjectPoolPrewarmResult.REASON_UTILITY_DISPOSED
+		if _pool_lifecycle_transition == _PoolLifecycleTransition.INITIALIZE:
+			disposed_reason = GFObjectPoolPrewarmResult.REASON_UTILITY_REINITIALIZED
+		_configure_and_finish_prewarm_operation(
+			operation,
+			cancel_delegate,
+			request_id,
+			scene,
+			requested_count,
+			0,
+			GFObjectPoolPrewarmResult.Status.DISPOSED,
+			disposed_reason,
+			ERR_UNAVAILABLE
+		)
+		return operation
+	if count < 0:
+		_configure_and_finish_prewarm_operation(
+			operation,
+			cancel_delegate,
+			request_id,
+			scene,
+			0,
+			0,
+			GFObjectPoolPrewarmResult.Status.INVALID,
+			GFObjectPoolPrewarmResult.REASON_INVALID_COUNT,
+			ERR_INVALID_PARAMETER
+		)
+		return operation
+	var validation_reason: StringName = _get_prewarm_request_validation_reason(
+		scene,
+		parent,
+		owner,
+		prepare_callback
+	)
+	if not validation_reason.is_empty():
+		_configure_and_finish_prewarm_operation(
+			operation,
+			cancel_delegate,
+			request_id,
+			scene,
+			requested_count,
+			0,
+			GFObjectPoolPrewarmResult.Status.INVALID,
+			validation_reason,
+			ERR_INVALID_PARAMETER
+		)
+		return operation
+	if count == 0:
+		_configure_and_finish_prewarm_operation(
+			operation,
+			cancel_delegate,
+			request_id,
+			scene,
+			0,
+			0,
+			GFObjectPoolPrewarmResult.Status.COMPLETED,
+			GFObjectPoolPrewarmResult.REASON_COMPLETED,
+			OK
+		)
+		return operation
+	if _token_is_cancelled_or_completed(cancellation_token):
+		var token_reason: StringName = _get_prewarm_token_terminal_reason(
+			cancellation_token
+		)
+		_configure_and_finish_prewarm_operation(
+			operation,
+			cancel_delegate,
+			request_id,
+			scene,
+			requested_count,
+			requested_count,
+			GFObjectPoolPrewarmResult.Status.CANCELLED,
+			token_reason,
+			ERR_SKIP
+		)
+		return operation
+	var _scene_pool_ready: bool = _ensure_scene_pool(scene)
+	var admitted_count: int = _reserve_prewarm_capacity(scene, requested_count)
+	var settlement_authority: Callable = _make_prewarm_settlement_authority()
+	var settlement_validator: Callable = _make_prewarm_settlement_validator(
+		settlement_authority
+	)
+	cancel_delegate = _make_prewarm_cancel_delegate(settlement_authority)
+	var configured: bool = operation.configure_for_framework(
+		cancel_delegate,
+		settlement_validator,
+		request_id,
+		scene,
+		requested_count,
+		admitted_count
+	)
+	if not configured:
+		_release_prewarm_capacity(scene, admitted_count, _lifecycle_serial)
+		return operation
+	if admitted_count == 0:
+		var _rejected: bool = operation.finish_for_framework(
+			settlement_authority,
+			GFObjectPoolPrewarmResult.Status.REJECTED,
+			GFObjectPoolPrewarmResult.REASON_CAPACITY_UNAVAILABLE,
+			ERR_BUSY
+		)
+		return operation
+	var entry: Dictionary = _make_prewarm_request_entry(
+		request_id,
+		operation,
+		scene,
+		parent,
+		owner,
+		cancellation_token,
+		prepare_callback,
+		mode,
+		batch_size,
+		budget_msec,
+		admitted_count
+	)
+	entry["lifecycle_callback"] = _make_prewarm_lifecycle_callback(
+		request_id,
+		operation,
+		GFVariantData.get_option_int(entry, "lifecycle_serial"),
+		settlement_authority
+	)
+	_active_prewarm_requests[request_id] = entry
+	if not _bind_prewarm_request_anchors(entry, settlement_authority):
+		var _binding_failed: bool = _finish_prewarm_request(
+			request_id,
+			operation,
+			GFObjectPoolPrewarmResult.Status.FAILED,
+			GFObjectPoolPrewarmResult.REASON_INTERNAL_FAILURE,
+			FAILED,
+			settlement_authority
+		)
+		return operation
+	if not _poll_prewarm_request(request_id, operation, settlement_authority):
+		return operation
+	@warning_ignore("missing_await")
+	_drive_prewarm_request(request_id, operation, settlement_authority)
+	return operation
+
+
+func _get_prewarm_request_validation_reason(
+	scene: PackedScene,
+	parent: Node,
+	owner: Object,
+	prepare_callback: Callable
+) -> StringName:
+	if not is_instance_valid(scene):
+		return GFObjectPoolPrewarmResult.REASON_INVALID_SCENE
+	if parent != null and (not is_instance_valid(parent) or parent.is_queued_for_deletion()):
+		return GFObjectPoolPrewarmResult.REASON_INVALID_PARENT
+	if owner != null:
+		if not is_instance_valid(owner):
+			return GFObjectPoolPrewarmResult.REASON_INVALID_OWNER
+		if owner is Node:
+			var owner_node: Node = owner
+			if not owner_node.is_inside_tree():
+				return GFObjectPoolPrewarmResult.REASON_INVALID_OWNER
+	if not prepare_callback.is_null() and not prepare_callback.is_valid():
+		return GFObjectPoolPrewarmResult.REASON_INVALID_PREPARE_CALLBACK
+	return &""
+
+
+func _configure_and_finish_prewarm_operation(
+	operation: GFObjectPoolPrewarmOperation,
+	cancel_delegate: Callable,
+	request_id: int,
+	scene: PackedScene,
+	requested_count: int,
+	admitted_count: int,
+	status: GFObjectPoolPrewarmResult.Status,
+	reason: StringName,
+	error_code: Error
+) -> void:
+	var settlement_authority: Callable = _make_prewarm_settlement_authority()
+	var settlement_validator: Callable = _make_prewarm_settlement_validator(
+		settlement_authority
+	)
+	if not operation.configure_for_framework(
+		cancel_delegate,
+		settlement_validator,
+		request_id,
+		scene,
+		requested_count,
+		admitted_count
+	):
+		return
+	var _finished: bool = operation.finish_for_framework(
+		settlement_authority,
+		status,
+		reason,
+		error_code
+	)
+
+
+func _make_prewarm_cancel_delegate(settlement_authority: Callable) -> Callable:
+	var utility_instance_id: int = get_instance_id()
+	return func(
+		current: GFObjectPoolPrewarmOperation,
+		reason: StringName,
+	) -> bool:
+		var utility_value: Variant = instance_from_id(utility_instance_id)
+		if not (utility_value is Object):
+			return false
+		var utility: Object = utility_value
+		if not is_instance_valid(utility):
+			return false
+		var raw_result: Variant = utility.call(
+			&"_cancel_prewarm_operation",
+			current,
+			reason,
+			settlement_authority
+		)
+		return raw_result is bool and raw_result
+
+
+static func _make_rejecting_prewarm_cancel_delegate() -> Callable:
+	return func(
+		_current: GFObjectPoolPrewarmOperation,
+		_reason: StringName,
+	) -> bool:
+		return false
+
+
+func _make_prewarm_lifecycle_callback(
+	request_id: int,
+	operation: GFObjectPoolPrewarmOperation,
+	expected_lifecycle_serial: int,
+	settlement_authority: Callable
+) -> Callable:
+	var utility_instance_id: int = get_instance_id()
+	return func() -> bool:
+		var utility_value: Variant = instance_from_id(utility_instance_id)
+		if not (utility_value is Object):
+			return false
+		var utility: Object = utility_value
+		if not is_instance_valid(utility):
+			return false
+		var raw_result: Variant = utility.call(
+			&"_finish_prewarm_request_for_lifecycle",
+			request_id,
+			operation,
+			expected_lifecycle_serial,
+			settlement_authority
+		)
+		return raw_result is bool and raw_result
+
+
+static func _make_prewarm_settlement_authority() -> Callable:
+	return func() -> void:
+		pass
+
+
+static func _make_prewarm_settlement_validator(authority: Callable) -> Callable:
+	return func(candidate: Callable) -> bool:
+		return candidate == authority
+
+
+func _make_prewarm_request_entry(
+	request_id: int,
+	operation: GFObjectPoolPrewarmOperation,
+	scene: PackedScene,
+	parent: Node,
+	owner: Object,
+	cancellation_token: GFCancellationToken,
+	prepare_callback: Callable,
+	mode: int,
+	batch_size: int,
+	budget_msec: float,
+	admitted_count: int
+) -> Dictionary:
+	return {
+		"request_id": request_id,
+		"operation": operation,
+		"scene": scene,
+		"parent_ref": weakref(parent) if parent != null else null,
+		"parent_id": parent.get_instance_id() if parent != null else 0,
+		"parent_lifetime": null,
+		"parent_lifetime_check": Callable(),
+		"parent_tree_entered_callback": Callable(),
+		"owner_ref": weakref(owner) if owner != null else null,
+		"owner_id": owner.get_instance_id() if owner != null else 0,
+		"owner_lifetime": null,
+		"owner_lifetime_check": Callable(),
+		"cancellation_token": cancellation_token,
+		"token_callback": Callable(),
+		"prepare_callback": prepare_callback,
+		"mode": mode,
+		"batch_size": batch_size,
+		"budget_msec": budget_msec,
+		"lifecycle_serial": _lifecycle_serial,
+		"reserved_remaining": admitted_count,
+	}
+
+
+func _bind_prewarm_request_anchors(
+	entry: Dictionary,
+	settlement_authority: Callable
+) -> bool:
+	var request_id: int = GFVariantData.get_option_int(entry, "request_id")
+	var operation: GFObjectPoolPrewarmOperation = _entry_prewarm_operation(entry)
+	if operation == null:
+		return false
+	var owner: Object = _entry_weak_object(entry, "owner_ref", "owner_id")
+	if GFVariantData.get_option_int(entry, "owner_id") != 0:
+		if owner == null:
+			return false
+		var owner_callbacks: Dictionary = _make_prewarm_lifetime_callbacks(owner, true)
+		var owner_check: Callable = _entry_callable(owner_callbacks, "check")
+		entry["owner_lifetime_check"] = owner_check
+		entry["owner_lifetime"] = _make_prewarm_lifetime_subscription(
+			owner,
+			request_id,
+			operation,
+			GFObjectPoolPrewarmResult.REASON_OWNER_RELEASED,
+			"object_pool_prewarm_owner:%d" % request_id,
+			owner_check,
+			settlement_authority
+		)
+	var parent: Object = _entry_weak_object(entry, "parent_ref", "parent_id")
+	if GFVariantData.get_option_int(entry, "parent_id") != 0:
+		if parent == null:
+			return false
+		var parent_callbacks: Dictionary = _make_prewarm_lifetime_callbacks(parent, false)
+		var parent_check: Callable = _entry_callable(parent_callbacks, "check")
+		var parent_entered: Callable = _entry_callable(parent_callbacks, "entered")
+		entry["parent_lifetime_check"] = parent_check
+		if parent is Node:
+			var parent_node: Node = parent
+			entry["parent_tree_entered_callback"] = parent_entered
+			if not parent_node.tree_entered.is_connected(parent_entered):
+				var tree_entered_error: Error = parent_node.tree_entered.connect(
+					parent_entered
+				) as Error
+				if tree_entered_error != OK:
+					return false
+		entry["parent_lifetime"] = _make_prewarm_lifetime_subscription(
+			parent,
+			request_id,
+			operation,
+			GFObjectPoolPrewarmResult.REASON_PARENT_RELEASED,
+			"object_pool_prewarm_parent:%d" % request_id,
+			parent_check,
+			settlement_authority
+		)
+	var cancellation_token: GFCancellationToken = _entry_cancellation_token(entry)
+	if cancellation_token != null:
+		var token_callback: Callable = _make_prewarm_token_callback(
+			request_id,
+			operation,
+			cancellation_token,
+			settlement_authority
+		)
+		entry["token_callback"] = token_callback
+		var connect_error: Error = cancellation_token.cancel_requested.connect(
+			token_callback,
+			CONNECT_ONE_SHOT as Object.ConnectFlags
+		) as Error
+		if connect_error != OK:
+			return false
+	return true
+
+
+func _make_prewarm_lifetime_subscription(
+	owner: Object,
+	request_id: int,
+	operation: GFObjectPoolPrewarmOperation,
+	reason: StringName,
+	debug_label: String,
+	lifetime_check: Callable,
+	settlement_authority: Callable
+) -> GFLifetimeSubscription:
+	var utility_instance_id: int = get_instance_id()
+	var anchor_instance_id: int = owner.get_instance_id()
+	var callback: Callable = func() -> void:
+		var utility_value: Variant = instance_from_id(utility_instance_id)
+		if not (utility_value is Object):
+			return
+		var utility: Object = utility_value
+		if not is_instance_valid(utility):
+			return
+		var _invoke_result: Variant = utility.call(
+			&"_on_prewarm_lifetime_released",
+			request_id,
+			operation,
+			reason,
+			anchor_instance_id,
+			lifetime_check,
+			settlement_authority
+		)
+	return GFLifetimeSubscription.new(owner, callback, debug_label)
+
+
+func _make_prewarm_token_callback(
+	request_id: int,
+	operation: GFObjectPoolPrewarmOperation,
+	cancellation_token: GFCancellationToken,
+	settlement_authority: Callable
+) -> Callable:
+	var utility_instance_id: int = get_instance_id()
+	var token_ref: WeakRef = weakref(cancellation_token)
+	var token_instance_id: int = cancellation_token.get_instance_id()
+	return func(_reason: StringName) -> void:
+		var utility_value: Variant = instance_from_id(utility_instance_id)
+		if not (utility_value is Object):
+			return
+		var utility: Object = utility_value
+		if not is_instance_valid(utility):
+			return
+		var _invoke_result: Variant = utility.call(
+			&"_on_prewarm_token_cancelled",
+			request_id,
+			operation,
+			token_ref,
+			token_instance_id,
+			settlement_authority
+		)
+
+
+static func _make_prewarm_lifetime_callbacks(
+	anchor: Object,
+	require_inside_tree: bool
+) -> Dictionary:
+	var anchor_ref: WeakRef = weakref(anchor)
+	var anchor_instance_id: int = anchor.get_instance_id()
+	var initially_inside_tree: bool = false
+	if anchor is Node:
+		var initial_node: Node = anchor
+		initially_inside_tree = initial_node.is_inside_tree()
+	var seen_inside_tree: Array[bool] = [initially_inside_tree]
+	var entered: Callable = func() -> void:
+		var raw_anchor: Variant = anchor_ref.get_ref()
+		if not (raw_anchor is Node):
+			return
+		var anchor_node: Node = raw_anchor
+		if (
+			is_instance_valid(anchor_node)
+			and anchor_node.get_instance_id() == anchor_instance_id
+			and anchor_node.is_inside_tree()
+		):
+			seen_inside_tree[0] = true
+	var check: Callable = func() -> bool:
+		var raw_anchor: Variant = anchor_ref.get_ref()
+		if not (raw_anchor is Object):
+			return true
+		var current_anchor: Object = raw_anchor
+		if (
+			not is_instance_valid(current_anchor)
+			or current_anchor.get_instance_id() != anchor_instance_id
+		):
+			return true
+		if not (current_anchor is Node):
+			return false
+		var anchor_node: Node = current_anchor
+		if anchor_node.is_queued_for_deletion():
+			return true
+		if anchor_node.is_inside_tree():
+			seen_inside_tree[0] = true
+			return false
+		return require_inside_tree or seen_inside_tree[0]
+	return {"check": check, "entered": entered}
+
+
+func _drive_prewarm_request(
+	request_id: int,
+	operation: GFObjectPoolPrewarmOperation,
+	settlement_authority: Callable
+) -> void:
+	var scene_tree: SceneTree = _get_scene_tree()
+	var frame_attempt_count: int = 0
+	var frame_start_usec: int = Time.get_ticks_usec()
+	while _poll_prewarm_request(request_id, operation, settlement_authority):
+		var entry: Dictionary = _get_prewarm_request_entry(request_id, operation)
+		if entry.is_empty():
+			return
+		if GFVariantData.get_option_int(entry, "reserved_remaining") <= 0:
+			var _completed_without_attempt: bool = _finish_completed_prewarm_request(
+				request_id,
+				operation,
+				settlement_authority
+			)
+			return
+		var barrier_began: bool = operation.begin_settlement_barrier_for_framework(
+			settlement_authority
+		)
+		if not barrier_began:
+			var _barrier_failed: bool = _finish_prewarm_request(
+				request_id,
+				operation,
+				GFObjectPoolPrewarmResult.Status.FAILED,
+				GFObjectPoolPrewarmResult.REASON_INTERNAL_FAILURE,
+				FAILED,
+				settlement_authority
+			)
+			return
+		var attempt: Dictionary = _prewarm_request_node_attempt(
+			request_id,
+			operation,
+			settlement_authority
+		)
+		var _barrier_ended: bool = operation.end_settlement_barrier_for_framework(
+			settlement_authority
+		)
+		if not _prewarm_request_is_active(request_id, operation):
+			return
+		if GFVariantData.get_option_bool(attempt, "capacity_limited"):
+			entry = _get_prewarm_request_entry(request_id, operation)
+			if entry.is_empty():
+				return
+			_release_request_prewarm_capacity(
+				entry,
+				GFVariantData.get_option_int(entry, "reserved_remaining")
+			)
+			var capacity_recorded: bool = operation.record_capacity_skipped_for_framework(
+				settlement_authority
+			)
+			if not capacity_recorded:
+				var _capacity_record_failed: bool = _finish_prewarm_request(
+					request_id,
+					operation,
+					GFObjectPoolPrewarmResult.Status.FAILED,
+					GFObjectPoolPrewarmResult.REASON_INTERNAL_FAILURE,
+					FAILED,
+					settlement_authority
+				)
+				return
+			if _prewarm_request_is_active(request_id, operation):
+				var _capacity_completed: bool = _finish_completed_prewarm_request(
+					request_id,
+					operation,
+					settlement_authority
+				)
+			return
+		if not GFVariantData.get_option_bool(attempt, "ok"):
+			if not _poll_prewarm_request(request_id, operation, settlement_authority):
+				return
+			var _attempt_failed: bool = _finish_prewarm_request(
+				request_id,
+				operation,
+				GFObjectPoolPrewarmResult.Status.FAILED,
+				GFVariantData.get_option_string_name(
+					attempt,
+					"reason",
+					GFObjectPoolPrewarmResult.REASON_INTERNAL_FAILURE
+				),
+				GFVariantData.get_option_int(attempt, "error_code", FAILED) as Error,
+				settlement_authority
+			)
+			return
+		entry = _get_prewarm_request_entry(request_id, operation)
+		if entry.is_empty():
+			return
+		_release_request_prewarm_capacity(entry, 1)
+		var created_recorded: bool = operation.record_created_for_framework(
+			settlement_authority
+		)
+		if not created_recorded:
+			var _record_failed: bool = _finish_prewarm_request(
+				request_id,
+				operation,
+				GFObjectPoolPrewarmResult.Status.FAILED,
+				GFObjectPoolPrewarmResult.REASON_INTERNAL_FAILURE,
+				FAILED,
+				settlement_authority
+			)
+			return
+		if not _prewarm_request_is_active(request_id, operation):
+			return
+		frame_attempt_count += 1
+		if not _prewarm_request_should_await(entry, frame_attempt_count, frame_start_usec):
+			continue
+		if scene_tree == null:
+			continue
+		await scene_tree.process_frame
+		frame_attempt_count = 0
+		frame_start_usec = Time.get_ticks_usec()
+	var _completed_after_driver: bool = _finish_completed_prewarm_request(
+		request_id,
+		operation,
+		settlement_authority
+	)
+
+
+func _prewarm_request_should_await(
+	entry: Dictionary,
+	frame_attempt_count: int,
+	frame_start_usec: int
+) -> bool:
+	var mode: int = GFVariantData.get_option_int(entry, "mode", _PrewarmMode.BATCH)
+	if mode == _PrewarmMode.BATCH:
+		var batch_size: int = GFVariantData.get_option_int(entry, "batch_size")
+		return batch_size > 0 and frame_attempt_count >= batch_size
+	var budget_msec: float = GFVariantData.get_option_float(entry, "budget_msec")
+	if budget_msec <= 0.0:
+		return false
+	var elapsed_msec: float = float(Time.get_ticks_usec() - frame_start_usec) / 1000.0
+	return frame_attempt_count > 0 and elapsed_msec >= budget_msec
+
+
+func _prewarm_request_node_attempt(
+	request_id: int,
+	operation: GFObjectPoolPrewarmOperation,
+	settlement_authority: Callable
+) -> Dictionary:
+	var entry: Dictionary = _get_prewarm_request_entry(request_id, operation)
+	var scene: PackedScene = _entry_prewarm_scene(entry)
+	var parent: Node = _entry_prewarm_parent(entry)
+	var current_serial: int = GFVariantData.get_option_int(entry, "lifecycle_serial")
+	if entry.is_empty() or scene == null:
+		return _make_prewarm_attempt_failure(
+			GFObjectPoolPrewarmResult.REASON_CANDIDATE_INVALIDATED,
+			ERR_UNAVAILABLE
+		)
+	var node: Node = _variant_to_node(scene.instantiate())
+	if node == null:
+		return _make_prewarm_attempt_failure(
+			GFObjectPoolPrewarmResult.REASON_SCENE_INSTANTIATION_FAILED,
+			ERR_CANT_CREATE
+		)
+	if _prewarm_request_capacity_is_saturated(scene):
+		_discard_pool_candidate(node)
+		return {"capacity_limited": true}
+	if not _prewarm_request_candidate_context_is_valid(
+		request_id,
+		operation,
+		settlement_authority,
+		scene,
+		parent,
+		node,
+		current_serial
+	):
+		_discard_pool_candidate(node)
+		return _make_prewarm_attempt_failure(
+			GFObjectPoolPrewarmResult.REASON_CANDIDATE_INVALIDATED,
+			ERR_UNAVAILABLE
+		)
+	var node_id: int = node.get_instance_id()
+	var transition_generation: int = _take_operation_generation()
+	node.set_meta(_META_ACTIVE, false)
+	node.set_meta(_META_SOURCE_SCENE, scene)
+	_transition_generations[node_id] = transition_generation
+	_get_all_nodes_pool(scene).push_back(node)
+	if not _run_guarded_tree_state_operation(
+		node,
+		false,
+		node_id,
+		_NodeOwnershipPhase.TRANSITION,
+		transition_generation,
+		current_serial
+	):
+		_discard_tracked_pool_candidate(node, scene)
+		return _make_prewarm_attempt_failure(
+			GFObjectPoolPrewarmResult.REASON_CANDIDATE_INVALIDATED,
+			ERR_UNAVAILABLE
+		)
+	var prepare_outcome: Dictionary = _run_prewarm_prepare_callback(entry, node)
+	if not _prewarm_request_is_active(request_id, operation):
+		_discard_tracked_pool_candidate(node, scene)
+		return {"settled": true}
+	if not GFVariantData.get_option_bool(prepare_outcome, "ok"):
+		_discard_tracked_pool_candidate(node, scene)
+		return prepare_outcome
+	if _prewarm_request_capacity_is_saturated(scene):
+		_discard_tracked_pool_candidate(node, scene)
+		return {"capacity_limited": true}
+	if not _typed_prewarm_operation_matches(
+		request_id,
+		operation,
+		settlement_authority,
+		scene,
+		parent,
+		node,
+		node_id,
+		transition_generation,
+		current_serial
+	) or node.get_parent() != null:
+		_discard_tracked_pool_candidate(node, scene)
+		return _make_prewarm_attempt_failure(
+			GFObjectPoolPrewarmResult.REASON_CANDIDATE_INVALIDATED,
+			ERR_UNAVAILABLE
+		)
+	if parent != null:
+		parent.add_child(node)
+	if _prewarm_request_capacity_is_saturated(scene):
+		_discard_tracked_pool_candidate(node, scene)
+		return {"capacity_limited": true}
+	if not _typed_prewarm_operation_matches(
+		request_id,
+		operation,
+		settlement_authority,
+		scene,
+		parent,
+		node,
+		node_id,
+		transition_generation,
+		current_serial
+	) or (parent != null and node.get_parent() != parent):
+		_discard_tracked_pool_candidate(node, scene)
+		return _make_prewarm_attempt_failure(
+			GFObjectPoolPrewarmResult.REASON_CANDIDATE_INVALIDATED,
+			ERR_UNAVAILABLE
+		)
+	if not _run_guarded_tree_operation(
+		node,
+		_TreeOperation.INTERNAL_RELEASE_HOOK,
+		node_id,
+		_NodeOwnershipPhase.TRANSITION,
+		transition_generation,
+		current_serial
+	):
+		_discard_tracked_pool_candidate(node, scene)
+		return _make_prewarm_attempt_failure(
+			GFObjectPoolPrewarmResult.REASON_CANDIDATE_INVALIDATED,
+			ERR_UNAVAILABLE
+		)
+	if _prewarm_request_capacity_is_saturated(scene):
+		_discard_tracked_pool_candidate(node, scene)
+		return {"capacity_limited": true}
+	if not _typed_prewarm_operation_matches(
+		request_id,
+		operation,
+		settlement_authority,
+		scene,
+		parent,
+		node,
+		node_id,
+		transition_generation,
+		current_serial
+	) or (parent != null and node.get_parent() != parent):
+		_discard_tracked_pool_candidate(node, scene)
+		return _make_prewarm_attempt_failure(
+			GFObjectPoolPrewarmResult.REASON_CANDIDATE_INVALIDATED,
+			ERR_UNAVAILABLE
+		)
+	var _transition_erased: bool = _transition_generations.erase(node_id)
+	_get_available_pool(scene).push_back(node)
+	return {"ok": true}
+
+
+func _run_prewarm_prepare_callback(entry: Dictionary, node: Node) -> Dictionary:
+	var prepare_callback: Callable = _entry_callable(entry, "prepare_callback")
+	if prepare_callback.is_null():
+		return {"ok": true}
+	if not prepare_callback.is_valid():
+		return _make_prewarm_attempt_failure(
+			GFObjectPoolPrewarmResult.REASON_INVALID_PREPARE_CALLBACK_RESULT,
+			ERR_INVALID_DATA
+		)
+	var raw_result: Variant = prepare_callback.call(node)
+	if not raw_result is int:
+		return _make_prewarm_attempt_failure(
+			GFObjectPoolPrewarmResult.REASON_INVALID_PREPARE_CALLBACK_RESULT,
+			ERR_INVALID_DATA
+		)
+	var numeric_error: int = raw_result
+	if numeric_error < OK or numeric_error > ERR_PRINTER_ON_FIRE:
+		return _make_prewarm_attempt_failure(
+			GFObjectPoolPrewarmResult.REASON_INVALID_PREPARE_CALLBACK_RESULT,
+			ERR_INVALID_DATA
+		)
+	var error_code: Error = numeric_error as Error
+	if error_code != OK:
+		return _make_prewarm_attempt_failure(
+			GFObjectPoolPrewarmResult.REASON_PREPARE_CALLBACK_FAILED,
+			error_code
+		)
+	return {"ok": true}
+
+
+func _make_prewarm_attempt_failure(reason: StringName, error_code: Error) -> Dictionary:
+	return {"ok": false, "reason": reason, "error_code": int(error_code)}
+
+
+func _typed_prewarm_operation_matches(
+	request_id: int,
+	operation: GFObjectPoolPrewarmOperation,
+	settlement_authority: Callable,
+	scene: PackedScene,
+	parent: Node,
+	node: Node,
+	node_id: int,
+	expected_generation: int,
+	expected_lifecycle_serial: int
+) -> bool:
+	return (
+		_prewarm_request_candidate_context_is_valid(
+			request_id,
+			operation,
+			settlement_authority,
+			scene,
+			parent,
+			node,
+			expected_lifecycle_serial
+		)
+		and _node_operation_matches(
+			node,
+			node_id,
+			_NodeOwnershipPhase.TRANSITION,
+			expected_generation,
+			expected_lifecycle_serial
+		)
+	)
+
+
+func _prewarm_request_candidate_context_is_valid(
+	request_id: int,
+	operation: GFObjectPoolPrewarmOperation,
+	settlement_authority: Callable,
+	scene: PackedScene,
+	parent: Node,
+	node: Node,
+	expected_lifecycle_serial: int
+) -> bool:
+	if not _poll_prewarm_request(request_id, operation, settlement_authority):
+		return false
+	if expected_lifecycle_serial != _lifecycle_serial or not is_instance_valid(node):
+		return false
+	if not _all_nodes.has(scene) or not _available_pools.has(scene):
+		return false
+	if parent != null and (not is_instance_valid(parent) or parent.is_queued_for_deletion()):
+		return false
+	return not node.is_queued_for_deletion()
+
+
+func _prewarm_request_capacity_is_saturated(scene: PackedScene) -> bool:
+	return max_available_per_scene > 0 and get_available_count(scene) >= max_available_per_scene
+
+
+func _poll_prewarm_request(
+	request_id: int,
+	operation: GFObjectPoolPrewarmOperation,
+	settlement_authority: Callable
+) -> bool:
+	var entry: Dictionary = _get_prewarm_request_entry(request_id, operation)
+	if entry.is_empty():
+		return false
+	if _is_disposed or GFVariantData.get_option_int(entry, "lifecycle_serial") != _lifecycle_serial:
+		var _disposed: bool = _finish_prewarm_request(
+			request_id,
+			operation,
+			GFObjectPoolPrewarmResult.Status.DISPOSED,
+			GFObjectPoolPrewarmResult.REASON_UTILITY_DISPOSED,
+			ERR_UNAVAILABLE,
+			settlement_authority
+		)
+		return false
+	var cancellation_token: GFCancellationToken = _entry_cancellation_token(entry)
+	if cancellation_token != null:
+		var token_reason: StringName = _get_prewarm_token_terminal_reason(
+			cancellation_token
+		)
+		if not token_reason.is_empty():
+			var _token_cancelled: bool = _finish_prewarm_request(
+				request_id,
+				operation,
+				GFObjectPoolPrewarmResult.Status.CANCELLED,
+				token_reason,
+				ERR_SKIP,
+				settlement_authority
+			)
+			return false
+	if _prewarm_lifetime_is_released(
+		entry,
+		"owner_lifetime_check"
+	):
+		var _owner_released: bool = _finish_prewarm_request(
+			request_id,
+			operation,
+			GFObjectPoolPrewarmResult.Status.CANCELLED,
+			GFObjectPoolPrewarmResult.REASON_OWNER_RELEASED,
+			ERR_SKIP,
+			settlement_authority
+		)
+		return false
+	if _prewarm_lifetime_is_released(
+		entry,
+		"parent_lifetime_check"
+	):
+		var _parent_released: bool = _finish_prewarm_request(
+			request_id,
+			operation,
+			GFObjectPoolPrewarmResult.Status.CANCELLED,
+			GFObjectPoolPrewarmResult.REASON_PARENT_RELEASED,
+			ERR_SKIP,
+			settlement_authority
+		)
+		return false
+	var parent: Node = _entry_prewarm_parent(entry)
+	if parent != null and parent.is_queued_for_deletion():
+		var _queued_parent_released: bool = _finish_prewarm_request(
+			request_id,
+			operation,
+			GFObjectPoolPrewarmResult.Status.CANCELLED,
+			GFObjectPoolPrewarmResult.REASON_PARENT_RELEASED,
+			ERR_SKIP,
+			settlement_authority
+		)
+		return false
+	return true
+
+
+func _prewarm_lifetime_is_released(
+	entry: Dictionary,
+	probe_key: String
+) -> bool:
+	var lifetime_probe: Callable = _entry_callable(entry, probe_key)
+	if not lifetime_probe.is_valid():
+		return false
+	var raw_result: Variant = lifetime_probe.call()
+	return raw_result is bool and raw_result
+
+
+func _cancel_prewarm_operation(
+	operation: GFObjectPoolPrewarmOperation,
+	reason: StringName,
+	settlement_authority: Callable
+) -> bool:
+	if (
+		operation == null
+		or reason != GFObjectPoolPrewarmResult.REASON_CALLER_CANCELLED
+		or _pool_lifecycle_transition != _PoolLifecycleTransition.NONE
+	):
+		return false
+	return _finish_prewarm_request(
+		operation.get_request_id(),
+		operation,
+		GFObjectPoolPrewarmResult.Status.CANCELLED,
+		GFObjectPoolPrewarmResult.REASON_CALLER_CANCELLED,
+		ERR_SKIP,
+		settlement_authority
+	)
+
+
+func _on_prewarm_token_cancelled(
+	request_id: int,
+	operation: GFObjectPoolPrewarmOperation,
+	token_ref: WeakRef,
+	token_instance_id: int,
+	settlement_authority: Callable
+) -> void:
+	var entry: Dictionary = _get_prewarm_request_entry(request_id, operation)
+	if entry.is_empty():
+		return
+	var cancellation_token: GFCancellationToken = _entry_cancellation_token(entry)
+	var raw_expected_token: Variant = token_ref.get_ref() if token_ref != null else null
+	if not (raw_expected_token is GFCancellationToken):
+		return
+	var expected_token: GFCancellationToken = raw_expected_token
+	if (
+		cancellation_token != expected_token
+		or expected_token.get_instance_id() != token_instance_id
+	):
+		return
+	var reason: StringName = _get_prewarm_token_terminal_reason(expected_token)
+	if reason.is_empty():
+		return
+	var _cancelled: bool = _finish_prewarm_request(
+		request_id,
+		operation,
+		GFObjectPoolPrewarmResult.Status.CANCELLED,
+		reason,
+		ERR_SKIP,
+		settlement_authority
+	)
+
+
+func _on_prewarm_lifetime_released(
+	request_id: int,
+	operation: GFObjectPoolPrewarmOperation,
+	reason: StringName,
+	anchor_instance_id: int,
+	lifetime_check: Callable,
+	settlement_authority: Callable
+) -> void:
+	var entry: Dictionary = _get_prewarm_request_entry(request_id, operation)
+	if entry.is_empty():
+		return
+	var lifetime_released: bool = false
+	if reason == GFObjectPoolPrewarmResult.REASON_OWNER_RELEASED:
+		lifetime_released = _prewarm_lifetime_callback_matches(
+			entry,
+			"owner_ref",
+			"owner_id",
+			"owner_lifetime_check",
+			anchor_instance_id,
+			lifetime_check
+		)
+	elif reason == GFObjectPoolPrewarmResult.REASON_PARENT_RELEASED:
+		lifetime_released = _prewarm_lifetime_callback_matches(
+			entry,
+			"parent_ref",
+			"parent_id",
+			"parent_lifetime_check",
+			anchor_instance_id,
+			lifetime_check
+		)
+	if not lifetime_released:
+		return
+	var _cancelled: bool = _finish_prewarm_request(
+		request_id,
+		operation,
+		GFObjectPoolPrewarmResult.Status.CANCELLED,
+		reason,
+		ERR_SKIP,
+		settlement_authority
+	)
+
+
+func _prewarm_lifetime_callback_matches(
+	entry: Dictionary,
+	ref_key: String,
+	id_key: String,
+	probe_key: String,
+	anchor_instance_id: int,
+	lifetime_check: Callable
+) -> bool:
+	if (
+		anchor_instance_id <= 0
+		or GFVariantData.get_option_int(entry, id_key) != anchor_instance_id
+		or _entry_callable(entry, probe_key) != lifetime_check
+	):
+		return false
+	var anchor: Object = _entry_weak_object(entry, ref_key, id_key)
+	if anchor != null and anchor.get_instance_id() != anchor_instance_id:
+		return false
+	var raw_result: Variant = lifetime_check.call()
+	return raw_result is bool and raw_result
+
+
+func _finish_completed_prewarm_request(
+	request_id: int,
+	operation: GFObjectPoolPrewarmOperation,
+	settlement_authority: Callable
+) -> bool:
+	var status: GFObjectPoolPrewarmResult.Status = GFObjectPoolPrewarmResult.Status.COMPLETED
+	var reason: StringName = GFObjectPoolPrewarmResult.REASON_COMPLETED
+	var error_code: Error = OK
+	if operation.get_admitted_count() == 0 and operation.get_skipped_count() > 0:
+		status = GFObjectPoolPrewarmResult.Status.REJECTED
+		reason = GFObjectPoolPrewarmResult.REASON_CAPACITY_UNAVAILABLE
+		error_code = ERR_BUSY
+	elif operation.get_skipped_count() > 0:
+		status = GFObjectPoolPrewarmResult.Status.PARTIAL
+		reason = GFObjectPoolPrewarmResult.REASON_CAPACITY_LIMITED
+	return _finish_prewarm_request(
+		request_id,
+		operation,
+		status,
+		reason,
+		error_code,
+		settlement_authority
+	)
+
+
+func _finish_prewarm_request(
+	request_id: int,
+	operation: GFObjectPoolPrewarmOperation,
+	status: GFObjectPoolPrewarmResult.Status,
+	reason: StringName,
+	error_code: Error,
+	settlement_authority: Callable
+) -> bool:
+	var entry: Dictionary = _get_prewarm_request_entry(request_id, operation)
+	if entry.is_empty():
+		return false
+	if not operation.accepts_settlement_authority_for_framework(settlement_authority):
+		return false
+	var final_status: GFObjectPoolPrewarmResult.Status = status
+	var final_reason: StringName = reason
+	var final_error_code: Error = error_code
+	if _pool_lifecycle_transition != _PoolLifecycleTransition.NONE:
+		final_status = GFObjectPoolPrewarmResult.Status.DISPOSED
+		final_reason = GFObjectPoolPrewarmResult.REASON_UTILITY_DISPOSED
+		if _pool_lifecycle_transition == _PoolLifecycleTransition.INITIALIZE:
+			final_reason = GFObjectPoolPrewarmResult.REASON_UTILITY_REINITIALIZED
+		final_error_code = ERR_UNAVAILABLE
+	elif (
+		status == GFObjectPoolPrewarmResult.Status.CANCELLED
+		and operation.get_created_count() == operation.get_admitted_count()
+	):
+		final_status = GFObjectPoolPrewarmResult.Status.COMPLETED
+		final_reason = GFObjectPoolPrewarmResult.REASON_COMPLETED
+		if operation.get_skipped_count() > 0:
+			final_status = GFObjectPoolPrewarmResult.Status.PARTIAL
+			final_reason = GFObjectPoolPrewarmResult.REASON_CAPACITY_LIMITED
+		final_error_code = OK
+	_disconnect_prewarm_request_anchors(entry)
+	_release_request_prewarm_capacity(
+		entry,
+		GFVariantData.get_option_int(entry, "reserved_remaining")
+	)
+	var _erased: bool = _active_prewarm_requests.erase(request_id)
+	var finished: bool = operation.finish_for_framework(
+		settlement_authority,
+		final_status,
+		final_reason,
+		final_error_code
+	)
+	return finished
+
+
+func _finish_prewarm_request_for_lifecycle(
+	request_id: int,
+	operation: GFObjectPoolPrewarmOperation,
+	expected_lifecycle_serial: int,
+	settlement_authority: Callable
+) -> bool:
+	var entry: Dictionary = _get_prewarm_request_entry(request_id, operation)
+	if (
+		entry.is_empty()
+		or not _is_disposed
+		or _pool_lifecycle_transition == _PoolLifecycleTransition.NONE
+		or GFVariantData.get_option_int(entry, "lifecycle_serial")
+		!= expected_lifecycle_serial
+		or expected_lifecycle_serial != _lifecycle_serial
+	):
+		return false
+	var reason: StringName = GFObjectPoolPrewarmResult.REASON_UTILITY_DISPOSED
+	if _pool_lifecycle_transition == _PoolLifecycleTransition.INITIALIZE:
+		reason = GFObjectPoolPrewarmResult.REASON_UTILITY_REINITIALIZED
+	return _finish_prewarm_request(
+		request_id,
+		operation,
+		GFObjectPoolPrewarmResult.Status.DISPOSED,
+		reason,
+		ERR_UNAVAILABLE,
+		settlement_authority
+	)
+
+
+func _finish_all_prewarm_requests() -> void:
+	var request_ids: Array = _active_prewarm_requests.keys()
+	request_ids.sort()
+	for request_id_value: Variant in request_ids:
+		if not request_id_value is int:
+			continue
+		var request_id: int = request_id_value
+		var entry: Dictionary = _get_prewarm_request_entry_unchecked(request_id)
+		var operation: GFObjectPoolPrewarmOperation = _entry_prewarm_operation(entry)
+		if operation != null:
+			var lifecycle_callback: Callable = _entry_callable(
+				entry,
+				"lifecycle_callback"
+			)
+			if lifecycle_callback.is_valid():
+				var _finished: Variant = lifecycle_callback.call()
+
+
+func _disconnect_prewarm_request_anchors(entry: Dictionary) -> void:
+	var cancellation_token: GFCancellationToken = _entry_cancellation_token(entry)
+	var token_callback: Callable = _entry_callable(entry, "token_callback")
+	if (
+		cancellation_token != null
+		and token_callback.is_valid()
+		and cancellation_token.cancel_requested.is_connected(token_callback)
+	):
+		cancellation_token.cancel_requested.disconnect(token_callback)
+	var parent: Node = _entry_prewarm_parent(entry)
+	var parent_tree_entered_callback: Callable = _entry_callable(
+		entry,
+		"parent_tree_entered_callback"
+	)
+	if (
+		parent != null
+		and parent_tree_entered_callback.is_valid()
+		and parent.tree_entered.is_connected(parent_tree_entered_callback)
+	):
+		parent.tree_entered.disconnect(parent_tree_entered_callback)
+	for key: String in ["owner_lifetime", "parent_lifetime"]:
+		var subscription: GFLifetimeSubscription = _entry_lifetime_subscription(entry, key)
+		if subscription != null:
+			var _deactivated: bool = subscription._deactivate_from_source()
+
+
+func _release_request_prewarm_capacity(entry: Dictionary, count: int) -> void:
+	var reserved_remaining: int = GFVariantData.get_option_int(entry, "reserved_remaining")
+	var release_count: int = mini(maxi(count, 0), reserved_remaining)
+	if release_count <= 0:
+		return
+	var scene: PackedScene = _entry_prewarm_scene(entry)
+	var current_serial: int = GFVariantData.get_option_int(entry, "lifecycle_serial")
+	if scene != null:
+		_release_prewarm_capacity(scene, release_count, current_serial)
+	entry["reserved_remaining"] = reserved_remaining - release_count
+
+
+func _get_prewarm_request_entry(
+	request_id: int,
+	operation: GFObjectPoolPrewarmOperation
+) -> Dictionary:
+	if request_id <= 0 or operation == null:
+		return {}
+	var entry: Dictionary = _get_prewarm_request_entry_unchecked(request_id)
+	return entry if _entry_prewarm_operation(entry) == operation else {}
+
+
+func _get_prewarm_request_entry_unchecked(request_id: int) -> Dictionary:
+	var value: Variant = _active_prewarm_requests.get(request_id)
+	if value is Dictionary:
+		var entry: Dictionary = value
+		return entry
+	return {}
+
+
+func _prewarm_request_is_active(
+	request_id: int,
+	operation: GFObjectPoolPrewarmOperation
+) -> bool:
+	return not _get_prewarm_request_entry(request_id, operation).is_empty()
+
+
+func _take_prewarm_request_id() -> int:
+	_prewarm_request_id_mutex.lock()
+	var request_id: int = _next_prewarm_request_id
+	_next_prewarm_request_id += 1
+	if _next_prewarm_request_id <= 0:
+		_next_prewarm_request_id = 1
+	_prewarm_request_id_mutex.unlock()
+	return request_id
+
+
+func _token_is_cancelled_or_completed(cancellation_token: GFCancellationToken) -> bool:
+	return not _get_prewarm_token_terminal_reason(cancellation_token).is_empty()
+
+
+func _get_prewarm_token_terminal_reason(
+	cancellation_token: GFCancellationToken
+) -> StringName:
+	if cancellation_token == null:
+		return &""
+	if cancellation_token is GFAsyncScope:
+		var async_scope: GFAsyncScope = cancellation_token
+		if async_scope.is_completed():
+			return GFObjectPoolPrewarmResult.REASON_CANCELLATION_SCOPE_COMPLETED
+	if cancellation_token.is_cancel_requested():
+		return GFObjectPoolPrewarmResult.REASON_TOKEN_CANCELLED
+	return &""
+
+
+func _entry_prewarm_operation(entry: Dictionary) -> GFObjectPoolPrewarmOperation:
+	var value: Variant = GFVariantData.get_option_value(entry, "operation")
+	if value is GFObjectPoolPrewarmOperation:
+		var operation: GFObjectPoolPrewarmOperation = value
+		return operation
+	return null
+
+
+func _entry_prewarm_scene(entry: Dictionary) -> PackedScene:
+	return _variant_to_packed_scene(GFVariantData.get_option_value(entry, "scene"))
+
+
+func _entry_prewarm_parent(entry: Dictionary) -> Node:
+	var value: Object = _entry_weak_object(entry, "parent_ref", "parent_id")
+	return value as Node if value is Node else null
+
+
+func _entry_cancellation_token(entry: Dictionary) -> GFCancellationToken:
+	var value: Variant = GFVariantData.get_option_value(entry, "cancellation_token")
+	if value is GFCancellationToken:
+		var token: GFCancellationToken = value
+		return token
+	return null
+
+
+func _entry_callable(entry: Dictionary, key: String) -> Callable:
+	var value: Variant = GFVariantData.get_option_value(entry, key)
+	return value if value is Callable else Callable()
+
+
+func _entry_lifetime_subscription(
+	entry: Dictionary,
+	key: String
+) -> GFLifetimeSubscription:
+	var value: Variant = GFVariantData.get_option_value(entry, key)
+	if value is GFLifetimeSubscription:
+		var subscription: GFLifetimeSubscription = value
+		return subscription
+	return null
+
+
+func _entry_weak_object(entry: Dictionary, ref_key: String, id_key: String) -> Object:
+	var ref_value: Variant = GFVariantData.get_option_value(entry, ref_key)
+	if not ref_value is WeakRef:
+		return null
+	var owner_ref: WeakRef = ref_value
+	var owner_value: Variant = owner_ref.get_ref()
+	if not owner_value is Object:
+		return null
+	var owner: Object = owner_value
+	if (
+		not is_instance_valid(owner)
+		or owner.get_instance_id() != GFVariantData.get_option_int(entry, id_key)
+	):
+		return null
+	return owner
+
+
 func _prewarm_node(
 	scene: PackedScene,
 	parent: Node,
@@ -1095,6 +2522,15 @@ func _call_before_add(before_add: Callable, node: Node) -> void:
 	if not before_add.is_valid() or node == null:
 		return
 	var _before_add_result: Variant = before_add.call(node)
+
+
+func _report_legacy_prewarm_failure(result: GFObjectPoolPrewarmResult) -> void:
+	if (
+		result != null
+		and result.get_status() == GFObjectPoolPrewarmResult.Status.FAILED
+		and result.get_reason() == GFObjectPoolPrewarmResult.REASON_SCENE_INSTANTIATION_FAILED
+	):
+		push_error("[GFObjectPoolUtility] PackedScene 未能实例化为 Node。")
 
 
 func _queue_free_detached(node: Node) -> void:

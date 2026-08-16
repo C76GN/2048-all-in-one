@@ -62,12 +62,13 @@ func test_repeated_pulse_retriggers_distinct_gf_action_edges() -> void:
 		pulse_utility.get_active_operation(GameplayInputActions.UNDO)
 	)
 
-	assert_true(first_operation.get_status() == GFVirtualInputPulseOperation.Status.CANCELLED)
-	assert_true(first_operation.get_terminal_reason() == &"manual_clear")
+	assert_true(first_operation.get_status() == GFVirtualInputPulseOperation.Status.REPLACED)
+	assert_true(first_operation.get_terminal_reason() == &"replaced")
+	assert_true(first_operation.get_release_count() == 1)
 	assert_true(second_operation != first_operation)
 	assert_true(
 		input_mapping.consume_action(GameplayInputActions.UNDO),
-		"项目 retrigger 必须先释放旧 lease，使第二次点击形成新的 just_started。"
+		"GF retrigger 必须先释放旧 lease，使第二次点击形成新的 just_started。"
 	)
 
 	timer.tick(0.5)

@@ -46,20 +46,13 @@ func pulse(
 	):
 		return false
 
-	var previous: GFVirtualInputPulseOperation = _get_active_operation(action_id)
-	if previous != null and previous.is_pending():
-		# GF 的 REPLACE 是无释放的原子交接，不能生成第二个 just_started。
-		# 项目点击语义要求显式结束旧 lease，再启动新的 GF 脉冲。
-		if not _source.clear_action(action_id):
-			return false
-
 	var operation: GFVirtualInputPulseOperation = _source.pulse_action(
 		action_id,
 		true,
 		maxf(hold_seconds, 0.0),
 		owner,
 		null,
-		GFVirtualInputSource.PulseReplacementPolicy.REPLACE
+		GFVirtualInputSource.PulseReplacementPolicy.RETRIGGER
 	)
 	if operation == null:
 		return false

@@ -5,10 +5,10 @@
   "source_repository": "https://github.com/C76GN/gf-framework.git",
   "source_ref": "refs/heads/main",
   "channel": "development",
-  "source_commit": "2bbde26c4fa9bdeaa9278aed73c69b7b29c6f02e",
-  "source_git_tree": "c8c25e40b5aadadfe6e3407446bffbbcbb404e95",
-  "upstream_ci_run": "https://github.com/C76GN/gf-framework/actions/runs/31606067762",
-  "vendor_file_count": 1932,
-  "vendor_tree_sha256": "308fb74c419d5a4a7e44fa056af7e945a2ad8d2c75054e8297f54f841c0d32a7",
+  "source_commit": "6750f8dc8372353406da6495e03eeca79df9619e",
+  "source_git_tree": "a4e971f189908fcbc5af4ce5f65e6ab0fa0f35dc",
+  "upstream_ci_run": "https://github.com/C76GN/gf-framework/actions/runs/31893725551",
+  "vendor_file_count": 1936,
+  "vendor_tree_sha256": "f877662e905c4c768d5a58887db8cec8e04255bfe653d7d4b9c933f119f73e3c",
   "hash_record_format": "relative_path<TAB>file_sha256<LF>"
 }
