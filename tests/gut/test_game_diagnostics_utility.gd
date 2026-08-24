@@ -6,7 +6,7 @@ extends GutTest
 
 const _GAME_DIAGNOSTICS_UTILITY_SCRIPT = preload("res://features/diagnostics/scripts/utilities/game_diagnostics_utility.gd")
 const _GAMEPLAY_INPUT_CONTEXT: GFInputContext = preload(
-	"res://features/gameplay/resources/input/gameplay_input_context.tres"
+	"res://features/game_session/resources/input/gameplay_input_context.tres"
 )
 
 
@@ -40,7 +40,7 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 		GFOperationDiagnosticsUtility,
 		GFOperationDiagnosticsUtility.new()
 	)
-	await architecture.register_utility(GameSettingsUtility, settings)
+	await architecture.register_utility(GFSettingsUtility, settings)
 	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
 	await architecture.register_utility(GFResourceBroker, resource_broker)
 	await architecture.register_utility(GFAssetUtility, asset_utility)
@@ -309,7 +309,7 @@ func test_gameplay_move_trace_is_bounded_and_exposes_only_phase_metrics() -> voi
 		GFOperationDiagnosticsUtility,
 		GFOperationDiagnosticsUtility.new()
 	)
-	await architecture.register_utility(GameSettingsUtility, settings)
+	await architecture.register_utility(GFSettingsUtility, settings)
 	await architecture.register_utility(GFSignalUtility, GFSignalUtility.new())
 	await architecture.register_utility(GFSessionTraceUtility, session_trace)
 	await architecture.register_utility(GameClockUtility, GameClockUtility.new())
@@ -323,14 +323,14 @@ func test_gameplay_move_trace_is_bounded_and_exposes_only_phase_metrics() -> voi
 		"未获玩家显式同意时不得启动本地移动性能轨迹。"
 	)
 	settings.set_value(
-		GameSettingsUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
+		GamePerformanceTraceUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
 		true,
 		false
 	)
 	assert_true(
 		GFVariantData.to_bool(
 			settings.get_value(
-				GameSettingsUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
+				GamePerformanceTraceUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
 				false
 			)
 		),
@@ -453,7 +453,7 @@ func test_gameplay_move_trace_is_bounded_and_exposes_only_phase_metrics() -> voi
 		"GF Session Trace 必须按项目预算淘汰旧事件。"
 	)
 	settings.set_value(
-		GameSettingsUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
+		GamePerformanceTraceUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
 		false,
 		false
 	)

@@ -12,26 +12,28 @@ const BOOT_RUNTIME_PATH: String = "res://app/scripts/boot_runtime.gd"
 const STARTUP_RENDER_WARMUP_MANIFEST: GFRenderWarmupManifest = preload(
 	"res://features/themes/resources/themes/boot/startup_render_warmup_manifest.tres"
 )
-const GAME_BOARD_CONTROLLER_PATH: String = "res://features/gameplay/scripts/controllers/game_board_controller.gd"
-const GAME_PLAY_CONTROLLER_PATH: String = "res://features/gameplay/scripts/controllers/game_play_controller.gd"
-const GAME_PLAY_SCENE_PATH: String = "res://features/gameplay/scenes/game/game_play.tscn"
+const GAME_BOARD_CONTROLLER_PATH: String = "res://features/game_session/scripts/controllers/game_board_controller.gd"
+const GAME_PLAY_CONTROLLER_PATH: String = "res://features/game_session/scripts/controllers/game_play_controller.gd"
+const GAME_PLAY_SCENE_PATH: String = "res://features/game_session/scenes/game/game_play.tscn"
 const GAME_STATUS_MODEL_PATH: String = "res://features/gameplay/scripts/models/game_status_model.gd"
 const GAME_STATE_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_state_system.gd"
-const GAME_FLOW_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_flow_system.gd"
-const GAME_PAUSE_UTILITY_PATH: String = "res://features/gameplay/scripts/utilities/game_pause_utility.gd"
-const GAME_REALTIME_TIMER_UTILITY_PATH: String = "res://features/gameplay/scripts/utilities/game_realtime_timer_utility.gd"
-const GAME_BOARD_ANIMATION_UTILITY_PATH: String = "res://features/gameplay/scripts/utilities/game_board_animation_utility.gd"
-const GAME_INPUT_PROFILE_UTILITY_PATH: String = "res://features/settings/scripts/utilities/game_input_profile_utility.gd"
-const GAME_INIT_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_init_system.gd"
-const GAME_TURN_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/game_turn_system.gd"
-const GAME_MOVE_TURN_ACTION_PATH: String = "res://features/gameplay/scripts/actions/game_move_turn_action.gd"
+const GAME_FLOW_SYSTEM_PATH: String = "res://features/game_session/scripts/systems/game_flow_system.gd"
+const GAME_PAUSE_UTILITY_PATH: String = "res://features/game_session/scripts/utilities/game_pause_utility.gd"
+const GAME_REALTIME_TIMER_UTILITY_PATH: String = "res://features/game_session/scripts/utilities/game_realtime_timer_utility.gd"
+const GAME_BOARD_ANIMATION_UTILITY_PATH: String = "res://features/game_session/scripts/utilities/game_board_animation_utility.gd"
+const GAME_INPUT_PROFILE_UTILITY_PATH: String = "res://features/game_session/scripts/utilities/game_input_profile_utility.gd"
+const GAME_INIT_SYSTEM_PATH: String = "res://features/game_session/scripts/systems/game_init_system.gd"
+const GAME_TURN_SYSTEM_PATH: String = "res://features/game_session/scripts/systems/game_turn_system.gd"
+const GAME_MOVE_TURN_ACTION_PATH: String = "res://features/game_session/scripts/actions/game_move_turn_action.gd"
 const RULE_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/rule_system.gd"
-const PLAYER_INPUT_SYSTEM_PATH: String = "res://features/gameplay/scripts/systems/player_input_system.gd"
-const HUD_PATH: String = "res://features/gameplay/scripts/ui/hud.gd"
+const PLAYER_INPUT_SYSTEM_PATH: String = "res://features/game_session/scripts/systems/player_input_system.gd"
+const HUD_PATH: String = "res://features/game_session/scripts/ui/hud.gd"
 const BOOKMARK_DATA_PATH: String = "res://features/bookmarks/scripts/data/bookmark_data.gd"
 const REMOVED_HUD_PAYLOAD_PATH: String = "res://features/gameplay/scripts/events/hud_message_payload.gd"
 const SCENE_ROUTER_SYSTEM_PATH: String = "res://features/navigation/scripts/systems/scene_router_system.gd"
-const BASE_LIST_MENU_PATH: String = "res://features/navigation/scripts/menus/base_list_menu.gd"
+const BASE_LIST_MENU_PATH: String = (
+	"res://features/saved_content_browser/scripts/menus/base_list_menu.gd"
+)
 const MODE_SELECTION_PATH: String = "res://features/navigation/scripts/menus/mode_selection.gd"
 const MODE_SELECTION_SCENE_PATH: String = "res://features/navigation/scenes/menus/mode_selection.tscn"
 const GAME_DIAGNOSTICS_UTILITY_PATH: String = "res://features/diagnostics/scripts/utilities/game_diagnostics_utility.gd"
@@ -409,6 +411,83 @@ func test_project_installer_binds_storage_settings_store_before_game_settings() 
 	assert_true(
 		store_position < settings_position,
 		"Settings Store 必须先于依赖它的 GameSettingsUtility 注册。"
+	)
+
+
+func test_project_installer_registers_router_port_as_a_direct_alias() -> void:
+	var source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var alias_call_position: int = source.find("_architecture.register_utility_alias(")
+	var port_position: int = source.find("GameUiRouterPort", alias_call_position)
+	var target_position: int = source.find(
+		"_GAME_UI_ROUTER_UTILITY_SCRIPT",
+		port_position
+	)
+
+	assert_true(
+		source.contains("with_alias(GFUIRouterUtility)"),
+		"项目 Router 必须继续提供 GFUIRouterUtility alias。"
+	)
+	assert_true(
+		alias_call_position >= 0
+		and port_position > alias_call_position
+		and target_position > port_position
+		and target_position - port_position < 160,
+		"跨 Feature 的 GameUiRouterPort 必须直接指向项目 Router Adapter。"
+	)
+	assert_false(
+		source.contains("register_utility_alias(GameUiRouterPort, GFUIRouterUtility)"),
+		"GameUiRouterPort 不得通过 GFUIRouterUtility 形成 alias 链。"
+	)
+	assert_true(
+		source.contains(
+			"binder.bind_system(SceneRouterSystem).with_alias(GameSceneRouterPort)"
+		),
+		"跨 Feature 的 GameSceneRouterPort 必须直接 alias 到唯一 SceneRouterSystem。"
+	)
+	assert_false(
+		source.contains(
+			"register_system_alias(GameSceneRouterPort, SceneRouterSystem)"
+		),
+		"GameSceneRouterPort 应由 Binder 原子注册，不能形成第二条手工 alias 路径。"
+	)
+	assert_true(
+		source.contains(
+			"binder.bind_system(GameSessionLaunchSystem).with_alias("
+		),
+		"跨 Feature 的 GameSessionLaunchPort 必须直接 alias 到唯一启动 System。"
+	)
+	assert_false(
+		source.contains(
+			"register_system_alias(GameSessionLaunchPort, GameSessionLaunchSystem)"
+		),
+		"GameSessionLaunchPort 应由 Binder 原子注册，不能形成第二条手工 alias 路径。"
+	)
+
+
+func test_project_installer_binds_chunk_profiles_and_wraps_large_sections() -> void:
+	var source: String = _read_text(PROJECT_INSTALLER_PATH)
+	var chunk_position: int = _find_project_binding_position(
+		source,
+		"_CHUNK_PROFILE_UTILITY_SCRIPT"
+	)
+	var save_graph_position: int = _find_project_binding_position(
+		source,
+		"_GAME_SAVE_GRAPH_UTILITY_SCRIPT"
+	)
+
+	assert_true(chunk_position >= 0, "Composition Root 应注册 ChunkProfileUtility。")
+	assert_true(save_graph_position >= 0, "Composition Root 应注册 GameSaveGraphUtility。")
+	assert_true(
+		chunk_position < save_graph_position,
+		"ChunkProfileUtility 必须先于依赖它的 GameSaveGraphUtility 注册。"
+	)
+	assert_true(
+		source.contains("BookmarkManifestSaveSectionProvider.new(bookmark_data)"),
+		"生产 Composition Root 必须让 bookmarks 使用共享业务 Provider 的 Manifest wrapper。"
+	)
+	assert_true(
+		source.contains("ReplayManifestSaveSectionProvider.new(replay_data)"),
+		"生产 Composition Root 必须让 replays 使用共享业务 Provider 的 Manifest wrapper。"
 	)
 
 

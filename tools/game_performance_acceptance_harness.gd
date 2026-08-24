@@ -28,7 +28,7 @@ const _TOPOLOGY_SIZES: Array[Vector2i] = [
 	Vector2i(8, 8),
 ]
 const _REPRESENTATIVE_SCENE_PATHS: PackedStringArray = [
-	"res://features/gameplay/scenes/components/board_grid_cell.tscn",
+	"res://features/themes/scenes/ui/board/board_grid_cell.tscn",
 	"res://features/navigation/scenes/ui/mode_card.tscn",
 	"res://features/bookmarks/scenes/ui/bookmark_list_item.tscn",
 	"res://features/replays/scenes/ui/replay_list_item.tscn",

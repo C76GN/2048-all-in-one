@@ -22,11 +22,61 @@ func _init() -> void:
 	schema_version = SCHEMA_VERSION
 
 
+# --- 公共方法 ---
+
+## 捕获供分块 codec 消费的请求时刻目录根。
+##
+## Provider 内部 ReplayData 在严格构造后不再原地修改，且所有读取入口都返回
+## 深复制，因此这里只需冻结数组根；编码器再按 metadata/step 逐片隔离。
+func make_chunk_source_snapshot() -> ReplayChunkSourceSnapshot:
+	var item_snapshot: Array[ReplayData] = _items.duplicate()
+	return ReplayChunkSourceSnapshot.take_ownership_of_immutable_items(
+		item_snapshot
+	)
+
+
+## 捕获只复制目录数组根的事务状态；ReplayData 继续由 Provider 私有且不可变。
+func make_shallow_prepared_state() -> ReplayCatalogPreparedState:
+	var item_snapshot: Array[ReplayData] = _items.duplicate()
+	return ReplayCatalogPreparedState.take_ownership_of_validated_items(
+		item_snapshot
+	)
+
+
+## 从严格 decoder 或浅层 rollback state 一次性替换目录根。
+## @param state: 待一次性消费的已验证回放目录状态。
+func replace_prepared_state_taking_ownership(
+	state: ReplayCatalogPreparedState
+) -> Error:
+	if state == null:
+		return ERR_INVALID_DATA
+	var expected_count: int = state.get_item_count()
+	if expected_count < 0 or expected_count > MAX_REPLAY_COUNT:
+		return ERR_INVALID_DATA
+	var next_items: Array[ReplayData] = state.take_items_taking_ownership()
+	if next_items.size() != expected_count:
+		return ERR_INVALID_DATA
+	_items = next_items
+	return OK
+
+
+## 返回当前私有 ReplayData 的稳定身份，不暴露对象 alias。
+func get_replay_instance_ids() -> PackedInt64Array:
+	var identities: PackedInt64Array = PackedInt64Array()
+	for item: ReplayData in _items:
+		var _appended: bool = identities.append(item.get_instance_id())
+	return identities
+
+
 # --- 可重写钩子 ---
 
 func _begin_save_snapshot(
 	_context: Dictionary = {}
 ) -> GFSaveSectionSnapshotOperation:
+	# 生产持久化只注册 Manifest wrapper。保留的直接 snapshot 兼容入口只允许
+	# 小型根，避免旧路径在一个 work unit 内复制大 topology/tile。
+	if not _is_legacy_snapshot_root_bounded():
+		return null
 	var item_snapshot: Array[ReplayData] = _items.duplicate()
 	return _ReplayCatalogSnapshotOperation.new(
 		section_id,
@@ -59,6 +109,17 @@ func _make_runtime_section_cache_snapshot() -> Dictionary:
 	return {&"items": decoded_items}
 
 
+func _validate_section_data_boundary(data: Dictionary) -> Error:
+	if data.size() != 1:
+		return ERR_INVALID_DATA
+	var items_value: Variant = GFVariantData.get_option_value(data, &"items")
+	if not items_value is Array:
+		return ERR_INVALID_DATA
+	var items: Array = items_value
+	# 该检查发生在 GameSaveSectionData 的 deep duplicate 之前。
+	return OK if items.size() <= MAX_REPLAY_COUNT else ERR_INVALID_DATA
+
+
 func _replace_section_data(data: Dictionary) -> Error:
 	if data.size() != 1:
 		return ERR_INVALID_DATA
@@ -85,6 +146,31 @@ func _replace_section_data(data: Dictionary) -> Error:
 	)
 	_items = next_items
 	return OK
+
+
+func _is_legacy_snapshot_root_bounded() -> bool:
+	for item: ReplayData in _items:
+		if item == null:
+			return false
+		var cells_value: Variant = item.initial_board_topology.get(
+			&"active_cells"
+		)
+		var tiles_value: Variant = item.final_board_snapshot.get(&"tiles")
+		if not cells_value is Array or not tiles_value is Array:
+			return false
+		var cells: Array = cells_value
+		var tiles: Array = tiles_value
+		if (
+			cells.size() > ReplayChunkSourceSnapshot.TOPOLOGY_CELL_BATCH_SIZE
+			or tiles.size() > ReplayChunkSourceSnapshot.FINAL_TILE_BATCH_SIZE
+		):
+			return false
+		for tile_value: Variant in tiles:
+			if not ReplayChunkSourceSnapshot.is_tile_variant_within_budget(
+				tile_value
+			):
+				return false
+	return true
 
 
 # --- 内部类 ---

@@ -31,16 +31,18 @@ var _mode_display_name: String = ""
 ## @param bookmark_data: 用于填充UI的书签数据资源。
 ## @param mode_display_name: 已由父菜单通过 GF 架构解析出的模式名称。
 ## @param mode_config: 用于绘制棋盘样张的模式视觉配置。
+## @param theme_utility: 可选的当前主题解析服务；为空时使用模式自身视觉资源。
 func setup(
 	bookmark_data: BookmarkData,
 	mode_display_name: String,
-	mode_config: GameModeConfig = null
+	mode_config: GameModeConfig = null,
+	theme_utility: GameThemeUtility = null
 ) -> void:
 	_mode_display_name = mode_display_name
 	# 设置基类数据并触发刷新
 	setup_item(bookmark_data)
 	if is_instance_valid(_board_stamp):
-		_board_stamp.configure(bookmark_data.board_snapshot, mode_config)
+		_board_stamp.configure(bookmark_data.board_snapshot, mode_config, theme_utility)
 
 
 ## 获取关联的 BookmarkData。

@@ -1,38 +1,19 @@
 ## GameUiRouterUtility: 配置项目内常用 UI 面板路由。
 ##
-## 作为 GFUIRouterUtility 的项目级 Adapter，从项目资源目录加载类型安全的路由资源。
+## 作为 GameUiRouterPort 的 navigation Adapter，从项目资源目录加载类型安全的
+## 路由资源，并实现主题化 modal。
 class_name GameUiRouterUtility
-extends GFUIRouterUtility
+extends GameUiRouterPort
 
 
 # --- 常量 ---
 
 const DEFAULT_UI_ROUTE_REGISTRY: GFResourceRegistry = preload("res://features/navigation/resources/registries/ui_route_registry.tres")
 
-const ROUTE_PAUSE_MENU: StringName = &"pause_menu"
-const ROUTE_GAME_OVER_MENU: StringName = &"game_over_menu"
-const ROUTE_TARGET_REACHED_MENU: StringName = &"target_reached_menu"
-const ROUTE_SETTINGS_MENU: StringName = &"settings_menu"
-const ROUTE_TILE_CATALOG: StringName = &"tile_catalog"
-const ROUTE_TILE_LAB: StringName = &"tile_lab"
-const ROUTE_ACHIEVEMENTS: StringName = &"achievements"
-const ROUTE_BOARD_EDITOR: StringName = &"board_editor"
-const ROUTE_PLAYER_PROFILE: StringName = &"player_profile"
-const ROUTE_MODAL_DIALOG: StringName = &"modal_dialog"
-
-const MODAL_ACTION_CONFIRM: StringName = &"confirm"
-const MODAL_ACTION_CANCEL: StringName = &"cancel"
-const MODAL_ACTION_ACKNOWLEDGE: StringName = &"acknowledge"
-
 const _CATALOG_ID: StringName = &"ui_routes"
 const _UI_ROUTE_GROUP_ID: StringName = &"ui_routes"
 const _UI_ROUTE_RESOURCE_KEY_PREFIX: String = "game.ui_route."
 const _ROUTE_TYPE_HINT: String = "Resource"
-const _DEFAULT_PRELOAD_PLAN_OPTIONS: Dictionary = {
-	"max_depth": 1,
-	"max_routes": 4,
-	"include_source": true,
-}
 
 
 # --- 私有变量 ---
@@ -102,133 +83,6 @@ func get_debug_snapshot() -> Dictionary:
 	snapshot["route_paths"] = get_registered_route_paths()
 	snapshot["route_resource_keys"] = resource_keys
 	return snapshot
-
-
-## 构造项目统一的危险操作确认配置。业务层仍提供完整文案；此处只收口
-## 动作 ID、结果状态、默认安全焦点和主题角色。
-## @param title: 弹层标题。
-## @param message: 确认操作说明。
-## @param confirm_label: 危险确认动作文本。
-## @param cancel_label: 安全取消动作文本。
-## @return 可直接交给 show_modal_async() 的 GF 配置。
-static func make_confirmation_modal_config(
-	title: String,
-	message: String,
-	confirm_label: String,
-	cancel_label: String
-) -> GFModalConfig:
-	var cancel_action: GFModalAction = GFModalAction.new()
-	cancel_action.action_id = MODAL_ACTION_CANCEL
-	cancel_action.label = cancel_label
-	cancel_action.result_status = GFModalResult.STATUS_CANCELLED
-	cancel_action.grab_focus = true
-	cancel_action.metadata = {&"role": GameModalRoutePanel.ACTION_ROLE_PRIMARY}
-
-	var confirm_action: GFModalAction = GFModalAction.new()
-	confirm_action.action_id = MODAL_ACTION_CONFIRM
-	confirm_action.label = confirm_label
-	confirm_action.result_status = GFModalResult.STATUS_CONFIRMED
-	confirm_action.metadata = {
-		&"role": GameModalRoutePanel.ACTION_ROLE_SECONDARY,
-		&"intent": &"danger",
-	}
-
-	var config: GFModalConfig = GFModalConfig.new()
-	config.title = title
-	config.message = message
-	var actions: Array[GFModalAction] = [cancel_action, confirm_action]
-	config.actions = actions
-	config.dismiss_on_backdrop = false
-	config.dismiss_on_cancel = true
-	config.auto_focus = true
-	config.restore_focus_on_close = true
-	return config
-
-
-## 构造项目统一的单动作信息提示配置。
-## @param title: 弹层标题。
-## @param message: 提示正文。
-## @param action_label: 唯一确认动作文本。
-## @return 可直接交给 show_modal_async() 的 GF 配置。
-static func make_acknowledgement_modal_config(
-	title: String,
-	message: String,
-	action_label: String
-) -> GFModalConfig:
-	var acknowledge_action: GFModalAction = GFModalAction.new()
-	acknowledge_action.action_id = MODAL_ACTION_ACKNOWLEDGE
-	acknowledge_action.label = action_label
-	acknowledge_action.result_status = GFModalResult.STATUS_DISMISSED
-	acknowledge_action.grab_focus = true
-	acknowledge_action.metadata = {&"role": GameModalRoutePanel.ACTION_ROLE_PRIMARY}
-
-	var config: GFModalConfig = GFModalConfig.new()
-	config.title = title
-	config.message = message
-	var actions: Array[GFModalAction] = [acknowledge_action]
-	config.actions = actions
-	config.dismiss_on_backdrop = false
-	config.dismiss_on_cancel = true
-	config.auto_focus = true
-	config.restore_focus_on_close = true
-	return config
-
-
-## 以项目统一策略异步打开路由，并把调用方生命周期交给 GF 管理。
-##
-## GFUIRouterUtility 负责提交前的 owner/scope 取消、预加载、并发去重与唯一终态；
-## 此方法只补充默认相邻路由预算，以及提交完成后 owner 同帧退出时的精确实例回滚。
-## @param owner: 持有此次路由操作的活动场景节点。
-## @param route_id: 要打开的稳定路由标识。
-## @param params: 传给路由场景的业务参数。
-## @param option_overrides: 本次路由操作的 GF 选项覆盖。
-## @param config_callback: 场景实例化后的可选配置回调。
-## @param preload_policy: GF 路由预加载策略。
-## @param scope: 可选的协作取消作用域；与 owner 采用 OR 取消语义。
-func push_owned_route_async(
-	owner: Node,
-	route_id: StringName,
-	params: Dictionary = {},
-	option_overrides: Dictionary = {},
-	config_callback: Callable = Callable(),
-	preload_policy: StringName = GFUIRouterUtility.PRELOAD_BEST_EFFORT,
-	scope: GFAsyncScope = null
-) -> GFUIRouteResult:
-	if not _is_live_route_owner(owner):
-		return null
-
-	var owner_ref: WeakRef = weakref(owner)
-	var async_options: Dictionary = {
-		"preload_policy": preload_policy,
-		"preload_plan_options": _DEFAULT_PRELOAD_PLAN_OPTIONS.duplicate(true),
-		"owner": owner,
-		"metadata": {
-			"owner_instance_id": owner.get_instance_id(),
-			"owner_path": String(owner.get_path()),
-		},
-	}
-	if scope != null:
-		async_options["scope"] = scope
-	var operation: GFUIRouteOperation = push_route_async(
-		route_id,
-		params,
-		option_overrides,
-		config_callback,
-		async_options
-	)
-	if operation == null:
-		return null
-
-	var result: GFUIRouteResult = operation.get_result()
-	if result == null:
-		result = await operation.completed
-	if _is_live_route_owner_ref(owner_ref):
-		return result
-
-	# GF 的 owner/scope 只约束 panel_submitted 之前。若 owner 恰好在 GF 提交后、
-	# 类型化终态返回前退出，只回滚本次结果实际提交且仍位于栈顶的实例。
-	_rollback_stale_route_result(result)
-	return result
 
 
 ## 使用项目主题化路由呈现 GF modal，并返回唯一的 GFModalResult 终态。
@@ -395,39 +249,6 @@ func _modal_config_has_terminal_path(config: GFModalConfig) -> bool:
 		):
 			return true
 	return false
-
-
-func _is_live_route_owner(owner: Node) -> bool:
-	return is_instance_valid(owner) and owner.is_inside_tree()
-
-
-func _is_live_route_owner_ref(owner_ref: WeakRef) -> bool:
-	if owner_ref == null:
-		return false
-	var value: Object = owner_ref.get_ref()
-	if value is Node:
-		var owner: Node = value
-		return _is_live_route_owner(owner)
-	return false
-
-
-func _rollback_stale_route_result(result: GFUIRouteResult) -> void:
-	if result == null or not result.is_successful():
-		return
-	var result_panel: Node = result.get_panel()
-	if result_panel == null:
-		return
-	var ui_utility: GFUIUtility = _get_ui_utility()
-	if ui_utility == null:
-		return
-	var current_panel: Node = ui_utility.get_top_panel(
-		_get_ui_layer(result.get_layer())
-	)
-	# 同一路由可以在迟到请求完成后再次打开。只允许回滚本次结果实际提交的
-	# 面板实例，不能仅凭 route_id 关闭后来打开的新实例。
-	if current_panel != result_panel:
-		return
-	var _closed: bool = back(result.get_layer())
 
 
 func _load_route_entry(entry: GFResourceRegistryEntry) -> GFUIRoute:

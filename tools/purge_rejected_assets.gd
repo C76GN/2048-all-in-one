@@ -17,7 +17,7 @@ const SOURCE_EXCLUSION_PATH: String = "res://features/asset_library/resources/so
 const REPORT_PATH: String = "res://build/asset_library/rejected_asset_purge_report.json"
 const REFERENCE_SCAN_ROOTS: PackedStringArray = [
 	"res://app",
-	"res://features",
+	VerificationResourcePath.FEATURES_ROOT,
 	"res://shared",
 	"res://project.godot",
 ]

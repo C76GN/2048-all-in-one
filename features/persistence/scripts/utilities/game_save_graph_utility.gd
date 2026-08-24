@@ -17,7 +17,10 @@ signal profile_save_completed(error: Error)
 
 ## 任一 GF Save Profile 操作的类型化终态。
 signal profile_operation_completed(result: GFSaveProfileResult)
+## 主 Profile 与全部 manifest-backed 派生 family 都取得物理终态后发布。
 signal profile_cleanup_task_terminal(work_id: StringName)
+## 只用于唤醒本 Utility 内 caller/main/derived 观察者；不表示清理已终结。
+signal _profile_cleanup_progressed(request_id: int)
 ## 任一项目 section 持久化事务的类型化终态。
 signal section_operation_completed(result: GameSaveSectionResult)
 ## outcome_unknown 的 section 事务在 GF detached 写入收敛后发布一次证据。
@@ -29,7 +32,7 @@ signal section_reconciliation_settled(evidence: Dictionary)
 const PROFILE_FILE_NAME: String = "player_data.save"
 const PROFILE_SCHEMA_ID: StringName = &"player_data"
 ## GFSaveProfile 格式首次启用；旧 v10 SaveGraph 只备份后重建，不在运行时双读。
-const PROFILE_SCHEMA_VERSION: int = 11
+const PROFILE_SCHEMA_VERSION: int = 13
 const PROGRESS_SECTION_ID: StringName = &"progress"
 const BOOKMARKS_SECTION_ID: StringName = &"bookmarks"
 const CUSTOM_BOARDS_SECTION_ID: StringName = &"custom_boards"
@@ -46,6 +49,12 @@ const _LIFECYCLE_PRIORITY: int = -100
 const _PROFILE_IO_TIMEOUT_MSEC: int = 5_000
 const _PROFILE_DELETE_TIMEOUT_MSEC: int = 5_000
 const _PROFILE_TRANSITION_GATE_KEY: StringName = &"active_profile_transition"
+const _CHUNK_SAVE_LEASE_IDS_METADATA_KEY: StringName = (
+	&"chunk_save_lease_ids"
+)
+const _CHUNK_LOAD_CONTEXT_RECOVERY_KEY: StringName = (
+	&"chunk_load_context"
+)
 const _PROFILE_RETRY_DELAYS_MSEC: Array[int] = [
 	100,
 	500,
@@ -64,8 +73,12 @@ enum SectionOrder {
 
 var _section_definitions: Dictionary = {}
 var _section_providers: Dictionary = {}
+## GF Profile 实际注册的 Provider；通常与业务 Provider 相同，大型 section
+## 则替换为只持久化 ChunkManifest 的适配 Provider。
+var _profile_section_providers: Dictionary = {}
 var _default_section_payloads: Dictionary = {}
 var _profile_utility: GFSaveProfileUtility = null
+var _chunk_profiles: ChunkProfileUtility = null
 var _active_profile: GFSaveProfile = null
 var _active_profile_id: StringName = &""
 ## 保留已注册 Profile，让 GF 持有 detached/outcome_unknown 写入及路径所有权。
@@ -84,6 +97,11 @@ var _last_load_result: Dictionary = {}
 var _last_save_result: Dictionary = {}
 var _profile_save_pending: bool = false
 var _profile_save_wait_seconds: float = 0.0
+## outcome-unknown chunk scope 暂停接纳主保存时保留的 dirty 意图。
+##
+## 只在 exact fence settlement 信号后重臂一次 debounce；不能在 tick 中反复
+## 请求并制造 busy loop，也不能让 flush/quiesce 越过尚未生成的 dirty generation。
+var _chunk_save_parked: bool = false
 var _profile_transition_gate: GFAsyncKeyedGate = GFAsyncKeyedGate.new()
 var _profile_transition_lease: GFAsyncGateLease = null
 var _profile_transition_diagnostic_id: StringName = &""
@@ -93,6 +111,8 @@ var _profile_delete_operations: Dictionary = {}
 var _profile_delete_waiters: Dictionary = {}
 var _profile_delete_file_names: Dictionary = {}
 var _profile_cleanup_paths: Dictionary = {}
+var _profile_cleanup_sagas: Dictionary = {}
+var _last_profile_cleanup_evidence: Dictionary = {}
 var _disposing: bool = false
 var _disposed: bool = false
 var _quiescing: bool = false
@@ -136,6 +156,7 @@ func get_required_utilities() -> Array[Script]:
 	return [
 		GFStorageUtility,
 		GFSaveProfileUtility,
+		ChunkProfileUtility,
 		GFLogUtility,
 		GFOperationDiagnosticsUtility,
 		GamePlatformUtility,
@@ -151,6 +172,7 @@ func ready() -> void:
 	_quiesce_flush_operation = null
 	_storage = _resolve_storage_utility()
 	_profile_utility = _resolve_profile_utility()
+	_chunk_profiles = _resolve_chunk_profile_utility()
 	_log = _resolve_log_utility()
 	_operation_diagnostics = _resolve_operation_diagnostics_utility()
 	_platform = _resolve_platform_utility()
@@ -159,8 +181,10 @@ func ready() -> void:
 	if (
 		_storage == null
 		or _profile_utility == null
+		or _chunk_profiles == null
 		or _signal_utility == null
 		or _section_providers.is_empty()
+		or _profile_section_providers.size() != _section_providers.size()
 	):
 		_record_configuration_failure()
 		return
@@ -168,6 +192,16 @@ func ready() -> void:
 	var _operation_connection: GFSignalConnection = _signal_utility.connect_signal(
 		_profile_utility.profile_operation_completed,
 		_on_profile_operation_completed,
+		self
+	)
+	var _chunk_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_chunk_profiles.save_lease_settled,
+		_on_chunk_save_lease_settled,
+		self
+	)
+	var _chunk_cleanup_connection: GFSignalConnection = _signal_utility.connect_signal(
+		_chunk_profiles.cleanup_operation_settled,
+		_on_chunk_cleanup_operation_settled,
 		self
 	)
 	if is_instance_valid(_platform):
@@ -226,6 +260,8 @@ func begin_quiesce(scope: GFAsyncScope) -> GFAsyncCompletion:
 func dispose() -> void:
 	_disposing = true
 	_quiescing = true
+	# 唤醒所有仅等待项目内部 progress signal 的协程，让其观察 disposing。
+	_profile_cleanup_progressed.emit(0)
 	_profile_transition_epoch += 1
 	_finish_profile_transition(ERR_UNAVAILABLE)
 	var _cleared_transition_entries: int = _profile_transition_gate.clear(
@@ -248,6 +284,19 @@ func dispose() -> void:
 			var _cancelled_observation: bool = operation.cancel_observation(
 				&"save_graph_disposed"
 			)
+	for saga_value: Variant in _profile_cleanup_sagas.values():
+		if not saga_value is ProfileCleanupSaga:
+			continue
+		var saga: ProfileCleanupSaga = saga_value
+		if (
+			saga.active_derived_operation != null
+			and saga.active_derived_operation.is_pending()
+		):
+			var _cancelled_cleanup: bool = (
+				saga.active_derived_operation.request_cancel(
+					&"save_graph_disposed"
+				)
+			)
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
 	_clear_async_tracking()
@@ -256,6 +305,7 @@ func dispose() -> void:
 	_profile_delete_waiters.clear()
 	_profile_delete_file_names.clear()
 	_profile_cleanup_paths.clear()
+	_profile_cleanup_sagas.clear()
 	if not _registered_profiles.is_empty():
 		var unregister_error: Error = _unregister_all_profiles()
 		if unregister_error != OK:
@@ -264,21 +314,25 @@ func dispose() -> void:
 				% unregister_error
 			)
 	_profile_utility = null
+	_chunk_profiles = null
 	_active_profile = null
 	_active_profile_id = &""
 	_registered_profiles.clear()
 	_section_providers.clear()
+	_profile_section_providers.clear()
 	_section_definitions.clear()
 	_default_section_payloads.clear()
 	_last_load_result.clear()
 	_last_save_result.clear()
 	_profile_save_pending = false
 	_profile_save_wait_seconds = 0.0
+	_chunk_save_parked = false
 	_platform_backgrounded = false
 	_profile_file_name = PROFILE_FILE_NAME
 	_loaded = false
 	_profile_transition_outcome_unknown = false
 	_last_profile_transition_evidence.clear()
+	_last_profile_cleanup_evidence.clear()
 	_pending_section_operation = null
 	_pending_section_profile_id = &""
 	_pending_section_ids.clear()
@@ -315,12 +369,14 @@ func dispose() -> void:
 ## @param section_id: Feature section 的稳定标识。
 ## @param provider: 拥有该 section schema 与状态的项目 Provider。
 ## @param phase: 项目固定 section 的应用顺序。
+## @param profile_provider: 可选 GF Profile 物理 Provider；null 时复用 provider。
 func register_section(
 	section_id: StringName,
 	provider: GameSaveSectionData,
-	phase: SectionOrder = SectionOrder.NORMAL
+	phase: SectionOrder = SectionOrder.NORMAL,
+	profile_provider: GFSaveSectionProvider = null
 ) -> bool:
-	if not _section_providers.is_empty():
+	if not _section_providers.is_empty() or not _profile_section_providers.is_empty():
 		push_error("[GameSaveGraphUtility] register_section 只能在 init 前调用。")
 		return false
 	if section_id == &"" or provider == null:
@@ -331,12 +387,25 @@ func register_section(
 			% String(section_id)
 		)
 		return false
+	var effective_profile_provider: GFSaveSectionProvider = (
+		profile_provider if profile_provider != null else provider
+	)
+	if (
+		effective_profile_provider.section_id != section_id
+		or effective_profile_provider.schema_version <= 0
+	):
+		push_error(
+			"[GameSaveGraphUtility] profile section provider 契约不匹配：%s。"
+			% String(section_id)
+		)
+		return false
 	var key: String = String(section_id)
 	if _section_definitions.has(key):
 		push_error("[GameSaveGraphUtility] section 重复：%s。" % key)
 		return false
 	_section_definitions[key] = {
 		&"provider": provider,
+		&"profile_provider": effective_profile_provider,
 		&"phase": int(phase),
 	}
 	_default_section_payloads[key] = provider.to_dict()
@@ -384,6 +453,11 @@ func was_last_profile_transition_outcome_unknown() -> bool:
 ## 返回最近一次切换的框架类型化证据。
 func get_last_profile_transition_evidence() -> Dictionary:
 	return _last_profile_transition_evidence.duplicate(true)
+
+
+## 返回最近一次复合 Profile cleanup 的路径无关、payload 无关终态证据。
+func get_last_profile_cleanup_evidence() -> Dictionary:
+	return _last_profile_cleanup_evidence.duplicate(true)
 
 
 ## 返回指定 Profile logical identity 是否仍由异步删除 Operation 持有。
@@ -462,6 +536,12 @@ func request_load_profile(
 		return _make_rejected_profile_operation(
 			GFSaveProfileOperation.OPERATION_LOAD
 		)
+	if _has_manifest_backed_profile_sections():
+		# public load 是立即返回句柄的同步入口，无法先完成 chunk Profile IO；
+		# 即使调用方伪造 context 也不得绕过内部 bootstrap/activate preflight。
+		return _make_rejected_profile_operation(
+			GFSaveProfileOperation.OPERATION_LOAD
+		)
 	return _track_profile_operation(
 		_profile_utility.load_profile(
 			_active_profile_id,
@@ -485,15 +565,7 @@ func request_flush_profile(
 		return _make_rejected_profile_operation(
 			GFSaveProfileOperation.OPERATION_FLUSH
 		)
-	if _profile_save_pending:
-		_profile_save_pending = false
-		_profile_save_wait_seconds = 0.0
-		var _save_operation: GFSaveProfileOperation = _request_save_active_profile({
-			&"reason": "flush_pending_generation",
-		})
-	return _track_profile_operation(
-		_profile_utility.flush_profile(_active_profile_id, metadata)
-	)
+	return _request_flush_active_profile(metadata)
 
 
 ## 异步引导账号 Profile，并把唯一终态绑定到 architecture activation scope。
@@ -605,7 +677,11 @@ func delete_inactive_profile_async(
 		return ERR_UNAVAILABLE
 	if not _is_account_profile_file_name_valid(profile_file_name):
 		return ERR_INVALID_PARAMETER
-	return await _delete_inactive_profile_file_async(profile_file_name)
+	return await _delete_inactive_profile_file_async(
+		profile_file_name,
+		_PROFILE_DELETE_TIMEOUT_MSEC,
+		&"inactive_profile_request"
+	)
 
 
 ## 首个账号确认采用独立 Profile 后，异步删除已不再活跃的 legacy 文件。
@@ -614,7 +690,14 @@ func delete_inactive_legacy_profile_async() -> Error:
 		return ERR_UNAVAILABLE
 	if _profile_file_name == PROFILE_FILE_NAME:
 		return ERR_INVALID_PARAMETER
-	return await _delete_inactive_profile_file_async(PROFILE_FILE_NAME)
+	# legacy cleanup 是 activation 后的后台维护任务，调用方本就等待复合物理
+	# 终态；不能复用用户交互删除的 5 秒 caller 观察预算。cooperative
+	# Storage 若在慢启动帧尚未接纳 worker，入队 deadline 会把合法删除物理取消。
+	return await _delete_inactive_profile_file_async(
+		PROFILE_FILE_NAME,
+		0,
+		&"legacy_maintenance"
+	)
 
 
 ## 从当前 GFSaveProfile 文档提取项目 envelope，不应用运行时状态。
@@ -808,6 +891,7 @@ func queue_sections_data(sections: Dictionary) -> Error:
 	)
 	if apply_error != OK:
 		return apply_error
+	_mark_profile_sections_changed(applied_keys)
 	_profile_save_pending = true
 	_profile_save_wait_seconds = 0.0
 	profile_save_queued.emit()
@@ -819,10 +903,21 @@ func preview_profile_payload() -> Dictionary:
 	if _active_profile == null:
 		return {}
 	var sections: Array[GFSaveSection] = []
-	for provider: GameSaveSectionData in _get_ordered_providers():
-		var section: GFSaveSection = provider.capture_section({
-			&"reason": "preview",
-		})
+	for provider: GFSaveSectionProvider in _get_ordered_profile_providers():
+		var section: GFSaveSection = null
+		if provider is ManifestBackedSaveSectionProvider:
+			var manifest_provider: ManifestBackedSaveSectionProvider = provider
+			var active_manifest: ChunkManifest = (
+				manifest_provider.get_active_manifest()
+			)
+			if active_manifest != null:
+				section = manifest_provider.make_section(
+					active_manifest.to_dict()
+				)
+		else:
+			section = provider.capture_section({
+				&"reason": "preview",
+			})
 		if section == null:
 			return {}
 		sections.append(section)
@@ -852,6 +947,18 @@ func get_debug_snapshot() -> Dictionary:
 		profile_state = _profile_utility.get_profile_state_snapshot(
 			_active_profile_id
 		)
+	var main_pending_count: int = 0
+	var derived_pending_count: int = 0
+	for saga_value: Variant in _profile_cleanup_sagas.values():
+		if not saga_value is ProfileCleanupSaga:
+			continue
+		var saga: ProfileCleanupSaga = saga_value
+		if saga.completed:
+			continue
+		if saga.phase == &"main_delete":
+			main_pending_count += 1
+		else:
+			derived_pending_count += 1
 	return {
 		&"profile_file": _profile_file_name,
 		&"profile_id": String(_active_profile_id),
@@ -863,6 +970,15 @@ func get_debug_snapshot() -> Dictionary:
 		&"last_load": _last_load_result.duplicate(true),
 		&"last_save": _last_save_result.duplicate(true),
 		&"save_pending": _profile_save_pending,
+		&"chunk_save_parked": _chunk_save_parked,
+		# 清理诊断刻意不暴露 canonical logical name、Profile ID 或物理路径。
+		&"profile_cleanup": {
+			&"pending_count": _profile_cleanup_paths.size(),
+			&"main_pending_count": main_pending_count,
+			&"derived_pending_count": derived_pending_count,
+			&"caller_waiter_count": _profile_delete_waiters.size(),
+			&"last_terminal": _last_profile_cleanup_evidence.duplicate(true),
+		},
 	}
 
 
@@ -956,6 +1072,7 @@ func _request_replace_sections_data(
 			false
 		)
 		return operation
+	_mark_profile_sections_changed(_pending_section_applied_keys)
 
 	var save_metadata: Dictionary = metadata.duplicate(true)
 	save_metadata[&"reason"] = "immediate_section_replace"
@@ -968,11 +1085,15 @@ func _request_replace_sections_data(
 
 
 func _delete_inactive_profile_file_async(
-	profile_file_name: String
+	profile_file_name: String,
+	caller_timeout_msec: int,
+	cleanup_kind: StringName
 ) -> Error:
 	if (
 		profile_file_name.is_empty()
 		or profile_file_name == _profile_file_name
+		or caller_timeout_msec < 0
+		or cleanup_kind.is_empty()
 		or _storage == null
 		or _signal_utility == null
 	):
@@ -991,24 +1112,87 @@ func _delete_inactive_profile_file_async(
 		GFStorageAsyncRequestOptions.create(
 			self,
 			null,
-			_PROFILE_DELETE_TIMEOUT_MSEC
+			caller_timeout_msec
 		)
 	)
 	if not options.is_valid():
 		return ERR_INVALID_PARAMETER
+	var saga: ProfileCleanupSaga = _begin_profile_cleanup_saga(
+		canonical_name,
+		options,
+		true,
+		cleanup_kind
+	)
+	if saga == null:
+		return ERR_CANT_CREATE
+	var operation: GFStorageAsyncOperation = saga.main_operation
+	var request_id: int = saga.request_id
+	# connect 前后的同步查询与逐帧 fallback 共同闭合终态竞态：即使一次性
+	# 信号连接失败或终态恰好已写入，caller 也不会永久等待。
+	_poll_profile_delete_operation_terminals()
+	while operation.is_caller_pending() and not _disposing:
+		var _progressed_request_id: int = await _profile_cleanup_progressed
+	var caller_result: GFStorageAsyncCallerResult = operation.get_caller_result()
+	var result_error: Error = _profile_delete_caller_result_to_error(
+		caller_result
+	)
+	if result_error == ERR_TIMEOUT:
+		saga.caller_outcome_unknown = true
+		var _timeout_waiter_erased: bool = _profile_delete_waiters.erase(
+			request_id
+		)
+		if saga.completed:
+			var _timeout_saga_erased: bool = _profile_cleanup_sagas.erase(
+				request_id
+			)
+		return ERR_TIMEOUT
+	# caller 在观察窗口内得到 main 的确定终态时，外层调用必须继续等待全部
+	# 派生 family 的物理终态，不能把 main success 提前暴露为清理完成。
+	while not saga.completed and not _disposing:
+		var _cleanup_request_id: int = await _profile_cleanup_progressed
+	var final_error: Error = (
+		saga.final_error if saga.completed else ERR_UNAVAILABLE
+	)
+	var _waiter_erased: bool = _profile_delete_waiters.erase(request_id)
+	var _saga_erased: bool = _profile_cleanup_sagas.erase(request_id)
+	return final_error
+
+
+## 接纳主删除并立即建立 canonical path owner；实际复合收敛由后台 saga 驱动。
+func _begin_profile_cleanup_saga(
+	canonical_name: String,
+	options: GFStorageAsyncRequestOptions,
+	observe_caller: bool,
+	cleanup_kind: StringName
+) -> ProfileCleanupSaga:
+	if (
+		canonical_name.is_empty()
+		or cleanup_kind.is_empty()
+		or _storage == null
+		or _signal_utility == null
+		or _profile_cleanup_paths.has(canonical_name)
+	):
+		return null
 	var operation: GFStorageAsyncOperation = (
 		_storage.delete_file_request_async(canonical_name, options)
 	)
 	if operation == null:
-		return ERR_CANT_CREATE
+		return null
 	var request_id: int = operation.get_request_id()
-	if request_id <= 0:
-		return ERR_CANT_CREATE
+	if request_id <= 0 or _profile_delete_operations.has(request_id):
+		return null
+	var saga: ProfileCleanupSaga = ProfileCleanupSaga.new()
+	saga.request_id = request_id
+	saga.canonical_name = canonical_name
+	saga.cleanup_kind = cleanup_kind
+	saga.main_operation = operation
 	_profile_delete_operations[request_id] = operation
-	_profile_delete_waiters[request_id] = true
 	_profile_delete_file_names[request_id] = canonical_name
 	_profile_cleanup_paths[canonical_name] = request_id
-	_track_profile_cleanup_operation(operation, canonical_name)
+	_profile_cleanup_sagas[request_id] = saga
+	if observe_caller:
+		_profile_delete_waiters[request_id] = true
+	_track_profile_cleanup_operation(operation)
 	if not operation.is_completed():
 		var physical_connection: GFSignalConnection = (
 			_signal_utility.connect_once(
@@ -1023,7 +1207,7 @@ func _delete_inactive_profile_file_async(
 				"Profile 删除物理终态观察连接失败；将由 tick 查询收敛请求 %d。"
 				% request_id
 			)
-	if not operation.is_caller_completed():
+	if observe_caller and not operation.is_caller_completed():
 		var caller_connection: GFSignalConnection = (
 			_signal_utility.connect_once(
 				operation.caller_completed,
@@ -1040,23 +1224,271 @@ func _delete_inactive_profile_file_async(
 			var _cancelled_observation: bool = operation.cancel_observation(
 				&"profile_delete_observer_connect_failed"
 			)
-	# connect 前后的同步查询与逐帧 fallback 共同闭合终态竞态：即使一次性
-	# 信号连接失败或终态恰好已写入，caller 也不会永久等待。
-	_poll_profile_delete_operation_terminals()
-	while operation.is_caller_pending() and not _disposing:
-		var _terminal_work_id: StringName = await profile_cleanup_task_terminal
-	var caller_result: GFStorageAsyncCallerResult = operation.get_caller_result()
-	var result_error: Error = _profile_delete_caller_result_to_error(
-		caller_result
+	call_deferred(&"_run_profile_cleanup_saga_async", request_id)
+	return saga
+
+
+## 只以主请求的物理终态决定是否允许删除派生 family。
+func _run_profile_cleanup_saga_async(request_id: int) -> void:
+	var saga: ProfileCleanupSaga = _get_profile_cleanup_saga(request_id)
+	if saga == null:
+		return
+	while not saga.main_operation.is_completed() and not _disposing:
+		var _main_progress_request_id: int = await _profile_cleanup_progressed
+	if _disposing:
+		return
+	saga.main_error = _profile_delete_physical_result_to_error(
+		saga.main_operation.get_result()
 	)
-	var _waiter_erased: bool = _profile_delete_waiters.erase(request_id)
-	if operation.is_completed():
-		_cleanup_profile_delete_tracking(request_id)
-	return result_error
+	if saga.main_error == OK:
+		saga.phase = &"derived_cleanup"
+		saga.derived_error = await _cleanup_manifest_families_async(saga)
+	if _disposing:
+		return
+	saga.final_error = (
+		saga.main_error if saga.main_error != OK else saga.derived_error
+	)
+	_complete_profile_cleanup_saga(saga)
+
+
+## 动态遍历当前注册的 Manifest Provider；不硬编码 bookmarks/replays。
+func _cleanup_manifest_families_async(
+	saga: ProfileCleanupSaga
+) -> Error:
+	if saga == null or _chunk_profiles == null:
+		return ERR_UNCONFIGURED
+	var manifest_providers: Array[ManifestBackedSaveSectionProvider] = []
+	for provider: GFSaveSectionProvider in _get_ordered_profile_providers():
+		if provider is ManifestBackedSaveSectionProvider:
+			var manifest_provider: ManifestBackedSaveSectionProvider = provider
+			manifest_providers.append(manifest_provider)
+	saga.derived_total_count = manifest_providers.size()
+	var first_error: Error = OK
+	var main_profile_id: StringName = _make_runtime_profile_id(
+		saga.canonical_name
+	)
+	for manifest_provider: ManifestBackedSaveSectionProvider in manifest_providers:
+		var cleanup_error: Error = await _cleanup_manifest_family_async(
+			saga,
+			main_profile_id,
+			manifest_provider.section_id
+		)
+		if _disposing:
+			return ERR_UNAVAILABLE
+		saga.derived_completed_count += 1
+		if cleanup_error != OK:
+			saga.derived_failed_count += 1
+			if first_error == OK:
+				first_error = cleanup_error
+	return first_error
+
+
+## typed BUSY 只表示同 scope 已有 cleanup owner；等待其 settlement 后幂等重试。
+func _cleanup_manifest_family_async(
+	saga: ProfileCleanupSaga,
+	main_profile_id: StringName,
+	section_id: StringName
+) -> Error:
+	while not _disposing:
+		var operation: ChunkProfileCleanupOperation = (
+			_chunk_profiles.cleanup_derived_family_async(
+				main_profile_id,
+				saga.canonical_name,
+				section_id
+			)
+		)
+		if operation == null:
+			return ERR_CANT_CREATE
+		saga.active_derived_operation = operation
+		if operation.is_pending():
+			var _tracking_id: int = _track_async_handle(
+				operation,
+				&"game_save.profile_derived_cleanup",
+				{
+					&"owner": "GameSaveGraphUtility",
+					&"operation_id": operation.get_operation_id(),
+				}
+			)
+			while operation.is_pending() and not _disposing:
+				var _derived_progress_request_id: int = (
+					await _profile_cleanup_progressed
+				)
+			_untrack_async_handle(operation)
+		if _disposing:
+			saga.active_derived_operation = null
+			return ERR_UNAVAILABLE
+		var result: ChunkProfileCleanupResult = operation.get_result()
+		saga.active_derived_operation = null
+		if result == null:
+			return ERR_UNAVAILABLE
+		if result.get_status() == ChunkProfileCleanupResult.STATUS_BUSY:
+			saga.busy_retry_count += 1
+			# 同一主线程上，fence 查询与 await signal 建立之间不会运行 cleanup
+			# settlement；若 owner 已先结算，直接重试即可，避免丢信号。
+			while (
+				_chunk_profiles.is_save_scope_fenced(
+					main_profile_id,
+					saga.canonical_name,
+					section_id
+				)
+				and not _disposing
+			):
+				var _busy_progress_request_id: int = (
+					await _profile_cleanup_progressed
+				)
+			continue
+		saga.derived_results.append(result.to_dict())
+		if result.is_successful():
+			return OK
+		var result_error: Error = result.get_error_code()
+		return result_error if result_error != OK else FAILED
+	return ERR_UNAVAILABLE
+
+
+func _get_profile_cleanup_saga(request_id: int) -> ProfileCleanupSaga:
+	var value: Variant = GFVariantData.get_option_value(
+		_profile_cleanup_sagas,
+		request_id
+	)
+	if value is ProfileCleanupSaga:
+		var saga: ProfileCleanupSaga = value
+		return saga
+	return null
+
+
+func _complete_profile_cleanup_saga(saga: ProfileCleanupSaga) -> void:
+	if saga == null or saga.completed:
+		return
+	saga.completed = true
+	saga.phase = &"completed"
+	_last_profile_cleanup_evidence = _make_profile_cleanup_terminal_evidence(
+		saga
+	)
+	_release_profile_cleanup_identity(saga.request_id)
+	var work_id: StringName = StringName(
+		"profile-cleanup:%d" % saga.request_id
+	)
+	# path 必须在 terminal 通知前已释放，供 LocalAccount 的 late gate 查询。
+	profile_cleanup_task_terminal.emit(work_id)
+	_profile_cleanup_progressed.emit(saga.request_id)
+	if not _profile_delete_waiters.has(saga.request_id):
+		var _saga_erased: bool = _profile_cleanup_sagas.erase(
+			saga.request_id
+		)
+	_try_advance_quiesce()
+
+
+func _make_profile_cleanup_terminal_evidence(
+	saga: ProfileCleanupSaga
+) -> Dictionary:
+	if saga == null:
+		return {}
+	var caller_result: GFStorageAsyncCallerResult = (
+		saga.main_operation.get_caller_result()
+		if saga.main_operation != null
+		else null
+	)
+	var physical_result: GFStorageAsyncResult = (
+		saga.main_operation.get_result()
+		if saga.main_operation != null
+		else null
+	)
+	var delete_result: GFStorageDeleteResult = (
+		physical_result.get_delete_result()
+		if physical_result != null
+		else null
+	)
+	var first_derived: Dictionary = (
+		saga.derived_results.front()
+		if not saga.derived_results.is_empty()
+		else {}
+	)
+	var failure_phase: StringName = &"none"
+	if saga.main_error != OK:
+		failure_phase = &"main_delete"
+	elif saga.derived_error != OK:
+		failure_phase = &"derived_cleanup"
+	var derived_status: StringName = &"cleaned"
+	if saga.main_error != OK:
+		derived_status = &"not_started"
+	elif saga.derived_error != OK:
+		derived_status = &"partial_failure"
+	return {
+		&"ok": saga.final_error == OK,
+		&"cleanup_kind": saga.cleanup_kind,
+		&"phase": saga.phase,
+		&"failure_phase": failure_phase,
+		&"status": (
+			&"cleaned"
+			if saga.final_error == OK
+			else (
+				&"main_failed"
+				if saga.main_error != OK
+				else &"derived_partial"
+			)
+		),
+		&"error_code": int(saga.final_error),
+		&"main_error_code": int(saga.main_error),
+		&"derived_error_code": int(saga.derived_error),
+		&"derived_total_count": saga.derived_total_count,
+		&"derived_completed_count": saga.derived_completed_count,
+		&"derived_failed_count": saga.derived_failed_count,
+		&"derived_status": derived_status,
+		&"derived_first_status": GFVariantData.get_option_string_name(
+			first_derived,
+			&"status"
+		),
+		&"derived_first_error_code": GFVariantData.get_option_int(
+			first_derived,
+			&"error_code",
+			OK
+		),
+		&"derived_first_delete_failure_kind": GFVariantData.get_option_int(
+			first_derived,
+			&"first_delete_failure_kind",
+			int(GFStorageDeleteResult.FailureKind.NONE)
+		),
+		&"busy_retry_count": saga.busy_retry_count,
+		&"derived_results": saga.derived_results.duplicate(true),
+		&"caller_outcome_unknown": saga.caller_outcome_unknown,
+		&"main_caller_completed": caller_result != null,
+		&"main_caller_status": (
+			int(caller_result.get_status()) if caller_result != null else -1
+		),
+		&"main_caller_end_kind": (
+			int(caller_result.get_end_kind()) if caller_result != null else -1
+		),
+		&"main_caller_reason": (
+			caller_result.get_reason() if caller_result != null else &""
+		),
+		&"main_caller_error_code": (
+			int(caller_result.get_error_code()) if caller_result != null else -1
+		),
+		&"main_physical_settled": physical_result != null,
+		&"main_physical_settlement_kind": (
+			int(physical_result.get_settlement_kind())
+			if physical_result != null
+			else -1
+		),
+		&"main_physical_cancelled": (
+			physical_result.is_cancelled() if physical_result != null else false
+		),
+		&"main_physical_error_code": (
+			int(physical_result.get_error_code())
+			if physical_result != null
+			else -1
+		),
+		&"main_delete_failure_kind": (
+			int(delete_result.get_failure_kind())
+			if delete_result != null
+			else int(GFStorageDeleteResult.FailureKind.NONE)
+		),
+	}
 
 
 func _compile_section_providers() -> void:
 	_section_providers.clear()
+	_profile_section_providers.clear()
 	for key: String in _get_sorted_definition_keys():
 		var definition: Dictionary = GFVariantData.get_option_dictionary(
 			_section_definitions,
@@ -1067,6 +1499,16 @@ func _compile_section_providers() -> void:
 		)
 		if provider != null:
 			_section_providers[key] = provider
+		var profile_provider: GFSaveSectionProvider = (
+			_get_profile_provider_value(
+				GFVariantData.get_option_value(
+					definition,
+					&"profile_provider"
+				)
+			)
+		)
+		if profile_provider != null:
+			_profile_section_providers[key] = profile_provider
 
 
 func _register_active_profile(profile_file_name: String) -> Error:
@@ -1148,9 +1590,9 @@ func _make_profile(profile_file_name: String) -> GFSaveProfile:
 	)
 	policy.io_timeout_msec = _PROFILE_IO_TIMEOUT_MSEC
 
-	var providers: Array[GFSaveSectionProvider] = []
-	for provider: GameSaveSectionData in _get_ordered_providers():
-		providers.append(provider)
+	var providers: Array[GFSaveSectionProvider] = (
+		_get_ordered_profile_providers()
+	)
 	var profile: GFSaveProfile = GFSaveProfile.new()
 	profile.profile_id = _make_runtime_profile_id(profile_file_name)
 	profile.schema_id = PROFILE_SCHEMA_ID
@@ -1322,12 +1764,18 @@ func _activate_profile_async_impl(
 	var previous_load_result: Dictionary = _last_load_result.duplicate(true)
 	var previous_save_result: Dictionary = _last_save_result.duplicate(true)
 	var section_snapshots: Dictionary = _snapshot_all_sections()
+	var manifest_state_snapshots: Dictionary = (
+		_snapshot_manifest_provider_states()
+	)
 	var reset_error: Error = _reset_sections_to_defaults()
 	if reset_error != OK:
 		return reset_error
 	var register_error: Error = _register_active_profile(profile_file_name)
 	if register_error != OK:
 		var _restore_error: Error = _restore_all_sections(section_snapshots)
+		var _manifest_restore_error: Error = (
+			_restore_manifest_provider_states(manifest_state_snapshots)
+		)
 		_restore_active_profile_reference(
 			previous_profile,
 			previous_profile_id,
@@ -1370,6 +1818,9 @@ func _activate_profile_async_impl(
 		return OK
 
 	var restore_error: Error = _restore_all_sections(section_snapshots)
+	var manifest_restore_error: Error = (
+		_restore_manifest_provider_states(manifest_state_snapshots)
+	)
 	_restore_active_profile_reference(
 		previous_profile,
 		previous_profile_id,
@@ -1378,7 +1829,9 @@ func _activate_profile_async_impl(
 		previous_load_result,
 		previous_save_result
 	)
-	return load_error if restore_error == OK else restore_error
+	if restore_error != OK:
+		return restore_error
+	return load_error if manifest_restore_error == OK else manifest_restore_error
 
 
 func _run_bootstrap_profile_async(
@@ -1477,9 +1930,43 @@ func _bootstrap_profile_async_impl(
 		return loaded_transition_error
 	if profile_file_name == _profile_file_name:
 		var current_state: Dictionary = _capture_bootstrap_runtime_state()
+		var current_recovery: Dictionary = await _prepare_profile_file_async(
+			profile_file_name,
+			transition_epoch
+		)
+		if not _bootstrap_transition_can_continue(
+			scope,
+			transition_epoch,
+			completion
+		):
+			return ERR_UNAVAILABLE
+		@warning_ignore("int_as_enum_without_cast")
+		var current_recovery_error: Error = GFVariantData.get_option_int(
+			current_recovery,
+			&"error_code",
+			OK
+		)
+		if current_recovery_error != OK:
+			_last_load_result = current_recovery.duplicate(true)
+			return current_recovery_error
+		if (
+			GFVariantData.get_option_bool(
+				current_recovery,
+				&"missing",
+				false
+			)
+			or GFVariantData.get_option_bool(
+				current_recovery,
+				&"reset",
+				false
+			)
+		):
+			var current_reset_error: Error = _reset_sections_to_defaults()
+			if current_reset_error != OK:
+				return current_reset_error
 		var current_load_error: Error = (
 			await _load_bootstrap_current_profile_async(
-			{},
+			current_recovery,
 			scope,
 			transition_epoch,
 			completion
@@ -1722,7 +2209,11 @@ func _prepare_bootstrap_legacy_profile_async(
 		read_result.payload
 	)
 	if obsolete_version <= 0:
-		return {&"ok": true, &"error_code": int(OK)}
+		return await _prepare_chunk_load_context_async(
+			PROFILE_FILE_NAME,
+			read_result.payload,
+			transition_epoch
+		)
 	var recovery_file: String = "%s/%s.schema-%d.save" % [
 		_RECOVERY_DIRECTORY,
 		PROFILE_FILE_NAME.get_basename(),
@@ -1791,7 +2282,10 @@ func _load_bootstrap_current_profile_async(
 		return ERR_UNAVAILABLE
 	if load_error != OK:
 		return load_error
-	if GFVariantData.get_option_bool(recovery, &"reset", false):
+	if (
+		GFVariantData.get_option_bool(recovery, &"missing", false)
+		or GFVariantData.get_option_bool(recovery, &"reset", false)
+	):
 		load_error = await _save_registered_profile_async(
 			{&"reason": "recreate_bootstrap_profile"},
 			transition_epoch
@@ -1803,7 +2297,11 @@ func _load_bootstrap_current_profile_async(
 		):
 			return ERR_UNAVAILABLE
 		if load_error == OK:
-			_last_load_result.merge(recovery, true)
+			var recovery_evidence: Dictionary = recovery.duplicate(false)
+			var _removed_context: bool = recovery_evidence.erase(
+				_CHUNK_LOAD_CONTEXT_RECOVERY_KEY
+			)
+			_last_load_result.merge(recovery_evidence, true)
 	return load_error
 
 
@@ -1895,6 +2393,7 @@ func _capture_bootstrap_runtime_state() -> Dictionary:
 		&"load_result": _last_load_result.duplicate(true),
 		&"save_result": _last_save_result.duplicate(true),
 		&"sections": _snapshot_all_sections(),
+		&"manifest_provider_states": _snapshot_manifest_provider_states(),
 	}
 
 
@@ -1903,6 +2402,12 @@ func _restore_bootstrap_runtime_state(state: Dictionary) -> Error:
 		return ERR_UNAVAILABLE
 	var restore_error: Error = _restore_all_sections(
 		GFVariantData.get_option_dictionary(state, &"sections")
+	)
+	var manifest_restore_error: Error = _restore_manifest_provider_states(
+		GFVariantData.get_option_dictionary(
+			state,
+			&"manifest_provider_states"
+		)
 	)
 	var profile_value: Variant = GFVariantData.get_option_value(
 		state,
@@ -1919,7 +2424,11 @@ func _restore_bootstrap_runtime_state(state: Dictionary) -> Error:
 		GFVariantData.get_option_dictionary(state, &"load_result"),
 		GFVariantData.get_option_dictionary(state, &"save_result")
 	)
-	return restore_error
+	return (
+		restore_error
+		if restore_error != OK
+		else manifest_restore_error
+	)
 
 
 func _bootstrap_transition_can_continue(
@@ -1947,8 +2456,15 @@ func _adopt_current_profile_async(
 	var previous_file_name: String = _profile_file_name
 	var previous_load_result: Dictionary = _last_load_result.duplicate(true)
 	var previous_save_result: Dictionary = _last_save_result.duplicate(true)
+	var previous_manifest_states: Dictionary = (
+		_snapshot_manifest_provider_states()
+	)
+	_reset_manifest_provider_states()
 	var register_error: Error = _register_active_profile(profile_file_name)
 	if register_error != OK:
+		var _manifest_restore_error: Error = (
+			_restore_manifest_provider_states(previous_manifest_states)
+		)
 		_restore_active_profile_reference(
 			previous_profile,
 			previous_profile_id,
@@ -1965,6 +2481,9 @@ func _adopt_current_profile_async(
 	if not _owns_profile_transition(transition_epoch):
 		return ERR_UNAVAILABLE
 	if save_error != OK:
+		var _manifest_restore_error: Error = (
+			_restore_manifest_provider_states(previous_manifest_states)
+		)
 		_restore_active_profile_reference(
 			previous_profile,
 			previous_profile_id,
@@ -1992,11 +2511,20 @@ func _load_registered_profile_async(
 	if not _owns_profile_transition(transition_epoch):
 		return ERR_UNAVAILABLE
 	_loaded = false
+	var load_context: Dictionary = {&"profile_file": _profile_file_name}
+	var chunk_context_value: Variant = recovery.get(
+		_CHUNK_LOAD_CONTEXT_RECOVERY_KEY
+	)
+	if chunk_context_value is Dictionary:
+		load_context.merge(
+			GFVariantData.as_dictionary(chunk_context_value),
+			true
+		)
 	var result: GFSaveProfileResult = await _await_profile_operation_async(
 		_track_profile_operation(
 			_profile_utility.load_profile(
 				_active_profile_id,
-				{&"profile_file": _profile_file_name},
+				load_context,
 				{&"reason": "activate_profile_async"}
 			)
 		)
@@ -2013,7 +2541,11 @@ func _load_registered_profile_async(
 	if error == OK:
 		_loaded = true
 		if GFVariantData.get_option_bool(recovery, &"reset", false):
-			_last_load_result.merge(recovery, true)
+			var recovery_evidence: Dictionary = recovery.duplicate(false)
+			var _removed_context: bool = recovery_evidence.erase(
+				_CHUNK_LOAD_CONTEXT_RECOVERY_KEY
+			)
+			_last_load_result.merge(recovery_evidence, true)
 	return error
 
 
@@ -2023,14 +2555,8 @@ func _save_registered_profile_async(
 ) -> Error:
 	if not _owns_profile_transition(transition_epoch):
 		return ERR_UNAVAILABLE
-	var request: GFSaveProfileRequest = _make_save_profile_request(metadata)
 	var result: GFSaveProfileResult = await _await_profile_operation_async(
-		_track_profile_operation(
-			_profile_utility.save_profile(
-				_active_profile_id,
-				request
-			)
-		)
+		_request_save_active_profile(metadata)
 	)
 	if not _owns_profile_transition(transition_epoch):
 		return ERR_UNAVAILABLE
@@ -2075,8 +2601,8 @@ func _prepare_profile_file_async(
 				&"error": read_result.error,
 				&"storage": read_result.to_dict(),
 			}
-		var corrupt_reset_error: Error = (
-			await delete_inactive_profile_async(profile_file_name)
+		var corrupt_reset_error: Error = await _reset_profile_file_async(
+			profile_file_name
 		)
 		if not _owns_profile_transition(transition_epoch):
 			return _make_transition_cancelled_recovery()
@@ -2094,7 +2620,11 @@ func _prepare_profile_file_async(
 		read_result.payload
 	)
 	if obsolete_version <= 0:
-		return {&"ok": true, &"error_code": OK}
+		return await _prepare_chunk_load_context_async(
+			profile_file_name,
+			read_result.payload,
+			transition_epoch
+		)
 	var profile_key: String = profile_file_name.get_file().get_basename()
 	var recovery_file: String = "%s/%s.schema-%d.save" % [
 		_RECOVERY_DIRECTORY,
@@ -2125,7 +2655,7 @@ func _prepare_profile_file_async(
 			&"obsolete_schema_version": obsolete_version,
 			&"recovery_file": recovery_file,
 		}
-	var reset_error: Error = await delete_inactive_profile_async(
+	var reset_error: Error = await _reset_profile_file_async(
 		profile_file_name
 	)
 	if not _owns_profile_transition(transition_epoch):
@@ -2152,6 +2682,204 @@ func _prepare_profile_file_async(
 	}
 
 
+func _reset_profile_file_async(profile_file_name: String) -> Error:
+	if profile_file_name != _profile_file_name:
+		return await delete_inactive_profile_async(profile_file_name)
+	if (
+		_loaded
+		or _profile_utility == null
+		or _storage == null
+		or _active_profile_id == &""
+		or not _is_registered_profile_idle(_active_profile_id)
+	):
+		return ERR_BUSY
+	var canonical_name: String = _storage.canonicalize_data_file_name(
+		profile_file_name
+	)
+	if canonical_name.is_empty():
+		return ERR_INVALID_PARAMETER
+	if _profile_cleanup_paths.has(canonical_name):
+		return ERR_BUSY
+	var released_profile_id: StringName = _active_profile_id
+	if not _profile_utility.unregister_profile(released_profile_id):
+		return ERR_BUSY
+	var _forgotten: bool = _registered_profiles.erase(released_profile_id)
+	_active_profile = null
+	_active_profile_id = &""
+	var saga: ProfileCleanupSaga = _begin_profile_cleanup_saga(
+		canonical_name,
+		null,
+		false,
+		&"active_profile_reset"
+	)
+	var cleanup_error: Error = ERR_CANT_CREATE
+	if saga != null:
+		while not saga.completed and not _disposing:
+			var _cleanup_request_id: int = await _profile_cleanup_progressed
+		cleanup_error = (
+			saga.final_error if saga.completed else ERR_UNAVAILABLE
+		)
+		var _saga_erased: bool = _profile_cleanup_sagas.erase(
+			saga.request_id
+		)
+	# active reset 无论 main/derived 结果如何都恢复注册；错误优先级固定为
+	# register > main delete > derived cleanup（后两者已由 saga.first-error 合并）。
+	var register_error: Error = _register_active_profile(profile_file_name)
+	if register_error != OK:
+		return register_error
+	return cleanup_error
+
+
+func _prepare_chunk_load_context_async(
+	profile_file_name: String,
+	payload: Dictionary,
+	transition_epoch: int
+) -> Dictionary:
+	if not _owns_profile_transition(transition_epoch):
+		return _make_transition_cancelled_recovery()
+	var manifest_providers: Array[ManifestBackedSaveSectionProvider] = []
+	for provider: GFSaveSectionProvider in _get_ordered_profile_providers():
+		if provider is ManifestBackedSaveSectionProvider:
+			var manifest_provider: ManifestBackedSaveSectionProvider = provider
+			manifest_providers.append(manifest_provider)
+	if manifest_providers.is_empty():
+		return {&"ok": true, &"error_code": OK}
+	if _chunk_profiles == null or _storage == null:
+		return {
+			&"ok": false,
+			&"error_code": ERR_UNCONFIGURED,
+			&"error": "Chunk Profile Utility is unavailable during preflight.",
+		}
+	var canonical_profile_file_name: String = (
+		_storage.canonicalize_data_file_name(profile_file_name)
+	)
+	if canonical_profile_file_name.is_empty():
+		return {
+			&"ok": false,
+			&"error_code": ERR_INVALID_PARAMETER,
+			&"error": "Main Profile file identity is not canonicalizable.",
+		}
+	var document: GFSaveDocument = GFSaveDocument.from_dict(payload)
+	if (
+		document == null
+		or document.get_schema_id() != PROFILE_SCHEMA_ID
+		or document.get_schema_version() != PROFILE_SCHEMA_VERSION
+	):
+		return {
+			&"ok": false,
+			&"error_code": ERR_INVALID_DATA,
+			&"error": "Current player Profile document is invalid for chunk preflight.",
+		}
+	var materialization_leases: Dictionary = {}
+	var main_profile_id: StringName = _make_runtime_profile_id(
+		canonical_profile_file_name
+	)
+	for manifest_provider: ManifestBackedSaveSectionProvider in manifest_providers:
+		if not document.has_section(manifest_provider.section_id):
+			return {
+				&"ok": false,
+				&"error_code": ERR_INVALID_DATA,
+				&"error": "Manifest-backed section is missing from the main Profile.",
+			}
+		var section: GFSaveSection = document.get_section(
+			manifest_provider.section_id
+		)
+		if (
+			section == null
+			or section.get_schema_version() != manifest_provider.schema_version
+		):
+			return {
+				&"ok": false,
+				&"error_code": ERR_INVALID_DATA,
+				&"error": "Manifest-backed section schema is invalid.",
+			}
+		var manifest_value: Variant = section.get_payload()
+		if not manifest_value is Dictionary:
+			return {
+				&"ok": false,
+				&"error_code": ERR_INVALID_DATA,
+				&"error": "Manifest-backed section payload is invalid.",
+			}
+		var manifest: ChunkManifest = ChunkManifest.from_dict(
+			GFVariantData.as_dictionary(manifest_value)
+		)
+		if (
+			manifest == null
+			or manifest.get_section_id() != manifest_provider.section_id
+			or manifest.get_section_schema_version()
+			!= manifest_provider.schema_version
+		):
+			return {
+				&"ok": false,
+				&"error_code": ERR_INVALID_DATA,
+				&"error": "Persisted chunk Manifest failed strict validation.",
+			}
+		var materialized: Dictionary = await _chunk_profiles.materialize_chunks_async(
+			main_profile_id,
+			canonical_profile_file_name,
+			manifest
+		)
+		if not _owns_profile_transition(transition_epoch):
+			return _make_transition_cancelled_recovery()
+		if not GFVariantData.get_option_bool(materialized, &"ok", false):
+			return {
+				&"ok": false,
+				&"error_code": GFVariantData.get_option_int(
+					materialized,
+					&"error_code",
+					ERR_INVALID_DATA
+				),
+				&"error": GFVariantData.get_option_string(
+					materialized,
+					&"error",
+					"Chunk materialization failed."
+				),
+			}
+		var chunks_value: Variant = materialized.get(&"chunks")
+		if not chunks_value is Array[PackedByteArray]:
+			return {
+				&"ok": false,
+				&"error_code": ERR_INVALID_DATA,
+				&"error": "Chunk materialization returned an invalid payload root.",
+			}
+		var chunks: Array[PackedByteArray] = chunks_value
+		var continuation_lease: GFAsyncGateLease = _profile_transition_lease
+		var lease: ChunkMaterializationLease = await (
+			manifest_provider.make_materialization_lease_async_taking_ownership(
+				chunks,
+				manifest,
+				main_profile_id,
+				canonical_profile_file_name,
+				continuation_lease
+			)
+		)
+		chunks = []
+		if not _owns_profile_transition(transition_epoch):
+			return _make_transition_cancelled_recovery()
+		if lease == null:
+			return {
+				&"ok": false,
+				&"error_code": ERR_FILE_CORRUPT,
+				&"error": "Feature chunk codec rejected the materialized stream.",
+			}
+		materialization_leases[manifest_provider.section_id] = lease
+	return {
+		&"ok": true,
+		&"error_code": OK,
+		_CHUNK_LOAD_CONTEXT_RECOVERY_KEY: {
+			ManifestBackedSaveSectionProvider.LOAD_LEASES_CONTEXT_KEY: (
+				materialization_leases
+			),
+			ManifestBackedSaveSectionProvider.LOAD_MAIN_PROFILE_ID_CONTEXT_KEY: (
+				main_profile_id
+			),
+			ManifestBackedSaveSectionProvider.LOAD_CANONICAL_FILE_CONTEXT_KEY: (
+				canonical_profile_file_name
+			),
+		},
+	}
+
+
 func _get_obsolete_profile_schema_version(payload: Dictionary) -> int:
 	var document: GFSaveDocument = GFSaveDocument.from_dict(payload)
 	if document == null:
@@ -2163,7 +2891,7 @@ func _get_obsolete_profile_schema_version(payload: Dictionary) -> int:
 		# Future section 必须继续由 GFSaveProfileUtility 以 typed
 		# future_schema 拒绝，不能因为同一文档还含旧 section 就破坏性重置。
 		var has_obsolete_section: bool = false
-		for provider: GameSaveSectionData in _get_ordered_providers():
+		for provider: GFSaveSectionProvider in _get_ordered_profile_providers():
 			if (
 				provider == null
 				or not document.has_section(provider.section_id)
@@ -2221,6 +2949,56 @@ func _snapshot_all_sections() -> Dictionary:
 	return snapshots
 
 
+func _snapshot_manifest_provider_states() -> Dictionary:
+	var snapshots: Dictionary = {}
+	for key: String in _get_registered_section_ids():
+		var provider: GFSaveSectionProvider = _get_profile_section_provider(
+			StringName(key)
+		)
+		if provider is ManifestBackedSaveSectionProvider:
+			var manifest_provider: ManifestBackedSaveSectionProvider = provider
+			snapshots[key] = (
+				manifest_provider.make_manifest_runtime_state_snapshot()
+			)
+	return snapshots
+
+
+func _restore_manifest_provider_states(snapshots: Dictionary) -> Error:
+	var expected_keys: PackedStringArray = PackedStringArray()
+	for key: String in _get_registered_section_ids():
+		var provider: GFSaveSectionProvider = _get_profile_section_provider(
+			StringName(key)
+		)
+		if provider is ManifestBackedSaveSectionProvider:
+			var _appended: bool = expected_keys.append(key)
+	expected_keys.sort()
+	if snapshots.size() != expected_keys.size():
+		return ERR_INVALID_DATA
+	for key: String in expected_keys:
+		var snapshot_value: Variant = snapshots.get(key)
+		if not snapshot_value is Dictionary:
+			return ERR_INVALID_DATA
+		var provider_value: GFSaveSectionProvider = (
+			_get_profile_section_provider(StringName(key))
+		)
+		if not provider_value is ManifestBackedSaveSectionProvider:
+			return ERR_INVALID_DATA
+		var provider: ManifestBackedSaveSectionProvider = provider_value
+		var restore_error: Error = provider.restore_manifest_runtime_state(
+			GFVariantData.as_dictionary(snapshot_value)
+		)
+		if restore_error != OK:
+			return restore_error
+	return OK
+
+
+func _reset_manifest_provider_states() -> void:
+	for provider: GFSaveSectionProvider in _get_ordered_profile_providers():
+		if provider is ManifestBackedSaveSectionProvider:
+			var manifest_provider: ManifestBackedSaveSectionProvider = provider
+			manifest_provider.reset_manifest_runtime_state()
+
+
 func _restore_all_sections(snapshots: Dictionary) -> Error:
 	var keys: Array[String] = []
 	for key_value: Variant in snapshots.keys():
@@ -2241,6 +3019,7 @@ func _restore_all_sections(snapshots: Dictionary) -> Error:
 
 
 func _reset_sections_to_defaults() -> Error:
+	_reset_manifest_provider_states()
 	return _restore_all_sections(_default_section_payloads)
 
 
@@ -2314,7 +3093,26 @@ func _rollback_sections(
 				"[GameSaveGraphUtility] section 回滚失败：%s，错误码：%d。"
 				% [key, rollback_error]
 			)
+		else:
+			var profile_provider: GFSaveSectionProvider = (
+				_get_profile_section_provider(StringName(key))
+			)
+			if profile_provider is ManifestBackedSaveSectionProvider:
+				var manifest_provider: ManifestBackedSaveSectionProvider = (
+					profile_provider
+				)
+				manifest_provider.mark_business_data_changed()
 	return first_error
+
+
+func _mark_profile_sections_changed(section_keys: Array[String]) -> void:
+	for key: String in section_keys:
+		var provider: GFSaveSectionProvider = _get_profile_section_provider(
+			StringName(key)
+		)
+		if provider is ManifestBackedSaveSectionProvider:
+			var manifest_provider: ManifestBackedSaveSectionProvider = provider
+			manifest_provider.mark_business_data_changed()
 
 
 func _collect_requested_section_ids(
@@ -3014,20 +3812,79 @@ func _request_save_active_profile(
 	metadata: Dictionary = {},
 	context: Dictionary = {}
 ) -> GFSaveProfileOperation:
-	if _profile_utility == null or _active_profile_id == &"":
+	if (
+		_profile_utility == null
+		or _chunk_profiles == null
+		or _active_profile_id == &""
+	):
 		return _make_rejected_profile_operation(
 			GFSaveProfileOperation.OPERATION_SAVE
 		)
-	var request: GFSaveProfileRequest = _make_save_profile_request(
-		metadata,
-		context
-	)
-	return _track_profile_operation(
-		_profile_utility.save_profile(
+	var save_context: Dictionary = context.duplicate(true)
+	var save_metadata: Dictionary = metadata.duplicate(true)
+	var leases: Dictionary = {}
+	var lease_ids: Array[StringName] = []
+	for provider: GFSaveSectionProvider in _get_ordered_profile_providers():
+		if not provider is ManifestBackedSaveSectionProvider:
+			continue
+		var manifest_provider: ManifestBackedSaveSectionProvider = provider
+		if not manifest_provider.needs_chunk_stage():
+			continue
+		var lease: ChunkSaveLease = _chunk_profiles.create_save_lease(
 			_active_profile_id,
-			request
+			_profile_file_name,
+			manifest_provider.section_id,
+			manifest_provider.schema_version,
+			manifest_provider.get_producer_revision()
 		)
+		if lease == null:
+			if _chunk_profiles.is_save_scope_fenced(
+				_active_profile_id,
+				_profile_file_name,
+				manifest_provider.section_id
+			):
+				_chunk_save_parked = true
+			for lease_value: Variant in leases.values():
+				if lease_value is ChunkSaveLease:
+					var created_lease: ChunkSaveLease = lease_value
+					var _failed_lease: ChunkSaveLease = (
+						_chunk_profiles.fail_save_lease(
+							created_lease.get_lease_id(),
+							ERR_BUSY,
+							"A sibling chunk save lease could not be created."
+						)
+					)
+			return _make_rejected_profile_operation(
+				GFSaveProfileOperation.OPERATION_SAVE
+			)
+		leases[manifest_provider.section_id] = lease
+		lease_ids.append(lease.get_lease_id())
+	if not leases.is_empty():
+		save_context[ManifestBackedSaveSectionProvider.SAVE_LEASES_CONTEXT_KEY] = (
+			leases
+		)
+		save_metadata[_CHUNK_SAVE_LEASE_IDS_METADATA_KEY] = lease_ids
+	var request: GFSaveProfileRequest = _make_save_profile_request(
+		save_metadata,
+		save_context
 	)
+	var operation: GFSaveProfileOperation = _profile_utility.save_profile(
+		_active_profile_id,
+		request
+	)
+	for lease_value: Variant in leases.values():
+		if not lease_value is ChunkSaveLease:
+			continue
+		var bound_lease: ChunkSaveLease = lease_value
+		if not bound_lease.bind_main_operation(operation):
+			var _failed_bind: ChunkSaveLease = (
+				_chunk_profiles.fail_save_lease(
+					bound_lease.get_lease_id(),
+					ERR_INVALID_DATA,
+					"Chunk save lease could not bind its main Profile operation."
+				)
+			)
+	return _track_profile_operation(operation)
 
 
 func _request_flush_active_profile(
@@ -3037,14 +3894,30 @@ func _request_flush_active_profile(
 		return _make_rejected_profile_operation(
 			GFSaveProfileOperation.OPERATION_FLUSH
 		)
+	if _chunk_save_parked:
+		_try_rearm_parked_chunk_save()
+		if _chunk_save_parked:
+			return _make_rejected_profile_operation(
+				GFSaveProfileOperation.OPERATION_FLUSH
+			)
 	if _profile_save_pending:
 		_profile_save_pending = false
 		_profile_save_wait_seconds = 0.0
-		var _save_operation: GFSaveProfileOperation = (
+		var save_operation: GFSaveProfileOperation = (
 			_request_save_active_profile({
 				&"reason": "flush_pending_generation",
 			})
 		)
+		if save_operation == null:
+			return _make_rejected_profile_operation(
+				GFSaveProfileOperation.OPERATION_FLUSH
+			)
+		if save_operation.is_completed():
+			var save_result: GFSaveProfileResult = save_operation.get_result()
+			if save_result == null or not save_result.is_successful():
+				return _make_rejected_profile_operation(
+					GFSaveProfileOperation.OPERATION_FLUSH
+				)
 	return _track_profile_operation(
 		_profile_utility.flush_profile(_active_profile_id, metadata)
 	)
@@ -3065,6 +3938,15 @@ func _try_advance_quiesce() -> void:
 		or not _profile_cleanup_paths.is_empty()
 	):
 		return
+	# quiesce 可在 debounce 到期前到达；此时 dirty intent 还是
+	# pending，却已有旧 generation 的 exact-outcome fence。先 park 并等结算，
+	# 不能清掉 pending 后把被拒绝 save 当成 quiesce 的最终 flush。
+	if _profile_save_pending and _has_fenced_dirty_chunk_save():
+		_chunk_save_parked = true
+	if _chunk_save_parked:
+		_try_rearm_parked_chunk_save()
+		if _chunk_save_parked:
+			return
 	if _quiesce_flush_operation == null:
 		if not _loaded:
 			var unregister_unloaded_error: Error = _unregister_all_profiles()
@@ -3181,13 +4063,14 @@ func _record_profile_transition_result(
 	)
 
 
-func _record_cleanup_outcome_unknown(profile_file_name: String) -> void:
+func _record_cleanup_outcome_unknown(
+	_ignored_profile_file_name: String
+) -> void:
 	_profile_transition_outcome_unknown = true
 	_last_profile_transition_evidence = {
 		&"ok": false,
 		&"status": "cleanup_outcome_unknown",
 		&"error_code": int(ERR_TIMEOUT),
-		&"profile_file": profile_file_name,
 	}
 
 
@@ -3222,8 +4105,19 @@ func _result_to_error(result: GFSaveProfileResult) -> Error:
 func _on_profile_operation_completed(
 	result: GFSaveProfileResult
 ) -> void:
-	if result == null:
+	if (
+		result == null
+		or (
+			not _registered_profiles.has(result.get_profile_id())
+			and result.get_profile_id() != _REJECTED_PROFILE_ID
+		)
+	):
+		# ChunkProfileUtility 与本 Utility 共享 GFSaveProfileUtility 的全局
+		# completion signal；派生 chunk Profile 的终态只归 chunk owner，不能
+		# 污染玩家主 Profile 诊断或对业务发布伪 profile_save_completed。
 		return
+	if result.get_operation() == GFSaveProfileOperation.OPERATION_SAVE:
+		_settle_chunk_save_leases(result)
 	var snapshot: Dictionary = result.to_dict()
 	if result.get_operation() == GFSaveProfileOperation.OPERATION_LOAD:
 		_last_load_result = snapshot
@@ -3233,6 +4127,110 @@ func _on_profile_operation_completed(
 	elif result.get_operation() == GFSaveProfileOperation.OPERATION_FLUSH:
 		_last_save_result = snapshot
 	profile_operation_completed.emit(result.duplicate_result())
+
+
+func _settle_chunk_save_leases(result: GFSaveProfileResult) -> void:
+	if _chunk_profiles == null or result == null:
+		return
+	var metadata: Dictionary = result.get_metadata()
+	var lease_ids_value: Variant = metadata.get(
+		_CHUNK_SAVE_LEASE_IDS_METADATA_KEY
+	)
+	if not lease_ids_value is Array:
+		return
+	for lease_id_value: Variant in GFVariantData.as_array(lease_ids_value):
+		if not lease_id_value is StringName and not lease_id_value is String:
+			continue
+		var lease_id: StringName = GFVariantData.to_string_name(
+			lease_id_value
+		)
+		var lease: ChunkSaveLease = _chunk_profiles.settle_main_result(
+			lease_id,
+			result
+		)
+		_commit_chunk_lease_if_available(lease)
+
+
+func _on_chunk_save_lease_settled(lease_id: StringName) -> void:
+	if _chunk_profiles == null:
+		return
+	_commit_chunk_lease_if_available(
+		_chunk_profiles.get_save_lease(lease_id)
+	)
+	_try_rearm_parked_chunk_save()
+	_try_advance_quiesce()
+
+
+func _commit_chunk_lease_if_available(lease: ChunkSaveLease) -> void:
+	if lease == null or lease.get_status() != ChunkSaveLease.STATUS_COMMITTED:
+		return
+	var provider: GFSaveSectionProvider = _get_profile_section_provider(
+		lease.get_section_id()
+	)
+	if not provider is ManifestBackedSaveSectionProvider:
+		_log_error(
+			"Chunk save lease committed for an unknown manifest Provider."
+		)
+		return
+	var manifest_provider: ManifestBackedSaveSectionProvider = provider
+	var manifest: ChunkManifest = lease.get_committed_manifest()
+	if not manifest_provider.commit_candidate_manifest(
+		manifest,
+		lease.get_producer_revision()
+	):
+		_log_error(
+			"Committed chunk Manifest could not update section %s revision %d."
+			% [
+				String(lease.get_section_id()),
+				lease.get_producer_revision(),
+			]
+		)
+
+
+func _try_rearm_parked_chunk_save() -> void:
+	if not _chunk_save_parked:
+		return
+	var has_dirty_manifest: bool = false
+	for provider: GFSaveSectionProvider in _get_ordered_profile_providers():
+		if not provider is ManifestBackedSaveSectionProvider:
+			continue
+		var manifest_provider: ManifestBackedSaveSectionProvider = provider
+		if not manifest_provider.needs_chunk_stage():
+			continue
+		has_dirty_manifest = true
+		if (
+			_chunk_profiles == null
+			or _chunk_profiles.is_save_scope_fenced(
+				_active_profile_id,
+				_profile_file_name,
+				manifest_provider.section_id
+			)
+		):
+			return
+	_chunk_save_parked = false
+	if not has_dirty_manifest:
+		return
+	_profile_save_pending = true
+	_profile_save_wait_seconds = 0.0
+
+
+func _has_fenced_dirty_chunk_save() -> bool:
+	if _chunk_profiles == null:
+		return false
+	for provider: GFSaveSectionProvider in _get_ordered_profile_providers():
+		if not provider is ManifestBackedSaveSectionProvider:
+			continue
+		var manifest_provider: ManifestBackedSaveSectionProvider = provider
+		if (
+			manifest_provider.needs_chunk_stage()
+			and _chunk_profiles.is_save_scope_fenced(
+				_active_profile_id,
+				_profile_file_name,
+				manifest_provider.section_id
+			)
+		):
+			return true
+	return false
 
 
 func _on_platform_lifecycle_event_received(
@@ -3338,10 +4336,12 @@ func _is_configured() -> bool:
 	return (
 		not _disposed
 		and _profile_utility != null
+		and _chunk_profiles != null
 		and _storage != null
 		and _active_profile != null
 		and _active_profile_id != &""
 		and not _section_providers.is_empty()
+		and _profile_section_providers.size() == _section_providers.size()
 	)
 
 
@@ -3433,6 +4433,24 @@ func _get_ordered_providers() -> Array[GameSaveSectionData]:
 	return result
 
 
+func _get_ordered_profile_providers() -> Array[GFSaveSectionProvider]:
+	var result: Array[GFSaveSectionProvider] = []
+	for key: String in _get_sorted_definition_keys():
+		var provider: GFSaveSectionProvider = _get_profile_section_provider(
+			StringName(key)
+		)
+		if provider != null:
+			result.append(provider)
+	return result
+
+
+func _has_manifest_backed_profile_sections() -> bool:
+	for provider: GFSaveSectionProvider in _get_ordered_profile_providers():
+		if provider is ManifestBackedSaveSectionProvider:
+			return true
+	return false
+
+
 func _get_sorted_definition_keys() -> Array[String]:
 	var result: Array[String] = []
 	for key_value: Variant in _section_definitions.keys():
@@ -3478,6 +4496,24 @@ func _get_section_provider(
 func _get_provider_value(value: Variant) -> GameSaveSectionData:
 	if value is GameSaveSectionData:
 		var provider: GameSaveSectionData = value
+		return provider
+	return null
+
+
+func _get_profile_section_provider(
+	section_id: StringName
+) -> GFSaveSectionProvider:
+	return _get_profile_provider_value(
+		GFVariantData.get_option_value(
+			_profile_section_providers,
+			String(section_id)
+		)
+	)
+
+
+func _get_profile_provider_value(value: Variant) -> GFSaveSectionProvider:
+	if value is GFSaveSectionProvider:
+		var provider: GFSaveSectionProvider = value
 		return provider
 	return null
 
@@ -3554,9 +4590,7 @@ func _on_profile_delete_caller_completed(
 	var request_id: int = operation.get_request_id()
 	if not _profile_delete_operations.has(request_id):
 		return
-	profile_cleanup_task_terminal.emit(
-		StringName("profile-delete:%d" % request_id)
-	)
+	_profile_cleanup_progressed.emit(request_id)
 
 
 func _on_profile_delete_physical_completed(
@@ -3568,11 +4602,16 @@ func _on_profile_delete_physical_completed(
 	var request_id: int = operation.get_request_id()
 	if not _profile_delete_operations.has(request_id):
 		return
-	if not _profile_delete_waiters.has(request_id):
-		_cleanup_profile_delete_tracking(request_id)
-	profile_cleanup_task_terminal.emit(
-		StringName("profile-delete:%d" % request_id)
-	)
+	_profile_cleanup_progressed.emit(request_id)
+
+
+func _on_chunk_cleanup_operation_settled(
+	_operation_id: StringName
+) -> void:
+	# 多个 saga 可并行等待不同 section；唤醒后各自重新查询 typed operation/fence。
+	_profile_cleanup_progressed.emit(0)
+	_try_rearm_parked_chunk_save()
+	_try_advance_quiesce()
 
 
 func _poll_profile_delete_operation_terminals() -> void:
@@ -3585,25 +4624,33 @@ func _poll_profile_delete_operation_terminals() -> void:
 		if not (operation_value is GFStorageAsyncOperation):
 			continue
 		var operation: GFStorageAsyncOperation = operation_value
+		var saga: ProfileCleanupSaga = _get_profile_cleanup_saga(request_id)
 		if (
-			operation.is_caller_completed()
-			and _profile_delete_waiters.has(request_id)
-		):
-			profile_cleanup_task_terminal.emit(
-				StringName("profile-delete:%d" % request_id)
+			saga != null
+			and saga.phase == &"main_delete"
+			and (
+				operation.is_completed()
+				or (
+					operation.is_caller_completed()
+					and _profile_delete_waiters.has(request_id)
+				)
 			)
-		if (
-			_profile_delete_operations.has(request_id)
-			and operation.is_completed()
-			and not _profile_delete_waiters.has(request_id)
 		):
-			_cleanup_profile_delete_tracking(request_id)
-			profile_cleanup_task_terminal.emit(
-				StringName("profile-delete:%d" % request_id)
-			)
+			_profile_cleanup_progressed.emit(request_id)
+	# pending derived operation 的信号连接若异常，tick 只在可查询的真实终态
+	# 出现后兜底唤醒；typed BUSY 则严格等待 cleanup_operation_settled。
+	for saga_value: Variant in _profile_cleanup_sagas.values():
+		if saga_value is ProfileCleanupSaga:
+			var saga: ProfileCleanupSaga = saga_value
+			if (
+				not saga.completed
+				and saga.active_derived_operation != null
+				and saga.active_derived_operation.is_completed()
+			):
+				_profile_cleanup_progressed.emit(saga.request_id)
 
 
-func _cleanup_profile_delete_tracking(request_id: int) -> void:
+func _release_profile_cleanup_identity(request_id: int) -> void:
 	var file_name: String = GFVariantData.get_option_string(
 		_profile_delete_file_names,
 		request_id
@@ -3616,7 +4663,6 @@ func _cleanup_profile_delete_tracking(request_id: int) -> void:
 		var operation: GFStorageAsyncOperation = operation_value
 		_untrack_async_handle(operation)
 	var _operation_erased: bool = _profile_delete_operations.erase(request_id)
-	var _waiter_erased: bool = _profile_delete_waiters.erase(request_id)
 	var _file_erased: bool = _profile_delete_file_names.erase(request_id)
 	if (
 		not file_name.is_empty()
@@ -3678,8 +4724,7 @@ func _track_section_operation(
 
 
 func _track_profile_cleanup_operation(
-	operation: GFStorageAsyncOperation,
-	profile_file_name: String
+	operation: GFStorageAsyncOperation
 ) -> void:
 	if operation == null or operation.is_completed():
 		return
@@ -3689,7 +4734,6 @@ func _track_profile_cleanup_operation(
 		{
 			&"owner": "GameSaveGraphUtility",
 			&"request_id": operation.get_request_id(),
-			&"profile_file": profile_file_name,
 		}
 	)
 
@@ -3776,6 +4820,14 @@ func _resolve_profile_utility() -> GFSaveProfileUtility:
 	return null
 
 
+func _resolve_chunk_profile_utility() -> ChunkProfileUtility:
+	var value: Object = get_utility(ChunkProfileUtility)
+	if value is ChunkProfileUtility:
+		var utility: ChunkProfileUtility = value
+		return utility
+	return null
+
+
 func _resolve_log_utility() -> GFLogUtility:
 	var value: Object = get_utility(GFLogUtility)
 	if value is GFLogUtility:
@@ -3823,3 +4875,27 @@ func _resolve_optional_async_tracker() -> GFAsyncTrackerUtility:
 		_async_tracker = value
 		return _async_tracker
 	return null
+
+
+# --- 内部类 ---
+
+## 一次主 Profile delete/reset 与其全部派生 chunk family 的复合所有权。
+##
+## canonical_name 只在私有状态中保留；公开 evidence/debug 只输出计数和错误码。
+class ProfileCleanupSaga extends RefCounted:
+	var request_id: int = 0
+	var canonical_name: String = ""
+	var cleanup_kind: StringName = &""
+	var main_operation: GFStorageAsyncOperation = null
+	var active_derived_operation: ChunkProfileCleanupOperation = null
+	var phase: StringName = &"main_delete"
+	var caller_outcome_unknown: bool = false
+	var main_error: Error = OK
+	var derived_error: Error = OK
+	var final_error: Error = OK
+	var derived_total_count: int = 0
+	var derived_completed_count: int = 0
+	var derived_failed_count: int = 0
+	var busy_retry_count: int = 0
+	var derived_results: Array[Dictionary] = []
+	var completed: bool = false

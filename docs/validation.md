@@ -59,7 +59,7 @@ powershell -ExecutionPolicy Bypass -File tools/verify_gf_vendor.ps1 -VerifyRemot
 
 ### GF 项目布局
 
-项目目录契约位于 `gf_project_profile.json`，独立验证命令为：
+项目目录契约位于 `gf_project_profile.json`。目录库存、Feature-Cohesive 拓扑和 profile 规则只有以下权威执行入口：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/validate_project_layout.ps1 -GodotExecutable godot
@@ -71,7 +71,7 @@ powershell -ExecutionPolicy Bypass -File tools/validate_project_layout.ps1 -Godo
 powershell -ExecutionPolicy Bypass -File tools/test_invoke_godot_project_tool.ps1 -GodotExecutable godot
 ```
 
-GDScript 使用 `GFProjectLayoutValidator` 扫描项目，将报告写入 `build/project_layout_report.json`，并把 warning 与 error 都视为失败。当前 profile 为 `c76.2048.feature_cohesive.v1`，基于 GF 内置 `gf.project_layout.feature_cohesive.v1` 收紧而来。文件与目录计数仅作诊断信息，因为 `build/` 内的本地报告会随验证命令变化。
+`tools/validate_project_layout.ps1` 负责隔离运行并判定进程终态，`tools/validate_project_layout.gd` 负责调用只读 `GFProjectLayoutAnalyzer`、合并 `ProjectResourceReferenceValidator` 报告、写入 `build/project_layout_report.json` 并判定完整结果。资源引用门禁有界扫描 `app/`、运行时 `features/` 与 `shared/` 的 `.tscn/.tres`：每条 `ext_resource` 的 `res://` 路径必须存在；引用与目标都提供规范 UID 时还必须一致；`sub_resource`、内建值和没有可比 UID 真值的合法路径不会误报。作者评审与原始 source pack 不进入发布运行时，继续由素材审计门禁负责。该执行路径要求输入与求值完整，同时把 warning 与 error 都视为失败；全量 GUT 不再重复扫描同一份目录库存。当前 profile 为 `c76.2048.feature_cohesive.v1`，基于 GF 内置 `gf.project_layout.feature_cohesive.v1` 收紧而来。文件、目录与引用计数仅作诊断信息，因为 `build/` 内的本地报告会随验证命令变化。
 
 ### GF API 与生命周期合规
 
@@ -86,6 +86,38 @@ GDScript 使用 `GFProjectLayoutValidator` 扫描项目，将报告写入 `build
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TestScripts "res://tests/gut/test_gf_project_conformance.gd,res://tests/gut/test_gdscript_layout_validation.gd" -TimeoutSeconds 180
 ```
+
+### 项目 GDScript 风格政策
+
+`tests/gut/test_gdscript_layout_validation.gd` 是项目源码文本政策的唯一执行者。它检查 GF Analyzer 与 Godot LSP 不表达的约束，包括中文 section 标签与源码排列、路径和架构层命名、显式类型声明，以及项目约定的强类型调用和禁用模式；每条规则只扫描脚本中声明的适用根。该测试不判断目录 profile，也不替代解析、名称解析或类型兼容性诊断。
+
+### 分块 Profile 持久化
+
+修改 `features/persistence/scripts/chunking/`、manifest-backed Provider 或 Feature chunk codec 时，先运行不依赖完整 Composition Root 的核心定向组：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TestScripts "res://tests/gut/test_chunked_profile_persistence.gd,res://tests/gut/test_chunk_profile_runtime.gd,res://tests/gut/test_chunk_save_lease.gd,res://tests/gut/test_chunk_profile_utility.gd,res://tests/gut/test_bookmark_chunk_persistence.gd" -TimeoutSeconds 240 -MaxLogMB 16 -MaxDefaultLogGrowthKB 128
+```
+
+随后运行 SaveGraph、账号编排与 Composition Root 集成组：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable godot -TestScripts "res://tests/gut/test_game_save_graph_utility.gd,res://tests/gut/test_local_player_profiles.gd,res://tests/gut/test_architecture_installer_validation.gd" -TimeoutSeconds 360 -MaxLogMB 16 -MaxDefaultLogGrowthKB 128
+```
+
+该组必须覆盖以下行为，但是否通过只以当次命令输出为准，本文档不记录“最近一次通过”：
+
+- `ChunkManifest` 的 128 KiB 单块、64 块和 8 MiB 总预算，以及 descriptor 顺序、字节数与 SHA-256。
+- inactive A/B bank 完整 stage 后仍不可见，只有主 Profile 保存成功才能提交候选 Manifest；known failure、cancelled 和 superseded 均不提交。
+- stage `outcome_unknown` 必须等待精确 chunk Profile 进入 idle 且 unknown/detached 证据清空，并收敛为不提交 Manifest 的已知失败；main `outcome_unknown` 必须按公开 persisted generation 证据对账。
+- main 精确提交必须在释放 owner 前把 WAITING/READY Lease 重基线到新的 bank/epoch；即使期间没有 live sibling，栅栏后才创建的 Lease 也必须继承该基线并写入对侧 bank。
+- fence 期间的 dirty save intent 必须停放，并在精确结算后仅重臂一次；quiesce 先于 debounce 到达时也必须等待重新生成的最新 generation，而不是接受一次 busy flush。
+- materialization 任一 chunk 缺失、损坏或摘要不符时不得返回部分数组；Feature codec 必须严格拒绝截断、尾随 frame、schema 不符和非规范 Variant。
+- `ChunkMaterializationLease` 只能 claim 一次，主 Profile apply 失败必须回滚业务 Provider 与 active Manifest/revision；账号切换失败也必须恢复来源 Profile 的 Manifest 状态。
+- `bookmarks` 与 `replays` 的业务 schema、流 schema 和主 Profile Manifest schema 分离，主文档不重新内嵌完整目录。
+- 主 Profile 删除/重置的复合 cleanup saga 只在主 logical family 已确定删除后遍历全部 Manifest Provider；caller timeout、typed BUSY、partial failure 与迟到终态期间持续持有 canonical path，并可幂等重试。
+
+分块持久化修改仍需运行本指南的 Godot LSP、GF 项目布局、GF 合规/风格和完整安全 GUT 门禁；定向组不能替代其中任何一个。
 
 历史上，直接运行 Godot/GUT 曾在默认用户数据目录生成巨大日志文件。因此默认不要直接运行：
 
@@ -152,7 +184,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 
 ## GDScript LSP 诊断
 
-普通 headless editor 和 GUT 日志不一定能稳定输出编辑器面板里的所有 GDScript warning。项目提供了独立的 LSP 诊断入口，参考自 GF 维护工具：
+普通 headless editor 和 GUT 日志不一定能稳定输出编辑器面板里的所有 GDScript warning。Godot LSP 是语法、名称解析、类型兼容性及引擎 error/warning 的唯一权威执行者；项目提供以下独立诊断入口：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/check_gdscript_lsp_diagnostics.ps1
@@ -231,6 +263,8 @@ $null = [scriptblock]::Create($script)
 ## 持续验证边界
 
 - 平台发布只能由当次环境报告、正式零错误导出和目标设备矩阵共同签字；静态配置通过不能替代工具链或真机证据。
+- 项目目录库存与 profile 规则只由 `tools/validate_project_layout.ps1` / `tools/validate_project_layout.gd` 执行；不得在 GUT 中增加第二次完整库存扫描。
+- 项目 style scanner 只执行源码文本与项目政策；显式类型声明是覆盖率政策，类型是否正确仍由 Godot LSP 裁决。
 - GDScript LSP 始终以零 error、零 warning 为门禁，修改 `.gd` 后必须复跑并读取当次生成报告。
 - 退出泄漏基线只用于阻止 ObjectDB、Resource 与 RID 债务增长，不代表债务已经修复；`GFTextFitter` 的 `ShapedText` / `Font` RID 仍由完整 GUT 维持零增长门禁。
 - 当前截图工具提供真实跨视口证据，但没有自动像素差异门禁；视觉签字仍需人工逐页检查。

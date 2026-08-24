@@ -1,7 +1,7 @@
 [gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://features/tile_catalog/scripts/ui/tile_catalog_card.gd" id="1_card"]
-[ext_resource type="PackedScene" path="res://features/gameplay/scenes/components/tile.tscn" id="2_tile"]
+[ext_resource type="PackedScene" path="res://features/themes/scenes/ui/tiles/tile.tscn" id="2_tile"]
 
 [node name="TileCatalogCard" type="Button"]
 custom_minimum_size = Vector2(184, 184)

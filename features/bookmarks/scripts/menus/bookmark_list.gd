@@ -11,9 +11,6 @@ extends BaseListMenu
 
 # --- 导出变量 ---
 
-## 游戏主场景路径。
-@export_file("*.tscn") var game_scene_path: String = ""
-
 ## 书签列表项场景资源。
 @export var item_scene: PackedScene
 
@@ -26,7 +23,6 @@ extends BaseListMenu
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	assert(not game_scene_path.is_empty(), "BookmarkList: 游戏场景路径 (game_scene_path) 未在编辑器中设置。")
 	assert(item_scene != null, "BookmarkList: 列表项场景 (item_scene) 未在编辑器中设置。")
 
 	_item_scene = item_scene
@@ -70,7 +66,8 @@ func _setup_item(item: Control, data: Resource) -> void:
 	bookmark_item.setup(
 		bookmark_data,
 		_get_mode_display_name(bookmark_data.mode_config_path),
-		_get_mode_config(bookmark_data.mode_config_path)
+		_get_mode_config(bookmark_data.mode_config_path),
+		_get_theme_utility()
 	)
 
 
@@ -166,16 +163,11 @@ func _on_primary_action_triggered(data: Resource) -> void:
 		return
 
 	var bookmark: BookmarkData = data
-	var app_config: AppConfigModel = _get_app_config_model()
-	if is_instance_valid(app_config):
-		app_config.current_replay_data.set_value(null)
-		app_config.selected_bookmark_data.set_value(bookmark)
-		app_config.selected_mode_config_path.set_value("")
-		app_config.selected_board_topology.set_value(null)
-
-	var router: SceneRouterSystem = _get_scene_router_system()
-	if is_instance_valid(router):
-		router.goto_scene(game_scene_path)
+	var launch_port: GameSessionLaunchPort = _get_session_launch_port()
+	if not is_instance_valid(launch_port):
+		push_error("[BookmarkList] 缺少 GameSessionLaunchPort，无法启动书签。")
+		return
+	var _launched: bool = launch_port.launch_bookmark(bookmark.bookmark_id)
 
 
 func _get_bookmark_system() -> BookmarkSystem:
@@ -183,6 +175,14 @@ func _get_bookmark_system() -> BookmarkSystem:
 	if system_value is BookmarkSystem:
 		var bookmark_system: BookmarkSystem = system_value
 		return bookmark_system
+	return null
+
+
+func _get_theme_utility() -> GameThemeUtility:
+	var utility_value: Object = get_utility(GameThemeUtility)
+	if utility_value is GameThemeUtility:
+		var theme_utility: GameThemeUtility = utility_value
+		return theme_utility
 	return null
 
 
@@ -276,11 +276,11 @@ func _translate_with_fallback(key: String, fallback: String) -> String:
 	return fallback if translated == key or translated.is_empty() else translated
 
 
-func _get_app_config_model() -> AppConfigModel:
-	var model_value: Object = get_model(AppConfigModel)
-	if model_value is AppConfigModel:
-		var app_config: AppConfigModel = model_value
-		return app_config
+func _get_session_launch_port() -> GameSessionLaunchPort:
+	var system_value: Object = get_system(GameSessionLaunchPort)
+	if system_value is GameSessionLaunchPort:
+		var launch_port: GameSessionLaunchPort = system_value
+		return launch_port
 	return null
 
 

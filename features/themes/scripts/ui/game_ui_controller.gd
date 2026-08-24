@@ -298,18 +298,6 @@ func _get_ui_utility() -> GFUIUtility:
 	return null
 
 
-func _get_game_ui_router_utility() -> GameUiRouterUtility:
-	var utility_value: Object = _find_optional_utility(GameUiRouterUtility)
-	if utility_value is GameUiRouterUtility:
-		var ui_router: GameUiRouterUtility = utility_value
-		return ui_router
-	var aliased_utility: GFUIRouterUtility = _get_ui_router_utility()
-	if aliased_utility is GameUiRouterUtility:
-		var game_ui_router: GameUiRouterUtility = aliased_utility
-		return game_ui_router
-	return null
-
-
 ## 表现层宿主的主题/路由能力允许在编辑器预览与最小测试架构中缺席；使用
 ## GFArchitecture.find_utility 避免把可选能力误报为 strict dependency miss。
 func _find_optional_utility(utility_type: Script) -> Object:

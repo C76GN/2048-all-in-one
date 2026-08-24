@@ -13,10 +13,7 @@ const _BOOKMARK_LIST_SCENE: PackedScene = preload(
 const _REPLAY_LIST_SCENE: PackedScene = preload(
 	"res://features/replays/scenes/menus/replay_list.tscn"
 )
-const _CLASSIC_MODE_CONFIG: GameModeConfig = preload(
-	"res://features/gameplay/resources/modes/classic_mode_config.tres"
-)
-const _GAME_SCENE_PATH: String = "res://features/gameplay/scenes/game/game_play.tscn"
+const _GAME_SCENE_PATH: String = "res://features/game_session/scenes/game/game_play.tscn"
 const _MODE_SELECTION_SCENE_PATH: String = (
 	"res://features/navigation/scenes/menus/mode_selection.tscn"
 )
@@ -96,42 +93,28 @@ func test_quit_is_idempotent_and_waits_for_gf_architecture_shutdown() -> void:
 	)
 
 
-func test_continue_accepts_only_current_matching_bookmark_contract() -> void:
-	var determinism: GameDeterminismUtility = GameDeterminismUtility.new()
-	var bookmark: BookmarkData = BookmarkData.new()
-	bookmark.mode_config_path = _CLASSIC_MODE_CONFIG.resource_path
-	bookmark.ruleset_id = _CLASSIC_MODE_CONFIG.ruleset_id
-	bookmark.ruleset_version = _CLASSIC_MODE_CONFIG.ruleset_version
-	bookmark.ruleset_fingerprint = determinism.calculate_ruleset_fingerprint(
-		_CLASSIC_MODE_CONFIG
+func test_main_menu_delegates_resume_validation_to_stable_launch_port() -> void:
+	var source: String = FileAccess.get_file_as_string(
+		"res://features/navigation/scripts/menus/main_menu.gd"
 	)
-	bookmark.target_tile_value = _CLASSIC_MODE_CONFIG.target_tile_value
-
-	assert_true(
-		MainMenu._is_bookmark_valid_for_resume(
-			bookmark,
-			_CLASSIC_MODE_CONFIG,
-			determinism
-		),
-		"规则集与目标契约匹配的书签应允许一键继续。"
-	)
-	bookmark.target_tile_value += 1
-	assert_false(
-		MainMenu._is_bookmark_valid_for_resume(
-			bookmark,
-			_CLASSIC_MODE_CONFIG,
-			determinism
-		),
-		"目标契约漂移的书签不得被一键继续。"
-	)
+	assert_true(source.contains("get_latest_resumable_bookmark_id()"))
+	assert_true(source.contains("launch_port.launch_bookmark(bookmark_id)"))
+	for forbidden_symbol: String in [
+		"AppConfigModel",
+		"BookmarkSystem",
+		"GameModeCatalogUtility",
+		"GameDeterminismUtility",
+	]:
+		assert_false(
+			source.contains(forbidden_symbol),
+			"MainMenu 不应绕过统一启动 Port 持有 %s。" % forbidden_symbol
+		)
 
 
-func test_resume_bookmark_sets_launch_state_and_routes_to_game() -> void:
+func test_resume_bookmark_submits_only_stable_identity_to_launch_port() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
-	var app_config: AppConfigModel = AppConfigModel.new()
-	var router: _RouteSpy = _RouteSpy.new()
-	await architecture.register_model(AppConfigModel, app_config)
-	await architecture.register_system(SceneRouterSystem, router)
+	var launch_port: _LaunchPortSpy = _LaunchPortSpy.new()
+	await architecture.register_system(GameSessionLaunchPort, launch_port)
 	await architecture.init()
 
 	var context: TestArchitectureContext = TestArchitectureContext.new()
@@ -143,30 +126,11 @@ func test_resume_bookmark_sets_launch_state_and_routes_to_game() -> void:
 		var menu: MainMenu = menu_node
 		context.add_child(menu)
 		await get_tree().process_frame
-		var bookmark: BookmarkData = BookmarkData.new()
-		bookmark.bookmark_id = GFUuid.generate_v7()
-		app_config.current_replay_data.set_value(ReplayData.new())
-		menu._resume_bookmark(bookmark)
-		var selected_value: Variant = app_config.selected_bookmark_data.get_value()
+		var bookmark_id: String = GFUuid.generate_v7()
+		menu._resume_bookmark(bookmark_id)
 		assert_true(
-			selected_value is BookmarkData,
-			"继续游戏必须写入 BookmarkData 启动状态。"
-		)
-		if selected_value is BookmarkData:
-			var selected_bookmark: BookmarkData = selected_value
-			assert_same(
-				selected_bookmark,
-				bookmark,
-				"继续游戏必须把最近有效书签写入启动状态。"
-			)
-		var replay_cleared: bool = app_config.current_replay_data.get_value() == null
-		assert_true(
-			replay_cleared,
-			"继续书签前必须清除回放启动状态。"
-		)
-		assert_true(
-			router.last_scene_path == _GAME_SCENE_PATH,
-			"继续游戏应路由到游戏场景。"
+			launch_port.bookmark_ids == [bookmark_id],
+			"继续游戏只应把稳定书签 ID 交给统一启动 Port。"
 		)
 	architecture.dispose()
 
@@ -918,6 +882,18 @@ class _RouteSpy extends SceneRouterSystem:
 	func prime_scene(path: String) -> Error:
 		primed_scene_paths.append(path)
 		return OK
+
+
+class _LaunchPortSpy extends GameSessionLaunchPort:
+	var bookmark_ids: Array[String] = []
+
+	func get_latest_resumable_bookmark_id() -> String:
+		return ""
+
+	## @param bookmark_id: 要记录为启动目标的书签 ID。
+	func launch_bookmark(bookmark_id: String) -> bool:
+		bookmark_ids.append(bookmark_id)
+		return true
 
 
 class _DeleteProbeMenu extends BaseListMenu:

@@ -9,6 +9,8 @@ extends GFUndoableCommand
 
 const _LOG_TAG: String = "MoveCommand"
 const SERIALIZATION_SCHEMA_VERSION: int = 2
+## 玩家可持久化棋盘的反向动画映射最多覆盖 256 个活跃格。
+const SERIALIZED_REVERSE_MAP_ENTRY_LIMIT: int = 256
 
 
 # --- 私有变量 ---
@@ -167,18 +169,29 @@ static func is_serialized_data_valid(data: Dictionary) -> bool:
 	elif absi(direction.x) + absi(direction.y) != 1:
 		return false
 
-	for source_key: Variant in GFVariantData.get_option_dictionary(
+	var reverse_map_value: Variant = GFVariantData.get_option_value(
 		data,
 		&"reverse_map"
-	).keys():
+	)
+	var snapshot_value: Variant = GFVariantData.get_option_value(
+		data,
+		&"snapshot"
+	)
+	if not reverse_map_value is Dictionary or not snapshot_value is Dictionary:
+		return false
+	var reverse_map: Dictionary = GFVariantData.as_dictionary(
+		reverse_map_value
+	)
+	if reverse_map.size() > SERIALIZED_REVERSE_MAP_ENTRY_LIMIT:
+		return false
+	for source_key: Variant in reverse_map.keys():
 		if (
 			not source_key is String
-			or not GFVariantData.get_option_dictionary(data, &"reverse_map")[source_key]
-			is Vector2i
+			or not reverse_map[source_key] is Vector2i
 		):
 			return false
 	return GameStateSystem.is_state_envelope_valid(
-		GFVariantData.get_option_dictionary(data, &"snapshot")
+		GFVariantData.as_dictionary(snapshot_value)
 	)
 
 

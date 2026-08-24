@@ -1,0 +1,69 @@
+[gd_resource type="Resource" script_class="GameModeVisualProfileRegistry" format=3 uid="uid://d6qg7v8pw3n2b"]
+
+[ext_resource type="Script" uid="uid://cws8nf4k9q6te" path="res://features/themes/scripts/data/mode_visuals/game_mode_visual_profile_registry.gd" id="1_registry"]
+[ext_resource type="Script" uid="uid://bq0mvp7h3r2ad" path="res://features/themes/scripts/data/mode_visuals/game_mode_visual_profile.gd" id="2_profile"]
+[ext_resource type="Resource" uid="uid://q5lokbubm1hs" path="res://features/themes/resources/themes/mode_visuals/defaults/default_board_theme.tres" id="3_board"]
+[ext_resource type="Resource" uid="uid://dbppel7der23n" path="res://features/themes/resources/themes/mode_visuals/defaults/classic_tile_theme.tres" id="4_classic"]
+[ext_resource type="Resource" uid="uid://bajwfeoyco3xn" path="res://features/themes/resources/themes/mode_visuals/defaults/red_tile_theme.tres" id="5_red"]
+[ext_resource type="Resource" uid="uid://n8l73wke5rgq" path="res://features/themes/resources/themes/mode_visuals/defaults/fibonacci_tile_theme.tres" id="6_fibonacci"]
+[ext_resource type="Resource" uid="uid://dnkb8q4knxdqq" path="res://features/themes/resources/themes/mode_visuals/defaults/lucas_tile_theme.tres" id="7_lucas"]
+[ext_resource type="Resource" uid="uid://s3kbyu2ihxcq" path="res://features/themes/resources/themes/mode_visuals/defaults/blue_tile_theme.tres" id="8_blue"]
+
+[sub_resource type="Resource" id="Profile_classic"]
+script = ExtResource("2_profile")
+profile_id = &"classic"
+board_theme = ExtResource("3_board")
+color_schemes = {
+0: ExtResource("4_classic"),
+1: ExtResource("5_red")
+}
+
+[sub_resource type="Resource" id="Profile_fibonacci"]
+script = ExtResource("2_profile")
+profile_id = &"fibonacci"
+board_theme = ExtResource("3_board")
+color_schemes = {
+0: ExtResource("6_fibonacci"),
+1: ExtResource("5_red")
+}
+
+[sub_resource type="Resource" id="Profile_lucas_fibonacci"]
+script = ExtResource("2_profile")
+profile_id = &"lucas_fibonacci"
+board_theme = ExtResource("3_board")
+color_schemes = {
+0: ExtResource("6_fibonacci"),
+1: ExtResource("7_lucas")
+}
+
+[sub_resource type="Resource" id="Profile_progressive"]
+script = ExtResource("2_profile")
+profile_id = &"progressive"
+board_theme = ExtResource("3_board")
+color_schemes = {
+0: ExtResource("4_classic"),
+1: ExtResource("5_red")
+}
+
+[sub_resource type="Resource" id="Profile_ratio"]
+script = ExtResource("2_profile")
+profile_id = &"ratio"
+board_theme = ExtResource("3_board")
+color_schemes = {
+0: ExtResource("8_blue"),
+1: ExtResource("5_red")
+}
+
+[sub_resource type="Resource" id="Profile_step_by_step"]
+script = ExtResource("2_profile")
+profile_id = &"step_by_step"
+board_theme = ExtResource("3_board")
+color_schemes = {
+0: ExtResource("4_classic"),
+1: ExtResource("5_red")
+}
+
+[resource]
+script = ExtResource("1_registry")
+default_profile_id = &"classic"
+profiles = Array[ExtResource("2_profile")]([SubResource("Profile_classic"), SubResource("Profile_fibonacci"), SubResource("Profile_lucas_fibonacci"), SubResource("Profile_progressive"), SubResource("Profile_ratio"), SubResource("Profile_step_by_step")])

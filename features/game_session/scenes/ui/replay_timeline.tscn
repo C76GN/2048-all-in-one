@@ -1,0 +1,13 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://b0y3kyc7cv2gu" path="res://features/game_session/scripts/ui/replay_timeline.gd" id="1_timeline"]
+
+[node name="ReplayTimeline" type="HSlider"]
+custom_minimum_size = Vector2(140, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 2
+mouse_default_cursor_shape = 2
+max_value = 1.0
+step = 1.0
+script = ExtResource("1_timeline")

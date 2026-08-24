@@ -4,14 +4,14 @@ extends GutTest
 
 # --- 常量 ---
 
-const _TILE_SCENE: PackedScene = preload("res://features/gameplay/scenes/components/tile.tscn")
-const _GAME_OVER_SCENE: PackedScene = preload("res://features/gameplay/scenes/ui/game_over_menu.tscn")
-const _TARGET_REACHED_SCENE: PackedScene = preload("res://features/gameplay/scenes/ui/target_reached_menu.tscn")
+const _TILE_SCENE: PackedScene = preload("res://features/themes/scenes/ui/tiles/tile.tscn")
+const _GAME_OVER_SCENE: PackedScene = preload("res://features/game_session/scenes/ui/game_over_menu.tscn")
+const _TARGET_REACHED_SCENE: PackedScene = preload("res://features/game_session/scenes/ui/target_reached_menu.tscn")
 const _BOOKMARK_ITEM_SCENE: PackedScene = preload("res://features/bookmarks/scenes/ui/bookmark_list_item.tscn")
 const _REPLAY_ITEM_SCENE: PackedScene = preload("res://features/replays/scenes/ui/replay_list_item.tscn")
 const _BOOKMARK_LIST_SCENE: PackedScene = preload("res://features/bookmarks/scenes/menus/bookmark_list.tscn")
 const _REPLAY_LIST_SCENE: PackedScene = preload("res://features/replays/scenes/menus/replay_list.tscn")
-const _BOARD_PREVIEW_SCENE_PATH: String = "res://features/gameplay/scenes/ui/board_preview.tscn"
+const _BOARD_PREVIEW_SCENE_PATH: String = "res://features/themes/scenes/ui/board/board_preview.tscn"
 const _BOOT_SCENE: PackedScene = preload("res://app/scenes/boot.tscn")
 const _MODE_SELECTION_SCENE_PATH: String = "res://features/navigation/scenes/menus/mode_selection.tscn"
 const _BACKGROUND_SHADER_PATH: String = "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader"
@@ -26,14 +26,14 @@ const _BOOT_RUNTIME_SCRIPT_PATH: String = "res://app/scripts/boot_runtime.gd"
 const _BOOT_MARK_TEXTURE_PATH: String = "res://features/asset_library/resources/textures/branding/printworks_boot_mark.png"
 const _BOOT_SPLASH_TEXTURE_PATH: String = "res://features/asset_library/resources/textures/branding/printworks_boot_splash.png"
 const _UI_STYLE_UTILITY_PATH: String = "res://features/themes/scripts/utilities/game_ui_style_utility.gd"
-const _HUD_SCRIPT_PATH: String = "res://features/gameplay/scripts/ui/hud.gd"
+const _HUD_SCRIPT_PATH: String = "res://features/game_session/scripts/ui/hud.gd"
 const _MAIN_MENU_BOARD_MOTIF_PATH: String = "res://features/navigation/scripts/ui/main_menu_board_motif.gd"
 const _SETTINGS_CALIBRATION_PREVIEW_SCRIPT: GDScript = preload(
 	"res://features/settings/scripts/ui/settings_calibration_preview.gd"
 )
 const _SCENE_PRELOAD_MAP: GFScenePreloadMap = preload("res://features/navigation/resources/scene_preload_map.tres")
-const _GAMEPLAY_VISUAL_WARMUP_SCRIPT: GDScript = preload("res://features/gameplay/scripts/ui/gameplay_visual_warmup.gd")
-const _GAME_PLAY_CONTROLLER_PATH: String = "res://features/gameplay/scripts/controllers/game_play_controller.gd"
+const _GAMEPLAY_VISUAL_WARMUP_SCRIPT: GDScript = preload("res://features/game_session/scripts/ui/gameplay_visual_warmup.gd")
+const _GAME_PLAY_CONTROLLER_PATH: String = "res://features/game_session/scripts/controllers/game_play_controller.gd"
 const _SCENE_ROUTER_SCRIPT_PATH: String = "res://features/navigation/scripts/systems/scene_router_system.gd"
 const _TEST_TOOL_UTILITY_PATH: String = "res://features/diagnostics/scripts/utilities/test_tool_utility.gd"
 const _HALFTONE_UI_PALETTE: GameUiPalette = preload("res://features/themes/resources/themes/game/halftone_atlas_ui_palette.tres")
@@ -45,11 +45,15 @@ const _HALFTONE_TILE_VISUAL_THEME: TileVisualTheme = preload("res://features/the
 const _HALFTONE_GAME_THEME: GameTheme = preload(
 	"res://features/themes/resources/themes/game/halftone_atlas_theme.tres"
 )
-const _CLASSIC_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/classic_tile_theme.tres")
-const _FIBONACCI_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/fibonacci_tile_theme.tres")
-const _LUCAS_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/lucas_tile_theme.tres")
-const _RED_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/red_tile_theme.tres")
-const _BLUE_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/blue_tile_theme.tres")
+const _CLASSIC_TILE_THEME: TileColorScheme = preload(
+	"res://features/themes/resources/themes/mode_visuals/defaults/classic_tile_theme.tres"
+)
+const _FIBONACCI_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/mode_visuals/defaults/fibonacci_tile_theme.tres")
+const _LUCAS_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/mode_visuals/defaults/lucas_tile_theme.tres")
+const _RED_TILE_THEME: TileColorScheme = preload(
+	"res://features/themes/resources/themes/mode_visuals/defaults/red_tile_theme.tres"
+)
+const _BLUE_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/mode_visuals/defaults/blue_tile_theme.tres")
 const _MIN_TILE_TEXT_CONTRAST: float = 3.0
 const _MIN_UI_TEXT_CONTRAST: float = 4.5
 
@@ -389,7 +393,7 @@ func test_navigation_scene_preload_map_is_valid_and_preloads_gameplay_from_mode_
 	)
 	assert_has(
 		planned_paths,
-		"res://features/gameplay/scenes/game/game_play.tscn",
+		"res://features/game_session/scenes/game/game_play.tscn",
 		"模式选择应在用户配置棋盘期间后台预热 Gameplay，避免触屏直接开始时冷加载。"
 	)
 	assert_lte(_SCENE_PRELOAD_MAP.max_scheduled_scenes, 2, "启动预载图不得并发调度所有低频菜单。")
@@ -1428,7 +1432,7 @@ func test_ui_motion_utility_animates_numeric_change_with_delta_label() -> void:
 	var root: Control = Control.new()
 	var value_label: Label = Label.new()
 	var delta_scene: PackedScene = load(
-		"res://features/gameplay/scenes/ui/score_delta_label.tscn"
+		"res://features/game_session/scenes/ui/score_delta_label.tscn"
 	)
 	var delta_label: Label = delta_scene.instantiate() as Label
 	value_label.custom_minimum_size = Vector2(96.0, 32.0)

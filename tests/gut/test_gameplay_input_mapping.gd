@@ -4,7 +4,7 @@ extends GutTest
 
 # --- 常量 ---
 
-const GAMEPLAY_INPUT_CONTEXT: GFInputContext = preload("res://features/gameplay/resources/input/gameplay_input_context.tres")
+const GAMEPLAY_INPUT_CONTEXT: GFInputContext = preload("res://features/game_session/resources/input/gameplay_input_context.tres")
 const ACTION_MOVE_LEFT: StringName = &"move_left"
 const ACTION_MOVE_RIGHT: StringName = &"move_right"
 const ACTION_REDO: StringName = &"redo"
@@ -12,8 +12,8 @@ const _SETTINGS_SCENE: PackedScene = preload(
 	"res://features/settings/scenes/menus/settings_menu.tscn"
 )
 const _SETTINGS_SCRIPT_PATH: String = "res://features/settings/scripts/menus/settings_menu.gd"
-const _PAUSE_MENU_SCRIPT_PATH: String = "res://features/gameplay/scripts/ui/pause_menu.gd"
-const _GAME_OVER_MENU_SCRIPT_PATH: String = "res://features/gameplay/scripts/ui/game_over_menu.gd"
+const _PAUSE_MENU_SCRIPT_PATH: String = "res://features/game_session/scripts/ui/pause_menu.gd"
+const _GAME_OVER_MENU_SCRIPT_PATH: String = "res://features/game_session/scripts/ui/game_over_menu.gd"
 
 
 # --- 测试用例 ---
@@ -480,7 +480,7 @@ func test_settings_scene_exposes_timing_and_binding_controls() -> void:
 		assert_true(
 			popup_source.contains(
 				"_configure_settings_panel,\n"
-				+ "\t\tGFUIRouterUtility.PRELOAD_NONE"
+				+ "\t\tGameUiRouterPort.PRELOAD_NONE"
 			),
 			"已由父路由相邻预载的设置弹层不应再次递归预载相邻页面：%s"
 			% popup_script_path

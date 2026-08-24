@@ -3,7 +3,7 @@
 ## 业务模块只提交路由意图；GFSceneUtility 管理加载事务，
 ## GFScreenTransitionUtility 管理覆盖层生命周期和效果推进。
 class_name SceneRouterSystem
-extends GFSystem
+extends GameSceneRouterPort
 
 
 # --- 常量 ---

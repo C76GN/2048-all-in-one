@@ -4,9 +4,9 @@ extends GutTest
 
 # --- 常量 ---
 
-const _HUD_SCENE: PackedScene = preload("res://features/gameplay/scenes/ui/hud.tscn")
+const _HUD_SCENE: PackedScene = preload("res://features/game_session/scenes/ui/hud.tscn")
 const _GAME_PLAY_SCENE: PackedScene = preload(
-	"res://features/gameplay/scenes/game/game_play.tscn"
+	"res://features/game_session/scenes/game/game_play.tscn"
 )
 
 

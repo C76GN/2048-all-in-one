@@ -37,7 +37,7 @@ Recipe group 用于 GF 查询和诊断。拆卸后由 `TileCompositionUtility` �
 - `definition_id`。
 - 当前数值。
 - 当前实际挂载的 `capability_recipe_ids`。
-- 按 Recipe ID 隔离的 `capability_state`。
+- 按 Recipe ID 隔离的 `capability_state`；进入命令快照、书签或回放前必须通过 GF deterministic Variant 规范编码校验，拒绝 Object、循环引用、unsupported Variant 与 NaN/Inf。
 
 `capability_recipe_ids` 是事实来源。恢复时不能只按定义重新猜测初始能力，否则运行时获得的规则会丢失。
 

@@ -5,10 +5,10 @@ extends GutTest
 # --- 常量 ---
 
 const _GAME_SCENE: PackedScene = preload(
-	"res://features/gameplay/scenes/game/game_play.tscn"
+	"res://features/game_session/scenes/game/game_play.tscn"
 )
 const _REPLAY_INPUT_CONTEXT: GFInputContext = preload(
-	"res://features/replays/resources/input/replay_input_context.tres"
+	"res://features/game_session/resources/input/replay_input_context.tres"
 )
 const _CLASSIC_DEFINITION_PATH: String = (
 	"res://features/gameplay/resources/tiles/definitions/classic_numeric_tile.tres"

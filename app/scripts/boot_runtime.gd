@@ -12,7 +12,7 @@ const MAIN_MENU_SCENE_PATH: String = "res://features/navigation/scenes/menus/mai
 const PLATFORM_SMOKE_SCENE_PATH: String = "res://features/platform_runtime/scenes/smoke_test/platform_smoke_test.tscn"
 const _PLATFORM_SMOKE_FEATURE: String = "platform_smoke"
 const _SCENE_PRELOAD_MAP: GFScenePreloadMap = preload("res://features/navigation/resources/scene_preload_map.tres")
-const _GAMEPLAY_VISUAL_WARMUP_SCRIPT: GDScript = preload("res://features/gameplay/scripts/ui/gameplay_visual_warmup.gd")
+const _GAMEPLAY_VISUAL_WARMUP_SCRIPT: GDScript = preload("res://features/game_session/scripts/ui/gameplay_visual_warmup.gd")
 const _STARTUP_RENDER_WARMUP_MANIFEST: GFRenderWarmupManifest = preload(
 	"res://features/themes/resources/themes/boot/startup_render_warmup_manifest.tres"
 )

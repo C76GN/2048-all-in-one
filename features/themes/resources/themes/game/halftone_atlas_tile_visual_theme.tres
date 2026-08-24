@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="TileVisualTheme" load_steps=14 format=3]
 
-[ext_resource type="Script" path="res://features/themes/scripts/data/tile_visual_theme.gd" id="1_theme"]
-[ext_resource type="Script" path="res://features/themes/scripts/data/tile_visual_family_style.gd" id="2_style"]
+[ext_resource type="Script" path="res://features/themes/scripts/data/tiles/tile_visual_theme.gd" id="1_theme"]
+[ext_resource type="Script" path="res://features/themes/scripts/data/tiles/tile_visual_family_style.gd" id="2_style"]
 [ext_resource type="Texture2D" path="res://features/asset_library/resources/textures/tile_patterns/kenney_fibonacci_blocks.png" id="3_fibonacci_pattern"]
 [ext_resource type="Texture2D" path="res://features/asset_library/resources/textures/tile_patterns/kenney_chevron_weave.png" id="4_hybrid_pattern"]
 [ext_resource type="Texture2D" path="res://features/asset_library/resources/textures/tile_patterns/kenney_diamond_grid.png" id="5_lucas_pattern"]

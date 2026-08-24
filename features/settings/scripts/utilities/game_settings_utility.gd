@@ -16,9 +16,6 @@ const DEFAULT_LOCALE: String = "zh"
 const AUDIO_BUS_MASTER: String = "Master"
 const AUDIO_BUS_BGM: String = "BGM"
 const AUDIO_BUS_SFX: String = "SFX"
-const LOCAL_PERFORMANCE_TRACE_SETTING_KEY: StringName = (
-	&"diagnostics/local_performance_trace_enabled"
-)
 
 
 # --- 私有变量 ---
@@ -263,7 +260,7 @@ func register_project_defaults() -> void:
 		{"group": "accessibility", "label": "TURN_SUBTITLES_LABEL"}
 	)
 	var _local_performance_trace_setting: GFSettingDefinition = register_setting(
-		LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
+		GamePerformanceTraceUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
 		false,
 		GFSettingDefinition.ValueType.BOOL,
 		true,

@@ -200,6 +200,18 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # --- 私有/辅助方法 ---
 
+func _get_game_ui_router_utility() -> GameUiRouterUtility:
+	var utility_value: Object = _find_optional_utility(GameUiRouterUtility)
+	if utility_value is GameUiRouterUtility:
+		var ui_router: GameUiRouterUtility = utility_value
+		return ui_router
+	var aliased_utility: GFUIRouterUtility = _get_ui_router_utility()
+	if aliased_utility is GameUiRouterUtility:
+		var game_ui_router: GameUiRouterUtility = aliased_utility
+		return game_ui_router
+	return null
+
+
 func _queue_layout_update() -> void:
 	if _layout_update_queued:
 		return
@@ -1225,11 +1237,11 @@ static func _prime_scene_with_router(
 	return router.prime_scene(scene_path)
 
 
-func _get_app_config_model() -> AppConfigModel:
-	var model_value: Object = get_model(AppConfigModel)
-	if model_value is AppConfigModel:
-		var app_config: AppConfigModel = model_value
-		return app_config
+func _get_session_launch_port() -> GameSessionLaunchPort:
+	var system_value: Object = get_system(GameSessionLaunchPort)
+	if system_value is GameSessionLaunchPort:
+		var launch_port: GameSessionLaunchPort = system_value
+		return launch_port
 	return null
 
 
@@ -1382,24 +1394,17 @@ func _start_selected_game(seed_source: StringName) -> void:
 		seed_source = GameSessionMetadata.SEED_SOURCE_RANDOM
 	var seed_value: int = _parse_seed_text(seed_text)
 
-	var app_config: AppConfigModel = _get_app_config_model()
-	if is_instance_valid(app_config):
-		app_config.selected_mode_config_path.set_value(
-			_selected_mode_config.resource_path
-		)
-		var selected_topology: Resource = _current_board_topology.duplicate(true)
-		app_config.selected_board_topology.set_value(selected_topology)
-		app_config.selected_board_is_custom.set_value(_current_board_is_custom)
-		app_config.selected_seed_source.set_value(seed_source)
-		app_config.selected_seed.set_value(seed_value)
-
-	var seed_util: GFSeedUtility = _get_seed_utility()
-	if is_instance_valid(seed_util):
-		seed_util.set_global_seed(seed_value)
-
-	var router: SceneRouterSystem = _get_scene_router_system()
-	if is_instance_valid(router):
-		router.goto_scene(game_play_scene_path)
+	var launch_port: GameSessionLaunchPort = _get_session_launch_port()
+	if not is_instance_valid(launch_port):
+		push_error("[ModeSelection] 缺少 GameSessionLaunchPort，无法启动游戏。")
+		return
+	var _launched: bool = launch_port.launch_new_game(
+		_selected_mode_config.resource_path,
+		_current_board_topology.to_dict(),
+		seed_value,
+		seed_source,
+		_current_board_is_custom
+	)
 
 
 # --- 信号处理函数 ---
@@ -1436,7 +1441,7 @@ func _on_edit_board_button_pressed() -> void:
 		return
 	var result: GFUIRouteResult = await ui_router.push_owned_route_async(
 		self,
-		GameUiRouterUtility.ROUTE_BOARD_EDITOR,
+		BoardEditorDialog.ROUTE_ID,
 		{},
 		{},
 		_configure_board_editor,

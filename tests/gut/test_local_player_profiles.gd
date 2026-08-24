@@ -140,6 +140,158 @@ func test_activation_then_immediate_dispose_cancels_queued_legacy_cleanup() -> v
 	)
 
 
+func test_legacy_cleanup_failure_exposes_sanitized_structured_evidence() -> void:
+	var save_graph: _ImmediateBootstrapSaveGraph = (
+		_ImmediateBootstrapSaveGraph.new()
+	)
+	save_graph.legacy_cleanup_error = ERR_SKIP
+	save_graph.legacy_cleanup_evidence = {
+		&"cleanup_kind": &"legacy_maintenance",
+		&"failure_phase": &"main_delete",
+		&"main_caller_end_kind": int(
+			GFStorageAsyncCallerResult.EndKind.DEADLINE_EXPIRED
+		),
+		&"main_caller_reason": &"deadline_expired",
+		&"main_physical_settlement_kind": int(
+			GFStorageAsyncResult.SettlementKind.CANCELLED
+		),
+		&"derived_status": &"not_started",
+		&"derived_total_count": 0,
+	}
+	var account_system: LocalAccountSystem = (
+		_make_isolated_activation_system(save_graph)
+	)
+	var completion: GFAsyncCompletion = account_system.begin_activation(
+		GFAsyncScope.new()
+	)
+	assert_true(completion != null and completion.is_successful())
+	await get_tree().process_frame
+	assert_push_error("legacy Profile 异步清理失败")
+	assert_true(account_system.get_last_cleanup_error() == ERR_SKIP)
+	var evidence: Dictionary = (
+		account_system.get_last_legacy_cleanup_evidence()
+	)
+	assert_true(
+		GFVariantData.get_option_string_name(
+			evidence,
+			&"cleanup_kind"
+		) == &"legacy_maintenance"
+		and GFVariantData.get_option_string_name(
+			evidence,
+			&"failure_phase"
+		) == &"main_delete"
+		and GFVariantData.get_option_int(
+			evidence,
+			&"main_caller_end_kind",
+			-1
+		) == int(GFStorageAsyncCallerResult.EndKind.DEADLINE_EXPIRED)
+		and GFVariantData.get_option_string_name(
+			evidence,
+			&"derived_status"
+		) == &"not_started",
+		"LocalAccount 必须保留 SaveGraph 的 main/derived 分阶段证据。"
+	)
+	var evidence_text: String = JSON.stringify(evidence)
+	assert_false(
+		evidence_text.contains("profile_file")
+		or evidence_text.contains("account_id")
+		or evidence_text.contains("payload")
+		or evidence_text.contains("profiles/"),
+		"LocalAccount legacy cleanup 诊断不得包含身份、路径或存档 payload。"
+	)
+	account_system.dispose()
+
+
+func test_dispose_during_pending_legacy_cleanup_ignores_late_result() -> void:
+	var save_graph: _ImmediateBootstrapSaveGraph = (
+		_ImmediateBootstrapSaveGraph.new()
+	)
+	save_graph.delay_legacy_cleanup = true
+	save_graph.legacy_cleanup_error = ERR_SKIP
+	var account_system: LocalAccountSystem = (
+		_make_isolated_activation_system(save_graph)
+	)
+	var completion: GFAsyncCompletion = account_system.begin_activation(
+		GFAsyncScope.new()
+	)
+	assert_true(completion != null and completion.is_successful())
+	await get_tree().process_frame
+	assert_true(
+		save_graph.legacy_cleanup_pending
+		and save_graph.legacy_cleanup_attempt_count == 1,
+		"回归必须先让 legacy cleanup 进入 await，再触发 dispose。"
+	)
+	account_system._last_legacy_cleanup_evidence = {
+		&"status": &"dispose_frozen",
+	}
+	account_system.dispose()
+	assert_true(account_system.get_last_cleanup_error() == OK)
+	var frozen_evidence: Dictionary = (
+		account_system.get_last_legacy_cleanup_evidence()
+	)
+	save_graph.settle_legacy_cleanup()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_true(
+		save_graph.legacy_cleanup_evidence_read_count == 0,
+		"dispose 后迟到 cleanup 不得再读取已释放 SaveGraph 的诊断。"
+	)
+	assert_true(
+		account_system.get_last_cleanup_error() == OK
+		and account_system.get_last_legacy_cleanup_evidence()
+		== frozen_evidence,
+		"dispose 冻结的终态不得被迟到 cleanup 错误或证据覆盖。"
+	)
+
+
+func test_quiesce_waits_for_pending_legacy_cleanup_then_completes() -> void:
+	var save_graph: _ImmediateBootstrapSaveGraph = (
+		_ImmediateBootstrapSaveGraph.new()
+	)
+	save_graph.delay_legacy_cleanup = true
+	save_graph.legacy_cleanup_evidence = {
+		&"cleanup_kind": &"legacy_maintenance",
+		&"failure_phase": &"none",
+	}
+	var account_system: LocalAccountSystem = (
+		_make_isolated_activation_system(save_graph)
+	)
+	var activation: GFAsyncCompletion = account_system.begin_activation(
+		GFAsyncScope.new()
+	)
+	assert_true(activation != null and activation.is_successful())
+	await get_tree().process_frame
+	assert_true(
+		save_graph.legacy_cleanup_pending
+		and account_system._legacy_cleanup_in_progress,
+		"回归必须先让 legacy cleanup 进入 await，再开启 quiesce。"
+	)
+
+	var quiesce: GFAsyncCompletion = account_system.begin_quiesce(
+		GFAsyncScope.new()
+	)
+	assert_true(
+		quiesce != null and quiesce.is_pending(),
+		"legacy cleanup 未抵达终态前 quiesce 不得提前成功。"
+	)
+	save_graph.settle_legacy_cleanup()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	assert_true(
+		quiesce.is_successful(),
+		"legacy cleanup 结算后 quiesce 必须成功排空。"
+	)
+	assert_false(account_system._legacy_cleanup_in_progress)
+	assert_false(account_system._legacy_cleanup_runner_started)
+	assert_true(
+		save_graph.legacy_cleanup_evidence_read_count == 1,
+		"未 dispose 的正常终态必须且只能读取一次 cleanup 证据。"
+	)
+	assert_true(account_system.get_last_cleanup_error() == OK)
+	assert_false(account_system.get_last_legacy_cleanup_evidence().is_empty())
+	account_system.dispose()
+
+
 func test_cancelled_bootstrap_restores_profile_sections_and_transition_gate() -> void:
 	var storage: _HangingProfileReadStorage = (
 		_HangingProfileReadStorage.new()
@@ -769,6 +921,501 @@ func test_cleanup_terminal_before_reconciliation_is_observed_by_tick_query() -> 
 	_dispose_setup(setup)
 
 
+func test_delete_known_cleanup_failure_retries_explicitly_without_republishing() -> void:
+	var save_graph: _ScriptedRollbackSaveGraph = (
+		_ScriptedRollbackSaveGraph.new()
+	)
+	var setup: Dictionary = await _create_setup(null, null, save_graph)
+	var accounts: LocalAccountSystem = _get_account_system(setup)
+	var first: LocalPlayerAccount = accounts.get_active_account()
+	var create_result: LocalAccountOperationResult = (
+		await _await_successful_account_operation(
+			accounts.request_create_account("待删除确定性清理账号"),
+			setup,
+			"删除清理重试测试必须先创建第二账号。"
+		)
+	)
+	assert_not_null(create_result)
+	var deleted: LocalPlayerAccount = accounts.get_active_account()
+	var probe: _AccountEventProbe = _get_account_event_probe(setup)
+	probe.reset()
+	watch_signals(accounts)
+	save_graph.cleanup_retry_error = ERR_CANT_CREATE
+
+	var delete_result: LocalAccountOperationResult = await _await_account_operation(
+		accounts.request_delete_account(deleted.account_id),
+		setup
+	)
+	assert_true(
+		delete_result != null
+		and delete_result.get_status()
+		== LocalAccountOperationResult.STATUS_CLEANUP_FAILED
+		and accounts.is_account_reconciliation_pending()
+		and accounts.get_active_account().account_id == first.account_id
+	)
+	assert_signal_emit_count(accounts, "active_account_changed", 1)
+	assert_signal_emit_count(accounts, "account_catalog_changed", 1)
+	assert_true(probe.active_account_event_count == 1)
+	var blocked: LocalAccountOperation = accounts.request_rename_account(
+		first.account_id,
+		"DELETE 清理失败保持 gate"
+	)
+	assert_true(
+		blocked.is_completed()
+		and blocked.get_result().get_status()
+		== LocalAccountOperationResult.STATUS_BUSY
+	)
+	var architecture_value: Variant = setup.get(&"architecture")
+	if not architecture_value is GFArchitecture:
+		assert_true(false, "测试 setup 缺少 GFArchitecture。")
+		_dispose_setup(setup)
+		return
+	var architecture: GFArchitecture = architecture_value
+	for _frame: int in range(12):
+		architecture.tick(1.0 / 60.0)
+		await get_tree().process_frame
+	assert_true(
+		save_graph.cleanup_profile_calls.size() == 1,
+		"DELETE 确定性清理失败不能逐帧自动重试。"
+	)
+
+	save_graph.cleanup_retry_error = OK
+	assert_true(accounts.request_account_reconciliation() == OK)
+	await _await_account_reconciliation(accounts, setup)
+	assert_true(save_graph.cleanup_profile_calls.size() == 2)
+	assert_signal_emit_count(accounts, "active_account_changed", 1)
+	assert_signal_emit_count(accounts, "account_catalog_changed", 1)
+	assert_true(
+		probe.active_account_event_count == 1,
+		"DELETE cleanup retry 成功不得重复发布账号删除事件。"
+	)
+	_dispose_setup(setup)
+
+
+func test_create_profile_failure_cleanup_timeout_keeps_account_gate() -> void:
+	var save_graph: _ScriptedRollbackSaveGraph = (
+		_ScriptedRollbackSaveGraph.new()
+	)
+	var setup: Dictionary = await _create_setup(null, null, save_graph)
+	var accounts: LocalAccountSystem = _get_account_system(setup)
+	var previous: LocalPlayerAccount = accounts.get_active_account()
+	save_graph.next_activation_error = ERR_CANT_OPEN
+	save_graph.timeout_next_cleanup = true
+	save_graph.cleanup_retry_error = ERR_CANT_CREATE
+
+	var result: LocalAccountOperationResult = await _await_account_operation(
+		accounts.request_create_account("创建回滚清理超时"),
+		setup
+	)
+	assert_true(
+		result != null
+		and result.get_status()
+		== LocalAccountOperationResult.STATUS_CLEANUP_OUTCOME_UNKNOWN
+		and accounts.is_account_reconciliation_pending()
+	)
+	assert_true(
+		save_graph.cleanup_profile_calls.size() == 1
+		and save_graph.is_profile_cleanup_pending(
+			save_graph.cleanup_profile_calls[0]
+		),
+		"CREATE 补偿删除 outcome-unknown 时必须保留精确 Profile 路径。"
+	)
+	var blocked: LocalAccountOperation = accounts.request_rename_account(
+		previous.account_id,
+		"清理终态前不得接受新事务"
+	)
+	assert_true(
+		blocked.is_completed()
+		and blocked.get_result().get_status()
+		== LocalAccountOperationResult.STATUS_BUSY,
+		"CREATE cleanup reconciliation 必须继续持有账号级协调锁。"
+	)
+
+	save_graph.settle_cleanup_timeout()
+	await _await_reconciliation_status(
+		accounts,
+		setup,
+		&"create_rollback_cleanup_retry_required"
+	)
+	assert_true(save_graph.cleanup_profile_calls.size() == 2)
+	assert_true(
+		GFVariantData.get_option_string_name(
+			accounts.get_last_reconciliation_evidence(),
+			&"status"
+		)
+		== &"create_rollback_cleanup_retry_required",
+		"迟到清理的确定性失败必须保留显式可重试补偿状态。"
+	)
+	assert_true(
+		accounts.get_accounts().size() == 1
+		and accounts.get_active_account().account_id == previous.account_id
+		and accounts.is_account_reconciliation_pending()
+		and accounts.get_last_cleanup_error() == ERR_CANT_CREATE,
+		"派生清理已知失败不得把已回滚删除的候选账号重新插回目录。"
+	)
+	var architecture_value: Variant = setup.get(&"architecture")
+	if not architecture_value is GFArchitecture:
+		assert_true(false, "测试 setup 缺少 GFArchitecture。")
+		_dispose_setup(setup)
+		return
+	var architecture: GFArchitecture = architecture_value
+	for _frame: int in range(12):
+		architecture.tick(1.0 / 60.0)
+		await get_tree().process_frame
+	assert_true(
+		save_graph.cleanup_profile_calls.size() == 2,
+		"确定性失败不能由 tick 自动形成 cleanup 热循环。"
+	)
+	save_graph.cleanup_retry_error = OK
+	assert_true(accounts.request_account_reconciliation() == OK)
+	await _await_account_reconciliation(accounts, setup)
+	assert_true(
+		save_graph.cleanup_profile_calls.size() == 3
+		and accounts.get_last_cleanup_error() == OK
+		and GFVariantData.get_option_string_name(
+			accounts.get_last_reconciliation_evidence(),
+			&"status"
+		) == &"create_rollback_cleanup_reconciled"
+	)
+	_dispose_setup(setup)
+
+
+func test_create_catalog_activation_failure_cleanup_timeout_reconciles() -> void:
+	var save_graph: _ScriptedRollbackSaveGraph = (
+		_ScriptedRollbackSaveGraph.new()
+	)
+	var catalog: _ScriptedRollbackCatalog = _ScriptedRollbackCatalog.new()
+	var setup: Dictionary = await _create_setup(
+		null,
+		null,
+		save_graph,
+		true,
+		catalog
+	)
+	var accounts: LocalAccountSystem = _get_account_system(setup)
+	var previous: LocalPlayerAccount = accounts.get_active_account()
+	var probe: _AccountEventProbe = _get_account_event_probe(setup)
+	probe.reset()
+	watch_signals(accounts)
+	catalog.next_set_active_error = ERR_CANT_CREATE
+	save_graph.timeout_next_cleanup = true
+
+	var result: LocalAccountOperationResult = await _await_account_operation(
+		accounts.request_create_account("激活回滚清理超时"),
+		setup
+	)
+	assert_true(
+		result != null
+		and result.get_status()
+		== LocalAccountOperationResult.STATUS_CLEANUP_OUTCOME_UNKNOWN
+		and accounts.is_account_reconciliation_pending()
+	)
+	assert_true(
+		accounts.get_accounts().size() == 1
+		and accounts.get_active_account().account_id == previous.account_id
+		and save_graph.cleanup_profile_calls.size() == 1
+	)
+
+	save_graph.settle_cleanup_timeout()
+	await _await_account_reconciliation(accounts, setup)
+	assert_true(save_graph.cleanup_profile_calls.size() == 2)
+	assert_true(
+		GFVariantData.get_option_string_name(
+			accounts.get_last_reconciliation_evidence(),
+			&"status"
+		)
+		== &"create_rollback_cleanup_reconciled"
+	)
+	assert_signal_emit_count(accounts, "active_account_changed", 0)
+	assert_signal_emit_count(accounts, "account_catalog_changed", 0)
+	assert_true(
+		probe.active_account_event_count == 0,
+		"创建补偿清理收敛不得发布一次虚假的账号创建或切换成功事件。"
+	)
+	_dispose_setup(setup)
+
+
+func test_create_known_cleanup_failure_requires_one_explicit_retry() -> void:
+	var save_graph: _ScriptedRollbackSaveGraph = (
+		_ScriptedRollbackSaveGraph.new()
+	)
+	var setup: Dictionary = await _create_setup(null, null, save_graph)
+	var accounts: LocalAccountSystem = _get_account_system(setup)
+	var previous: LocalPlayerAccount = accounts.get_active_account()
+	save_graph.next_activation_error = ERR_CANT_OPEN
+	save_graph.cleanup_retry_error = ERR_CANT_CREATE
+
+	var result: LocalAccountOperationResult = await _await_account_operation(
+		accounts.request_create_account("创建确定性清理失败"),
+		setup
+	)
+	assert_true(
+		result != null
+		and result.get_status()
+		== LocalAccountOperationResult.STATUS_ROLLBACK_FAILED
+		and accounts.is_account_reconciliation_pending()
+		and accounts.get_last_cleanup_error() == ERR_CANT_CREATE
+	)
+	assert_true(save_graph.cleanup_profile_calls.size() == 1)
+	var blocked: LocalAccountOperation = accounts.request_rename_account(
+		previous.account_id,
+		"确定性清理失败时保持 gate"
+	)
+	assert_true(
+		blocked.is_completed()
+		and blocked.get_result().get_status()
+		== LocalAccountOperationResult.STATUS_BUSY
+	)
+	var architecture_value: Variant = setup.get(&"architecture")
+	if not architecture_value is GFArchitecture:
+		assert_true(false, "测试 setup 缺少 GFArchitecture。")
+		_dispose_setup(setup)
+		return
+	var architecture: GFArchitecture = architecture_value
+	for _frame: int in range(12):
+		architecture.tick(1.0 / 60.0)
+		await get_tree().process_frame
+	assert_true(save_graph.cleanup_profile_calls.size() == 1)
+
+	save_graph.cleanup_retry_error = OK
+	assert_true(accounts.request_account_reconciliation() == OK)
+	await _await_account_reconciliation(accounts, setup)
+	assert_true(
+		save_graph.cleanup_profile_calls.size() == 2
+		and not accounts.is_account_reconciliation_pending()
+		and accounts.get_last_cleanup_error() == OK
+	)
+	_dispose_setup(setup)
+
+
+func test_create_catalog_rollback_known_failure_does_not_delete_profile() -> void:
+	var save_graph: _ScriptedRollbackSaveGraph = (
+		_ScriptedRollbackSaveGraph.new()
+	)
+	var catalog: _ScriptedRollbackCatalog = _ScriptedRollbackCatalog.new()
+	var setup: Dictionary = await _create_setup(
+		null,
+		null,
+		save_graph,
+		true,
+		catalog
+	)
+	var accounts: LocalAccountSystem = _get_account_system(setup)
+	var probe: _AccountEventProbe = _get_account_event_probe(setup)
+	probe.reset()
+	watch_signals(accounts)
+	save_graph.next_activation_error = ERR_CANT_OPEN
+	catalog.next_delete_error = ERR_CANT_CREATE
+
+	var result: LocalAccountOperationResult = await _await_account_operation(
+		accounts.request_create_account("目录回滚已知失败"),
+		setup
+	)
+	assert_true(
+		result != null
+		and result.get_status()
+		== LocalAccountOperationResult.STATUS_ROLLBACK_FAILED
+		and result.get_error_code() == ERR_CANT_CREATE
+	)
+	assert_true(
+		save_graph.cleanup_profile_calls.is_empty(),
+		"目录仍引用候选账号时绝不能启动 Profile 补偿删除。"
+	)
+	assert_true(
+		accounts.get_accounts().size() == 2
+		and not accounts.is_account_reconciliation_pending()
+	)
+	assert_signal_emit_count(accounts, "active_account_changed", 0)
+	assert_signal_emit_count(accounts, "account_catalog_changed", 1)
+	assert_true(
+		probe.active_account_event_count == 0,
+		"补偿目录删除确定性失败只暴露残留目录项，不得冒充账号激活。"
+	)
+	_dispose_setup(setup)
+
+
+func test_create_catalog_rollback_late_success_deletes_profile_after_settle() -> void:
+	var save_graph: _ScriptedRollbackSaveGraph = (
+		_ScriptedRollbackSaveGraph.new()
+	)
+	var catalog: _ScriptedRollbackCatalog = _ScriptedRollbackCatalog.new()
+	var setup: Dictionary = await _create_setup(
+		null,
+		null,
+		save_graph,
+		true,
+		catalog
+	)
+	var accounts: LocalAccountSystem = _get_account_system(setup)
+	var previous: LocalPlayerAccount = accounts.get_active_account()
+	var probe: _AccountEventProbe = _get_account_event_probe(setup)
+	probe.reset()
+	watch_signals(accounts)
+	save_graph.next_activation_error = ERR_CANT_OPEN
+	catalog.timeout_next_delete = true
+
+	var result: LocalAccountOperationResult = await _await_account_operation(
+		accounts.request_create_account("目录回滚迟到成功"),
+		setup
+	)
+	assert_true(
+		result != null
+		and result.get_status()
+		== LocalAccountOperationResult.STATUS_CATALOG_OUTCOME_UNKNOWN
+		and accounts.is_account_reconciliation_pending()
+		and save_graph.cleanup_profile_calls.is_empty(),
+		"目录删除物理结果未知时不得抢先删除 Profile。"
+	)
+	save_graph.cleanup_retry_error = ERR_CANT_CREATE
+	catalog.settle_pending_delete(true)
+	await _await_reconciliation_status(
+		accounts,
+		setup,
+		&"create_rollback_cleanup_retry_required"
+	)
+	assert_true(
+		save_graph.cleanup_profile_calls.size() == 1
+		and accounts.get_accounts().size() == 1
+		and accounts.get_active_account().account_id == previous.account_id
+		and accounts.is_account_reconciliation_pending()
+	)
+	assert_true(
+		GFVariantData.get_option_string_name(
+			accounts.get_last_reconciliation_evidence(),
+			&"status"
+		)
+		== &"create_rollback_cleanup_retry_required"
+	)
+	var architecture_value: Variant = setup.get(&"architecture")
+	if not architecture_value is GFArchitecture:
+		assert_true(false, "测试 setup 缺少 GFArchitecture。")
+		_dispose_setup(setup)
+		return
+	var architecture: GFArchitecture = architecture_value
+	for _frame: int in range(12):
+		architecture.tick(1.0 / 60.0)
+		await get_tree().process_frame
+	assert_true(save_graph.cleanup_profile_calls.size() == 1)
+	assert_signal_emit_count(accounts, "active_account_changed", 0)
+	assert_signal_emit_count(accounts, "account_catalog_changed", 0)
+	assert_true(
+		probe.active_account_event_count == 0,
+		"创建补偿目录迟到成功只完成撤销，不得冒充一次账号创建成功。"
+	)
+	save_graph.cleanup_retry_error = OK
+	assert_true(accounts.request_account_reconciliation() == OK)
+	await _await_account_reconciliation(accounts, setup)
+	assert_true(
+		save_graph.cleanup_profile_calls.size() == 2
+		and GFVariantData.get_option_string_name(
+			accounts.get_last_reconciliation_evidence(),
+			&"status"
+		) == &"create_rollback_cleanup_reconciled"
+	)
+	assert_signal_emit_count(accounts, "active_account_changed", 0)
+	assert_signal_emit_count(accounts, "account_catalog_changed", 0)
+	assert_true(probe.active_account_event_count == 0)
+	_dispose_setup(setup)
+
+
+func test_create_catalog_rollback_late_failure_preserves_profile() -> void:
+	var save_graph: _ScriptedRollbackSaveGraph = (
+		_ScriptedRollbackSaveGraph.new()
+	)
+	var catalog: _ScriptedRollbackCatalog = _ScriptedRollbackCatalog.new()
+	var setup: Dictionary = await _create_setup(
+		null,
+		null,
+		save_graph,
+		true,
+		catalog
+	)
+	var accounts: LocalAccountSystem = _get_account_system(setup)
+	var probe: _AccountEventProbe = _get_account_event_probe(setup)
+	probe.reset()
+	watch_signals(accounts)
+	save_graph.next_activation_error = ERR_CANT_OPEN
+	catalog.timeout_next_delete = true
+
+	var result: LocalAccountOperationResult = await _await_account_operation(
+		accounts.request_create_account("目录回滚迟到失败"),
+		setup
+	)
+	assert_true(
+		result != null
+		and result.get_status()
+		== LocalAccountOperationResult.STATUS_CATALOG_OUTCOME_UNKNOWN
+	)
+	catalog.settle_pending_delete(false)
+	await _await_account_reconciliation(accounts, setup)
+	assert_true(
+		save_graph.cleanup_profile_calls.is_empty(),
+		"目录迟到失败后候选账号仍属目录，Profile 必须保留。"
+	)
+	assert_true(
+		accounts.get_accounts().size() == 2
+		and GFVariantData.get_option_string_name(
+			accounts.get_last_reconciliation_evidence(),
+			&"status"
+		)
+		== &"catalog_late_failure_rolled_back"
+	)
+	assert_signal_emit_count(accounts, "active_account_changed", 0)
+	assert_signal_emit_count(accounts, "account_catalog_changed", 1)
+	assert_true(
+		probe.active_account_event_count == 0,
+		"补偿目录删除迟到失败只发布一次目录刷新。"
+	)
+	_dispose_setup(setup)
+
+
+func test_create_set_active_late_failure_exposes_retained_candidate_once() -> void:
+	var save_graph: _ScriptedRollbackSaveGraph = (
+		_ScriptedRollbackSaveGraph.new()
+	)
+	var catalog: _ScriptedRollbackCatalog = _ScriptedRollbackCatalog.new()
+	var setup: Dictionary = await _create_setup(
+		null,
+		null,
+		save_graph,
+		true,
+		catalog
+	)
+	var accounts: LocalAccountSystem = _get_account_system(setup)
+	var previous: LocalPlayerAccount = accounts.get_active_account()
+	var probe: _AccountEventProbe = _get_account_event_probe(setup)
+	probe.reset()
+	watch_signals(accounts)
+	catalog.timeout_next_set_active = true
+
+	var result: LocalAccountOperationResult = await _await_account_operation(
+		accounts.request_create_account("激活迟到失败残留账号"),
+		setup
+	)
+	assert_true(
+		result != null
+		and result.get_status()
+		== LocalAccountOperationResult.STATUS_CATALOG_OUTCOME_UNKNOWN
+		and result.get_account() != null
+		and accounts.is_account_reconciliation_pending()
+	)
+	var retained: LocalPlayerAccount = result.get_account()
+	catalog.settle_pending_set_active(false)
+	await _await_account_reconciliation(accounts, setup)
+	assert_true(
+		accounts.get_accounts().size() == 2
+		and catalog.get_account(retained.account_id) != null
+		and accounts.get_active_account().account_id == previous.account_id
+	)
+	assert_signal_emit_count(accounts, "active_account_changed", 0)
+	assert_signal_emit_count(accounts, "account_catalog_changed", 1)
+	assert_true(
+		probe.active_account_event_count == 0,
+		"set_active 迟到失败只暴露仍由目录持有的候选账号。"
+	)
+	_dispose_setup(setup)
+
+
 func test_profile_outcome_unknown_keeps_account_and_path_until_late_settle() -> void:
 	var storage: _HangingProfileStorage = _HangingProfileStorage.new()
 	var clock: GFManualClock = GFManualClock.new(0, 1_000_000)
@@ -1339,8 +1986,13 @@ func test_cancelled_device_progress_snapshot_ignores_late_storage_result() -> vo
 	assert_not_null(create_result)
 	storage.hang_profile_reads = true
 	var cancel_source: GFCancellationSource = GFCancellationSource.new()
+	var account_catalog_snapshot: DeviceProgressAccountCatalogSnapshot = (
+		accounts.capture_device_progress_account_catalog_snapshot()
+	)
+	assert_not_null(account_catalog_snapshot)
 	var completion: GFAsyncCompletion = (
 		progress.request_device_progress_snapshot(
+			account_catalog_snapshot,
 			cancel_source.get_token()
 		)
 	)
@@ -1394,8 +2046,12 @@ func test_device_progress_snapshot_times_out_without_caller_token_and_ignores_la
 	assert_not_null(create_result)
 	storage.hang_profile_reads = true
 	progress._device_snapshot_timeout_seconds = 0.02
+	var account_catalog_snapshot: DeviceProgressAccountCatalogSnapshot = (
+		accounts.capture_device_progress_account_catalog_snapshot()
+	)
+	assert_not_null(account_catalog_snapshot)
 	var completion: GFAsyncCompletion = (
-		progress.request_device_progress_snapshot()
+		progress.request_device_progress_snapshot(account_catalog_snapshot)
 	)
 	assert_true(completion != null and completion.is_pending())
 	for _frame: int in range(120):
@@ -1494,8 +2150,12 @@ func test_device_progress_snapshot_rejects_profile_catalog_transition_window() -
 		and accounts.get_active_account().account_id == second.account_id,
 		"测试必须命中 Profile 已切换但目录尚未提交的事务窗口。"
 	)
+	var account_catalog_snapshot: DeviceProgressAccountCatalogSnapshot = (
+		accounts.capture_device_progress_account_catalog_snapshot()
+	)
+	assert_not_null(account_catalog_snapshot)
 	var completion: GFAsyncCompletion = (
-		progress.request_device_progress_snapshot()
+		progress.request_device_progress_snapshot(account_catalog_snapshot)
 	)
 	assert_true(
 		completion.is_failed()
@@ -1506,6 +2166,31 @@ func test_device_progress_snapshot_rejects_profile_catalog_transition_window() -
 		)
 		== ERR_BUSY,
 		"目录账号与当前 Profile 不一致时必须拒绝快照，不能错标跨账号统计。"
+	)
+	var transition_metadata: Dictionary = completion.get_metadata()
+	assert_true(
+		GFVariantData.get_option_bool(
+			transition_metadata,
+			&"reconciliation",
+			false
+		)
+		and GFVariantData.get_option_string(
+			transition_metadata,
+			&"active_account_id"
+		) == second.account_id
+		and GFVariantData.get_option_string(
+			transition_metadata,
+			&"catalog_profile_file"
+		) == LocalAccountCatalogUtility.make_profile_file_name(
+			second.account_id
+		)
+		and GFVariantData.get_option_string(
+			transition_metadata,
+			&"active_profile_file"
+		) == LocalAccountCatalogUtility.make_profile_file_name(
+			first.account_id
+		),
+		"调用方冻结的目录路径必须完整保留原有 reconciliation 证据。"
 	)
 	var switch_result: LocalAccountOperationResult = (
 		await _await_account_operation(switch_operation, setup)
@@ -1625,8 +2310,16 @@ func _await_progress_snapshot(
 ) -> Dictionary:
 	if progress == null:
 		return {}
+	var account_system: LocalAccountSystem = _get_account_system(setup)
+	if account_system == null:
+		return {}
+	var account_catalog_snapshot: DeviceProgressAccountCatalogSnapshot = (
+		account_system.capture_device_progress_account_catalog_snapshot()
+	)
+	if account_catalog_snapshot == null:
+		return {}
 	var completion: GFAsyncCompletion = (
-		progress.request_device_progress_snapshot()
+		progress.request_device_progress_snapshot(account_catalog_snapshot)
 	)
 	if completion == null:
 		return {}
@@ -1869,6 +2562,34 @@ func _await_account_reconciliation(
 	)
 
 
+func _await_reconciliation_status(
+	accounts: LocalAccountSystem,
+	setup: Dictionary,
+	expected_status: StringName
+) -> void:
+	var architecture_value: Variant = setup.get(&"architecture")
+	if not architecture_value is GFArchitecture:
+		assert_true(false, "测试 setup 缺少 GFArchitecture。")
+		_dispose_setup(setup)
+		return
+	var architecture: GFArchitecture = architecture_value
+	for _frame: int in range(600):
+		architecture.tick(1.0 / 60.0)
+		await get_tree().process_frame
+		if GFVariantData.get_option_string_name(
+			accounts.get_last_reconciliation_evidence(),
+			&"status"
+		) == expected_status:
+			break
+	assert_true(
+		GFVariantData.get_option_string_name(
+			accounts.get_last_reconciliation_evidence(),
+			&"status"
+		) == expected_status,
+		"账号 reconciliation 必须抵达预期证据状态 %s。" % expected_status
+	)
+
+
 func _make_result(
 	score: int,
 	steps: int,
@@ -1900,7 +2621,8 @@ func _create_setup(
 	storage_override: GFStorageUtility = null,
 	clock_override: GFManualClock = null,
 	save_graph_override: GameSaveGraphUtility = null,
-	expected_init_success: bool = true
+	expected_init_success: bool = true,
+	account_catalog_override: LocalAccountCatalogUtility = null
 ) -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var storage: GFStorageUtility = (
@@ -1929,7 +2651,9 @@ func _create_setup(
 		"GFStorage caller deadline 必须使用与测试架构相同的单调时钟。"
 	)
 	var account_catalog: LocalAccountCatalogUtility = (
-		LocalAccountCatalogUtility.new()
+		account_catalog_override
+		if account_catalog_override != null
+		else LocalAccountCatalogUtility.new()
 	)
 	var save_graph: GameSaveGraphUtility = (
 		save_graph_override
@@ -1972,6 +2696,10 @@ func _create_setup(
 	await architecture.register_utility(
 		LocalAccountCatalogUtility,
 		account_catalog
+	)
+	await architecture.register_utility(
+		ChunkProfileUtility,
+		ChunkProfileUtility.new()
 	)
 	await architecture.register_utility(GameSaveGraphUtility, save_graph)
 	await architecture.register_system(LocalAccountSystem, account_system)
@@ -2763,6 +3491,206 @@ class _HangingProfileDeleteStorage extends GFStorageUtility:
 		return true
 
 
+class _ScriptedRollbackSaveGraph extends GameSaveGraphUtility:
+	var next_activation_error: Error = OK
+	var timeout_next_cleanup: bool = false
+	var cleanup_retry_error: Error = OK
+	var cleanup_profile_calls: Array[String] = []
+	var pending_cleanup_profile_file: String = ""
+
+
+	## @param profile_file_name: 要按脚本结果激活的 Profile 文件名。
+	## @param adopt_current_if_missing: 目标缺失时是否采用当前内存数据。
+	func activate_profile_async(
+		profile_file_name: String,
+		adopt_current_if_missing: bool = false
+	) -> Error:
+		if next_activation_error != OK:
+			var scripted_error: Error = next_activation_error
+			next_activation_error = OK
+			_profile_transition_outcome_unknown = false
+			return scripted_error
+		return await super.activate_profile_async(
+			profile_file_name,
+			adopt_current_if_missing
+		)
+
+
+	## @param profile_file_name: 要按脚本结果清理的非活动 Profile 文件名。
+	func delete_inactive_profile_async(profile_file_name: String) -> Error:
+		cleanup_profile_calls.append(profile_file_name)
+		if timeout_next_cleanup:
+			timeout_next_cleanup = false
+			pending_cleanup_profile_file = profile_file_name
+			return ERR_TIMEOUT
+		return cleanup_retry_error
+
+
+	## @param profile_file_name: 要查询待决清理状态的 Profile 文件名。
+	func is_profile_cleanup_pending(profile_file_name: String) -> bool:
+		if profile_file_name == pending_cleanup_profile_file:
+			return true
+		return super.is_profile_cleanup_pending(profile_file_name)
+
+
+	func settle_cleanup_timeout() -> void:
+		if pending_cleanup_profile_file.is_empty():
+			return
+		pending_cleanup_profile_file = ""
+		profile_cleanup_task_terminal.emit(&"scripted-profile-cleanup")
+
+
+class _ScriptedRollbackCatalog extends LocalAccountCatalogUtility:
+	var next_set_active_error: Error = OK
+	var next_delete_error: Error = OK
+	var timeout_next_set_active: bool = false
+	var timeout_next_delete: bool = false
+	var delete_call_count: int = 0
+	var pending_set_active_account_id: String = ""
+	var pending_set_active_previous_account_id: String = ""
+	var pending_delete_account_id: String = ""
+	var pending_previous_active_account_id: String = ""
+	var _scripted_storage_result: Dictionary = {}
+	var _scripted_request_id: int = 6_000_000
+
+
+	func get_last_async_storage_result() -> Dictionary:
+		if not _scripted_storage_result.is_empty():
+			return _scripted_storage_result.duplicate(true)
+		return super.get_last_async_storage_result()
+
+
+	## @param account_id: 要按脚本结果设为活动状态的账号 ID。
+	## @param publish_signals: 是否发布账号切换信号。
+	func set_active_account_async(
+		account_id: String,
+		publish_signals: bool = true
+	) -> Error:
+		if timeout_next_set_active:
+			timeout_next_set_active = false
+			pending_set_active_account_id = account_id
+			pending_set_active_previous_account_id = get_active_account_id()
+			_set_scripted_storage_result(&"outcome_unknown", ERR_TIMEOUT)
+			return ERR_TIMEOUT
+		if next_set_active_error != OK:
+			var scripted_error: Error = next_set_active_error
+			next_set_active_error = OK
+			_set_scripted_storage_result(&"failed", scripted_error)
+			return scripted_error
+		_scripted_storage_result.clear()
+		return await super.set_active_account_async(account_id, publish_signals)
+
+
+	## @param success: 待决账号切换是否以成功终止。
+	func settle_pending_set_active(success: bool) -> void:
+		if pending_set_active_account_id.is_empty():
+			return
+		var account_id: String = pending_set_active_account_id
+		var previous_active_account_id: String = (
+			pending_set_active_previous_account_id
+		)
+		pending_set_active_account_id = ""
+		pending_set_active_previous_account_id = ""
+		var settlement_error: Error = ERR_CANT_CREATE
+		if success and _find_account_index(account_id) >= 0:
+			_active_account_id = account_id
+			settlement_error = OK
+		var result: GFStorageAsyncResult = _make_scripted_storage_result(
+			settlement_error
+		)
+		_set_scripted_storage_result(&"late_settled", settlement_error)
+		catalog_storage_late_settled.emit(
+			result,
+			OK if settlement_error == OK else settlement_error,
+			previous_active_account_id,
+			get_active_account_id()
+		)
+
+
+	## @param account_id: 要按脚本结果删除的账号 ID。
+	## @param publish_signals: 是否发布账号删除信号。
+	func delete_account_async(
+		account_id: String,
+		publish_signals: bool = true
+	) -> Error:
+		delete_call_count += 1
+		if timeout_next_delete:
+			timeout_next_delete = false
+			pending_delete_account_id = account_id
+			pending_previous_active_account_id = get_active_account_id()
+			_set_scripted_storage_result(&"outcome_unknown", ERR_TIMEOUT)
+			return ERR_TIMEOUT
+		if next_delete_error != OK:
+			var scripted_error: Error = next_delete_error
+			next_delete_error = OK
+			_set_scripted_storage_result(&"failed", scripted_error)
+			return scripted_error
+		_scripted_storage_result.clear()
+		return await super.delete_account_async(account_id, publish_signals)
+
+
+	## @param success: 待决账号删除是否以成功终止。
+	func settle_pending_delete(success: bool) -> void:
+		if pending_delete_account_id.is_empty():
+			return
+		var account_id: String = pending_delete_account_id
+		var previous_active_account_id: String = (
+			pending_previous_active_account_id
+		)
+		pending_delete_account_id = ""
+		pending_previous_active_account_id = ""
+		_scripted_storage_result.clear()
+		var settlement_error: Error = ERR_CANT_CREATE
+		if success:
+			var account_index: int = _find_account_index(account_id)
+			if account_index >= 0 and account_id != get_active_account_id():
+				_accounts.remove_at(account_index)
+				settlement_error = OK
+		var result: GFStorageAsyncResult = _make_scripted_storage_result(
+			settlement_error
+		)
+		_set_scripted_storage_result(&"late_settled", settlement_error)
+		catalog_storage_late_settled.emit(
+			result,
+			OK if settlement_error == OK else settlement_error,
+			previous_active_account_id,
+			get_active_account_id()
+		)
+
+
+	func _make_scripted_storage_result(
+		settlement_error: Error
+	) -> GFStorageAsyncResult:
+		var result: GFStorageAsyncResult = GFStorageAsyncResult.new()
+		var request_id: int = _scripted_request_id
+		_scripted_request_id += 1
+		var _configured: bool = result.configure_for_framework(
+			request_id,
+			GFStorageAsyncOperation.OPERATION_SAVE,
+			LocalAccountCatalogUtility.CATALOG_FILE_NAME,
+			settlement_error == OK,
+			settlement_error,
+			null,
+			(
+				GFStorageAsyncResult.WriteFailureKind.NONE
+				if settlement_error == OK
+				else GFStorageAsyncResult.WriteFailureKind.IO_FAILED
+			)
+		)
+		return result
+
+
+	func _set_scripted_storage_result(
+		status: StringName,
+		error_code: Error
+	) -> void:
+		_scripted_storage_result = {
+			&"ok": error_code == OK,
+			&"status": status,
+			&"error_code": int(error_code),
+		}
+
+
 class _FailingBootstrapSaveGraph extends GameSaveGraphUtility:
 	var bootstrap_attempt_count: int = 0
 
@@ -2805,7 +3733,14 @@ class _PendingBootstrapSaveGraph extends GameSaveGraphUtility:
 
 
 class _ImmediateBootstrapSaveGraph extends GameSaveGraphUtility:
+	signal legacy_cleanup_settled()
+
 	var legacy_cleanup_attempt_count: int = 0
+	var legacy_cleanup_error: Error = OK
+	var legacy_cleanup_evidence: Dictionary = {}
+	var legacy_cleanup_evidence_read_count: int = 0
+	var delay_legacy_cleanup: bool = false
+	var legacy_cleanup_pending: bool = false
 
 
 	## 返回即时成功，只为形成“cleanup 已排队但 runner 尚未启动”的窗口。
@@ -2828,4 +3763,18 @@ class _ImmediateBootstrapSaveGraph extends GameSaveGraphUtility:
 	## 若 deferred runner 未被 dispose 撤销，会记录一次错误清理尝试。
 	func delete_inactive_legacy_profile_async() -> Error:
 		legacy_cleanup_attempt_count += 1
-		return OK
+		if delay_legacy_cleanup:
+			legacy_cleanup_pending = true
+			await legacy_cleanup_settled
+			legacy_cleanup_pending = false
+		return legacy_cleanup_error
+
+
+	func get_last_profile_cleanup_evidence() -> Dictionary:
+		legacy_cleanup_evidence_read_count += 1
+		return legacy_cleanup_evidence.duplicate(true)
+
+
+	func settle_legacy_cleanup() -> void:
+		if legacy_cleanup_pending:
+			legacy_cleanup_settled.emit()

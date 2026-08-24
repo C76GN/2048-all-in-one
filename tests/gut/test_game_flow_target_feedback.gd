@@ -541,7 +541,7 @@ func test_departing_gameplay_does_not_publish_stale_playing_summary() -> void:
 		router
 	)
 	await architecture.register_system(GameFlowSystem, flow_system)
-	await architecture.register_system(SceneRouterSystem, router)
+	await architecture.register_system(GameSceneRouterPort, router)
 	await architecture.init()
 	flow_system._fsm.change_state(EventNames.STATE_PLAYING)
 
@@ -681,7 +681,7 @@ func test_return_to_main_menu_request_preserves_ui_stack_unpauses_and_routes() -
 		router
 	)
 	await architecture.register_system(GameFlowSystem, flow_system)
-	await architecture.register_system(SceneRouterSystem, router)
+	await architecture.register_system(GameSceneRouterPort, router)
 	await architecture.init()
 
 	var popup_panel: Control = _make_test_control()

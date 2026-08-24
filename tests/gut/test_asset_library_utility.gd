@@ -219,7 +219,7 @@ func test_asset_library_audit_reports_usage_and_metadata_health() -> void:
 	var report: Dictionary = audit.build_audit_report({
 		&"scan_roots": PackedStringArray([
 			"res://app",
-			"res://features",
+			VerificationResourcePath.FEATURES_ROOT,
 			"res://shared",
 		]),
 	})

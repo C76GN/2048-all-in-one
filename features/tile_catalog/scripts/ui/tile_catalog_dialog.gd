@@ -5,6 +5,8 @@ extends GameUiController
 
 # --- 常量 ---
 
+## tile_catalog Feature 拥有的稳定 UI route 身份。
+const ROUTE_ID: StringName = &"tile_catalog"
 const TILE_CATALOG_CARD_SCENE: PackedScene = preload(
 	"res://features/tile_catalog/scenes/ui/tile_catalog_card.tscn"
 )
@@ -688,7 +690,7 @@ func _apply_responsive_layout() -> void:
 
 
 func _close_dialog() -> void:
-	var _closed: bool = _close_current_popup_route(GameUiRouterUtility.ROUTE_TILE_CATALOG)
+	var _closed: bool = _close_current_popup_route(ROUTE_ID)
 
 
 # --- 信号处理函数 ---

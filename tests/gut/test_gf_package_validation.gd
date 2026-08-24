@@ -4,7 +4,7 @@ extends GutTest
 
 # --- 常量 ---
 
-const _LOCKFILE_PATH: String = "res://.gf/packages.lock.json"
+const _LOCKFILE_PATH: String = VerificationResourcePath.ROOT + ".gf/packages.lock.json"
 const _VENDOR_LOCKFILE_PATH: String = "res://.gf/vendor.lock.json"
 const _PROJECT_CONFIG_PATH: String = "res://project.godot"
 const _GF_PLUGIN_CONFIG_PATH: String = "res://addons/gf/plugin.cfg"
@@ -369,7 +369,7 @@ func test_gut_runner_tracks_gf_shutdown_debt_without_regressions() -> void:
 		_append_string(issues, "Godot 退出泄漏基线记录的 GF 全局脚本类数量应为 %d。" % gf_global_script_class_count)
 	var project_runtime_script_class_count: int = (
 		_count_declared_script_classes("res://app")
-		+ _count_declared_script_classes("res://features")
+		+ _count_declared_script_classes(VerificationResourcePath.FEATURES_ROOT)
 		+ _count_declared_script_classes("res://shared")
 	)
 	if (

@@ -177,6 +177,15 @@ var _dragging_audio_buses: Dictionary = {}
 
 # --- Godot 生命周期方法 ---
 
+## 应用 GF UI Router 传入的稳定路由参数。
+## @param params: GameUiRouterPort 定义的设置页打开参数。
+func set_route_params(params: Dictionary) -> void:
+	return_to_main_menu_on_back = GFVariantData.get_option_bool(
+		params,
+		GameUiRouterPort.PARAM_SETTINGS_RETURN_TO_MAIN_MENU_ON_BACK,
+		true
+	)
+
 func _ready() -> void:
 	_settings_utility = _get_settings_utility()
 	_input_profile = _get_input_profile_utility()
@@ -696,7 +705,7 @@ func _sync_controls_from_settings() -> void:
 		_local_performance_trace_toggle.set_pressed_no_signal(
 			GFVariantData.to_bool(
 				_settings_utility.get_value(
-					GameSettingsUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
+					GamePerformanceTraceUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
 					false
 				),
 				false
@@ -1288,10 +1297,10 @@ func _get_viewport_utility() -> GFViewportUtility:
 	return null
 
 
-func _get_scene_router_system() -> SceneRouterSystem:
-	var system_value: Object = get_system(SceneRouterSystem)
-	if system_value is SceneRouterSystem:
-		var scene_router: SceneRouterSystem = system_value
+func _get_scene_router_system() -> GameSceneRouterPort:
+	var system_value: Object = get_system(GameSceneRouterPort)
+	if system_value is GameSceneRouterPort:
+		var scene_router: GameSceneRouterPort = system_value
 		return scene_router
 	return null
 
@@ -1410,7 +1419,7 @@ func _on_form_field_changed(key: StringName, value: Variant) -> void:
 		_FIELD_LOCAL_PERFORMANCE_TRACE_ENABLED:
 			if is_instance_valid(_settings_utility):
 				_settings_utility.set_value(
-					GameSettingsUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
+					GamePerformanceTraceUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
 					GFVariantData.to_bool(value, false)
 				)
 	_sync_calibration_preview()
@@ -1425,8 +1434,8 @@ func _on_back_button_pressed() -> void:
 		var _closed: bool = _close_current_popup_route(_ROUTE_SETTINGS_MENU)
 		return
 
-	var router: SceneRouterSystem = _get_scene_router_system()
+	var router: GameSceneRouterPort = _get_scene_router_system()
 	if not is_instance_valid(router):
-		push_error("[SettingsMenu] 缺少 SceneRouterSystem，无法返回主菜单。")
+		push_error("[SettingsMenu] 缺少 GameSceneRouterPort，无法返回主菜单。")
 		return
 	router.return_to_main_menu()

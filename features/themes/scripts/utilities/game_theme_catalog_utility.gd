@@ -11,6 +11,7 @@ extends GFUtility
 const RESOURCE_TYPE_HINT: String = "Resource"
 const VISUAL_THEME_CATALOG_ROLE: String = "visual_theme"
 const SOUND_THEME_CATALOG_ROLE: String = "sound_theme"
+const MODE_VISUAL_PROFILE_REGISTRY_KEY: StringName = &"game.mode_visual_profiles.default"
 const _VISUAL_THEME_KEY_PREFIX: String = "game.theme."
 const _SOUND_THEME_KEY_PREFIX: String = "game.audio_theme."
 
@@ -137,6 +138,21 @@ func load_sound_theme(theme_id: StringName) -> GameAudioTheme:
 	return null
 
 
+## 通过内容目录稳定键加载唯一的模式视觉注册表；不使用 raw path fallback。
+func load_mode_visual_profile_registry() -> GameModeVisualProfileRegistry:
+	if not is_instance_valid(_project_content_catalog):
+		return null
+	var resource: Resource = _project_content_catalog.load_resource(
+		MODE_VISUAL_PROFILE_REGISTRY_KEY,
+		RESOURCE_TYPE_HINT
+	)
+	if resource is GameModeVisualProfileRegistry:
+		var registry: GameModeVisualProfileRegistry = resource
+		return registry
+	push_error("[GameThemeCatalogUtility] 模式视觉注册表加载失败。")
+	return null
+
+
 ## 获取仅校验 manifest 描述符的报告副本，不加载全部主题资源。
 func get_catalog_validation_report() -> GFValidationReport:
 	if not is_instance_valid(_catalog_validation_report):
@@ -151,6 +167,19 @@ func get_catalog_validation_report() -> GFValidationReport:
 ## 显式加载并校验全部主题资源，供审计与测试使用。
 func validate_all_theme_resources() -> GFValidationReport:
 	var report: GFValidationReport = get_catalog_validation_report()
+	var profile_registry: GameModeVisualProfileRegistry = load_mode_visual_profile_registry()
+	if not is_instance_valid(profile_registry):
+		_add_error(
+			report,
+			&"mode_visual_profile_registry_load_failed",
+			"模式视觉注册表加载失败。",
+			MODE_VISUAL_PROFILE_REGISTRY_KEY
+		)
+	else:
+		var _profile_report: RefCounted = report.merge(
+			profile_registry.get_validation_report(),
+			false
+		)
 	for descriptor: GameThemeDescriptor in get_visual_theme_descriptors():
 		var visual_theme: GameTheme = load_visual_theme(descriptor.theme_id)
 		if not is_instance_valid(visual_theme):

@@ -4,7 +4,7 @@ extends GutTest
 
 # --- 常量 ---
 
-const _GAME_PLAY_SCENE: PackedScene = preload("res://features/gameplay/scenes/game/game_play.tscn")
+const _GAME_PLAY_SCENE: PackedScene = preload("res://features/game_session/scenes/game/game_play.tscn")
 
 
 # --- 测试用例 ---

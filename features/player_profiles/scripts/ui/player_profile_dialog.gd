@@ -851,8 +851,19 @@ func _request_progress_snapshot() -> void:
 	_prepare_progress_snapshot_pending()
 	if (
 		_progress_snapshot_account_id.is_empty()
+		or not is_instance_valid(_account_system)
 		or not is_instance_valid(_progress_system)
 		or not is_instance_valid(_signal_utility)
+	):
+		_apply_progress_snapshot_failure()
+		return
+	var account_catalog_snapshot: DeviceProgressAccountCatalogSnapshot = (
+		_account_system.capture_device_progress_account_catalog_snapshot()
+	)
+	if (
+		account_catalog_snapshot == null
+		or account_catalog_snapshot.get_active_account_id()
+		!= _progress_snapshot_account_id
 	):
 		_apply_progress_snapshot_failure()
 		return
@@ -874,6 +885,7 @@ func _request_progress_snapshot() -> void:
 	)
 	_progress_snapshot_completion = (
 		_progress_system.request_device_progress_snapshot(
+			account_catalog_snapshot,
 			cancel_token
 		)
 	)
@@ -1251,7 +1263,7 @@ static func _snapshot_matches_account_id(
 
 func _close_dialog() -> void:
 	var _closed: bool = _close_current_popup_route(
-		GameUiRouterUtility.ROUTE_PLAYER_PROFILE
+		GameUiRouterPort.ROUTE_PLAYER_PROFILE
 	)
 
 
@@ -1300,6 +1312,16 @@ func _apply_account_operation_state() -> void:
 	_rename_button.disabled = busy
 	_delete_button.disabled = busy or account_count <= 1
 	_name_input.editable = not busy
+
+
+## 删除确认只消费 shared foundation 的 Router Port；具体 Adapter 由 Composition
+## Root 选择，player_profiles 不依赖 navigation Implementation。
+func _get_game_ui_router_port() -> GameUiRouterPort:
+	var utility_value: Object = _find_optional_utility(GameUiRouterPort)
+	if utility_value is GameUiRouterPort:
+		var ui_router: GameUiRouterPort = utility_value
+		return ui_router
+	return null
 
 
 # --- 信号处理函数 ---
@@ -1351,10 +1373,10 @@ func _on_delete_pressed() -> void:
 	if active == null:
 		return
 	var account_id: String = active.account_id
-	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
+	var ui_router: GameUiRouterPort = _get_game_ui_router_port()
 	if not is_instance_valid(ui_router):
 		return
-	var config: GFModalConfig = GameUiRouterUtility.make_confirmation_modal_config(
+	var config: GFModalConfig = GameUiRouterPort.make_confirmation_modal_config(
 		tr("PLAYER_DELETE_CONFIRM_TITLE"),
 		tr("PLAYER_DELETE_CONFIRM") % active.display_name,
 		tr("PLAYER_DELETE"),

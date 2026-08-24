@@ -96,14 +96,42 @@ static func is_state_envelope_valid(state: Dictionary) -> bool:
 	if GFVariantData.get_option_int(state, &"schema_version", 0) != STATE_SCHEMA_VERSION:
 		return false
 
-	var board_snapshot: Dictionary = GFVariantData.get_option_dictionary(
+	var board_snapshot_value: Variant = GFVariantData.get_option_value(
 		state,
 		&"board_snapshot"
 	)
+	var rng_full_state_value: Variant = GFVariantData.get_option_value(
+		state,
+		&"rng_full_state"
+	)
+	var rules_states_value: Variant = GFVariantData.get_option_value(
+		state,
+		&"rules_states"
+	)
+	var extra_stats_value: Variant = GFVariantData.get_option_value(
+		state,
+		&"extra_stats"
+	)
+	if (
+		not board_snapshot_value is Dictionary
+		or not rng_full_state_value is Dictionary
+		or not rules_states_value is Dictionary
+		or not extra_stats_value is Dictionary
+	):
+		return false
+	var board_snapshot: Dictionary = GFVariantData.as_dictionary(
+		board_snapshot_value
+	)
 	if not GridModel.is_snapshot_envelope_valid(board_snapshot):
 		return false
+	var topology_value: Variant = GFVariantData.get_option_value(
+		board_snapshot,
+		&"topology"
+	)
+	if not topology_value is Dictionary:
+		return false
 	var topology: BoardTopology = BoardTopology.from_dict(
-		GFVariantData.get_option_dictionary(board_snapshot, &"topology")
+		GFVariantData.as_dictionary(topology_value)
 	)
 	if (
 		topology == null
@@ -145,16 +173,12 @@ static func is_state_envelope_valid(state: Dictionary) -> bool:
 	elif highest_tile >= target_tile_value and not target_reached:
 		return false
 
-	if not _is_rng_full_state_valid(
-		GFVariantData.get_option_dictionary(state, &"rng_full_state")
-	):
+	if not _is_rng_full_state_valid(GFVariantData.as_dictionary(rng_full_state_value)):
 		return false
-	if not _is_rules_state_envelope_valid(
-		GFVariantData.get_option_dictionary(state, &"rules_states")
-	):
+	if not _is_rules_state_envelope_valid(GFVariantData.as_dictionary(rules_states_value)):
 		return false
 	return not GFDeterministicVariantSerializer.to_canonical_bytes(
-		GFVariantData.get_option_dictionary(state, &"extra_stats"),
+		GFVariantData.as_dictionary(extra_stats_value),
 		_CANONICAL_OPTIONS
 	).is_empty()
 
@@ -346,15 +370,25 @@ static func _is_rng_full_state_valid(state: Dictionary) -> bool:
 		or not GFVariantData.get_option_string(state, &"rng_state").is_valid_int()
 	):
 		return false
+	var branch_counters_value: Variant = GFVariantData.get_option_value(
+		state,
+		&"branch_counters"
+	)
+	var deterministic_counters_value: Variant = GFVariantData.get_option_value(
+		state,
+		&"deterministic_branch_counters"
+	)
+	if (
+		not branch_counters_value is Dictionary
+		or not deterministic_counters_value is Dictionary
+	):
+		return false
 	return (
 		_are_rng_counters_valid(
-			GFVariantData.get_option_dictionary(state, &"branch_counters")
+			GFVariantData.as_dictionary(branch_counters_value)
 		)
 		and _are_rng_counters_valid(
-			GFVariantData.get_option_dictionary(
-				state,
-				&"deterministic_branch_counters"
-			)
+			GFVariantData.as_dictionary(deterministic_counters_value)
 		)
 	)
 
@@ -373,8 +407,15 @@ static func _are_rng_counters_valid(counters: Dictionary) -> bool:
 
 
 static func _get_snapshot_max_tile_value(board_snapshot: Dictionary) -> int:
+	var tiles_value: Variant = GFVariantData.get_option_value(
+		board_snapshot,
+		&"tiles"
+	)
+	if not tiles_value is Array:
+		return -1
+	var tiles: Array = GFVariantData.as_array(tiles_value)
 	var result: int = 0
-	for tile_value: Variant in GFVariantData.get_option_array(board_snapshot, &"tiles"):
+	for tile_value: Variant in tiles:
 		if tile_value is Dictionary:
 			var tile_data: Dictionary = tile_value
 			result = maxi(

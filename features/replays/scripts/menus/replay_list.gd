@@ -12,9 +12,6 @@ const _MARKER_SUMMARY_FORMAT_FALLBACK: String = "%d markers · %d merges · %d k
 
 # --- 导出变量 ---
 
-## 游戏主场景路径。
-@export_file("*.tscn") var game_scene_path: String = ""
-
 ## 回放列表项场景资源。
 @export var item_scene: PackedScene
 
@@ -27,7 +24,6 @@ var _marker_summary_by_replay_id: Dictionary = {}
 # --- Godot 生命周期方法 ---
 
 func _ready() -> void:
-	assert(not game_scene_path.is_empty(), "ReplayList: 游戏场景路径 (game_scene_path) 未在编辑器中设置。")
 	assert(item_scene != null, "ReplayList: 列表项场景 (item_scene) 未在编辑器中设置。")
 
 	_item_scene = item_scene
@@ -164,14 +160,11 @@ func _on_primary_action_triggered(data: Resource) -> void:
 		return
 
 	var replay: ReplayData = data
-	var app_config: AppConfigModel = _get_app_config_model()
-	if is_instance_valid(app_config):
-		app_config.selected_bookmark_data.set_value(null)
-		app_config.current_replay_data.set_value(replay)
-
-	var router: SceneRouterSystem = _get_scene_router_system()
-	if is_instance_valid(router):
-		router.goto_scene(game_scene_path)
+	var launch_port: GameSessionLaunchPort = _get_session_launch_port()
+	if not is_instance_valid(launch_port):
+		push_error("[ReplayList] 缺少 GameSessionLaunchPort，无法启动回放。")
+		return
+	var _launched: bool = launch_port.launch_replay(replay.replay_id)
 
 
 func _get_replay_system() -> ReplaySystem:
@@ -207,11 +200,11 @@ func _get_marker_summary(replay: ReplayData) -> Dictionary:
 	return summary
 
 
-func _get_app_config_model() -> AppConfigModel:
-	var model_value: Object = get_model(AppConfigModel)
-	if model_value is AppConfigModel:
-		var app_config: AppConfigModel = model_value
-		return app_config
+func _get_session_launch_port() -> GameSessionLaunchPort:
+	var system_value: Object = get_system(GameSessionLaunchPort)
+	if system_value is GameSessionLaunchPort:
+		var launch_port: GameSessionLaunchPort = system_value
+		return launch_port
 	return null
 
 

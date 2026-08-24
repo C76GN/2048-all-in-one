@@ -8,8 +8,70 @@ const MAIN_PACKAGE_HARD_LIMIT_BYTES: int = 4_000_000
 const TOTAL_PACKAGE_HARD_LIMIT_BYTES: int = 30_000_000
 const MAIN_PACKAGE_SOFT_LIMIT_BYTES: int = 3_600_000
 const TOTAL_PACKAGE_SOFT_LIMIT_BYTES: int = 27_000_000
+const EXPORT_REPORT_SCHEMA_VERSION: int = 2
+const ARTIFACT_MANIFEST_SCHEMA_VERSION: int = 1
+const BUILD_IDENTITY_SCHEMA_VERSION: int = 1
+const INPUT_SNAPSHOT_SCHEMA_VERSION: int = 1
+const REQUIRED_GODOT_VERSION_PREFIX: String = "4.7.2.stable"
 const PACK_RELATIVE_PATH: String = "engine/2048-all-in-one.bin"
 const PROJECT_NAME: String = "2048 Chunked Toolchain Smoke"
+const _EXPORT_PRESET: String = "Web Compatibility Smoke"
+const _TEMPLATE_RELEASE: String = "4.7"
+const _TEMPLATE_ASSET: String = "minigame4.7.tpz"
+const _TEMPLATE_EXPECTED_BYTES: int = 11_763_895
+const _TEMPLATE_SHA256: String = (
+	"ae5bdeb5ba1ce9712d4efc35d337cb5ecbef3ad5bfb0f7d06ae9cb662c1f2d71"
+)
+const _TOOL_IDENTITY_NAMES: PackedStringArray = [
+	"export_tool",
+	"artifact_verifier",
+	"artifact_check",
+	"chunk_loader",
+	"wxmemfs_patch",
+]
+const _TOOL_IDENTITY_PATHS: Dictionary = {
+	"export_tool": "tools/export_wechat_minigame_smoke.ps1",
+	"artifact_verifier": "tools/wechat_minigame_artifact_verifier.gd",
+	"artifact_check": "tools/wechat_minigame_artifact_check.gd",
+	"chunk_loader": "tools/wechat_minigame/chunked_file_loader.js",
+	"wxmemfs_patch": "tools/wechat_minigame/wxmemfs_rename_patch.ps1",
+}
+const _INPUT_INCLUDE_EXACT: PackedStringArray = [
+	"default_bus_layout.tres",
+	"export_presets.cfg",
+	"icon.svg",
+	"icon.svg.import",
+	"project.godot",
+]
+const _INPUT_INCLUDE_ROOTS: PackedStringArray = [
+	"addons",
+	"app",
+	"features",
+	"shared",
+]
+const _INPUT_EXCLUDE_EXACT: PackedStringArray = [
+	"features/asset_library/resources/import_sources.json",
+	"features/asset_library/resources/import_sources.local.json",
+	"shared/assets/fonts/noto_sans_sc_variable.ttf",
+]
+const _INPUT_EXCLUDE_PREFIXES: PackedStringArray = [
+	"addons/gf/tools/",
+	"addons/gut/",
+	"features/asset_library/resources/review/",
+	"features/asset_library/resources/source_packs/",
+	"features/asset_library/tools/",
+	"features/platform_runtime/tools/",
+	"features/themes/tools/",
+]
+const _INPUT_EXCLUDE_GENERATED: PackedStringArray = [
+	".git/",
+	".godot/",
+	"build/",
+	"tests/",
+	"tools/",
+	"__pycache__/",
+]
+const _INPUT_EXCLUDE_CACHE_SUFFIXES: PackedStringArray = [".pyc", ".pyo"]
 const _PACK_LOADER_REFERENCE: String = "/engine/2048-all-in-one.bin"
 const _CHUNK_LOADER_RELATIVE_PATH: String = "engine/wechat-chunked-file-loader.js"
 const _CHUNK_LOADER_SHA256: String = (
@@ -61,8 +123,9 @@ const _REQUIRED_PATHS: PackedStringArray = [
 	"project.config.json",
 	"weapp-adapter.js",
 ]
+const _VOLATILE_LOCAL_SIDECAR_PATH: String = "project.private.config.json"
 const _OPTIONAL_PATHS: PackedStringArray = [
-	"project.private.config.json",
+	_VOLATILE_LOCAL_SIDECAR_PATH,
 ]
 const _FORBIDDEN_SAMPLE_APP_IDS: PackedStringArray = [
 	"wxda5f10e2e9114855",
@@ -78,16 +141,121 @@ const _REQUIRED_FONT_TEXT: String = "准备启动跨平台兼容性冒烟微信�
 ## @param inspect_pack: 是否同时扫描并加载项目 .bin 资源包。
 ## @return: 含 ok、issues、files 与 package 字段的只读报告。
 func verify_artifact(artifact_root: String, inspect_pack: bool = false) -> Dictionary:
+	return _verify(artifact_root, "", inspect_pack)
+
+
+## 验证产物及其同目录 export-report.json 的完整内容绑定。
+## 默认 verify_artifact() 保持纯结构模式，便于在没有报告的夹具上复用。
+func verify_report_bound(
+	artifact_root: String,
+	report_path: String,
+	inspect_pack: bool = false
+) -> Dictionary:
+	return _verify(artifact_root, report_path, inspect_pack)
+
+
+## 纯计算包体预算，供边界测试与目录测量共享同一判定。
+static func evaluate_package_budget(main_bytes: int, engine_bytes: int) -> Dictionary:
+	var total_bytes: int = main_bytes + engine_bytes
+	return {
+		"main_package_bytes": main_bytes,
+		"engine_package_bytes": engine_bytes,
+		"total_package_bytes": total_bytes,
+		"main_hard_limit_ok": main_bytes <= MAIN_PACKAGE_HARD_LIMIT_BYTES,
+		"total_hard_limit_ok": total_bytes <= TOTAL_PACKAGE_HARD_LIMIT_BYTES,
+		"main_soft_budget_ok": main_bytes <= MAIN_PACKAGE_SOFT_LIMIT_BYTES,
+		"total_soft_budget_ok": total_bytes <= TOTAL_PACKAGE_SOFT_LIMIT_BYTES,
+	}
+
+
+## 构造与 PowerShell 导出器相同 canonical framing 的可发布文件清单。
+## DevTools 本机 sidecar 仍单独验证，但不参与 manifest 或 build identity。
+func build_artifact_manifest(artifact_root: String) -> Dictionary:
 	var issues: PackedStringArray = PackedStringArray()
 	var normalized_root: String = _normalize_root(artifact_root)
-	var files: PackedStringArray = PackedStringArray()
+	var discovered_files: PackedStringArray = PackedStringArray()
+	if normalized_root.is_empty() or not DirAccess.dir_exists_absolute(normalized_root):
+		return _empty_artifact_manifest()
+	_collect_files(normalized_root, "", discovered_files, issues)
+	discovered_files.sort()
+	var files: PackedStringArray = _artifact_files_from(discovered_files)
+	return _build_artifact_manifest(normalized_root, files, issues)
+
+
+## 构造报告 build_id；调用者仍须通过 verify_report_bound() 验证字段形状。
+func compute_report_build_id(export_report: Dictionary) -> String:
+	var godot: Dictionary = _dictionary_value(export_report.get("godot", {}))
+	var gf: Dictionary = _dictionary_value(export_report.get("gf", {}))
+	var template: Dictionary = _dictionary_value(export_report.get("template", {}))
+	var tool_identity: Dictionary = _dictionary_value(
+		export_report.get("tool_identity", {})
+	)
+	var records: PackedStringArray = PackedStringArray([
+		"wechat-candidate-build-v%d" % BUILD_IDENTITY_SCHEMA_VERSION,
+		"godot=%s" % str(godot.get("version", "")),
+		"gf_framework_version=%s" % str(gf.get("framework_version", "")),
+		"gf_source_commit=%s" % str(gf.get("source_commit", "")),
+		"gf_source_git_tree=%s" % str(gf.get("source_git_tree", "")),
+		"gf_vendor_tree_sha256=%s" % str(gf.get("vendor_tree_sha256", "")),
+		"gf_vendor_file_count=%d" % _integer_value(gf.get("vendor_file_count")),
+		"gf_lock_sha256=%s" % str(gf.get("lock_sha256", "")),
+		"input_snapshot_sha256=%s" % str(
+			export_report.get("input_snapshot_sha256", "")
+		),
+		"input_snapshot_file_count=%d" % _integer_value(
+			_dictionary_value(export_report.get("input_snapshot", {})).get(
+				"file_count",
+				null
+			)
+		),
+		"artifact_manifest_sha256=%s" % str(
+			export_report.get("artifact_manifest_sha256", "")
+		),
+		"template_sha256=%s" % str(template.get("sha256", "")),
+	])
+	for tool_name: String in _TOOL_IDENTITY_NAMES:
+		var tool: Dictionary = _dictionary_value(tool_identity.get(tool_name, {}))
+		var _record_added: bool = records.append(
+			"%s_sha256=%s" % [tool_name, str(tool.get("sha256", ""))]
+		)
+	return ("\n".join(records) + "\n").sha256_text()
+
+
+## 读取当前验证宿主中五个固定工具输入的实际内容身份。
+func build_tool_identity() -> Dictionary:
+	var identity: Dictionary = {}
+	for tool_name: String in _TOOL_IDENTITY_NAMES:
+		var relative_path: String = str(_TOOL_IDENTITY_PATHS.get(tool_name, ""))
+		var full_path: String = ProjectSettings.globalize_path("res://" + relative_path)
+		identity[tool_name] = {
+			"path": relative_path,
+			"sha256": (
+				FileAccess.get_sha256(full_path).to_lower()
+				if FileAccess.file_exists(full_path)
+				else ""
+			),
+		}
+	return identity
+
+
+# --- 私有/辅助方法 ---
+
+func _verify(
+	artifact_root: String,
+	report_path: String,
+	inspect_pack: bool
+) -> Dictionary:
+	var issues: PackedStringArray = PackedStringArray()
+	var normalized_root: String = _normalize_root(artifact_root)
+	var discovered_files: PackedStringArray = PackedStringArray()
 	if normalized_root.is_empty() or not DirAccess.dir_exists_absolute(normalized_root):
 		_add_issue(issues, "artifact_root_missing:%s" % artifact_root)
-		return _make_report(false, files, {}, issues)
+		return _make_report(false, discovered_files, {}, issues)
 
-	_collect_files(normalized_root, "", files, issues)
-	files.sort()
-	_validate_file_set(files, issues)
+	_collect_files(normalized_root, "", discovered_files, issues)
+	discovered_files.sort()
+	_validate_file_set(discovered_files, issues)
+	var files: PackedStringArray = _artifact_files_from(discovered_files)
 	var package: Dictionary = _measure_package(normalized_root, files, issues)
 	_validate_loader(normalized_root, issues)
 	_validate_project_config(normalized_root, issues)
@@ -95,10 +263,16 @@ func verify_artifact(artifact_root: String, inspect_pack: bool = false) -> Dicti
 	_validate_private_config(normalized_root, issues)
 	if inspect_pack:
 		_inspect_pack(normalized_root, issues)
+	if not report_path.is_empty():
+		_validate_report_binding(
+			normalized_root,
+			_normalize_root(report_path),
+			files,
+			package,
+			issues
+		)
 	return _make_report(issues.is_empty(), files, package, issues)
 
-
-# --- 私有/辅助方法 ---
 
 func _normalize_root(path: String) -> String:
 	var normalized: String = path.strip_edges()
@@ -138,6 +312,15 @@ func _collect_files(
 	directory.list_dir_end()
 
 
+func _artifact_files_from(discovered_files: PackedStringArray) -> PackedStringArray:
+	var files: PackedStringArray = PackedStringArray()
+	for path: String in discovered_files:
+		if path == _VOLATILE_LOCAL_SIDECAR_PATH:
+			continue
+		var _file_added: bool = files.append(path)
+	return files
+
+
 func _validate_file_set(files: PackedStringArray, issues: PackedStringArray) -> void:
 	for required_path: String in _REQUIRED_PATHS:
 		if not files.has(required_path):
@@ -167,20 +350,17 @@ func _measure_package(
 			engine_bytes += file_bytes
 		else:
 			main_bytes += file_bytes
-	var total_bytes: int = main_bytes + engine_bytes
-	if main_bytes > MAIN_PACKAGE_HARD_LIMIT_BYTES:
+	var package: Dictionary = evaluate_package_budget(main_bytes, engine_bytes)
+	if not _boolean_value(package.get("main_hard_limit_ok")):
 		_add_issue(issues, "main_package_hard_limit_exceeded:%d" % main_bytes)
-	if total_bytes > TOTAL_PACKAGE_HARD_LIMIT_BYTES:
-		_add_issue(issues, "total_package_hard_limit_exceeded:%d" % total_bytes)
-	return {
-		"main_package_bytes": main_bytes,
-		"engine_package_bytes": engine_bytes,
-		"total_package_bytes": total_bytes,
-		"main_hard_limit_ok": main_bytes <= MAIN_PACKAGE_HARD_LIMIT_BYTES,
-		"total_hard_limit_ok": total_bytes <= TOTAL_PACKAGE_HARD_LIMIT_BYTES,
-		"main_soft_budget_ok": main_bytes <= MAIN_PACKAGE_SOFT_LIMIT_BYTES,
-		"total_soft_budget_ok": total_bytes <= TOTAL_PACKAGE_SOFT_LIMIT_BYTES,
-	}
+	if not _boolean_value(package.get("total_hard_limit_ok")):
+		_add_issue(
+			issues,
+			"total_package_hard_limit_exceeded:%d" % _integer_value(
+				package.get("total_package_bytes", 0)
+			)
+		)
+	return package
 
 
 func _validate_loader(root: String, issues: PackedStringArray) -> void:
@@ -347,7 +527,7 @@ func _validate_game_config(root: String, issues: PackedStringArray) -> void:
 
 
 func _validate_private_config(root: String, issues: PackedStringArray) -> void:
-	var path: String = root.path_join("project.private.config.json")
+	var path: String = root.path_join(_VOLATILE_LOCAL_SIDECAR_PATH)
 	if not FileAccess.file_exists(path):
 		return
 	var config: Dictionary = _read_json_dictionary(path, "project_private_config", issues)
@@ -362,7 +542,12 @@ func _read_json_dictionary(
 	label: String,
 	issues: PackedStringArray
 ) -> Dictionary:
-	var parsed_value: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	var parser: JSON = JSON.new()
+	var parse_error: Error = parser.parse(FileAccess.get_file_as_string(path))
+	if parse_error != OK:
+		_add_issue(issues, "%s_invalid_json" % label)
+		return {}
+	var parsed_value: Variant = parser.data
 	if parsed_value is Dictionary:
 		var dictionary: Dictionary = parsed_value
 		return dictionary
@@ -384,6 +569,434 @@ func _is_valid_app_id(app_id: String) -> bool:
 		):
 			return false
 	return true
+
+
+func _validate_report_binding(
+	artifact_root: String,
+	report_path: String,
+	files: PackedStringArray,
+	package: Dictionary,
+	issues: PackedStringArray
+) -> void:
+	if (
+		artifact_root.get_file() != "wxgame"
+		or report_path.get_file() != "export-report.json"
+		or artifact_root.get_base_dir() != report_path.get_base_dir()
+	):
+		_add_issue(issues, "report_bundle_layout_invalid")
+	if not FileAccess.file_exists(report_path):
+		_add_issue(issues, "export_report_missing:%s" % report_path)
+		return
+	var parsed_value: Variant = JSON.parse_string(FileAccess.get_file_as_string(report_path))
+	if not parsed_value is Dictionary:
+		_add_issue(issues, "export_report_invalid_json")
+		return
+	var export_report: Dictionary = parsed_value
+	_validate_report_identity(export_report, issues)
+	_validate_report_artifact(export_report, artifact_root, files, issues)
+	_validate_report_package(export_report, package, files, issues)
+	var declared_build_id: String = str(export_report.get("build_id", ""))
+	if not _is_lower_hex(declared_build_id, 64):
+		_add_issue(issues, "report_build_id_invalid")
+	elif declared_build_id != compute_report_build_id(export_report):
+		_add_issue(issues, "report_build_id_mismatch")
+
+
+func _validate_report_identity(
+	export_report: Dictionary,
+	issues: PackedStringArray
+) -> void:
+	if _integer_value(export_report.get("schema_version")) != EXPORT_REPORT_SCHEMA_VERSION:
+		_add_issue(issues, "export_report_schema_not_2")
+	var ok_value: Variant = export_report.get("ok")
+	if not ok_value is bool:
+		_add_issue(issues, "export_report_not_ok")
+	else:
+		var report_ok: bool = ok_value
+		if not report_ok:
+			_add_issue(issues, "export_report_not_ok")
+	if str(export_report.get("scope", "")) != "toolchain_smoke":
+		_add_issue(issues, "export_report_scope_invalid")
+	if str(export_report.get("export_preset", "")) != _EXPORT_PRESET:
+		_add_issue(issues, "export_report_preset_invalid")
+	if str(export_report.get("project_name", "")) != PROJECT_NAME:
+		_add_issue(issues, "export_report_project_name_invalid")
+	if str(export_report.get("device_orientation", "")) != "landscape":
+		_add_issue(issues, "export_report_orientation_invalid")
+
+	var godot: Dictionary = _dictionary_value(export_report.get("godot", {}))
+	if godot.is_empty():
+		_add_issue(issues, "report_godot_identity_missing")
+	else:
+		var declared_version: String = str(godot.get("version", ""))
+		var running_version_info: Dictionary = Engine.get_version_info()
+		if not _running_godot_is_required_version(running_version_info):
+			_add_issue(
+				issues,
+				"verification_godot_version_not_4_7_2:%s" % str(
+					running_version_info.get("string", "")
+				)
+			)
+		if not _matches_required_godot_version(declared_version):
+			_add_issue(issues, "report_godot_version_not_4_7_2:%s" % declared_version)
+		elif not _declared_godot_matches_running(declared_version, running_version_info):
+			_add_issue(issues, "report_godot_version_mismatch:%s:%s" % [
+				declared_version,
+				str(running_version_info.get("string", "")),
+			])
+		if str(godot.get("required_version_prefix", "")) != REQUIRED_GODOT_VERSION_PREFIX:
+			_add_issue(issues, "report_godot_requirement_invalid")
+
+	var gf: Dictionary = _dictionary_value(export_report.get("gf", {}))
+	if str(gf.get("framework_version", "")).is_empty():
+		_add_issue(issues, "report_gf_framework_version_invalid")
+	if not _is_lower_hex(str(gf.get("source_commit", "")), 40):
+		_add_issue(issues, "report_gf_source_commit_invalid")
+	if not _is_lower_hex(str(gf.get("source_git_tree", "")), 40):
+		_add_issue(issues, "report_gf_source_git_tree_invalid")
+	if not _is_lower_hex(str(gf.get("vendor_tree_sha256", "")), 64):
+		_add_issue(issues, "report_gf_vendor_tree_invalid")
+	if _integer_value(gf.get("vendor_file_count")) <= 0:
+		_add_issue(issues, "report_gf_vendor_file_count_invalid")
+	if not _is_lower_hex(str(gf.get("lock_sha256", "")), 64):
+		_add_issue(issues, "report_gf_lock_hash_invalid")
+
+	var input_hash: String = str(export_report.get("input_snapshot_sha256", ""))
+	if not _is_lower_hex(input_hash, 64):
+		_add_issue(issues, "report_input_snapshot_hash_invalid")
+	var input_snapshot: Dictionary = _dictionary_value(
+		export_report.get("input_snapshot", {})
+	)
+	if _integer_value(input_snapshot.get("schema_version")) != INPUT_SNAPSHOT_SCHEMA_VERSION:
+		_add_issue(issues, "report_input_snapshot_schema_invalid")
+	if str(input_snapshot.get("input_snapshot_sha256", "")) != input_hash:
+		_add_issue(issues, "report_input_snapshot_hash_not_exact")
+	if _integer_value(input_snapshot.get("file_count")) <= 0:
+		_add_issue(issues, "report_input_snapshot_file_count_invalid")
+	_validate_input_snapshot_rules(input_snapshot, issues)
+
+	_validate_report_tool_identity(export_report, issues)
+	_validate_report_template(export_report, issues)
+
+
+func _validate_input_snapshot_rules(
+	input_snapshot: Dictionary,
+	issues: PackedStringArray
+) -> void:
+	var rules: Dictionary = _dictionary_value(input_snapshot.get("rules", {}))
+	var expected_rules: Dictionary = {
+		"include_exact": _INPUT_INCLUDE_EXACT,
+		"include_roots": _INPUT_INCLUDE_ROOTS,
+		"exclude_exact": _INPUT_EXCLUDE_EXACT,
+		"exclude_prefixes": _INPUT_EXCLUDE_PREFIXES,
+		"exclude_generated": _INPUT_EXCLUDE_GENERATED,
+		"exclude_cache_suffixes": _INPUT_EXCLUDE_CACHE_SUFFIXES,
+	}
+	for rule_name_value: Variant in expected_rules.keys():
+		var rule_name: String = str(rule_name_value)
+		var expected: PackedStringArray = expected_rules[rule_name]
+		if not _string_sequence_equals(rules.get(rule_name, []), expected):
+			_add_issue(issues, "report_input_snapshot_rule_mismatch:%s" % rule_name)
+	if rules.size() != expected_rules.size():
+		_add_issue(issues, "report_input_snapshot_rules_not_exact")
+
+
+func _validate_report_tool_identity(
+	export_report: Dictionary,
+	issues: PackedStringArray
+) -> void:
+	var declared_identity: Dictionary = _dictionary_value(
+		export_report.get("tool_identity", {})
+	)
+	var actual_identity: Dictionary = build_tool_identity()
+	if declared_identity.size() != _TOOL_IDENTITY_NAMES.size():
+		_add_issue(issues, "report_tool_identity_not_exact")
+	for tool_name: String in _TOOL_IDENTITY_NAMES:
+		var declared: Dictionary = _dictionary_value(declared_identity.get(tool_name, {}))
+		var actual: Dictionary = _dictionary_value(actual_identity.get(tool_name, {}))
+		var expected_path: String = str(_TOOL_IDENTITY_PATHS.get(tool_name, ""))
+		if str(declared.get("path", "")) != expected_path:
+			_add_issue(issues, "report_tool_path_mismatch:%s" % tool_name)
+		var declared_hash: String = str(declared.get("sha256", ""))
+		if not _is_lower_hex(declared_hash, 64):
+			_add_issue(issues, "report_tool_hash_invalid:%s" % tool_name)
+		elif declared_hash != str(actual.get("sha256", "")):
+			_add_issue(issues, "report_tool_hash_mismatch:%s" % tool_name)
+
+
+func _validate_report_template(
+	export_report: Dictionary,
+	issues: PackedStringArray
+) -> void:
+	var template: Dictionary = _dictionary_value(export_report.get("template", {}))
+	if (
+		str(template.get("release", "")) != _TEMPLATE_RELEASE
+		or str(template.get("asset", "")) != _TEMPLATE_ASSET
+		or _integer_value(template.get("expected_bytes")) != _TEMPLATE_EXPECTED_BYTES
+		or str(template.get("sha256", "")) != _TEMPLATE_SHA256
+	):
+		_add_issue(issues, "report_template_identity_invalid")
+
+
+func _validate_report_artifact(
+	export_report: Dictionary,
+	artifact_root: String,
+	files: PackedStringArray,
+	issues: PackedStringArray
+) -> void:
+	var actual_manifest: Dictionary = _build_artifact_manifest(
+		artifact_root,
+		files,
+		issues
+	)
+	var actual_hash: String = str(actual_manifest.get("manifest_sha256", ""))
+	var top_hash: String = str(export_report.get("artifact_manifest_sha256", ""))
+	if not _is_lower_hex(top_hash, 64):
+		_add_issue(issues, "report_artifact_manifest_hash_invalid")
+	elif top_hash != actual_hash:
+		_add_issue(issues, "artifact_manifest_hash_mismatch")
+	var declared_manifest: Dictionary = _dictionary_value(export_report.get("artifact", {}))
+	if _integer_value(declared_manifest.get("schema_version")) != ARTIFACT_MANIFEST_SCHEMA_VERSION:
+		_add_issue(issues, "artifact_manifest_schema_invalid")
+	if str(declared_manifest.get("manifest_sha256", "")) != top_hash:
+		_add_issue(issues, "artifact_manifest_hash_not_exact")
+
+	var actual_entries: Array = actual_manifest.get("files", [])
+	var declared_entries_value: Variant = declared_manifest.get("files", [])
+	if not declared_entries_value is Array:
+		_add_issue(issues, "artifact_manifest_files_not_array")
+		return
+	var declared_entries: Array = declared_entries_value
+	if (
+		_integer_value(declared_manifest.get("file_count")) != actual_entries.size()
+		or declared_entries.size() != actual_entries.size()
+	):
+		_add_issue(issues, "artifact_manifest_entries_not_exact")
+	var compared_count: int = mini(declared_entries.size(), actual_entries.size())
+	for index: int in range(compared_count):
+		if not declared_entries[index] is Dictionary:
+			_add_issue(issues, "artifact_manifest_entry_invalid:%d" % index)
+			continue
+		var declared: Dictionary = declared_entries[index]
+		var actual: Dictionary = actual_entries[index]
+		var actual_path: String = str(actual.get("path", ""))
+		if str(declared.get("path", "")) != actual_path:
+			_add_issue(issues, "artifact_file_path_mismatch:%d" % index)
+		if _integer_value(declared.get("bytes")) != _integer_value(
+			actual.get("bytes", -1)
+		):
+			_add_issue(issues, "artifact_file_bytes_mismatch:%s" % actual_path)
+		if str(declared.get("sha256", "")) != str(actual.get("sha256", "")):
+			_add_issue(issues, "artifact_file_hash_mismatch:%s" % actual_path)
+
+
+func _validate_report_package(
+	export_report: Dictionary,
+	actual_package: Dictionary,
+	files: PackedStringArray,
+	issues: PackedStringArray
+) -> void:
+	var declared: Dictionary = _dictionary_value(export_report.get("package", {}))
+	for field: String in PackedStringArray([
+		"main_package_bytes",
+		"engine_package_bytes",
+		"total_package_bytes",
+	]):
+		if _integer_value(declared.get(field)) != _integer_value(
+			actual_package.get(field, -1)
+		):
+			_add_issue(issues, "report_package_bytes_mismatch:%s" % field)
+	var expected_limits: Dictionary = {
+		"main_hard_limit_bytes": MAIN_PACKAGE_HARD_LIMIT_BYTES,
+		"total_hard_limit_bytes": TOTAL_PACKAGE_HARD_LIMIT_BYTES,
+		"main_soft_limit_bytes": MAIN_PACKAGE_SOFT_LIMIT_BYTES,
+		"total_soft_limit_bytes": TOTAL_PACKAGE_SOFT_LIMIT_BYTES,
+	}
+	for limit_name_value: Variant in expected_limits.keys():
+		var limit_name: String = str(limit_name_value)
+		if _integer_value(declared.get(limit_name)) != _integer_value(
+			expected_limits.get(limit_name)
+		):
+			_add_issue(issues, "report_package_limit_mismatch:%s" % limit_name)
+	for field: String in PackedStringArray([
+		"main_hard_limit_ok",
+		"total_hard_limit_ok",
+		"main_soft_budget_ok",
+		"total_soft_budget_ok",
+	]):
+		var value: Variant = declared.get(field)
+		if not value is bool:
+			_add_issue(issues, "report_package_budget_mismatch:%s" % field)
+			continue
+		var declared_value: bool = value
+		if declared_value != _boolean_value(actual_package.get(field)):
+			_add_issue(issues, "report_package_budget_mismatch:%s" % field)
+	if _integer_value(declared.get("file_count")) != files.size():
+		_add_issue(issues, "report_package_file_count_mismatch")
+	if not _string_sequence_equals(declared.get("files", []), files):
+		_add_issue(issues, "report_package_files_not_exact")
+	for empty_field: String in PackedStringArray([
+		"missing_paths",
+		"unexpected_paths",
+		"forbidden_paths",
+	]):
+		var empty_value: Variant = declared.get(empty_field)
+		if not empty_value is Array:
+			_add_issue(issues, "report_package_issue_list_not_empty:%s" % empty_field)
+			continue
+		var empty_array: Array = empty_value
+		if not empty_array.is_empty():
+			_add_issue(issues, "report_package_issue_list_not_empty:%s" % empty_field)
+
+
+func _build_artifact_manifest(
+	root: String,
+	files: PackedStringArray,
+	issues: PackedStringArray
+) -> Dictionary:
+	var entries: Array = []
+	var records: PackedStringArray = PackedStringArray([
+		"wechat-artifact-manifest-v%d" % ARTIFACT_MANIFEST_SCHEMA_VERSION,
+	])
+	for relative_path: String in files:
+		if not _is_canonical_manifest_path(relative_path):
+			_add_issue(issues, "artifact_manifest_path_not_canonical:%s" % relative_path)
+			continue
+		var path: String = root.path_join(relative_path)
+		var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+		if file == null:
+			_add_issue(issues, "artifact_manifest_file_unreadable:%s" % relative_path)
+			continue
+		var byte_count: int = file.get_length()
+		var sha256: String = FileAccess.get_sha256(path).to_lower()
+		entries.append({
+			"path": relative_path,
+			"bytes": byte_count,
+			"sha256": sha256,
+		})
+		var _record_added: bool = records.append(
+			"%s\t%d\t%s" % [relative_path, byte_count, sha256]
+		)
+	return {
+		"schema_version": ARTIFACT_MANIFEST_SCHEMA_VERSION,
+		"manifest_sha256": ("\n".join(records) + "\n").sha256_text(),
+		"file_count": entries.size(),
+		"files": entries,
+	}
+
+
+func _empty_artifact_manifest() -> Dictionary:
+	return {
+		"schema_version": ARTIFACT_MANIFEST_SCHEMA_VERSION,
+		"manifest_sha256": (
+			"wechat-artifact-manifest-v%d\n" % ARTIFACT_MANIFEST_SCHEMA_VERSION
+		).sha256_text(),
+		"file_count": 0,
+		"files": [],
+	}
+
+
+func _is_canonical_manifest_path(path: String) -> bool:
+	return (
+		not path.is_empty()
+		and not path.begins_with("/")
+		and not path.contains("\t")
+		and not path.contains("\r")
+		and not path.contains("\n")
+		and not path.contains("../")
+	)
+
+
+func _matches_required_godot_version(version: String) -> bool:
+	return (
+		version == REQUIRED_GODOT_VERSION_PREFIX
+		or version.begins_with(REQUIRED_GODOT_VERSION_PREFIX + ".")
+	)
+
+
+func _running_godot_is_required_version(version_info: Dictionary) -> bool:
+	return (
+		_integer_value(version_info.get("major")) == 4
+		and _integer_value(version_info.get("minor")) == 7
+		and _integer_value(version_info.get("patch")) == 2
+		and str(version_info.get("status", "")) == "stable"
+	)
+
+
+func _declared_godot_matches_running(
+	declared_version: String,
+	version_info: Dictionary
+) -> bool:
+	if declared_version == REQUIRED_GODOT_VERSION_PREFIX:
+		return true
+	var suffix: String = declared_version.trim_prefix(
+		REQUIRED_GODOT_VERSION_PREFIX + "."
+	)
+	var parts: PackedStringArray = suffix.split(".")
+	if parts.is_empty() or parts[0].is_empty():
+		return false
+	var running_build: String = str(version_info.get("build", ""))
+	if not running_build.is_empty() and parts[0] != running_build:
+		return false
+	if parts.size() >= 2:
+		var declared_hash: String = parts[1]
+		var running_hash: String = str(version_info.get("hash", ""))
+		if declared_hash.is_empty() or not running_hash.begins_with(declared_hash):
+			return false
+	return parts.size() <= 2
+
+
+func _is_lower_hex(value: String, expected_length: int) -> bool:
+	if value.length() != expected_length:
+		return false
+	for index: int in range(value.length()):
+		var codepoint: int = value.unicode_at(index)
+		if not (
+			(codepoint >= 48 and codepoint <= 57)
+			or (codepoint >= 97 and codepoint <= 102)
+		):
+			return false
+	return true
+
+
+func _integer_value(value: Variant, default_value: int = -1) -> int:
+	if value is int:
+		return value
+	if value is float:
+		var float_value: float = value
+		var integer_value: int = int(float_value)
+		if is_finite(float_value) and float(integer_value) == float_value:
+			return integer_value
+	return default_value
+
+
+func _boolean_value(value: Variant, default_value: bool = false) -> bool:
+	if value is bool:
+		var boolean_value: bool = value
+		return boolean_value
+	return default_value
+
+
+func _dictionary_value(value: Variant) -> Dictionary:
+	if value is Dictionary:
+		var dictionary: Dictionary = value
+		return dictionary
+	return {}
+
+
+func _string_sequence_equals(value: Variant, expected: PackedStringArray) -> bool:
+	if value is Array:
+		var array_value: Array = value
+		if array_value.size() != expected.size():
+			return false
+		for index: int in range(expected.size()):
+			if str(array_value[index]) != expected[index]:
+				return false
+		return true
+	if value is PackedStringArray:
+		var packed_value: PackedStringArray = value
+		return packed_value == expected
+	return false
 
 
 func _inspect_pack(root: String, issues: PackedStringArray) -> void:

@@ -59,6 +59,65 @@ func test_deserialize_preserves_reverse_targets() -> void:
 	assert_true(_get_vector2i(reverse_map, "1,2") == Vector2i(0, 2), "反序列化应保留撤回动画映射。")
 
 
+func test_serialized_command_rejects_nonfinite_tile_capability_state() -> void:
+	var state: Dictionary = _make_empty_game_state()
+	var board_value: Variant = state.get(&"board_snapshot")
+	assert_true(board_value is Dictionary)
+	if not board_value is Dictionary:
+		return
+	var board: Dictionary = board_value
+	board[&"tiles"] = [{
+		&"schema_version": TileState.SERIALIZATION_SCHEMA_VERSION,
+		&"tile_id": GFUuid.generate_v7(2048000),
+		&"definition_id": &"tile.classic.numeric",
+		&"value": 2,
+		&"capability_recipe_ids": [&"tile.recipe.classic_merge"],
+		&"capability_state": {
+			&"tile.recipe.classic_merge": {&"weight": NAN},
+		},
+		&"pos": Vector2i.ZERO,
+	}]
+	state[&"highest_tile"] = 2
+	var command_data: Dictionary = {
+		&"schema_version": MoveCommand.SERIALIZATION_SCHEMA_VERSION,
+		&"direction_x": 1,
+		&"direction_y": 0,
+		&"snapshot": state,
+		&"reverse_map": {},
+		&"is_baseline": false,
+	}
+
+	assert_false(
+		MoveCommand.is_serialized_data_valid(command_data),
+		"MoveCommand 快照不得接纳 capability_state 中的 NaN。"
+	)
+	assert_push_error(
+		"浮点值不能是 NaN 或 Inf",
+		"gameplay 领域校验应在持久化前拒绝非有限能力状态。"
+	)
+
+
+func test_serialized_command_rejects_reverse_map_over_board_limit() -> void:
+	var oversized_reverse_map: Dictionary = {}
+	for index: int in range(
+		MoveCommand.SERIALIZED_REVERSE_MAP_ENTRY_LIMIT + 1
+	):
+		oversized_reverse_map["%d,0" % index] = Vector2i(index, 0)
+	var command_data: Dictionary = {
+		&"schema_version": MoveCommand.SERIALIZATION_SCHEMA_VERSION,
+		&"direction_x": 1,
+		&"direction_y": 0,
+		&"snapshot": _make_empty_game_state(),
+		&"reverse_map": oversized_reverse_map,
+		&"is_baseline": false,
+	}
+
+	assert_false(
+		MoveCommand.is_serialized_data_valid(command_data),
+		"reverse_map 超过 256 格时必须在遍历前拒绝，避免恶意 O(N²) 校验。"
+	)
+
+
 func test_records_reverse_targets_while_command_runs_inside_simple_event() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var grid_model: GridModel = GridModel.new()

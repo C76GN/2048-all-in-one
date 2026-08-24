@@ -4,10 +4,10 @@ extends GutTest
 
 # --- 常量 ---
 
-const _GAME_SCENE: PackedScene = preload("res://features/gameplay/scenes/game/game_play.tscn")
+const _GAME_SCENE: PackedScene = preload("res://features/game_session/scenes/game/game_play.tscn")
 const _WORKSPACE_SCENE: PackedScene = preload("res://features/diagnostics/scenes/windows/gameplay_diagnostics_window.tscn")
 const _INPUT_CONTEXT: GFInputContext = preload("res://features/diagnostics/resources/input/diagnostics_input_context.tres")
-const _GAMEPLAY_CONTROLLER_PATH: String = "res://features/gameplay/scripts/controllers/game_play_controller.gd"
+const _GAMEPLAY_CONTROLLER_PATH: String = "res://features/game_session/scripts/controllers/game_play_controller.gd"
 const _TEST_TOOL_UTILITY_PATH: String = "res://features/diagnostics/scripts/utilities/test_tool_utility.gd"
 
 
@@ -53,6 +53,7 @@ func test_gameplay_publishes_context_while_diagnostics_owns_window_lifecycle() -
 	var gameplay_source: String = _read_text(_GAMEPLAY_CONTROLLER_PATH)
 	var diagnostics_source: String = _read_text(_TEST_TOOL_UTILITY_PATH)
 
+	assert_true(gameplay_source.contains("send_event(BoardTopologyReadyData.new(game_board.model.topology))"))
 	assert_true(gameplay_source.contains("send_event(GameplayBoardReadyData.new(game_board))"))
 	assert_false(gameplay_source.contains("TestToolUtility"))
 	assert_false(gameplay_source.contains("TestPanel"))
@@ -69,7 +70,7 @@ func test_gameplay_publishes_context_while_diagnostics_owns_window_lifecycle() -
 # --- 私有/辅助方法 ---
 
 func _get_scene_text() -> String:
-	return _read_text("res://features/gameplay/scenes/game/game_play.tscn")
+	return _read_text("res://features/game_session/scenes/game/game_play.tscn")
 
 
 func _read_text(path: String) -> String:

@@ -6,7 +6,7 @@ extends GutTest
 
 const PROJECT_SOURCE_ROOTS: Array[String] = [
 	"res://app",
-	"res://features",
+	VerificationResourcePath.FEATURES_ROOT,
 	"res://shared",
 ]
 const SOURCE_EXCLUDED_ROOTS: Array[String] = [
@@ -25,7 +25,7 @@ const DIRECT_TIME_AND_RANDOM_ALLOWLIST: Array[String] = [
 ]
 const BOOT_RUNTIME_SCRIPT_PATH: String = "res://app/scripts/boot_runtime.gd"
 const PLATFORM_CONTEXT_CONSUMER_PATHS: Array[String] = [
-	"res://features/gameplay/scripts/controllers/gameplay_responsive_layout_controller.gd",
+	"res://features/game_session/scripts/controllers/gameplay_responsive_layout_controller.gd",
 	"res://features/board_editor/scripts/ui/board_editor_responsive_layout_controller.gd",
 ]
 ## 当前唯一宿主探测 owner；使用精确文件而不是排除整个 platform_runtime Feature。
@@ -93,7 +93,7 @@ const PLATFORM_PROBE_REJECTION_FIXTURE_PATH: String = (
 	"res://tests/gut/fixtures/direct_platform_probe_feature.gd.txt"
 )
 const PLATFORM_PROBE_REJECTION_VIRTUAL_PATH: String = (
-	"res://features/regression_fixture/scripts/direct_platform_probe.gd"
+	VerificationResourcePath.ROOT + "features/regression_fixture/scripts/direct_platform_probe.gd"
 )
 const PLATFORM_PROBE_EXCEPTION_MISUSE_FIXTURE_PATH: String = (
 	"res://tests/gut/fixtures/platform_probe_exception_misuse.gd.txt"
@@ -510,14 +510,17 @@ func _collect_project_script_paths() -> Array[String]:
 
 func _collect_feature_class_owners() -> Dictionary:
 	var result: Dictionary = {}
-	var paths: PackedStringArray = GFScriptStructureTools.scan_script_paths("res://features", {
+	var paths: PackedStringArray = GFScriptStructureTools.scan_script_paths(
+		VerificationResourcePath.FEATURES_ROOT,
+		{
 		"recursive": true,
 		"include_addons": false,
 		"include_hidden": false,
 		"excluded_paths": SOURCE_EXCLUDED_ROOTS,
 		"max_scan_depth": 64,
 		"max_resource_paths": 5000,
-	})
+		}
+	)
 	for path: String in paths:
 		if _is_excluded_path(path):
 			continue

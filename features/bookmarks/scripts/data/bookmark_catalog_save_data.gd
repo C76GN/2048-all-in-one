@@ -32,6 +32,84 @@ func _init() -> void:
 	schema_version = SCHEMA_VERSION
 
 
+# --- 公共方法 ---
+
+## 捕获供分块 codec 消费的请求时刻目录根。
+##
+## 本方法只执行 O(items) 的数组根复制。内部规范 envelope 在进入 provider 后
+## 永不原地修改，snapshot 也只对外返回逐条深副本，因此调用方无法借由嵌套
+## alias 修改 provider 的权威状态。
+func make_chunk_source_snapshot() -> BookmarkChunkSourceSnapshot:
+	return BookmarkChunkSourceSnapshot.take_ownership_of_immutable_items(
+		_items.duplicate()
+	)
+
+
+## 捕获只复制两个有限根容器的 load rollback 状态。
+func make_shallow_rollback_state() -> Dictionary:
+	return {
+		&"items": _items.duplicate(),
+		&"decoded_items_by_id": _decoded_items_by_id.duplicate(),
+	}
+
+
+## 捕获只复制两个有限根容器的 PreparedState，供 manifest load rollback 使用。
+func make_shallow_prepared_state() -> BookmarkCatalogPreparedState:
+	return BookmarkCatalogPreparedState.take_ownership_of_validated_roots(
+		_items.duplicate(),
+		_decoded_items_by_id.duplicate()
+	)
+
+
+## 从逐 frame decoder 或浅层 rollback state 一次性替换目录根。
+## @param state: 持有已验证 envelope 与解码缓存双根的一次性状态。
+func replace_prepared_state_taking_ownership(
+	state: BookmarkCatalogPreparedState
+) -> Error:
+	if state == null:
+		return ERR_INVALID_DATA
+	var expected_count: int = state.get_item_count()
+	if expected_count < 0 or expected_count > MAX_BOOKMARK_COUNT:
+		return ERR_INVALID_DATA
+	var roots: Dictionary = state.take_roots_taking_ownership()
+	if roots.size() != 2:
+		return ERR_INVALID_DATA
+	var items_value: Variant = roots.get(&"items")
+	var decoded_value: Variant = roots.get(&"decoded_items_by_id")
+	if not items_value is Array[Dictionary] or not decoded_value is Dictionary:
+		return ERR_INVALID_DATA
+	var next_items: Array[Dictionary] = items_value
+	var next_decoded_items: Dictionary = decoded_value
+	if (
+		next_items.size() != expected_count
+		or next_decoded_items.size() != expected_count
+	):
+		return ERR_INVALID_DATA
+	_items = next_items
+	_decoded_items_by_id = next_decoded_items
+	return OK
+
+
+## 接管同一 load context 暂存的私有不可变 envelope/Resource 根。
+## @param state: 包含 items 与 decoded_items_by_id 的浅层回滚根。
+func restore_shallow_rollback_state_taking_ownership(
+	state: Dictionary
+) -> Error:
+	if state.size() != 2:
+		return ERR_INVALID_DATA
+	var items_value: Variant = state.get(&"items")
+	var decoded_value: Variant = state.get(&"decoded_items_by_id")
+	if not items_value is Array[Dictionary] or not decoded_value is Dictionary:
+		return ERR_INVALID_DATA
+	var items: Array[Dictionary] = items_value
+	var decoded_items: Dictionary = decoded_value
+	if items.size() > MAX_BOOKMARK_COUNT or decoded_items.size() > MAX_BOOKMARK_COUNT:
+		return ERR_INVALID_DATA
+	_items = items
+	_decoded_items_by_id = decoded_items
+	return OK
+
+
 # --- 可重写钩子 ---
 
 func _begin_save_snapshot(
@@ -182,8 +260,16 @@ func _replace_section_data(data: Dictionary) -> Error:
 		):
 			next_items.append(item_envelope)
 		else:
-			# v5 字典历史仅在初载时解码一次，并在下一次持久化时升级为 v6。
-			next_items.append(decoded_item.to_dict())
+			# v5 字典历史仅在初载时解码一次；升级为 v6 时按当前产品
+			# 边界裁到最近 64 条，保证生成的新 envelope 可被 v6 自身重读。
+			var upgraded_envelope: Dictionary = (
+				decoded_item.to_persisted_candidate_envelope()
+			)
+			if not BookmarkData.is_persisted_envelope_lightweight_valid(
+				upgraded_envelope
+			):
+				return ERR_INVALID_DATA
+			next_items.append(upgraded_envelope)
 		next_decoded_items_by_id[bookmark_id] = decoded_item
 
 	next_items.sort_custom(func(left: Dictionary, right: Dictionary) -> bool:

@@ -4,7 +4,7 @@ extends GameFlowSystem
 
 
 var restart_count: int = 0
-var fixture_router: SceneRouterSystem = null
+var fixture_router: GameSceneRouterPort = null
 
 
 # --- 公共方法 ---
@@ -39,7 +39,7 @@ func configure_dependencies(
 	pause_utility: GamePauseUtility = null,
 	determinism: GameDeterminismUtility = null,
 	accessibility_summary: GameAccessibilitySummaryUtility = null,
-	router: SceneRouterSystem = null
+	router: GameSceneRouterPort = null
 ) -> void:
 	_grid_model = grid_model
 	_game_status_model = status_model
@@ -92,5 +92,5 @@ func _get_current_game_model() -> CurrentGameModel:
 	return null
 
 
-func _get_scene_router_system() -> SceneRouterSystem:
+func _get_scene_router_system() -> GameSceneRouterPort:
 	return fixture_router

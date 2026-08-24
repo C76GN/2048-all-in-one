@@ -75,7 +75,7 @@
       {
         "id": "architecture",
         "decision_state": "confirmed",
-        "owner": "application",
+        "owner": "composition_root",
         "recipes": [
           "project-feature",
           "composition-root"
@@ -89,7 +89,7 @@
       {
         "id": "async-lifecycle",
         "decision_state": "confirmed",
-        "owner": "application",
+        "owner": "composition_root",
         "recipes": [
           "owned-async-operation"
         ],
@@ -102,7 +102,7 @@
       {
         "id": "assets-content",
         "decision_state": "confirmed",
-        "owner": "application",
+        "owner": "composition_root",
         "recipes": [
           "owned-resource-load",
           "content-package"
@@ -119,7 +119,7 @@
       {
         "id": "storage-save",
         "decision_state": "confirmed",
-        "owner": "application",
+        "owner": "persistence",
         "recipes": [
           "save-profile"
         ],
@@ -127,9 +127,12 @@
           "当前账号的 Feature-owned GFSaveSectionProvider 只注册到一个 GFSaveProfile；GFSaveProfileUtility 拥有 typed save/load/flush、generation 合并、有界重试与事务 apply，GameSaveGraphUtility 只保留项目账号路径、恢复策略和业务入口，业务 System 不直接写文件。",
           "全局设置通过注册为精确 GFSettingsStoreUtility alias 的 GFStorageSettingsStoreUtility 访问 GFStorage；GFSettingsUtility 自身拥有 activation 自动加载、mutation admission、冻结保存记录、多目标 batch/debounce quiesce drain 和 dispose 生命周期，项目只保留恢复授权、未来版本阻断与健康诊断策略。payload 损坏可经同一 Store 覆写恢复；私有 family 结构损坏若无 GF 公开授权重建入口必须失败关闭：激活前由 Storage 阻止架构 READY，已激活后的显式重载只恢复内存默认值并将持久化标记失败、保留证据，项目不得直接修改私有成员。",
           "项目只持有 GFStorage logical identity，不解析或管理 .gf-storage/v1 的私有 family 成员；Profile 删除必须使用 delete_file_request_async() 的 caller/physical 双终态，caller outcome-unknown 时继续持有账号协调锁与 logical identity，直到物理 completed 终态完成对账。",
+          "大型 Section 采用 manifest-backed chunk Profiles：主 Profile 只保存严格 ChunkManifest，载荷按可信主身份派生到 A/B bank；单块不超过 128 KiB、单 Section 不超过 64 块或 8 MiB。inactive bank 不产生可见性，只有绑定的主 generation 已知持久化后才提交 Manifest；stage/main outcome-unknown 分别保留 exact Profile/scope fence 并通过 GF public snapshot 对账。",
+          "生产 tracers 为 bookmarks（业务 schema 9、Manifest schema 10、流 schema 2）与 replays（业务 schema 6、Manifest schema 8、流 schema 2）；书签的状态根、棋盘、2 MiB 历史和 8192-step trace，以及回放的大拓扑、终局方块和步骤都必须有界分帧，加载通过异步增量物化为一次性 PreparedState。",
           "后期 provider 应用失败必须回滚先前 provider；创建、切换、重命名和删除账号只保留 request_* 类型化异步事务，不保留同步 CRUD 包装或重复 saga；账号切换和退出前的 GFSaveProfileOperation flush barrier 必须覆盖调用时最新 generation。Profile、目录或清理进入 STATUS_OUTCOME_UNKNOWN 时继续持有账号协调锁以及 profile/path 所有权，直到迟到终态、轮询证据或显式对账收敛；目录删除迟到成功还必须等待目标 Profile 清理成功，禁止伪装回滚成功、提前解锁、删除或复用路径；test_game_save_graph_utility.gd 与本地账号测试通过。",
-          "跨账号统计只通过一次性异步设备快照读取：请求开始时目录当前账号的规范 Profile 路径必须与 GameSaveGraphUtility 当前路径一致，否则返回带 reconciliation 证据的 ERR_BUSY；一致时当前账号使用内存 section，N 个账号只提交 N-1 个 GFStorage 异步读取，由 GFAsyncBatch 汇总。UI 的模式摘要、分组切换和排序不得重复读取磁盘；即使没有 caller token 也必须在 5 秒内返回 typed partial timeout，取消、dispose 与迟到终态由 token 和 owner-bound GFSignalUtility 收敛。",
-          "书签/自定义棋盘产品上限为 16/32，复制前兼容性防线为 20,000/50,000；旧目录完整校验后稳定收敛，满额新增淘汰最旧项。棋盘最多 256 格，书签 replay 最多 8192 步、命令历史最多 2 MiB。目录编辑与回滚复用已验证的不可变 envelope，并经显式 ownership 入口转交。bookmarks、custom_boards 与 progress provider 使用 GFSaveSectionSnapshotOperation 分片并 take_ownership；progress 整节约 8 MiB/131072 节点，单 work unit 约 256 KiB/4096 节点，递归深度最多 8。",
+          "跨账号统计的调用方 player_profiles 通过 LocalAccountSystem 冻结 progress-owned DeviceProgressAccountCatalogSnapshot；值对象只含 active_account_id 与规范 account_id/display_name/last_active_at/profile_file_name，构造和读取复制隔离。ProgressStatsSystem 不依赖 LocalAccountCatalogUtility 或 LocalPlayerAccount。",
+          "设备快照请求先核对输入活动账号的 Profile 路径与 GameSaveGraphUtility 当前路径；不一致返回带 reconciliation 证据的 ERR_BUSY。一致时当前账号使用内存 section，N 个账号只提交 N-1 个 GFStorage 异步读取并由 GFAsyncBatch 汇总。UI 投影不重复读盘；无 caller token 也在 5 秒内返回 typed partial timeout，取消、dispose、迟到终态由 token 与 owner-bound GFSignalUtility 收敛。",
+          "书签/自定义棋盘产品上限为 16/32，复制前兼容性防线为 20,000/50,000；旧目录完整校验后稳定收敛，满额新增淘汰最旧项。书签根棋盘及每条命令快照最多 256 格，书签 replay 最多 8192 步、v6 命令历史最多 64 条且二进制 envelope 最多 2 MiB；v5 合法迁移输入升级时裁为最近 64 条。目录编辑与回滚复用已验证的不可变 envelope，并经显式 ownership 入口转交。bookmarks、custom_boards 与 progress provider 使用 GFSaveSectionSnapshotOperation 分片并 take_ownership；progress 整节约 8 MiB/131072 节点，单 work unit 约 256 KiB/4096 节点，递归深度最多 8。",
           "终局持久化 saga 必须冻结触发时的 Profile 身份：同一 Profile 内的新会话不取消已成立的结果与回放；账号或 Profile 切换会在 saga 开始前或进度落盘后阻止剩余写入，旧对局不得写入新账号。"
         ],
         "notes": ""
@@ -137,7 +140,7 @@
       {
         "id": "input",
         "decision_state": "confirmed",
-        "owner": "application",
+        "owner": "composition_root",
         "recipes": [
           "input-context"
         ],
@@ -150,7 +153,7 @@
       {
         "id": "spatial-physics",
         "decision_state": "confirmed",
-        "owner": "application",
+        "owner": "composition_root",
         "recipes": [
           "spatial-policy"
         ],
@@ -165,7 +168,7 @@
       {
         "id": "ui-navigation",
         "decision_state": "confirmed",
-        "owner": "application",
+        "owner": "navigation",
         "recipes": [
           "ui-screen-flow",
           "ui-route-operation"
@@ -181,7 +184,7 @@
       {
         "id": "ui-scalability",
         "decision_state": "confirmed",
-        "owner": "application",
+        "owner": "composition_root",
         "recipes": [
           "scalable-ui-collection"
         ],
@@ -195,7 +198,7 @@
       {
         "id": "audio",
         "decision_state": "confirmed",
-        "owner": "application",
+        "owner": "themes",
         "recipes": [
           "provider-backend"
         ],
@@ -209,7 +212,7 @@
       {
         "id": "state-flow",
         "decision_state": "confirmed",
-        "owner": "application",
+        "owner": "game_session",
         "recipes": [
           "state-or-flow"
         ],
@@ -222,7 +225,7 @@
       {
         "id": "diagnostics",
         "decision_state": "confirmed",
-        "owner": "application",
+        "owner": "diagnostics",
         "recipes": [
           "diagnostic-contribution",
           "session-trace",
@@ -238,7 +241,7 @@
       {
         "id": "determinism",
         "decision_state": "confirmed",
-        "owner": "application",
+        "owner": "gameplay",
         "recipes": [
           "deterministic-scope"
         ],
@@ -266,7 +269,7 @@
       {
         "id": "domain-components",
         "decision_state": "confirmed",
-        "owner": "application",
+        "owner": "composition_root",
         "recipes": [
           "domain-component"
         ],
@@ -292,7 +295,7 @@
       {
         "id": "command-history",
         "decision_state": "confirmed",
-        "owner": "application",
+        "owner": "composition_root",
         "recipes": [
           "undoable-command-history"
         ],
@@ -306,7 +309,7 @@
       {
         "id": "render-feedback",
         "decision_state": "confirmed",
-        "owner": "application",
+        "owner": "themes",
         "recipes": [
           "render-feedback-orchestration"
         ],
@@ -320,7 +323,7 @@
       {
         "id": "runtime-performance",
         "decision_state": "confirmed",
-        "owner": "application",
+        "owner": "game_session",
         "recipes": [
           "bounded-runtime-work"
         ],
@@ -337,45 +340,445 @@
     "modules": [
       {
         "id": "shared_foundation",
-        "responsibility": "拥有跨 Feature 的稳定契约、资源目录、UI 原语和无业务偏向的项目 Utility；不得反向依赖 application。",
+        "responsibility": "拥有跨 Feature 的稳定契约、资源目录、UI 原语和无业务偏向的项目 Utility；不得反向依赖 Composition Root、任何 Feature Module 或平台 Adapter。",
         "roots": [
           "res://shared"
         ],
         "allowed_dependencies": [],
         "forbidden_dependencies": [
-          "application",
+          "composition_root",
+          "accessibility",
+          "achievements",
+          "asset_library",
+          "board_editor",
+          "bookmarks",
+          "diagnostics",
+          "documentation",
+          "game_session",
+          "gameplay",
+          "navigation",
+          "persistence",
+          "player_profiles",
+          "progress",
+          "replays",
+          "saved_content_browser",
+          "settings",
+          "themes",
+          "tile_lab",
+          "tile_catalog",
+          "godot_local_platform_adapter",
+          "generated_artifacts",
           "verification"
         ],
         "ownership": "project"
       },
       {
-        "id": "application",
-        "responsibility": "拥有 Composition Root 与全部非平台 Feature-Cohesive 业务切片；Feature 目录提供 Locality，跨 Feature 调用由 docs/architecture.md 的 System、Utility、事件和 route 规则约束。",
+        "id": "composition_root",
+        "responsibility": "只拥有启动入口、GameArchitectureInstaller、GF Module 装配、实现选择、构建 feature 开关和跨 Module 依赖注入；不得吸收任何 Feature 业务规则或平台供应商实现。",
         "roots": [
-          "res://app",
-          "res://features/accessibility",
-          "res://features/achievements",
-          "res://features/asset_library",
-          "res://features/board_editor",
-          "res://features/bookmarks",
-          "res://features/diagnostics",
-          "res://features/gameplay",
-          "res://features/navigation",
-          "res://features/persistence",
-          "res://features/player_profiles",
-          "res://features/progress",
-          "res://features/replays",
-          "res://features/settings",
-          "res://features/themes",
-          "res://features/tile_lab",
+          "res://app"
+        ],
+        "allowed_dependencies": [
+          "accessibility",
+          "achievements",
+          "asset_library",
+          "board_editor",
+          "bookmarks",
+          "diagnostics",
+          "game_session",
+          "gameplay",
+          "navigation",
+          "persistence",
+          "player_profiles",
+          "progress",
+          "replays",
+          "settings",
+          "shared_foundation",
+          "godot_local_platform_adapter",
+          "themes",
+          "tile_lab",
+          "tile_catalog"
+        ],
+        "forbidden_dependencies": [
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "accessibility",
+        "responsibility": "拥有棋盘与回合的规范无障碍语义摘要、字幕同源文本、复制入口和未来平台辅助技术投影。",
+        "roots": [
+          "res://features/accessibility"
+        ],
+        "allowed_dependencies": [
+          "gameplay",
+          "godot_local_platform_adapter",
+          "shared_foundation"
+        ],
+        "forbidden_dependencies": [
+          "composition_root",
+          "generated_artifacts",
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "achievements",
+        "responsibility": "拥有数据驱动成就目录、GF Quest 运行时投影、成就列表和 achievements GFSaveProfile Section。",
+        "roots": [
+          "res://features/achievements"
+        ],
+        "allowed_dependencies": [
+          "persistence",
+          "player_profiles",
+          "progress",
+          "shared_foundation",
+          "themes",
+          "tile_catalog"
+        ],
+        "forbidden_dependencies": [
+          "composition_root",
+          "generated_artifacts",
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "asset_library",
+        "responsibility": "拥有可复用素材内容包、候选评审、授权、引用审计、隔离 source packs 和局部导入工具。",
+        "roots": [
+          "res://features/asset_library"
+        ],
+        "allowed_dependencies": [
+          "generated_artifacts",
+          "shared_foundation"
+        ],
+        "forbidden_dependencies": [
+          "composition_root",
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "board_editor",
+        "responsibility": "拥有玩家棋盘草稿、局部撤销历史、自定义模板目录和 custom_boards GFSaveProfile Section。",
+        "roots": [
+          "res://features/board_editor"
+        ],
+        "allowed_dependencies": [
+          "accessibility",
+          "gameplay",
+          "godot_local_platform_adapter",
+          "persistence",
+          "shared_foundation",
+          "themes"
+        ],
+        "forbidden_dependencies": [
+          "composition_root",
+          "generated_artifacts",
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "bookmarks",
+        "responsibility": "拥有书签数据、保存流程、最近可继续书签查询、读取存档列表和数字样张预览入口。",
+        "roots": [
+          "res://features/bookmarks"
+        ],
+        "allowed_dependencies": [
+          "gameplay",
+          "persistence",
+          "saved_content_browser",
+          "shared_foundation",
+          "themes"
+        ],
+        "forbidden_dependencies": [
+          "composition_root",
+          "generated_artifacts",
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "diagnostics",
+        "responsibility": "拥有项目诊断快照、支持报告、性能验收投影和仅开发环境使用的独立诊断工作区。",
+        "roots": [
+          "res://features/diagnostics"
+        ],
+        "allowed_dependencies": [
+          "accessibility",
+          "achievements",
+          "asset_library",
+          "game_session",
+          "gameplay",
+          "navigation",
+          "persistence",
+          "shared_foundation",
+          "themes",
+          "tile_catalog"
+        ],
+        "forbidden_dependencies": [
+          "composition_root",
+          "generated_artifacts",
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "documentation",
+        "responsibility": "拥有项目架构、存档、验证、路线图与视觉规范等持久文档；不进入玩家运行时依赖图。",
+        "roots": [
+          "res://docs"
+        ],
+        "allowed_dependencies": [],
+        "forbidden_dependencies": [
+          "composition_root",
+          "generated_artifacts",
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "game_session",
+        "responsibility": "拥有对局启动、可玩会话状态流、玩家输入、玩法场景与 HUD，以及无障碍、书签、进度、回放和主题的跨 Feature 编排；不拥有确定性规则算法或各 Feature 持久化字段。",
+        "roots": [
+          "res://features/game_session"
+        ],
+        "allowed_dependencies": [
+          "accessibility",
+          "asset_library",
+          "bookmarks",
+          "gameplay",
+          "godot_local_platform_adapter",
+          "persistence",
+          "progress",
+          "replays",
+          "shared_foundation",
+          "themes"
+        ],
+        "forbidden_dependencies": [
+          "composition_root",
+          "generated_artifacts",
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "gameplay",
+        "responsibility": "拥有棋盘领域模型、规则组合、移动与生成算法、模式目录、确定性摘要及与表现无关的玩法数据；不拥有场景、HUD、输入适配或跨 Feature 会话编排。",
+        "roots": [
+          "res://features/gameplay"
+        ],
+        "allowed_dependencies": [
+          "shared_foundation"
+        ],
+        "forbidden_dependencies": [
+          "composition_root",
+          "generated_artifacts",
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "navigation",
+        "responsibility": "拥有场景路由、主菜单、继续游戏与读取入口、模式选择和 UI Route 注册表。",
+        "roots": [
+          "res://features/navigation"
+        ],
+        "allowed_dependencies": [
+          "accessibility",
+          "achievements",
+          "asset_library",
+          "board_editor",
+          "bookmarks",
+          "game_session",
+          "gameplay",
+          "godot_local_platform_adapter",
+          "player_profiles",
+          "progress",
+          "replays",
+          "settings",
+          "shared_foundation",
+          "themes",
+          "tile_catalog",
+          "tile_lab"
+        ],
+        "forbidden_dependencies": [
+          "composition_root",
+          "generated_artifacts",
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "persistence",
+        "responsibility": "拥有通用玩家数据 Section 协议、统一玩家 Profile 身份与 GFSaveProfile 事务编排、恢复策略和存储诊断；不解释 Feature 业务字段。",
+        "roots": [
+          "res://features/persistence"
+        ],
+        "allowed_dependencies": [
+          "godot_local_platform_adapter",
+          "shared_foundation"
+        ],
+        "forbidden_dependencies": [
+          "composition_root",
+          "generated_artifacts",
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "player_profiles",
+        "responsibility": "拥有设备内本地账号目录、账号切换事务、个人信息页和跨账号本地参考榜查询入口。",
+        "roots": [
+          "res://features/player_profiles"
+        ],
+        "allowed_dependencies": [
+          "gameplay",
+          "persistence",
+          "progress",
+          "shared_foundation",
+          "themes"
+        ],
+        "forbidden_dependencies": [
+          "composition_root",
+          "generated_artifacts",
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "progress",
+        "responsibility": "拥有按账号隔离的最高分、模式摘要、规范结果、资格过滤本地参考榜和 progress GFSaveProfile Section。",
+        "roots": [
+          "res://features/progress"
+        ],
+        "allowed_dependencies": [
+          "gameplay",
+          "persistence",
+          "shared_foundation"
+        ],
+        "forbidden_dependencies": [
+          "composition_root",
+          "generated_artifacts",
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "replays",
+        "responsibility": "拥有确定性回放数据、目录、录制与播放状态机、回放列表和 replays GFSaveProfile Section；玩家输入适配与时间线表现由 game_session 编排。",
+        "roots": [
+          "res://features/replays"
+        ],
+        "allowed_dependencies": [
+          "gameplay",
+          "persistence",
+          "saved_content_browser",
+          "shared_foundation",
+          "themes"
+        ],
+        "forbidden_dependencies": [
+          "composition_root",
+          "generated_artifacts",
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "saved_content_browser",
+        "responsibility": "拥有书签、回放等持久内容浏览器共用的深层列表壳、虚拟化焦点、预览布局、删除事务交互和迟到终态对账；不解释具体内容字段。",
+        "roots": [
+          "res://features/saved_content_browser"
+        ],
+        "allowed_dependencies": [
+          "gameplay",
+          "persistence",
+          "shared_foundation",
+          "themes"
+        ],
+        "forbidden_dependencies": [
+          "composition_root",
+          "generated_artifacts",
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "settings",
+        "responsibility": "拥有项目设置默认值注册、GF Settings 持久化策略与设置界面；通过各 Feature 公开的设置契约编辑输入、无障碍和视觉偏好。",
+        "roots": [
+          "res://features/settings"
+        ],
+        "allowed_dependencies": [
+          "accessibility",
+          "asset_library",
+          "game_session",
+          "shared_foundation",
+          "themes"
+        ],
+        "forbidden_dependencies": [
+          "composition_root",
+          "generated_artifacts",
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "themes",
+        "responsibility": "拥有视觉主题、音效主题、主题化 UI 宿主与布局、UI 色板、棋盘反馈、背景音乐策略和主题内容包。",
+        "roots": [
+          "res://features/themes"
+        ],
+        "allowed_dependencies": [
+          "accessibility",
+          "asset_library",
+          "gameplay",
+          "shared_foundation"
+        ],
+        "forbidden_dependencies": [
+          "composition_root",
+          "generated_artifacts",
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "tile_lab",
+        "responsibility": "拥有玩家方块蓝图、TileDefinition 与 GFCapabilityRecipe 组合、冲突解释、tile_blueprints Section 和隔离沙盒试验。",
+        "roots": [
+          "res://features/tile_lab"
+        ],
+        "allowed_dependencies": [
+          "gameplay",
+          "persistence",
+          "shared_foundation",
+          "themes",
+          "tile_catalog"
+        ],
+        "forbidden_dependencies": [
+          "composition_root",
+          "generated_artifacts",
+          "verification"
+        ],
+        "ownership": "project"
+      },
+      {
+        "id": "tile_catalog",
+        "responsibility": "拥有方块定义目录、组合与拓扑发现、响应式图鉴和 discoveries GFSaveProfile Section。",
+        "roots": [
           "res://features/tile_catalog"
         ],
         "allowed_dependencies": [
+          "gameplay",
+          "persistence",
           "shared_foundation",
-          "godot_local_platform_adapter",
-          "generated_artifacts"
+          "themes"
         ],
         "forbidden_dependencies": [
+          "composition_root",
+          "generated_artifacts",
           "verification"
         ],
         "ownership": "project"
@@ -389,9 +792,28 @@
         "allowed_dependencies": [],
         "forbidden_dependencies": [
           "shared_foundation",
-          "application",
-          "verification",
-          "godot_local_platform_adapter"
+          "composition_root",
+          "accessibility",
+          "achievements",
+          "asset_library",
+          "board_editor",
+          "bookmarks",
+          "diagnostics",
+          "documentation",
+          "game_session",
+          "gameplay",
+          "navigation",
+          "persistence",
+          "player_profiles",
+          "progress",
+          "replays",
+          "saved_content_browser",
+          "settings",
+          "themes",
+          "tile_lab",
+          "tile_catalog",
+          "godot_local_platform_adapter",
+          "verification"
         ],
         "ownership": "generated"
       },
@@ -404,10 +826,29 @@
           "res://addons/wechat_minigame_smoke_export"
         ],
         "allowed_dependencies": [
+          "composition_root",
+          "accessibility",
+          "achievements",
+          "asset_library",
+          "board_editor",
+          "bookmarks",
+          "diagnostics",
+          "documentation",
+          "game_session",
+          "gameplay",
+          "navigation",
+          "persistence",
+          "player_profiles",
+          "progress",
+          "replays",
+          "saved_content_browser",
+          "settings",
           "shared_foundation",
-          "application",
           "godot_local_platform_adapter",
-          "generated_artifacts"
+          "generated_artifacts",
+          "themes",
+          "tile_lab",
+          "tile_catalog"
         ],
         "forbidden_dependencies": [],
         "ownership": "project"
@@ -420,7 +861,9 @@
       "res://.gf/vendor.lock.json",
       "res://.gitignore",
       "res://.gutconfig.json",
-      "res://docs/visual_style.md",
+      "res://CONTEXT.md",
+      "res://README.md",
+      "res://addons/gut/plugin.cfg",
       "res://export_presets.cfg",
       "res://gf_project_profile.json",
       "res://project.godot"
@@ -429,11 +872,11 @@
       "项目业务代码必须位于严格 Feature-Cohesive 目录，目录真相来源是 gf_project_profile.json。",
       "项目代码不得直接修改 res://addons/gf；通用缺陷先进入 gf-framework GitHub issue，issue 是唯一协作与验收记录，不转为 PR；授权实现只在独立 gf-pr 工作区的非 main 分支完成并通过 GF 测试，gf-pr 仅表示隔离工作区；稳定线按正式发布更新，开发兼容线只同步 GF 官方 main 上游门禁通过的精确 source commit；两条线都必须完整更新 vendor lock 且不得携带项目补丁。",
       "用户自有 gf 工作区只对本项目自动化与协作者只读，不限制用户本人继续维护；授权框架实现仅在独立 gf-pr 工作区的非 main 分支进行，gf-pr 不代表授权创建 GitHub PR。",
-      "跨模块依赖必须由 GF Composition Root 声明并注入；只有 app 启动链可以访问全局 Gf。",
+      "R1A 将 res://app 限定为唯一 Composition Root，每个非平台 Feature 是独立 architecture Module；Feature 不得依赖 Composition Root，跨 Module 依赖只能沿 allowed_dependencies 的无环方向并由 GF Composition Root 声明与注入，只有 app 启动链可以访问全局 Gf。",
       "业务随机数使用 GFSeedUtility，共享时间使用 GFClock；回放、撤销和书签必须保持确定性。",
       "UI 导航使用 GFUIRouterUtility，跨生命周期信号使用 GFSignalUtility，玩家输入使用 GFInputMappingUtility；动画门控期的短时最新移动意图使用 GFInputAssistUtility。",
       "资源身份由 ProjectContentCatalogUtility 和 ProjectResourceCatalogUtility 统一管理；业务代码不保留路径后备。",
-      "玩家设备与平台能力探测只允许位于 platform_runtime Adapter；其他 Feature 消费 GFPlatformRuntimeContext 和能力集合。Composition Root 的构建 feature 开关与开发诊断的 headless 判定不属于玩家平台能力。",
+      "玩家设备与平台能力探测只允许位于 platform_runtime Adapter boundary；platform_runtime 不重复声明为 architecture Module，其他 Feature 只消费 GFPlatformRuntimeContext 和能力集合。Composition Root 的构建 feature 开关与开发诊断的 headless 判定不属于玩家平台能力。",
       "玩家长期数据通过 GameSaveGraphUtility 把 Feature-owned GFSaveSectionProvider 注册到 GFSaveProfileUtility，并进入当前账号的独立统一 Profile；业务 System 不直接写文件。",
       "全部构建只安装无 UI、严格有界的 GFOperationDiagnosticsUtility 运行基线；Console、Overlay、Inspector、Screenshot、支持报告界面和测试工具只在 with_dev_tools feature 下安装，不得进入玩家首屏依赖链。",
       "不为旧 API、旧业务 schema 或未知损坏数据保留运行时兼容分支；必要迁移使用显式一次性工具。"
@@ -515,6 +958,7 @@
       "GF 根架构完成严格 init 后才能进入业务首场景。",
       "GF Module 只在 ready 阶段解析跨模块依赖，并通过 get_required_* 声明静态依赖。",
       "退出或切换账号时，当前账号 Profile 必须等待在途写入并冲刷调用时最新 provider generation；退出仍由架构反序 dispose。",
+      "manifest-backed Section 的 chunk stage、主 Manifest 保存和 load materialization 必须在账号/Profile 身份切换前收敛；未对账 outcome-unknown fence 不得释放或复用对应 scope。",
       "平台通知只通过 GamePlatformUtility 转交当前 Adapter，再由 GFPlatformRuntime 发布规范事件。",
       "内容资源必须拥有明确资源组或挂载令牌；切换主题成功后再释放旧组。"
     ],
@@ -522,10 +966,36 @@
       "异步操作必须有单一所有者，并且成功、失败、取消或超时只能完成一次。",
       "主题和声音主题资源应先通过 GFAssetLoadSession 完整预加载，再事务激活。",
       "存档异步写入必须由 GFSaveProfileUtility 串行化并显式重试；退出和账号切换等待 GFSaveProfileOperation typed flush barrier 覆盖调用时最新 generation。",
+      "大型 Section 必须在 Provider callback 外完成 chunk Profile I/O 与严格物化；任一 chunk 缺失、损坏或摘要不符时不得把部分载荷交给业务 Provider。",
       "异步回调不得在 owner dispose 后访问节点、Utility 或平台 Adapter。"
     ]
   },
   "decisions": [
+    {
+      "id": "r1a_feature_architecture_modules",
+      "status": "accepted",
+      "statement": "R1A 将 res://app 收敛为唯一 Composition Root，并把每个非平台 Feature 声明为独立 architecture Module；platform_runtime 仅由既有 Adapter boundary 拥有。",
+      "rationale": "独立 Module 让 Feature 所有权、Interface 和依赖方向可被合同直接验证，不再由 application 聚合隐藏耦合；allowed_dependencies 表达预期无环方向，现存反向源码引用作为后续解耦 drift 保留，shared_foundation 继续保持只被依赖。",
+      "evidence": [
+        "CONTEXT.md",
+        ".gf/project_contract.json",
+        "app/scripts/game_architecture_installer.gd",
+        "features"
+      ]
+    },
+    {
+      "id": "game_session_orchestration_boundary",
+      "status": "accepted",
+      "statement": "可玩对局的场景、HUD、玩家输入、状态流与跨 Feature 编排归 game_session；gameplay 只保留确定性领域核心。",
+      "rationale": "把会话编排从规则核心分离后，bookmarks、replays、tile_catalog 与 navigation 不再反向依赖具体棋盘 Controller 或 AppConfigModel。启动调用方只消费 GameSessionLaunchPort，图鉴只消费复制隔离的 BoardTopologyReadyData；GF 契约扫描必须保持 gameplay 仅依赖 shared_foundation 且模块图无环。",
+      "evidence": [
+        "features/game_session",
+        "features/gameplay/scripts/events/board_topology_ready_data.gd",
+        "shared/scripts/game_session/game_session_launch_port.gd",
+        "tests/gut/test_game_session_launch_system.gd",
+        "docs/architecture.md"
+      ]
+    },
     {
       "id": "strict_feature_cohesive_layout",
       "status": "accepted",
@@ -534,7 +1004,8 @@
       "evidence": [
         "gf_project_profile.json",
         "docs/architecture.md",
-        "tests/gut/test_project_layout_profile.gd"
+        "tools/validate_project_layout.gd",
+        "tests/gut/test_gdscript_layout_validation.gd"
       ]
     },
     {
@@ -560,10 +1031,29 @@
     {
       "id": "unified_player_profile",
       "status": "accepted",
-      "statement": "每个本地账号拥有独立的完整 GFSaveProfile；统计、书签、回放、成就、图鉴、自定义棋盘和试验台蓝图不跨账号共享。",
-      "rationale": "统一 section 顺序、事务回滚、恢复报告和退出冲刷，避免多个 Feature 重复实现文件存储和跨文档一致性。",
+      "statement": "每个本地账号拥有一个独立主 GFSaveProfile 作为唯一业务可见提交点；统计、书签、回放、成就、图鉴、自定义棋盘和试验台蓝图不跨账号共享。",
+      "rationale": "统一 section 顺序、事务回滚、恢复报告和退出冲刷；大型载荷可以进入由主身份严格派生的 chunk Profiles，但不能成为第二套业务真源或独立提交点。",
       "evidence": [
         "features/persistence/scripts/utilities/game_save_graph_utility.gd",
+        "docs/save_model.md"
+      ]
+    },
+    {
+      "id": "manifest_backed_chunk_profiles",
+      "status": "accepted",
+      "statement": "R5C 建立项目级 manifest-backed 分块持久化，并以 bookmarks、replays 作为前两个生产 tracer；主 Profile schema 13 在未发布开发阶段允许备份后重置。",
+      "rationale": "把大型业务载荷拆到严格有界的小型 GF Profiles，避免单个 Section 在保存或加载热路径形成无界序列化、复制与单帧解码峰值；A/B bank 和主 Manifest 提交点保持崩溃一致性，Feature 继续拥有自己的流式 codec、增量物化器与业务 schema。主 logical family 的删除或开发期重置只有在主删除已确定成功或不存在后才清理全部已登记 Manifest Provider 的派生 family，并在复合事务收敛前持续持有路径所有权。",
+      "evidence": [
+        "features/persistence/scripts/chunking",
+        "features/bookmarks/scripts/persistence",
+        "features/replays/scripts/persistence",
+        "features/persistence/scripts/utilities/game_save_graph_utility.gd",
+        "tests/gut/test_chunk_profile_utility.gd",
+        "tests/gut/test_chunk_profile_cleanup.gd",
+        "tests/gut/test_bookmark_chunk_persistence.gd",
+        "tests/gut/test_replay_chunk_persistence.gd",
+        "tests/gut/test_game_save_graph_utility.gd",
+        "tests/gut/test_local_player_profiles.gd",
         "docs/save_model.md"
       ]
     },

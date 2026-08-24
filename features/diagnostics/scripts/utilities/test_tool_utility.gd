@@ -495,11 +495,11 @@ func _on_reset_and_resize_requested(new_size: int) -> void:
 		push_error("[TestToolUtility] 缺少 GameThemeUtility，无法重建测试棋盘视觉主题。")
 		return
 
-	var resolved_color_schemes: Dictionary = _theme_utility.resolve_color_schemes(
-		mode_config.color_schemes
+	var resolved_color_schemes: Dictionary = _theme_utility.resolve_color_schemes_for_mode(
+		mode_config.visual_profile_id
 	)
-	var resolved_board_theme: BoardTheme = _theme_utility.resolve_board_theme(
-		mode_config.board_theme
+	var resolved_board_theme: BoardTheme = _theme_utility.resolve_board_theme_for_mode(
+		mode_config.visual_profile_id
 	)
 	var resolved_tile_visual_theme: TileVisualTheme = _theme_utility.resolve_tile_visual_theme()
 	if not is_instance_valid(resolved_tile_visual_theme):

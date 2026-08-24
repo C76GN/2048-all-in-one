@@ -18,6 +18,7 @@ const _CELL_GAP_RATIO: float = 0.12
 var _topology: BoardTopology = null
 var _tile_value_by_cell: Dictionary = {}
 var _tile_color_by_cell: Dictionary = {}
+var _color_schemes: Dictionary = {}
 var _paper_color: Color = Color(1.0, 0.972549, 0.909804, 1.0)
 var _ink_color: Color = Color(0.184314, 0.188235, 0.215686, 1.0)
 var _empty_cell_color: Color = Color(0.184314, 0.188235, 0.215686, 0.12)
@@ -83,13 +84,18 @@ func _draw() -> void:
 ## 从严格书签棋盘快照更新有界缩略投影。
 ## @param snapshot: BookmarkData.board_snapshot 的当前 schema 字典。
 ## @param mode_config: 只用于解析棋盘和方块视觉，不作为玩法状态来源。
-func configure(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
+## @param theme_utility: 可选的当前主题解析服务；为空时使用模式自身视觉资源。
+func configure(
+	snapshot: Dictionary,
+	mode_config: GameModeConfig,
+	theme_utility: GameThemeUtility = null
+) -> void:
 	_topology = BoardTopology.from_dict(
 		GFVariantData.get_option_dictionary(snapshot, &"topology")
 	)
 	_tile_value_by_cell.clear()
 	_tile_color_by_cell.clear()
-	_apply_theme_colors(mode_config)
+	_apply_theme_colors(mode_config, theme_utility)
 	if not is_instance_valid(_topology):
 		queue_redraw()
 		return
@@ -123,6 +129,7 @@ func clear() -> void:
 	_topology = null
 	_tile_value_by_cell.clear()
 	_tile_color_by_cell.clear()
+	_color_schemes.clear()
 	queue_redraw()
 
 
@@ -137,12 +144,21 @@ func get_rendered_cell_count() -> int:
 
 # --- 私有/辅助方法 ---
 
-func _apply_theme_colors(mode_config: GameModeConfig) -> void:
-	if not is_instance_valid(mode_config) or not is_instance_valid(
-		mode_config.board_theme
-	):
+func _apply_theme_colors(
+	mode_config: GameModeConfig,
+	theme_utility: GameThemeUtility
+) -> void:
+	_color_schemes.clear()
+	if not is_instance_valid(mode_config) or not is_instance_valid(theme_utility):
 		return
-	var board_theme: BoardTheme = mode_config.board_theme
+	var board_theme: BoardTheme = theme_utility.resolve_board_theme_for_mode(
+		mode_config.visual_profile_id
+	)
+	_color_schemes = theme_utility.resolve_color_schemes_for_mode(
+		mode_config.visual_profile_id
+	)
+	if not is_instance_valid(board_theme):
+		return
 	_paper_color = board_theme.board_panel_color
 	_ink_color = board_theme.board_border_color
 	_empty_cell_color = board_theme.empty_cell_color
@@ -161,7 +177,7 @@ func _resolve_tile_color(
 		value,
 		definition_id
 	)
-	var scheme_value: Variant = mode_config.color_schemes.get(scheme_index)
+	var scheme_value: Variant = _color_schemes.get(scheme_index)
 	if not scheme_value is TileColorScheme:
 		return _fallback_tile_color(value)
 	var color_scheme: TileColorScheme = scheme_value

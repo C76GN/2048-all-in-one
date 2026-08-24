@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1_route")
 route_id = &"target_reached_menu"
-scene_path = "res://features/gameplay/scenes/ui/target_reached_menu.tscn"
+scene_path = "res://features/game_session/scenes/ui/target_reached_menu.tscn"
 default_options = {
 "dismiss_on_cancel": false,
 "focus_on_open": true,

@@ -12,6 +12,83 @@ const _RULESET_FINGERPRINT: String = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 # --- 测试用例 ---
 
+func test_device_progress_account_catalog_snapshot_is_strict_and_copy_isolated() -> void:
+	var account_id: String = GFUuid.generate_v7(1_000_000)
+	var descriptors: Array[Dictionary] = [{
+		&"account_id": account_id,
+		&"display_name": "本地玩家",
+		&"last_active_at": 1_000,
+		&"profile_file_name": "profiles/%s.save" % account_id,
+	}]
+	var snapshot: DeviceProgressAccountCatalogSnapshot = (
+		DeviceProgressAccountCatalogSnapshot.create(
+			account_id,
+			descriptors
+		)
+	)
+	assert_not_null(snapshot)
+	assert_true(snapshot != null and snapshot.is_valid())
+
+	descriptors[0][&"display_name"] = "调用方修改"
+	descriptors.clear()
+	var first_read: Array[Dictionary] = snapshot.get_account_descriptors()
+	assert_true(
+		first_read.size() == 1
+		and GFVariantData.get_option_string(
+			first_read[0],
+			&"display_name"
+		) == "本地玩家",
+		"构造后调用方不得保留内部目录 alias。"
+	)
+	first_read[0][&"display_name"] = "读取方修改"
+	var second_read: Array[Dictionary] = snapshot.get_account_descriptors()
+	assert_true(
+		GFVariantData.get_option_string(
+			second_read[0],
+			&"display_name"
+		) == "本地玩家",
+		"每次读取必须返回新的描述符副本。"
+	)
+
+	var wrong_path_descriptors: Array[Dictionary] = [{
+		&"account_id": account_id,
+		&"display_name": "本地玩家",
+		&"last_active_at": 1_000,
+		&"profile_file_name": "profiles/other.save",
+	}]
+	assert_null(
+		DeviceProgressAccountCatalogSnapshot.create(
+			account_id,
+			wrong_path_descriptors
+		),
+		"值对象必须拒绝非规范 Profile logical identity。"
+	)
+	var extra_field_descriptors: Array[Dictionary] = [{
+		&"account_id": account_id,
+		&"display_name": "本地玩家",
+		&"last_active_at": 1_000,
+		&"profile_file_name": "profiles/%s.save" % account_id,
+		&"implementation": "player_profiles",
+	}]
+	assert_null(
+		DeviceProgressAccountCatalogSnapshot.create(
+			account_id,
+			extra_field_descriptors
+		),
+		"目录描述符不得泄漏额外实现字段。"
+	)
+
+
+func test_progress_stats_system_does_not_require_player_profile_catalog() -> void:
+	var required_utilities: Array[Script] = (
+		ProgressStatsSystem.new().get_required_utilities()
+	)
+	assert_false(
+		required_utilities.has(LocalAccountCatalogUtility),
+		"progress 必须只消费调用方快照，不能反向要求 player_profiles Utility。"
+	)
+
+
 func test_set_high_score_updates_stats_without_recording_play() -> void:
 	var setup: Dictionary = await _create_save_architecture()
 	var progress_stats_system: ProgressStatsSystem = _get_progress_stats_system(setup)
@@ -553,6 +630,10 @@ func _create_save_architecture(
 	await architecture.register_utility(
 		GFSaveProfileUtility,
 		GFSaveProfileUtility.new()
+	)
+	await architecture.register_utility(
+		ChunkProfileUtility,
+		ChunkProfileUtility.new()
 	)
 	await architecture.register_utility(
 		GFBackgroundWorkUtility,

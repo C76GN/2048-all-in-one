@@ -3,6 +3,8 @@ class_name AchievementListDialog
 extends GameUiController
 
 
+## achievements Feature 拥有的稳定 UI route 身份。
+const ROUTE_ID: StringName = &"achievements"
 const ACHIEVEMENT_CARD_SCENE: PackedScene = preload(
 	"res://features/achievements/scenes/ui/achievement_card.tscn"
 )
@@ -355,9 +357,7 @@ func _apply_responsive_layout() -> void:
 
 
 func _close_dialog() -> void:
-	var _closed: bool = _close_current_popup_route(
-		GameUiRouterUtility.ROUTE_ACHIEVEMENTS
-	)
+	var _closed: bool = _close_current_popup_route(ROUTE_ID)
 
 
 # --- 信号处理函数 ---

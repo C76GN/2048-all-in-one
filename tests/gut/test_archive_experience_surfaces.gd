@@ -5,7 +5,7 @@ extends GutTest
 # --- 常量 ---
 
 const _GAME_SCENE: PackedScene = preload(
-	"res://features/gameplay/scenes/game/game_play.tscn"
+	"res://features/game_session/scenes/game/game_play.tscn"
 )
 const _BOOKMARK_LIST_SCENE: PackedScene = preload(
 	"res://features/bookmarks/scenes/menus/bookmark_list.tscn"
@@ -16,8 +16,11 @@ const _BOOKMARK_ITEM_SCENE: PackedScene = preload(
 const _RATIO_MODE_CONFIG: GameModeConfig = preload(
 	"res://features/gameplay/resources/modes/ratio_mode_config.tres"
 )
+const _MODE_VISUAL_PROFILE_REGISTRY: GameModeVisualProfileRegistry = preload(
+	"res://features/themes/resources/themes/mode_visuals/default_mode_visual_profile_registry.tres"
+)
 const _REPLAY_INPUT_CONTEXT: GFInputContext = preload(
-	"res://features/replays/resources/input/replay_input_context.tres"
+	"res://features/game_session/resources/input/replay_input_context.tres"
 )
 const _ACTION_REPLAY_PREV_STEP: StringName = &"replay_prev_step"
 const _ACTION_REPLAY_NEXT_STEP: StringName = &"replay_next_step"
@@ -192,6 +195,8 @@ func test_bookmark_stamp_caps_board_work_at_persisted_cell_limit() -> void:
 func test_bookmark_stamp_preserves_definition_color_for_equal_ratio_values() -> void:
 	var topology: BoardTopology = BoardTopology.create_rectangle(Vector2i(2, 1))
 	var stamp: BookmarkBoardStamp = BookmarkBoardStamp.new()
+	var theme_utility: GameThemeUtility = GameThemeUtility.new()
+	theme_utility._mode_visual_profile_registry = _MODE_VISUAL_PROFILE_REGISTRY
 	stamp.configure({
 		&"topology": topology.to_dict(),
 		&"tiles": [
@@ -206,7 +211,7 @@ func test_bookmark_stamp_preserves_definition_color_for_equal_ratio_values() -> 
 				&"definition_id": &"tile.ratio.factor",
 			},
 		],
-	}, _RATIO_MODE_CONFIG)
+	}, _RATIO_MODE_CONFIG, theme_utility)
 
 	var base_color: Variant = stamp._tile_color_by_cell.get(Vector2i(0, 0))
 	var factor_color: Variant = stamp._tile_color_by_cell.get(Vector2i(1, 0))

@@ -34,12 +34,9 @@ extends Resource
 ## 游戏如何结束的规则。
 @export var game_over_rule: GameOverRule
 
-@export_group("视觉主题")
-## 一个字典，用于存储 TileDefinition.color_scheme_index 对应的配色方案。
-@export var color_schemes: Dictionary = {}
-
-## 棋盘和背景的视觉主题。
-@export var board_theme: BoardTheme
+@export_group("视觉配置")
+## 由 themes 内容包解析的稳定模式视觉 Profile ID。
+@export var visual_profile_id: StringName = &""
 
 @export_group("棋盘配置")
 ## 本模式允许创建的棋盘空间模板。
@@ -144,8 +141,13 @@ func get_validation_report() -> GFValidationReport:
 	if not is_instance_valid(game_over_rule):
 		_add_config_error(report, &"missing_game_over_rule", "game_over_rule 未配置。", &"game_over_rule")
 
-	if not is_instance_valid(board_theme):
-		_add_config_error(report, &"missing_board_theme", "board_theme 未配置。", &"board_theme")
+	if visual_profile_id == &"":
+		_add_config_error(
+			report,
+			&"missing_visual_profile_id",
+			"visual_profile_id 不能为空。",
+			&"visual_profile_id"
+		)
 
 	if not is_instance_valid(board_topology_template):
 		_add_config_error(

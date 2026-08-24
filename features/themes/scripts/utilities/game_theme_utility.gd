@@ -45,6 +45,7 @@ var _motion: GameUiMotionUtility = null
 var _board_feedback: GameBoardFeedbackUtility = null
 var _celebration_vfx: GameCelebrationVfxUtility = null
 var _theme_catalog: GameThemeCatalogUtility = null
+var _mode_visual_profile_registry: GameModeVisualProfileRegistry = null
 var _shader_parameters: GFShaderParameterUtility = null
 var _signal_utility: GFSignalUtility = null
 var _accessibility: GameAccessibilityUtility = null
@@ -103,6 +104,9 @@ func ready() -> void:
 	_board_feedback = _get_board_feedback_utility()
 	_celebration_vfx = _get_celebration_vfx_utility()
 	_theme_catalog = _get_theme_catalog_utility()
+	if is_instance_valid(_theme_catalog):
+		_mode_visual_profile_registry = _theme_catalog.load_mode_visual_profile_registry()
+	_validate_mode_visual_profile_registry()
 	_shader_parameters = _get_shader_parameter_utility()
 	_signal_utility = _get_signal_utility()
 	_accessibility = _get_accessibility_utility()
@@ -127,6 +131,7 @@ func dispose() -> void:
 	_board_feedback = null
 	_celebration_vfx = null
 	_theme_catalog = null
+	_mode_visual_profile_registry = null
 	_shader_parameters = null
 	_signal_utility = null
 	_accessibility = null
@@ -144,6 +149,7 @@ func release_dependencies() -> void:
 	_board_feedback = null
 	_celebration_vfx = null
 	_theme_catalog = null
+	_mode_visual_profile_registry = null
 	_shader_parameters = null
 	_signal_utility = null
 	_accessibility = null
@@ -265,20 +271,29 @@ func set_current_sound_theme_id(theme_id: StringName) -> bool:
 	return activated
 
 
-## @param fallback: 当前主题未提供棋盘主题时使用的回退资源。
-func resolve_board_theme(fallback: BoardTheme) -> BoardTheme:
+## 按模式视觉 profile 解析棋盘主题；未知 profile 失败关闭。
+## @param profile_id: 待解析的模式视觉 profile ID。
+func resolve_board_theme_for_mode(profile_id: StringName) -> BoardTheme:
+	var profile: GameModeVisualProfile = _resolve_mode_visual_profile(profile_id)
+	if not is_instance_valid(profile):
+		return null
 	var theme: GameTheme = get_current_visual_theme()
 	if is_instance_valid(theme):
-		return theme.get_board_theme_with_fallback(fallback)
-	return fallback
+		return theme.get_board_theme_with_fallback(profile.board_theme)
+	return profile.board_theme
 
 
-## @param fallback: 当前主题未提供颜色方案时使用的回退字典。
-func resolve_color_schemes(fallback: Dictionary) -> Dictionary:
+## 按模式视觉 profile 解析复制隔离的方块色阶；未知 profile 返回空字典。
+## @param profile_id: 待解析的模式视觉 profile ID。
+func resolve_color_schemes_for_mode(profile_id: StringName) -> Dictionary:
+	var profile: GameModeVisualProfile = _resolve_mode_visual_profile(profile_id)
+	if not is_instance_valid(profile):
+		return {}
+	var fallback: Dictionary = profile.get_color_schemes_copy()
 	var theme: GameTheme = get_current_visual_theme()
 	if is_instance_valid(theme):
 		return theme.get_color_schemes_with_fallback(fallback)
-	return fallback
+	return fallback.duplicate()
 
 
 ## 返回当前主题的方块家族视觉目录。
@@ -433,6 +448,11 @@ func get_debug_snapshot() -> Dictionary:
 		"current_sound_theme_id": get_current_sound_theme_id(),
 		"available_visual_theme_count": get_visual_theme_descriptors().size(),
 		"available_sound_theme_count": get_sound_theme_descriptors().size(),
+		"mode_visual_profile_count": (
+			_mode_visual_profile_registry.profiles.size()
+			if is_instance_valid(_mode_visual_profile_registry)
+			else 0
+		),
 		"initial_activation_completed": _initial_activation_completed,
 		"initial_activation_succeeded": _initial_activation_succeeded,
 		"active_visual_asset_group_id": _active_visual_asset_group_id,
@@ -1235,6 +1255,7 @@ func _get_theme_slot_snapshot(slot: GFAssetSlot) -> Dictionary:
 
 
 func _clear_runtime_state() -> void:
+	_mode_visual_profile_registry = null
 	_visual_theme_slot = null
 	_sound_theme_slot = null
 	_active_visual_asset_group_id = &""
@@ -1251,6 +1272,26 @@ func _clear_runtime_state() -> void:
 	_clear_pending_sound_activation()
 	_last_visual_activation_report.clear()
 	_last_sound_activation_report.clear()
+
+
+func _resolve_mode_visual_profile(profile_id: StringName) -> GameModeVisualProfile:
+	if not is_instance_valid(_mode_visual_profile_registry):
+		push_error("[GameThemeUtility] 模式视觉注册表不可用。")
+		return null
+	var profile: GameModeVisualProfile = _mode_visual_profile_registry.get_profile(profile_id)
+	if not is_instance_valid(profile):
+		push_error("[GameThemeUtility] 未知模式视觉 profile：%s。" % String(profile_id))
+	return profile
+
+
+func _validate_mode_visual_profile_registry() -> void:
+	if not is_instance_valid(_mode_visual_profile_registry):
+		push_error("[GameThemeUtility] 无法从内容目录加载模式视觉注册表。")
+		return
+	var report: GFValidationReport = _mode_visual_profile_registry.get_validation_report()
+	for issue: GFValidationIssue in report.issues:
+		if issue != null and issue.is_error():
+			push_error("[GameThemeUtility] %s" % issue.message)
 
 
 func _apply_backgrounds_to_tree(root: Node, theme: GameTheme) -> int:

@@ -12,8 +12,8 @@ extends Resource
 ## 在主线程递归复制每一步完整快照。读取时兼容 v5 的字典历史并在下次保存时
 ## 原子升级；所在 bookmarks section 无需失效，也不会重置玩家 Profile。
 const SCHEMA_VERSION: int = 6
-## 新建书签的 undo/redo 合计只保留最近 64 条；运行中 GFCommandHistory 的
-## 1024 条上限不变。读取仍接受当前 schema 的历史条目，但必须满足下方统一载荷预算。
+## v6 书签的 undo/redo 合计只保留并只接受最近 64 条；运行中
+## GFCommandHistory 的 1024 条上限不变。v5 迁移输入继续使用独立旧边界。
 const PERSISTED_HISTORY_TOTAL_LIMIT: int = 64
 ## v5 迁移输入的绝对命令数边界；只用于复制前防御，不改变 v6 新书签的 64 条窗口。
 const LEGACY_HISTORY_ABSOLUTE_COMMAND_LIMIT: int = 1024
@@ -264,10 +264,16 @@ static func from_dict(data: Dictionary) -> BookmarkData:
 	result.ruleset_version = GFVariantData.get_option_int(data, "ruleset_version", 0)
 	result.ruleset_fingerprint = GFVariantData.get_option_string(data, "ruleset_fingerprint")
 	result.initial_seed = GFVariantData.get_option_int(data, "initial_seed")
-	result.session_metadata = GFVariantData.get_option_dictionary(
+	var session_metadata_value: Variant = GFVariantData.get_option_value(
 		data,
 		"session_metadata"
-	).duplicate(true)
+	)
+	if not session_metadata_value is Dictionary:
+		return null
+	var session_metadata_source: Dictionary = GFVariantData.as_dictionary(
+		session_metadata_value
+	)
+	result.session_metadata = session_metadata_source.duplicate(true)
 	if result.get_session_metadata() == null:
 		return null
 	result.score = GFVariantData.get_option_int(data, "score")
@@ -276,11 +282,51 @@ static func from_dict(data: Dictionary) -> BookmarkData:
 	result.highest_tile = GFVariantData.get_option_int(data, "highest_tile")
 	result.target_tile_value = GFVariantData.get_option_int(data, "target_tile_value")
 	result.target_reached = GFVariantData.get_option_bool(data, "target_reached")
-	result.extra_stats = GFVariantData.get_option_dictionary(data, "extra_stats").duplicate(true)
-	result.rng_full_state = GFVariantData.get_option_dictionary(data, "rng_full_state").duplicate(true)
-	var board_snapshot_value: Dictionary = GFVariantData.as_dictionary(
-		GFVariantData.get_option_value(data, "board_snapshot")
+	var extra_stats_value: Variant = GFVariantData.get_option_value(
+		data,
+		"extra_stats"
 	)
+	var rng_full_state_value: Variant = GFVariantData.get_option_value(
+		data,
+		"rng_full_state"
+	)
+	var board_snapshot_source_value: Variant = GFVariantData.get_option_value(
+		data,
+		"board_snapshot"
+	)
+	var rules_states_value: Variant = GFVariantData.get_option_value(
+		data,
+		"rules_states"
+	)
+	var history_envelope_value: Variant = GFVariantData.get_option_value(
+		data,
+		"game_state_history"
+	)
+	if (
+		not extra_stats_value is Dictionary
+		or not rng_full_state_value is Dictionary
+		or not board_snapshot_source_value is Dictionary
+		or not rules_states_value is Dictionary
+		or not history_envelope_value is Dictionary
+	):
+		return null
+	var extra_stats_source: Dictionary = GFVariantData.as_dictionary(
+		extra_stats_value
+	)
+	var rng_full_state_source: Dictionary = GFVariantData.as_dictionary(
+		rng_full_state_value
+	)
+	var board_snapshot_value: Dictionary = GFVariantData.as_dictionary(
+		board_snapshot_source_value
+	)
+	var rules_states_source: Dictionary = GFVariantData.as_dictionary(
+		rules_states_value
+	)
+	var history_envelope: Dictionary = GFVariantData.as_dictionary(
+		history_envelope_value
+	)
+	result.extra_stats = extra_stats_source.duplicate(true)
+	result.rng_full_state = rng_full_state_source.duplicate(true)
 	# active_cells/tiles 数量可从候选根直接读取；必须在获取独立所有权前
 	# 拒绝超限棋盘，避免恶意存档触发一次无意义的大型递归复制。
 	if not _is_board_snapshot_within_persisted_bounds(board_snapshot_value):
@@ -288,16 +334,24 @@ static func from_dict(data: Dictionary) -> BookmarkData:
 	result.board_snapshot = board_snapshot_value.duplicate(true)
 	if not GridModel.is_snapshot_envelope_valid(result.board_snapshot):
 		return null
-	result.rules_states = GFVariantData.get_option_dictionary(data, "rules_states").duplicate(true)
+	result.rules_states = rules_states_source.duplicate(true)
 	result.game_state_history = _decode_history(
-		GFVariantData.get_option_dictionary(data, "game_state_history"),
+		history_envelope,
 		persisted_schema_version
 	)
-	var action_values: Array = GFVariantData.as_array(
-		GFVariantData.get_option_value(data, "replay_actions")
+	var action_values_value: Variant = GFVariantData.get_option_value(
+		data,
+		"replay_actions"
 	)
+	var checkpoint_values_value: Variant = GFVariantData.get_option_value(
+		data,
+		"replay_checkpoints"
+	)
+	if not action_values_value is Array or not checkpoint_values_value is Array:
+		return null
+	var action_values: Array = GFVariantData.as_array(action_values_value)
 	var checkpoint_values: Array = GFVariantData.as_array(
-		GFVariantData.get_option_value(data, "replay_checkpoints")
+		checkpoint_values_value
 	)
 	if (
 		action_values.size() > PERSISTED_REPLAY_TRACE_LIMIT
@@ -322,6 +376,186 @@ static func from_dict(data: Dictionary) -> BookmarkData:
 	if (
 		not result._has_valid_game_state_payload()
 		or result.game_state_history.is_empty()
+	):
+		return null
+	return result
+
+
+## 解码 stream v2 已按 2 MiB 上限分批收集的当前历史载荷。
+##
+## 该调用是每个 Bookmark 的唯一历史 codec work unit；输入已由 decoder
+## 按固定字节批收集，输出仍执行 MoveCommand 的完整语义校验。
+## @param payload: 已按当前 codec 与 2 MiB 上限收集的历史字节。
+static func decode_current_history_payload_for_chunk(
+	payload: PackedByteArray
+) -> Dictionary:
+	return _decode_history({
+		"codec": _HISTORY_CODEC_ID,
+		"payload": payload,
+	}, SCHEMA_VERSION)
+
+
+## 接管 stream v2 decoder 已逐帧验证并组装的根，不再重跑 from_dict()。
+##
+## replay 每步顺序、方向与 checkpoint schema 由 decoder 负责；这里仅执行
+## 有界根、棋盘/游戏状态与末步分数不变量，随后一次性建立 cache Resource。
+## @param envelope: decoder 组装的当前 schema 书签持久化信封。
+## @param history_payload: 与 envelope 对应且已按上限收集的历史字节。
+## @param actions: 已逐步验证顺序与方向的回放动作根。
+## @param checkpoints: 与 actions 一一对应的已验证回放检查点根。
+static func take_ownership_of_validated_chunk_parts(
+	envelope: Dictionary,
+	history_payload: PackedByteArray,
+	actions: Array[Vector2i],
+	checkpoints: Array[ReplayCheckpoint]
+) -> BookmarkData:
+	if not _has_valid_persisted_shape(envelope):
+		return null
+	var history_envelope_value: Variant = GFVariantData.get_option_value(
+		envelope,
+		&"game_state_history"
+	)
+	var board_snapshot_value: Variant = GFVariantData.get_option_value(
+		envelope,
+		&"board_snapshot"
+	)
+	var replay_actions_value: Variant = GFVariantData.get_option_value(
+		envelope,
+		&"replay_actions"
+	)
+	var replay_checkpoints_value: Variant = GFVariantData.get_option_value(
+		envelope,
+		&"replay_checkpoints"
+	)
+	if (
+		not history_envelope_value is Dictionary
+		or not board_snapshot_value is Dictionary
+		or not replay_actions_value is Array
+		or not replay_checkpoints_value is Array
+	):
+		return null
+	var history_envelope: Dictionary = GFVariantData.as_dictionary(
+		history_envelope_value
+	)
+	var board_snapshot_source: Dictionary = GFVariantData.as_dictionary(
+		board_snapshot_value
+	)
+	var replay_action_envelopes: Array = GFVariantData.as_array(
+		replay_actions_value
+	)
+	var replay_checkpoint_envelopes: Array = GFVariantData.as_array(
+		replay_checkpoints_value
+	)
+	if (
+		GFVariantData.get_option_int(envelope, &"schema_version", 0)
+		!= SCHEMA_VERSION
+		or not _is_persisted_history_envelope_valid(
+			history_envelope,
+			SCHEMA_VERSION
+		)
+		or not _is_board_snapshot_within_persisted_bounds(
+			board_snapshot_source
+		)
+		or actions.size() > PERSISTED_REPLAY_TRACE_LIMIT
+		or checkpoints.size() != actions.size()
+		or replay_action_envelopes.size() != actions.size()
+		or replay_checkpoint_envelopes.size() != checkpoints.size()
+	):
+		return null
+	var decoded_history: Dictionary = decode_current_history_payload_for_chunk(
+		history_payload
+	)
+	if decoded_history.is_empty():
+		return null
+	var bookmark_id_value: String = GFVariantData.get_option_string(
+		envelope,
+		&"bookmark_id"
+	)
+	if not GFUuid.is_valid(bookmark_id_value, 7):
+		return null
+	if not checkpoints.is_empty():
+		var last_checkpoint: ReplayCheckpoint = checkpoints.back()
+		if (
+			last_checkpoint == null
+			or last_checkpoint.step_index != checkpoints.size()
+			or last_checkpoint.score
+			!= GFVariantData.get_option_int(envelope, &"score", -1)
+		):
+			return null
+
+	var result: BookmarkData = BookmarkData.new()
+	result.schema_version = SCHEMA_VERSION
+	result.bookmark_id = bookmark_id_value
+	result.timestamp = GFVariantData.get_option_int(envelope, &"timestamp")
+	result.mode_config_path = GFVariantData.get_option_string(
+		envelope,
+		&"mode_config_path"
+	)
+	result.ruleset_id = GFVariantData.get_option_string_name(
+		envelope,
+		&"ruleset_id"
+	)
+	result.ruleset_version = GFVariantData.get_option_int(
+		envelope,
+		&"ruleset_version"
+	)
+	result.ruleset_fingerprint = GFVariantData.get_option_string(
+		envelope,
+		&"ruleset_fingerprint"
+	)
+	result.initial_seed = GFVariantData.get_option_int(envelope, &"initial_seed")
+	var session_metadata_value: Variant = GFVariantData.get_option_value(
+		envelope,
+		&"session_metadata"
+	)
+	var extra_stats_value: Variant = GFVariantData.get_option_value(
+		envelope,
+		&"extra_stats"
+	)
+	var rng_full_state_value: Variant = GFVariantData.get_option_value(
+		envelope,
+		&"rng_full_state"
+	)
+	var rules_states_value: Variant = GFVariantData.get_option_value(
+		envelope,
+		&"rules_states"
+	)
+	if (
+		not session_metadata_value is Dictionary
+		or not extra_stats_value is Dictionary
+		or not rng_full_state_value is Dictionary
+		or not rules_states_value is Dictionary
+	):
+		return null
+	result.session_metadata = GFVariantData.as_dictionary(
+		session_metadata_value
+	)
+	result.score = GFVariantData.get_option_int(envelope, &"score")
+	result.move_count = GFVariantData.get_option_int(envelope, &"move_count")
+	result.ratio_resolutions = GFVariantData.get_option_int(
+		envelope,
+		&"ratio_resolutions"
+	)
+	result.highest_tile = GFVariantData.get_option_int(envelope, &"highest_tile")
+	result.target_tile_value = GFVariantData.get_option_int(
+		envelope,
+		&"target_tile_value"
+	)
+	result.target_reached = GFVariantData.get_option_bool(
+		envelope,
+		&"target_reached"
+	)
+	result.extra_stats = GFVariantData.as_dictionary(extra_stats_value)
+	result.rng_full_state = GFVariantData.as_dictionary(rng_full_state_value)
+	result.board_snapshot = board_snapshot_source
+	result.rules_states = GFVariantData.as_dictionary(rules_states_value)
+	result.game_state_history = decoded_history
+	result.replay_actions = actions
+	result.replay_checkpoints = checkpoints
+	if (
+		result.get_session_metadata() == null
+		or not GridModel.is_snapshot_envelope_valid(result.board_snapshot)
+		or not result._has_valid_game_state_payload()
 	):
 		return null
 	return result
@@ -371,8 +605,12 @@ func _to_persisted_dict(
 static func _bound_history_for_new_bookmark(history: Dictionary) -> Dictionary:
 	if not _has_valid_history_root_shape(history):
 		return {}
-	var undo_stack: Array = GFVariantData.get_option_array(history, "undo")
-	var redo_stack: Array = GFVariantData.get_option_array(history, "redo")
+	var undo_value: Variant = GFVariantData.get_option_value(history, "undo")
+	var redo_value: Variant = GFVariantData.get_option_value(history, "redo")
+	if not undo_value is Array or not redo_value is Array:
+		return {}
+	var undo_stack: Array = GFVariantData.as_array(undo_value)
+	var redo_stack: Array = GFVariantData.as_array(redo_value)
 	var half_limit: int = PERSISTED_HISTORY_TOTAL_LIMIT >> 1
 	var undo_limit: int = mini(undo_stack.size(), half_limit)
 	var redo_limit: int = mini(redo_stack.size(), half_limit)
@@ -471,8 +709,17 @@ func _has_valid_replay_trace() -> bool:
 
 
 func _has_valid_game_state_payload() -> bool:
+	var topology_data_value: Variant = GFVariantData.get_option_value(
+		board_snapshot,
+		&"topology"
+	)
+	if not topology_data_value is Dictionary:
+		return false
+	var topology_data: Dictionary = GFVariantData.as_dictionary(
+		topology_data_value
+	)
 	var topology: BoardTopology = BoardTopology.from_dict(
-		GFVariantData.get_option_dictionary(board_snapshot, &"topology")
+		topology_data
 	)
 	if topology == null:
 		return false
@@ -507,13 +754,45 @@ static func _is_valid_history(history: Dictionary) -> bool:
 	if not _has_valid_history_root_shape(history):
 		return false
 	for stack_key: String in ["undo", "redo"]:
-		for command_value: Variant in GFVariantData.get_option_array(history, stack_key):
+		var stack_value: Variant = GFVariantData.get_option_value(
+			history,
+			stack_key
+		)
+		if not stack_value is Array:
+			return false
+		var stack: Array = GFVariantData.as_array(stack_value)
+		for command_value: Variant in stack:
 			if not command_value is Dictionary:
 				return false
 			var command_data: Dictionary = command_value
+			if not _is_history_command_board_within_persisted_bounds(
+				command_data
+			):
+				return false
 			if not MoveCommand.is_serialized_data_valid(command_data):
 				return false
 	return true
+
+
+static func _is_history_command_board_within_persisted_bounds(
+	command_data: Dictionary
+) -> bool:
+	var snapshot_value: Variant = GFVariantData.get_option_value(
+		command_data,
+		&"snapshot"
+	)
+	if not snapshot_value is Dictionary:
+		return false
+	var snapshot: Dictionary = GFVariantData.as_dictionary(snapshot_value)
+	var board_snapshot_value: Variant = GFVariantData.get_option_value(
+		snapshot,
+		&"board_snapshot"
+	)
+	if not board_snapshot_value is Dictionary:
+		return false
+	return _is_board_snapshot_within_persisted_bounds(
+		GFVariantData.as_dictionary(board_snapshot_value)
+	)
 
 
 static func _encode_history(
@@ -572,7 +851,28 @@ static func _decode_history(
 		payload,
 		GFStorageCodec.Format.BINARY
 	)
+	# v6 在完整二进制解码后、逐命令语义遍历前执行 64 条硬门禁；
+	# v5 字典迁移仍由其独立 1024 条复制前边界负责。
+	if not _is_current_history_command_count_within_limit(history):
+		return {}
 	return history if _is_valid_history(history) else {}
+
+
+static func _is_current_history_command_count_within_limit(
+	history: Dictionary
+) -> bool:
+	if not _has_valid_history_root_shape(history):
+		return false
+	var undo_value: Variant = GFVariantData.get_option_value(history, "undo")
+	var redo_value: Variant = GFVariantData.get_option_value(history, "redo")
+	if not undo_value is Array or not redo_value is Array:
+		return false
+	var undo_stack: Array = GFVariantData.as_array(undo_value)
+	var redo_stack: Array = GFVariantData.as_array(redo_value)
+	return (
+		undo_stack.size() + redo_stack.size()
+		<= PERSISTED_HISTORY_TOTAL_LIMIT
+	)
 
 
 static func _is_persisted_history_envelope_valid(

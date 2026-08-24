@@ -29,18 +29,18 @@ const _REPLAY_LIST_PATH: String = (
 	"res://features/replays/scenes/menus/replay_list.tscn"
 )
 const _GAMEPLAY_PATH: String = (
-	"res://features/gameplay/scenes/game/game_play.tscn"
+	"res://features/game_session/scenes/game/game_play.tscn"
 )
 const _MAIN_MENU_UI_ROUTE_IDS: Array[StringName] = [
 	GameUiRouterUtility.ROUTE_SETTINGS_MENU,
-	GameUiRouterUtility.ROUTE_TILE_CATALOG,
+	TileCatalogDialog.ROUTE_ID,
 	GameUiRouterUtility.ROUTE_TILE_LAB,
 	GameUiRouterUtility.ROUTE_PLAYER_PROFILE,
-	GameUiRouterUtility.ROUTE_ACHIEVEMENTS,
+	AchievementListDialog.ROUTE_ID,
 	GameUiRouterUtility.ROUTE_MODAL_DIALOG,
 ]
 const _MODE_SELECTION_UI_ROUTE_IDS: Array[StringName] = [
-	GameUiRouterUtility.ROUTE_BOARD_EDITOR,
+	BoardEditorDialog.ROUTE_ID,
 ]
 const _GAMEPLAY_UI_ROUTE_IDS: Array[StringName] = [
 	GameUiRouterUtility.ROUTE_PAUSE_MENU,
@@ -491,7 +491,7 @@ func _get_ui_route_config_callback(
 	if route_id == GameUiRouterUtility.ROUTE_SETTINGS_MENU:
 		return Callable(self, &"_configure_measurement_settings")
 	if (
-		route_id == GameUiRouterUtility.ROUTE_BOARD_EDITOR
+		route_id == BoardEditorDialog.ROUTE_ID
 		and is_instance_valid(owner)
 		and owner.has_method(&"_configure_board_editor")
 	):
@@ -500,7 +500,7 @@ func _get_ui_route_config_callback(
 
 
 func _get_ui_route_preload_policy(route_id: StringName) -> StringName:
-	if route_id == GameUiRouterUtility.ROUTE_BOARD_EDITOR:
+	if route_id == BoardEditorDialog.ROUTE_ID:
 		return GFUIRouterUtility.PRELOAD_REQUIRED
 	if route_id == GameUiRouterUtility.ROUTE_SETTINGS_MENU:
 		return GFUIRouterUtility.PRELOAD_NONE

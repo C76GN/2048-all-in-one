@@ -13,6 +13,7 @@ const _VERIFIER_SCRIPT = preload(
 
 func _init() -> void:
 	var artifact_root: String = ""
+	var report_path: String = ""
 	var inspect_pack: bool = false
 	var arguments: PackedStringArray = OS.get_cmdline_user_args()
 	var index: int = 0
@@ -22,12 +23,20 @@ func _init() -> void:
 				index += 1
 				if index < arguments.size():
 					artifact_root = arguments[index]
+			"--report-path":
+				index += 1
+				if index < arguments.size():
+					report_path = arguments[index]
 			"--inspect-pack":
 				inspect_pack = true
 		index += 1
 
 	var verifier: _VERIFIER_SCRIPT = _VERIFIER_SCRIPT.new()
-	var report: Dictionary = verifier.verify_artifact(artifact_root, inspect_pack)
+	var report: Dictionary = (
+		verifier.verify_artifact(artifact_root, inspect_pack)
+		if report_path.is_empty()
+		else verifier.verify_report_bound(artifact_root, report_path, inspect_pack)
+	)
 	print(JSON.stringify(report))
 	var ok_value: Variant = report.get("ok", false)
 	var ok: bool = ok_value if ok_value is bool else false

@@ -43,8 +43,8 @@ func ready() -> void:
 			self
 		)
 	register_event(
-		GameplayBoardReadyData,
-		GFEventListener.from_method(self, &"_on_gameplay_board_ready", 1)
+		BoardTopologyReadyData,
+		GFEventListener.from_method(self, &"_on_board_topology_ready", 1)
 	)
 
 
@@ -405,12 +405,10 @@ func _on_tile_composition_observed(tile: TileState) -> void:
 	var _observation_error: Error = observe_tile(tile)
 
 
-func _on_gameplay_board_ready(payload: GameplayBoardReadyData) -> void:
-	if (
-		payload == null
-		or not is_instance_valid(payload.board)
-		or not is_instance_valid(payload.board.model)
-		or not is_instance_valid(payload.board.model.topology)
-	):
+func _on_board_topology_ready(payload: BoardTopologyReadyData) -> void:
+	if payload == null:
 		return
-	var _observation_error: Error = observe_board(payload.board.model.topology)
+	var topology: BoardTopology = payload.topology
+	if not is_instance_valid(topology):
+		return
+	var _observation_error: Error = observe_board(topology)

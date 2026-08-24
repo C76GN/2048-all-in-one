@@ -5,7 +5,15 @@ param(
 	[string]$OutputPath = "",
 	[string]$AppId = "",
 	[ValidateRange(1, 3600)]
-	[int]$TimeoutSeconds = 600
+	[int]$TimeoutSeconds = 600,
+	[switch]$FunctionsOnly,
+	[ValidateSet(
+		"",
+		"after_candidate_stage",
+		"after_candidate_backup",
+		"after_candidate_publish"
+	)]
+	[string]$TestFailureInjection = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,6 +25,11 @@ $TemplateDownloadUrl = (
 )
 $TemplateExpectedBytes = 11763895
 $TemplateExpectedSha256 = "AE5BDEB5BA1CE9712D4EFC35D337CB5ECBEF3AD5BFB0F7D06AE9CB662C1F2D71"
+$RequiredGodotVersionPrefix = "4.7.2.stable"
+$ExportReportSchemaVersion = 2
+$ArtifactManifestSchemaVersion = 1
+$InputSnapshotSchemaVersion = 1
+$BuildIdentitySchemaVersion = 1
 $ExportPreset = "Web Compatibility Smoke"
 $PackFileName = "2048-all-in-one.bin"
 $ChunkLoaderSourceRelativePath = "tools\wechat_minigame\chunked_file_loader.js"
@@ -31,10 +44,45 @@ $TotalPackageHardLimitBytes = 30000000
 $MainPackageSoftLimitBytes = 3600000
 $TotalPackageSoftLimitBytes = 27000000
 $DeviceOrientation = "landscape"
+$VolatileLocalSidecarRelativePath = "project.private.config.json"
 $ForbiddenSampleAppIds = @(
 	"wxda5f10e2e9114855",
 	"wxf40904ea6120ad08"
 )
+$ExportInputExactPaths = @(
+	"default_bus_layout.tres",
+	"export_presets.cfg",
+	"icon.svg",
+	"icon.svg.import",
+	"project.godot"
+)
+$ExportInputRoots = @(
+	"addons",
+	"app",
+	"features",
+	"shared"
+)
+$ExportInputExcludedPrefixes = @(
+	"addons/gf/tools/",
+	"addons/gut/",
+	"features/asset_library/resources/review/",
+	"features/asset_library/resources/source_packs/",
+	"features/asset_library/tools/",
+	"features/platform_runtime/tools/",
+	"features/themes/tools/"
+)
+$ExportInputExcludedExactPaths = @(
+	"features/asset_library/resources/import_sources.json",
+	"features/asset_library/resources/import_sources.local.json",
+	"shared/assets/fonts/noto_sans_sc_variable.ttf"
+)
+$ToolIdentityRelativePaths = [ordered]@{
+	export_tool = "tools/export_wechat_minigame_smoke.ps1"
+	artifact_verifier = "tools/wechat_minigame_artifact_verifier.gd"
+	artifact_check = "tools/wechat_minigame_artifact_check.gd"
+	chunk_loader = "tools/wechat_minigame/chunked_file_loader.js"
+	wxmemfs_patch = "tools/wechat_minigame/wxmemfs_rename_patch.ps1"
+}
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $projectBuildRoot = [IO.Path]::GetFullPath((Join-Path $ProjectRoot "build"))
@@ -48,6 +96,8 @@ else {
 	Join-Path $ProjectRoot $OutputPath
 }
 $outputRoot = [IO.Path]::GetFullPath($outputRoot)
+$outputCandidateRoot = [IO.Path]::GetFullPath((Split-Path -Parent $outputRoot))
+$outputCandidateParent = [IO.Path]::GetFullPath((Split-Path -Parent $outputCandidateRoot))
 
 function Assert-NoReparsePointPath {
 	param(
@@ -194,24 +244,52 @@ function Read-JsonObject {
 	return $value
 }
 
-function Write-SanitizedPrivateConfig {
+function Get-SanitizedPrivateConfigSnapshot {
 	param(
 		[Parameter(Mandatory = $true)]
-		[string]$SourcePath,
-		[Parameter(Mandatory = $true)]
-		[string]$DestinationPath
+		[string]$Path
 	)
 
+	if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+		return [pscustomobject][ordered]@{
+			exists = $false
+			app_id = ""
+			sanitized_json = ""
+		}
+	}
+	Assert-NoReparsePointPath -Path $Path -Label "existing WeChat private config"
 	$privateConfig = Read-JsonObject `
-		-Path $SourcePath `
+		-Path $Path `
 		-Label "existing project.private.config.json"
+	$privateAppId = [string]$privateConfig.appid
 	# Private configuration is allowed to retain local IDE preferences, but it may
 	# not override the canonical project identity or compile target we just verified.
 	$privateConfig.PSObject.Properties.Remove("appid")
 	$privateConfig.PSObject.Properties.Remove("compileType")
+	# Keep serialized bytes in memory so staging never re-reads a DevTools-owned live file.
+	return [pscustomobject][ordered]@{
+		exists = $true
+		app_id = $privateAppId
+		sanitized_json = (
+			(ConvertTo-Json -InputObject $privateConfig -Depth 100) + "`n"
+		)
+	}
+}
+
+function Write-SanitizedPrivateConfigSnapshot {
+	param(
+		[Parameter(Mandatory = $true)]
+		[object]$Snapshot,
+		[Parameter(Mandatory = $true)]
+		[string]$DestinationPath
+	)
+
+	if (-not [bool]$Snapshot.exists) {
+		return
+	}
 	Write-Utf8Text `
 		-Path $DestinationPath `
-		-Text (($privateConfig | ConvertTo-Json -Depth 16) + "`n")
+		-Text ([string]$Snapshot.sanitized_json)
 }
 
 function ConvertTo-NativeCommandLineArgument {
@@ -255,7 +333,441 @@ function Write-Utf8Text {
 function Get-FileSha256 {
 	param([Parameter(Mandatory = $true)][string]$Path)
 
-	return (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToUpperInvariant()
+	$stream = [IO.File]::OpenRead($Path)
+	$sha256 = [Security.Cryptography.SHA256]::Create()
+	try {
+		return ([BitConverter]::ToString($sha256.ComputeHash($stream))).Replace(
+			"-",
+			""
+		).ToUpperInvariant()
+	}
+	finally {
+		$sha256.Dispose()
+		$stream.Dispose()
+	}
+}
+
+function Get-Utf8Sha256 {
+	param(
+		[Parameter(Mandatory = $true)]
+		[AllowEmptyString()]
+		[string]$Text
+	)
+
+	$bytes = [Text.UTF8Encoding]::new($false).GetBytes($Text)
+	$sha256 = [Security.Cryptography.SHA256]::Create()
+	try {
+		return ([BitConverter]::ToString($sha256.ComputeHash($bytes))).Replace(
+			"-",
+			""
+		).ToLowerInvariant()
+	}
+	finally {
+		$sha256.Dispose()
+	}
+}
+
+function Assert-CanonicalManifestPath {
+	param([Parameter(Mandatory = $true)][string]$Path)
+
+	if (
+		[string]::IsNullOrWhiteSpace($Path) -or
+		$Path.Contains("`t") -or
+		$Path.Contains("`r") -or
+		$Path.Contains("`n") -or
+		$Path.StartsWith("/", [StringComparison]::Ordinal) -or
+		$Path.Contains("../")
+	) {
+		throw "Manifest path is not canonically frameable: $Path"
+	}
+}
+
+function Get-CanonicalRelativePath {
+	param(
+		[Parameter(Mandatory = $true)][string]$Root,
+		[Parameter(Mandatory = $true)][string]$Path
+	)
+
+	$resolvedRoot = [IO.Path]::GetFullPath($Root).TrimEnd("\", "/")
+	$resolvedPath = [IO.Path]::GetFullPath($Path)
+	$rootPrefix = $resolvedRoot + [IO.Path]::DirectorySeparatorChar
+	if (-not $resolvedPath.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+		throw "Manifest file escaped its root: $resolvedPath"
+	}
+	return $resolvedPath.Substring($rootPrefix.Length).Replace("\", "/")
+}
+
+function Get-FileManifestEvidence {
+	param(
+		[Parameter(Mandatory = $true)]
+		[string]$Root,
+		[Parameter(Mandatory = $true)]
+		[IO.FileInfo[]]$Files,
+		[Parameter(Mandatory = $true)]
+		[string]$CanonicalHeader,
+		[Parameter(Mandatory = $true)]
+		[int]$SchemaVersion
+	)
+
+	$resolvedRoot = [IO.Path]::GetFullPath($Root).TrimEnd("\", "/")
+	$filesByPath = [System.Collections.Generic.Dictionary[string,IO.FileInfo]]::new(
+		[StringComparer]::Ordinal
+	)
+	foreach ($file in $Files) {
+		$relativePath = Get-CanonicalRelativePath `
+			-Root $resolvedRoot `
+			-Path $file.FullName
+		Assert-CanonicalManifestPath -Path $relativePath
+		if ($filesByPath.ContainsKey($relativePath)) {
+			throw "Manifest contains a duplicate path: $relativePath"
+		}
+		$filesByPath.Add($relativePath, $file)
+	}
+	$sortedPaths = @($filesByPath.Keys)
+	[Array]::Sort($sortedPaths, [StringComparer]::Ordinal)
+	$entries = [System.Collections.Generic.List[object]]::new()
+	$records = [System.Collections.Generic.List[string]]::new()
+	$records.Add($CanonicalHeader)
+	foreach ($relativePath in $sortedPaths) {
+		$file = $filesByPath[$relativePath]
+		$sha256 = (Get-FileSha256 -Path $file.FullName).ToLowerInvariant()
+		$bytes = [int64]$file.Length
+		$entries.Add([ordered]@{
+			path = $relativePath
+			bytes = $bytes
+			sha256 = $sha256
+		})
+		$records.Add("$relativePath`t$bytes`t$sha256")
+	}
+	$canonicalText = ($records.ToArray() -join "`n") + "`n"
+	return [ordered]@{
+		schema_version = $SchemaVersion
+		manifest_sha256 = Get-Utf8Sha256 -Text $canonicalText
+		file_count = $entries.Count
+		files = $entries.ToArray()
+	}
+}
+
+function Get-ArtifactManifestEvidence {
+	param([Parameter(Mandatory = $true)][string]$StageRoot)
+
+	$artifactFiles = @(
+		Get-ChildItem -LiteralPath $StageRoot -Recurse -File |
+			Where-Object {
+				$relativePath = Get-CanonicalRelativePath `
+					-Root $StageRoot `
+					-Path $_.FullName
+				$relativePath -cne $VolatileLocalSidecarRelativePath
+			}
+	)
+	return Get-FileManifestEvidence `
+		-Root $StageRoot `
+		-Files $artifactFiles `
+		-CanonicalHeader "wechat-artifact-manifest-v$ArtifactManifestSchemaVersion" `
+		-SchemaVersion $ArtifactManifestSchemaVersion
+}
+
+function Test-ExportInputExcluded {
+	param([Parameter(Mandatory = $true)][string]$RelativePath)
+
+	if ($ExportInputExcludedExactPaths -contains $RelativePath) {
+		return $true
+	}
+	foreach ($prefix in $ExportInputExcludedPrefixes) {
+		if ($RelativePath.StartsWith($prefix, [StringComparison]::Ordinal)) {
+			return $true
+		}
+	}
+	if (
+		$RelativePath.Contains("/__pycache__/") -or
+		$RelativePath.EndsWith(".pyc", [StringComparison]::OrdinalIgnoreCase) -or
+		$RelativePath.EndsWith(".pyo", [StringComparison]::OrdinalIgnoreCase)
+	) {
+		return $true
+	}
+	return $false
+}
+
+function Get-ExportInputSnapshot {
+	param([Parameter(Mandatory = $true)][string]$Root)
+
+	$resolvedRoot = [IO.Path]::GetFullPath($Root)
+	$filesByPath = [System.Collections.Generic.Dictionary[string,IO.FileInfo]]::new(
+		[StringComparer]::Ordinal
+	)
+	foreach ($relativePath in $ExportInputExactPaths) {
+		$fullPath = Join-Path $resolvedRoot $relativePath
+		if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+			throw "Required export input is missing: $relativePath"
+		}
+		$filesByPath.Add($relativePath, (Get-Item -LiteralPath $fullPath))
+	}
+	foreach ($relativeRoot in $ExportInputRoots) {
+		$fullRoot = Join-Path $resolvedRoot $relativeRoot
+		if (-not (Test-Path -LiteralPath $fullRoot -PathType Container)) {
+			throw "Required export input root is missing: $relativeRoot"
+		}
+		Assert-NoReparsePointTree -Path $fullRoot -Label "export input root $relativeRoot"
+		foreach ($file in Get-ChildItem -LiteralPath $fullRoot -Recurse -File) {
+			$relativePath = Get-CanonicalRelativePath `
+				-Root $resolvedRoot `
+				-Path $file.FullName
+			if (Test-ExportInputExcluded -RelativePath $relativePath) {
+				continue
+			}
+			if ($filesByPath.ContainsKey($relativePath)) {
+				throw "Export input snapshot contains a duplicate path: $relativePath"
+			}
+			$filesByPath.Add($relativePath, $file)
+		}
+	}
+	$manifest = Get-FileManifestEvidence `
+		-Root $resolvedRoot `
+		-Files @($filesByPath.Values) `
+		-CanonicalHeader "wechat-export-input-snapshot-v$InputSnapshotSchemaVersion" `
+		-SchemaVersion $InputSnapshotSchemaVersion
+	return [ordered]@{
+		schema_version = $InputSnapshotSchemaVersion
+		input_snapshot_sha256 = $manifest.manifest_sha256
+		file_count = $manifest.file_count
+		rules = [ordered]@{
+			include_exact = @($ExportInputExactPaths)
+			include_roots = @($ExportInputRoots)
+			exclude_exact = @($ExportInputExcludedExactPaths)
+			exclude_prefixes = @($ExportInputExcludedPrefixes)
+			exclude_generated = @(
+				".git/",
+				".godot/",
+				"build/",
+				"tests/",
+				"tools/",
+				"__pycache__/"
+			)
+			exclude_cache_suffixes = @(".pyc", ".pyo")
+		}
+	}
+}
+
+function Get-GfVendorIdentity {
+	param([Parameter(Mandatory = $true)][string]$Root)
+
+	$resolvedRoot = [IO.Path]::GetFullPath($Root)
+	$lockPath = Join-Path $resolvedRoot ".gf\vendor.lock.json"
+	$vendorRoot = Join-Path $resolvedRoot "addons\gf"
+	if (-not (Test-Path -LiteralPath $lockPath -PathType Leaf)) {
+		throw "GF vendor lock is missing: $lockPath"
+	}
+	if (-not (Test-Path -LiteralPath $vendorRoot -PathType Container)) {
+		throw "GF vendor root is missing: $vendorRoot"
+	}
+	Assert-NoReparsePointTree -Path $vendorRoot -Label "GF vendor root"
+	$lock = Read-JsonObject -Path $lockPath -Label "GF vendor lock"
+	$sourceCommit = [string]$lock.source_commit
+	$sourceGitTree = [string]$lock.source_git_tree
+	$lockedTreeHash = ([string]$lock.vendor_tree_sha256).ToLowerInvariant()
+	if ([int]$lock.schema_version -ne 2) {
+		throw "GF vendor lock schema_version must be 2."
+	}
+	if ($sourceCommit -notmatch '^[0-9a-f]{40}$') {
+		throw "GF vendor source_commit must be a lowercase 40-character Git hash."
+	}
+	if ($sourceGitTree -notmatch '^[0-9a-f]{40}$') {
+		throw "GF vendor source_git_tree must be a lowercase 40-character Git hash."
+	}
+	if ($lockedTreeHash -notmatch '^[0-9a-f]{64}$') {
+		throw "GF vendor_tree_sha256 must be a 64-character SHA-256."
+	}
+	$records = [System.Collections.Generic.List[string]]::new()
+	foreach ($file in Get-ChildItem -LiteralPath $vendorRoot -Recurse -File) {
+		$relativePath = Get-CanonicalRelativePath `
+			-Root $vendorRoot `
+			-Path $file.FullName
+		if (
+			$relativePath -match '(^|/)__pycache__/' -or
+			$relativePath -match '(?i)\.py[cod]$'
+		) {
+			continue
+		}
+		Assert-CanonicalManifestPath -Path $relativePath
+		$records.Add(
+			"$relativePath`t$((Get-FileSha256 -Path $file.FullName).ToLowerInvariant())"
+		)
+	}
+	$sortedRecords = $records.ToArray()
+	[Array]::Sort($sortedRecords, [StringComparer]::Ordinal)
+	$actualTreeHash = Get-Utf8Sha256 -Text (($sortedRecords -join "`n") + "`n")
+	if ([int]$lock.vendor_file_count -ne $sortedRecords.Length) {
+		throw (
+			"GF vendor file count mismatch: lock={0}, actual={1}." -f
+			[int]$lock.vendor_file_count,
+			$sortedRecords.Length
+		)
+	}
+	if ($actualTreeHash -ne $lockedTreeHash) {
+		throw "GF vendor tree hash mismatch: lock=$lockedTreeHash, actual=$actualTreeHash."
+	}
+	return [ordered]@{
+		framework_version = [string]$lock.framework_version
+		source_commit = $sourceCommit
+		source_git_tree = $sourceGitTree
+		vendor_tree_sha256 = $actualTreeHash
+		vendor_file_count = $sortedRecords.Length
+		lock_sha256 = (Get-FileSha256 -Path $lockPath).ToLowerInvariant()
+	}
+}
+
+function Get-GodotIdentity {
+	param([Parameter(Mandatory = $true)][string]$Executable)
+
+	$command = Get-Command $Executable -ErrorAction Stop
+	$godotPath = $command.Source
+	$versionOutput = ""
+	$versionExitCode = $null
+	$extension = [IO.Path]::GetExtension($godotPath)
+	if ($extension -in @(".cmd", ".bat")) {
+		$versionOutput = (& $godotPath --version | Select-Object -First 1).Trim()
+		$versionExitCode = $LASTEXITCODE
+	}
+	else {
+		$startInfo = [Diagnostics.ProcessStartInfo]::new()
+		$startInfo.FileName = $godotPath
+		$startInfo.Arguments = "--version"
+		$startInfo.UseShellExecute = $false
+		$startInfo.CreateNoWindow = $true
+		$startInfo.RedirectStandardOutput = $true
+		$startInfo.RedirectStandardError = $true
+		$process = [Diagnostics.Process]::new()
+		$process.StartInfo = $startInfo
+		try {
+			if (-not $process.Start()) {
+				throw "Godot version process did not start."
+			}
+			$stdoutTask = $process.StandardOutput.ReadToEndAsync()
+			$stderrTask = $process.StandardError.ReadToEndAsync()
+			if (-not $process.WaitForExit(10000)) {
+				$process.Kill()
+				$process.WaitForExit()
+				throw "Godot version preflight timed out for $godotPath."
+			}
+			$process.WaitForExit()
+			$versionExitCode = $process.ExitCode
+			$stdout = $stdoutTask.GetAwaiter().GetResult()
+			$null = $stderrTask.GetAwaiter().GetResult()
+			$versionLines = @(
+				$stdout -split '[\r\n]+' |
+					Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+			)
+			if ($versionLines.Count -gt 0) {
+				$versionOutput = $versionLines[0].Trim()
+			}
+		}
+		finally {
+			$process.Dispose()
+		}
+	}
+	if ($versionExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($versionOutput)) {
+		throw "Godot version preflight failed for $godotPath."
+	}
+	$requiredPattern = '^' + [regex]::Escape($RequiredGodotVersionPrefix) + '(?:\.|$)'
+	if ($versionOutput -cnotmatch $requiredPattern) {
+		throw (
+			"Godot $RequiredGodotVersionPrefix is required for this WeChat smoke export; " +
+			"got $versionOutput from $godotPath."
+		)
+	}
+	return [ordered]@{
+		executable = $godotPath
+		version = $versionOutput
+		required_version_prefix = $RequiredGodotVersionPrefix
+	}
+}
+
+function Get-ToolIdentity {
+	param([Parameter(Mandatory = $true)][string]$Root)
+
+	$identity = [ordered]@{}
+	foreach ($name in $ToolIdentityRelativePaths.Keys) {
+		$relativePath = [string]$ToolIdentityRelativePaths[$name]
+		$fullPath = Join-Path $Root $relativePath
+		if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+			throw "Tool identity input is missing: $relativePath"
+		}
+		$identity[$name] = [ordered]@{
+			path = $relativePath.Replace("\", "/")
+			sha256 = (Get-FileSha256 -Path $fullPath).ToLowerInvariant()
+		}
+	}
+	return $identity
+}
+
+function Get-CandidateBuildId {
+	param(
+		[Parameter(Mandatory = $true)][object]$GodotIdentity,
+		[Parameter(Mandatory = $true)][object]$GfIdentity,
+		[Parameter(Mandatory = $true)][string]$InputSnapshotSha256,
+		[Parameter(Mandatory = $true)][int]$InputSnapshotFileCount,
+		[Parameter(Mandatory = $true)][string]$ArtifactManifestSha256,
+		[Parameter(Mandatory = $true)][object]$ToolIdentity
+	)
+
+	$records = @(
+		"wechat-candidate-build-v$BuildIdentitySchemaVersion",
+		"godot=$($GodotIdentity.version)",
+		"gf_framework_version=$($GfIdentity.framework_version)",
+		"gf_source_commit=$($GfIdentity.source_commit)",
+		"gf_source_git_tree=$($GfIdentity.source_git_tree)",
+		"gf_vendor_tree_sha256=$($GfIdentity.vendor_tree_sha256)",
+		"gf_vendor_file_count=$($GfIdentity.vendor_file_count)",
+		"gf_lock_sha256=$($GfIdentity.lock_sha256)",
+		"input_snapshot_sha256=$InputSnapshotSha256",
+		"input_snapshot_file_count=$InputSnapshotFileCount",
+		"artifact_manifest_sha256=$ArtifactManifestSha256",
+		"template_sha256=$($TemplateExpectedSha256.ToLowerInvariant())",
+		"export_tool_sha256=$($ToolIdentity.export_tool.sha256)",
+		"artifact_verifier_sha256=$($ToolIdentity.artifact_verifier.sha256)",
+		"artifact_check_sha256=$($ToolIdentity.artifact_check.sha256)",
+		"chunk_loader_sha256=$($ToolIdentity.chunk_loader.sha256)",
+		"wxmemfs_patch_sha256=$($ToolIdentity.wxmemfs_patch.sha256)"
+	)
+	return Get-Utf8Sha256 -Text (($records -join "`n") + "`n")
+}
+
+function Assert-FrozenExportIdentity {
+	param(
+		[Parameter(Mandatory = $true)][string]$Root,
+		[Parameter(Mandatory = $true)][object]$ExpectedGfIdentity,
+		[Parameter(Mandatory = $true)][object]$ExpectedInputSnapshot,
+		[Parameter(Mandatory = $true)][object]$ExpectedToolIdentity
+	)
+
+	$actualGfIdentity = Get-GfVendorIdentity -Root $Root
+	foreach ($field in @(
+		"source_commit",
+		"source_git_tree",
+		"vendor_tree_sha256",
+		"vendor_file_count",
+		"lock_sha256"
+	)) {
+		if ([string]$actualGfIdentity[$field] -ne [string]$ExpectedGfIdentity[$field]) {
+			throw "GF identity changed during WeChat export: $field."
+		}
+	}
+	$actualInputSnapshot = Get-ExportInputSnapshot -Root $Root
+	if (
+		[string]$actualInputSnapshot.input_snapshot_sha256 -ne
+		[string]$ExpectedInputSnapshot.input_snapshot_sha256
+	) {
+		throw "Export input content changed during WeChat export."
+	}
+	$actualToolIdentity = Get-ToolIdentity -Root $Root
+	foreach ($name in $ToolIdentityRelativePaths.Keys) {
+		if (
+			[string]$actualToolIdentity[$name].sha256 -ne
+			[string]$ExpectedToolIdentity[$name].sha256
+		) {
+			throw "Tool identity changed during WeChat export: $name."
+		}
+	}
 }
 
 function Assert-TemplateArchive {
@@ -393,6 +905,8 @@ function Invoke-GodotArtifactVerification {
 		[Parameter(Mandatory = $true)]
 		[string]$ArtifactRoot,
 		[Parameter(Mandatory = $true)]
+		[string]$ReportPath,
+		[Parameter(Mandatory = $true)]
 		[string]$VerificationProjectRoot
 	)
 
@@ -411,6 +925,8 @@ function Invoke-GodotArtifactVerification {
 		"--",
 		"--artifact-root",
 		$ArtifactRoot,
+		"--report-path",
+		$ReportPath,
 		"--inspect-pack"
 	)
 	$quotedArguments = @()
@@ -467,22 +983,28 @@ config/name="2048 WeChat Artifact Verification Host"
 
 renderer/rendering_method="gl_compatibility"
 "@
-	foreach ($scriptName in @(
-		"wechat_minigame_artifact_check.gd",
-		"wechat_minigame_artifact_verifier.gd"
-	)) {
+	foreach ($relativePath in $ToolIdentityRelativePaths.Values) {
+		$destinationPath = Join-Path $VerificationProjectRoot $relativePath
+		$null = New-Item `
+			-ItemType Directory `
+			-Force `
+			-Path (Split-Path -Parent $destinationPath)
 		Copy-Item `
-			-LiteralPath (Join-Path $ProjectRoot "tools\$scriptName") `
-			-Destination (Join-Path $verificationToolsRoot $scriptName)
+			-LiteralPath (Join-Path $ProjectRoot $relativePath) `
+			-Destination $destinationPath
 	}
 }
 
 function Get-PreservedAppId {
+	param(
+		[Parameter(Mandatory = $true)]
+		[object]$PrivateConfigSnapshot
+	)
+
 	if (-not [string]::IsNullOrWhiteSpace($AppId)) {
 		return $AppId.Trim()
 	}
 	$existingConfigPath = Join-Path $outputRoot "project.config.json"
-	$existingPrivateConfigPath = Join-Path $outputRoot "project.private.config.json"
 	$publicAppId = ""
 	if (Test-Path -LiteralPath $existingConfigPath -PathType Leaf) {
 		Assert-NoReparsePointPath -Path $existingConfigPath -Label "existing WeChat project config"
@@ -491,17 +1013,9 @@ function Get-PreservedAppId {
 			-Label "existing project.config.json"
 		$publicAppId = [string]$existingConfig.appid
 	}
-	if (Test-Path -LiteralPath $existingPrivateConfigPath -PathType Leaf) {
-		Assert-NoReparsePointPath `
-			-Path $existingPrivateConfigPath `
-			-Label "existing WeChat private config"
-		$existingPrivateConfig = Read-JsonObject `
-			-Path $existingPrivateConfigPath `
-			-Label "existing project.private.config.json"
-		$privateAppId = [string]$existingPrivateConfig.appid
-		if (-not [string]::IsNullOrWhiteSpace($privateAppId)) {
-			return $privateAppId
-		}
+	$privateAppId = [string]$PrivateConfigSnapshot.app_id
+	if (-not [string]::IsNullOrWhiteSpace($privateAppId)) {
+		return $privateAppId.Trim()
 	}
 	return $publicAppId
 }
@@ -538,20 +1052,27 @@ function Get-PackageEvidence {
 		"images/background.png",
 		"images/logo.png",
 		"project.config.json",
-		"project.private.config.json",
+		$VolatileLocalSidecarRelativePath,
 		"weapp-adapter.js"
 	)
 	$files = @(Get-ChildItem -LiteralPath $StageRoot -Recurse -File)
+	$discoveredRelativePaths = @()
 	$relativePaths = @()
 	$unexpectedPaths = @()
 	$mainPackageBytes = [int64]0
 	$enginePackageBytes = [int64]0
 	foreach ($file in $files) {
 		$relativePath = Get-RelativeOutputPath -Root $StageRoot -FullName $file.FullName
-		$relativePaths += $relativePath
+		$discoveredRelativePaths += $relativePath
 		if ($allowedPaths -notcontains $relativePath) {
 			$unexpectedPaths += $relativePath
 		}
+		# DevTools owns this local preference sidecar; validate it separately but do not
+		# let it perturb publishable package evidence or candidate identity.
+		if ($relativePath -ceq $VolatileLocalSidecarRelativePath) {
+			continue
+		}
+		$relativePaths += $relativePath
 		if ($relativePath.StartsWith("engine/", [StringComparison]::OrdinalIgnoreCase)) {
 			$enginePackageBytes += $file.Length
 		}
@@ -559,13 +1080,19 @@ function Get-PackageEvidence {
 			$mainPackageBytes += $file.Length
 		}
 	}
-	$requiredPaths = $allowedPaths | Where-Object { $_ -ne "project.private.config.json" }
-	$missingPaths = @($requiredPaths | Where-Object { $relativePaths -notcontains $_ })
+	$requiredPaths = $allowedPaths | Where-Object {
+		$_ -cne $VolatileLocalSidecarRelativePath
+	}
+	$missingPaths = @(
+		$requiredPaths | Where-Object { $discoveredRelativePaths -notcontains $_ }
+	)
 	$forbiddenPaths = @(
-		$relativePaths | Where-Object {
+		$discoveredRelativePaths | Where-Object {
 			$_ -match '(?i)\.(?:pck|html|wasm)$'
 		}
 	)
+	[string[]]$sortedRelativePaths = @($relativePaths)
+	[Array]::Sort($sortedRelativePaths, [StringComparer]::Ordinal)
 	$totalPackageBytes = $mainPackageBytes + $enginePackageBytes
 	return [ordered]@{
 		main_package_bytes = $mainPackageBytes
@@ -579,46 +1106,192 @@ function Get-PackageEvidence {
 		total_hard_limit_ok = ($totalPackageBytes -le $TotalPackageHardLimitBytes)
 		main_soft_budget_ok = ($mainPackageBytes -le $MainPackageSoftLimitBytes)
 		total_soft_budget_ok = ($totalPackageBytes -le $TotalPackageSoftLimitBytes)
-		file_count = $files.Count
-		files = @($relativePaths | Sort-Object)
+		file_count = $relativePaths.Count
+		files = @($sortedRelativePaths)
 		missing_paths = $missingPaths
 		unexpected_paths = $unexpectedPaths
 		forbidden_paths = $forbiddenPaths
 	}
 }
 
+function Assert-ExistingCandidateBundleShape {
+	param([Parameter(Mandatory = $true)][string]$Path)
+
+	$candidateRoot = Assert-SafeBuildChildPath `
+		-Path $Path `
+		-Label "existing WeChat candidate bundle"
+	if (-not (Test-Path -LiteralPath $candidateRoot)) {
+		return
+	}
+	if (-not (Test-Path -LiteralPath $candidateRoot -PathType Container)) {
+		throw "Existing WeChat candidate root must be a directory: $candidateRoot"
+	}
+	Assert-NoReparsePointTree -Path $candidateRoot -Label "existing WeChat candidate bundle"
+	foreach ($entry in Get-ChildItem -Force -LiteralPath $candidateRoot) {
+		$allowed = (
+			($entry.Name -ceq "wxgame" -and $entry.PSIsContainer) -or
+			($entry.Name -ceq "export-report.json" -and -not $entry.PSIsContainer)
+		)
+		if (-not $allowed) {
+			throw (
+				"Existing WeChat candidate root contains an unrelated entry and " +
+				"cannot be replaced safely: $($entry.FullName)"
+			)
+		}
+	}
+}
+
+function Publish-CandidateBundle {
+	param(
+		[Parameter(Mandatory = $true)]
+		[string]$StageCandidateRoot,
+		[Parameter(Mandatory = $true)]
+		[string]$FinalCandidateRoot,
+		[Parameter(Mandatory = $true)]
+		[string]$BackupCandidateRoot,
+		[ValidateSet("", "after_candidate_backup", "after_candidate_publish")]
+		[string]$FailureInjection = ""
+	)
+
+	$stageRoot = Assert-SafeBuildChildPath `
+		-Path $StageCandidateRoot `
+		-Label "staged WeChat candidate bundle"
+	$finalRoot = Assert-SafeBuildChildPath `
+		-Path $FinalCandidateRoot `
+		-Label "published WeChat candidate bundle"
+	$backupRoot = Assert-SafeBuildChildPath `
+		-Path $BackupCandidateRoot `
+		-Label "backed-up WeChat candidate bundle"
+	if (-not (Test-Path -LiteralPath $stageRoot -PathType Container)) {
+		throw "Staged WeChat candidate bundle does not exist: $stageRoot"
+	}
+	Assert-NoReparsePointTree -Path $stageRoot -Label "staged WeChat candidate bundle"
+	if (Test-Path -LiteralPath $backupRoot) {
+		throw "WeChat candidate backup path already exists: $backupRoot"
+	}
+
+	$previousCandidateBackedUp = $false
+	$newCandidatePublished = $false
+	$publishCommitted = $false
+	try {
+		if (Test-Path -LiteralPath $finalRoot) {
+			Assert-ExistingCandidateBundleShape -Path $finalRoot
+			Move-Item -LiteralPath $finalRoot -Destination $backupRoot
+			$previousCandidateBackedUp = $true
+		}
+		if ($FailureInjection -eq "after_candidate_backup") {
+			throw "Injected WeChat candidate transaction failure after backup."
+		}
+		Move-Item -LiteralPath $stageRoot -Destination $finalRoot
+		$newCandidatePublished = $true
+		if ($FailureInjection -eq "after_candidate_publish") {
+			throw "Injected WeChat candidate transaction failure after publish."
+		}
+		$publishCommitted = $true
+	}
+	catch {
+		$originalError = $_
+		if (-not $publishCommitted) {
+			if ($newCandidatePublished -and (Test-Path -LiteralPath $finalRoot)) {
+				Remove-SafeBuildTree `
+					-Path $finalRoot `
+					-Label "failed published WeChat candidate bundle"
+				$newCandidatePublished = $false
+			}
+			if ($previousCandidateBackedUp -and (Test-Path -LiteralPath $backupRoot)) {
+				Move-Item -LiteralPath $backupRoot -Destination $finalRoot
+				$previousCandidateBackedUp = $false
+			}
+			if (Test-Path -LiteralPath $stageRoot) {
+				Remove-SafeBuildTree `
+					-Path $stageRoot `
+					-Label "failed staged WeChat candidate bundle"
+			}
+		}
+		throw $originalError
+	}
+
+	if ($previousCandidateBackedUp -and (Test-Path -LiteralPath $backupRoot)) {
+		try {
+			Remove-SafeBuildTree `
+				-Path $backupRoot `
+				-Label "retired WeChat candidate bundle backup"
+		}
+		catch {
+			Write-Warning (
+				"The new WeChat candidate is committed, but its retired backup " +
+				"could not be fully removed: " + $_.Exception.Message
+			)
+		}
+	}
+}
+
+if ($FunctionsOnly) {
+	return
+}
+
 $AppId = Assert-WeChatAppId -Value $AppId -Source "-AppId"
 $outputRoot = Assert-SafeBuildChildPath -Path $outputRoot -Label "WeChat smoke output"
-$outputParent = Assert-SafeBuildChildPath `
-	-Path (Split-Path -Parent $outputRoot) `
-	-Label "WeChat smoke output parent"
-$null = New-Item -ItemType Directory -Force -Path $outputParent
-$preservedAppId = Assert-WeChatAppId `
-	-Value (Get-PreservedAppId) `
-	-Source "preserved project.config.json AppID"
-$stageRoot = Assert-SafeBuildChildPath `
-	-Path (Join-Path $outputParent (".stage-" + [Guid]::NewGuid().ToString("N"))) `
-	-Label "WeChat smoke staging directory"
-$null = New-Item -ItemType Directory -Path $stageRoot
-$existingPrivateConfigPath = Join-Path $outputRoot "project.private.config.json"
-$preservedPrivateConfigPath = ""
-if (Test-Path -LiteralPath $existingPrivateConfigPath -PathType Leaf) {
-	Assert-NoReparsePointPath `
-		-Path $existingPrivateConfigPath `
-		-Label "existing WeChat private config"
-	$preservedPrivateConfigPath = $existingPrivateConfigPath
+if ((Split-Path -Leaf $outputRoot) -ne "wxgame") {
+	throw "WeChat smoke OutputPath must end in a dedicated wxgame directory."
 }
-$backupRoot = Assert-SafeBuildChildPath `
-	-Path (Join-Path $outputParent (".backup-" + [Guid]::NewGuid().ToString("N"))) `
-	-Label "WeChat smoke output backup"
-$previousOutputBackedUp = $false
-$newOutputPublished = $false
-$publishCommitted = $false
-$verificationProjectRoot = Assert-SafeBuildChildPath `
-	-Path (Join-Path $outputParent (".verify-" + [Guid]::NewGuid().ToString("N"))) `
-	-Label "isolated WeChat artifact verification project"
+$outputCandidateRoot = Assert-SafeBuildChildPath `
+	-Path $outputCandidateRoot `
+	-Label "WeChat candidate bundle"
+$buildPrefix = $projectBuildRoot.TrimEnd("\", "/") + [IO.Path]::DirectorySeparatorChar
+if (
+	-not $outputCandidateParent.Equals(
+		$projectBuildRoot,
+		[StringComparison]::OrdinalIgnoreCase
+	) -and
+	-not $outputCandidateParent.StartsWith($buildPrefix, [StringComparison]::OrdinalIgnoreCase)
+) {
+	throw "WeChat candidate parent must stay under the project build directory."
+}
+Assert-NoReparsePointPath -Path $outputCandidateParent -Label "WeChat candidate parent"
+$null = New-Item -ItemType Directory -Force -Path $outputCandidateParent
+Assert-ExistingCandidateBundleShape -Path $outputCandidateRoot
 
+# Freeze every identity before any candidate staging or export work starts.
+$privateConfigSnapshot = Get-SanitizedPrivateConfigSnapshot `
+	-Path (Join-Path $outputRoot $VolatileLocalSidecarRelativePath)
+$godotIdentity = Get-GodotIdentity -Executable $GodotExecutable
+$godotPath = $godotIdentity.executable
+$gfIdentity = Get-GfVendorIdentity -Root $ProjectRoot
+$inputSnapshot = Get-ExportInputSnapshot -Root $ProjectRoot
+$toolIdentity = Get-ToolIdentity -Root $ProjectRoot
+$preservedAppId = Assert-WeChatAppId `
+	-Value (Get-PreservedAppId -PrivateConfigSnapshot $privateConfigSnapshot) `
+	-Source "preserved project.config.json AppID"
+$candidateName = Split-Path -Leaf $outputCandidateRoot
+$stageCandidateRoot = ""
+$verificationProjectRoot = ""
+$backupCandidateRoot = ""
 try {
+	$stageCandidateRoot = Assert-SafeBuildChildPath `
+		-Path (Join-Path $outputCandidateParent (
+			".$candidateName.stage-" + [Guid]::NewGuid().ToString("N")
+		)) `
+		-Label "WeChat candidate staging bundle"
+	$stageRoot = Join-Path $stageCandidateRoot "wxgame"
+	$null = New-Item -ItemType Directory -Path $stageCandidateRoot
+	$null = New-Item -ItemType Directory -Path $stageRoot
+	if ($TestFailureInjection -eq "after_candidate_stage") {
+		throw "Injected WeChat candidate transaction failure after stage creation."
+	}
+	$stageReportPath = Join-Path $stageCandidateRoot "export-report.json"
+	$reportPath = Join-Path $outputCandidateRoot "export-report.json"
+	$backupCandidateRoot = Assert-SafeBuildChildPath `
+		-Path (Join-Path $outputCandidateParent (
+			".$candidateName.backup-" + [Guid]::NewGuid().ToString("N")
+		)) `
+		-Label "WeChat candidate backup bundle"
+	$verificationProjectRoot = Assert-SafeBuildChildPath `
+		-Path (Join-Path $outputCandidateParent (
+			".$candidateName.verify-" + [Guid]::NewGuid().ToString("N")
+		)) `
+		-Label "isolated WeChat artifact verification project"
+
 	$templateArchive = Resolve-TemplateArchive
 	Add-Type -AssemblyName System.IO.Compression.FileSystem
 	[IO.Compression.ZipFile]::ExtractToDirectory($templateArchive, $stageRoot)
@@ -726,14 +1399,10 @@ try {
 	Write-Utf8Text `
 		-Path $projectConfigPath `
 		-Text (($projectConfig | ConvertTo-Json -Depth 16) + "`n")
-	if (-not [string]::IsNullOrWhiteSpace($preservedPrivateConfigPath)) {
-		Write-SanitizedPrivateConfig `
-			-SourcePath $preservedPrivateConfigPath `
-			-DestinationPath (Join-Path $stageRoot "project.private.config.json")
-	}
+	Write-SanitizedPrivateConfigSnapshot `
+		-Snapshot $privateConfigSnapshot `
+		-DestinationPath (Join-Path $stageRoot $VolatileLocalSidecarRelativePath)
 
-	$godotCommand = Get-Command $GodotExecutable -ErrorAction Stop
-	$godotPath = $godotCommand.Source
 	$temporaryPackPath = Join-Path $stageRoot "engine\2048-all-in-one.pck"
 	Invoke-GodotPackExport -GodotPath $godotPath -PackPath $temporaryPackPath
 	$finalPackPath = Join-Path $stageRoot "engine\$PackFileName"
@@ -829,50 +1498,41 @@ GODOTSDK.startGame(exe, pack)
 	if (-not $packageEvidence.total_hard_limit_ok) {
 		throw "Generated WeChat package exceeds $TotalPackageHardLimitBytes bytes."
 	}
-	Initialize-GodotArtifactVerificationProject `
-		-VerificationProjectRoot $verificationProjectRoot
-	try {
-		Invoke-GodotArtifactVerification `
-			-GodotPath $godotPath `
-			-ArtifactRoot $stageRoot `
-			-VerificationProjectRoot $verificationProjectRoot
-	}
-	finally {
-		if (Test-Path -LiteralPath $verificationProjectRoot) {
-			Remove-SafeBuildTree `
-				-Path $verificationProjectRoot `
-				-Label "isolated WeChat artifact verification project"
-		}
-	}
-
-	if (Test-Path -LiteralPath $outputRoot) {
-		Assert-NoReparsePointTree -Path $outputRoot -Label "previous WeChat smoke output"
-		Move-Item -LiteralPath $outputRoot -Destination $backupRoot
-		$previousOutputBackedUp = $true
-	}
-	Move-Item -LiteralPath $stageRoot -Destination $outputRoot
-	$newOutputPublished = $true
-
-	$godotVersionOutput = (& $godotPath --version | Select-Object -First 1).Trim()
+	$artifactManifest = Get-ArtifactManifestEvidence -StageRoot $stageRoot
+	$artifactManifestSha256 = [string]$artifactManifest.manifest_sha256
+	$inputSnapshotSha256 = [string]$inputSnapshot.input_snapshot_sha256
+	$buildId = Get-CandidateBuildId `
+		-GodotIdentity $godotIdentity `
+		-GfIdentity $gfIdentity `
+		-InputSnapshotSha256 $inputSnapshotSha256 `
+		-InputSnapshotFileCount ([int]$inputSnapshot.file_count) `
+		-ArtifactManifestSha256 $artifactManifestSha256 `
+		-ToolIdentity $toolIdentity
 	$report = [ordered]@{
+		schema_version = $ExportReportSchemaVersion
 		ok = $true
 		scope = "toolchain_smoke"
+		build_id = $buildId
 		generated_at = [DateTimeOffset]::Now.ToString("o")
 		output_path = $outputRoot
+		report_path = $reportPath
 		export_preset = $ExportPreset
-		godot = [ordered]@{
-			executable = $godotPath
-			version = $godotVersionOutput
-		}
+		input_snapshot_sha256 = $inputSnapshotSha256
+		artifact_manifest_sha256 = $artifactManifestSha256
+		godot = $godotIdentity
+		gf = $gfIdentity
+		input_snapshot = $inputSnapshot
+		tool_identity = $toolIdentity
 		template = [ordered]@{
 			repository = "https://github.com/godothub/godot-minigame"
 			release = $TemplateRelease
 			asset = $TemplateAssetName
 			download_url = $TemplateDownloadUrl
 			expected_bytes = $TemplateExpectedBytes
-			sha256 = $TemplateExpectedSha256
+			sha256 = $TemplateExpectedSha256.ToLowerInvariant()
 			archive_path = $templateArchive
 		}
+		artifact = $artifactManifest
 		app_id_configured = -not [string]::IsNullOrWhiteSpace($preservedAppId)
 		project_name = $WeChatProjectName
 		device_orientation = $DeviceOrientation
@@ -885,24 +1545,51 @@ GODOTSDK.startGame(exe, pack)
 			"Preview, upload and device validation require the project's own Mini Game AppID."
 		)
 	}
-	$reportPath = Join-Path $outputParent "export-report.json"
-	Write-Utf8Text -Path $reportPath -Text (($report | ConvertTo-Json -Depth 12) + "`n")
-	$publishCommitted = $true
-	if ($previousOutputBackedUp -and (Test-Path -LiteralPath $backupRoot)) {
-		$previousOutputBackedUp = $false
-		try {
-			Remove-SafeBuildTree -Path $backupRoot -Label "retired WeChat smoke output backup"
-		}
-		catch {
-			Write-Warning (
-				"The new WeChat output is committed, but its retired backup could not be fully removed: " +
-				$_.Exception.Message
-			)
+	Write-Utf8Text `
+		-Path $stageReportPath `
+		-Text (($report | ConvertTo-Json -Depth 16) + "`n")
+	$stageReportSha256 = Get-FileSha256 -Path $stageReportPath
+	Initialize-GodotArtifactVerificationProject `
+		-VerificationProjectRoot $verificationProjectRoot
+	try {
+		Invoke-GodotArtifactVerification `
+			-GodotPath $godotPath `
+			-ArtifactRoot $stageRoot `
+			-ReportPath $stageReportPath `
+			-VerificationProjectRoot $verificationProjectRoot
+	}
+	finally {
+		if (Test-Path -LiteralPath $verificationProjectRoot) {
+			Remove-SafeBuildTree `
+				-Path $verificationProjectRoot `
+				-Label "isolated WeChat artifact verification project"
 		}
 	}
+	if ((Get-FileSha256 -Path $stageReportPath) -ne $stageReportSha256) {
+		throw "Staged WeChat export report changed after report-bound verification."
+	}
+	$publicationManifest = Get-ArtifactManifestEvidence -StageRoot $stageRoot
+	if (
+		[string]$publicationManifest.manifest_sha256 -ne $artifactManifestSha256 -or
+		[int]$publicationManifest.file_count -ne [int]$artifactManifest.file_count
+	) {
+		throw "Staged WeChat artifact changed after report-bound verification."
+	}
+	Assert-FrozenExportIdentity `
+		-Root $ProjectRoot `
+		-ExpectedGfIdentity $gfIdentity `
+		-ExpectedInputSnapshot $inputSnapshot `
+		-ExpectedToolIdentity $toolIdentity
+
+	Publish-CandidateBundle `
+		-StageCandidateRoot $stageCandidateRoot `
+		-FinalCandidateRoot $outputCandidateRoot `
+		-BackupCandidateRoot $backupCandidateRoot `
+		-FailureInjection $TestFailureInjection
 
 	Write-Host "WeChat Mini Game smoke export: PASS"
 	Write-Host "Output: $outputRoot"
+	Write-Host "Build ID: $buildId"
 	Write-Host (
 		"Package bytes: main={0}, engine={1}, total={2}" -f
 		$packageEvidence.main_package_bytes,
@@ -913,20 +1600,18 @@ GODOTSDK.startGame(exe, pack)
 }
 catch {
 	$originalError = $_
-	if (-not $publishCommitted) {
-		if ($newOutputPublished -and (Test-Path -LiteralPath $outputRoot)) {
-			Remove-SafeBuildTree -Path $outputRoot -Label "failed published WeChat smoke output"
-			$newOutputPublished = $false
-		}
-		if ($previousOutputBackedUp -and (Test-Path -LiteralPath $backupRoot)) {
-			Move-Item -LiteralPath $backupRoot -Destination $outputRoot
-			$previousOutputBackedUp = $false
-		}
+	if (
+		-not [string]::IsNullOrWhiteSpace($stageCandidateRoot) -and
+		(Test-Path -LiteralPath $stageCandidateRoot)
+	) {
+		Remove-SafeBuildTree `
+			-Path $stageCandidateRoot `
+			-Label "failed WeChat candidate staging bundle"
 	}
-	if (Test-Path -LiteralPath $stageRoot) {
-		Remove-SafeBuildTree -Path $stageRoot -Label "failed WeChat smoke staging directory"
-	}
-	if (Test-Path -LiteralPath $verificationProjectRoot) {
+	if (
+		-not [string]::IsNullOrWhiteSpace($verificationProjectRoot) -and
+		(Test-Path -LiteralPath $verificationProjectRoot)
+	) {
 		Remove-SafeBuildTree `
 			-Path $verificationProjectRoot `
 			-Label "failed isolated WeChat artifact verification project"

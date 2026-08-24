@@ -1,0 +1,515 @@
+[gd_scene load_steps=6 format=3 uid="uid://cjq41cf2jqg1h"]
+
+[ext_resource type="Script" uid="uid://c3xlbn570oc40" path="res://features/game_session/scripts/ui/hud.gd" id="1_hud"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hud_panel"]
+bg_color = Color(1, 0.972549, 0.9098039, 0.92)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.18431373, 0.1882353, 0.21568628, 0.88)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hint_panel"]
+bg_color = Color(1, 0.972549, 0.9098039, 0.82)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.34901962, 0.2901961, 0.27058825, 0.68)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_notification_panel"]
+bg_color = Color(1, 0.972549, 0.9098039, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.9372549, 0.81960785, 0.3647059, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_board_info"]
+bg_color = Color(0.61960787, 0.85882354, 0.8352941, 0.72)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.18431373, 0.1882353, 0.21568628, 0.78)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+shadow_color = Color(0.18431373, 0.1882353, 0.21568628, 0.20)
+shadow_size = 2
+shadow_offset = Vector2(4, 4)
+
+[node name="Hud" type="Control"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_hud")
+
+[node name="SafeArea" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="TopScorePanel" type="PanelContainer" parent="SafeArea"]
+layout_mode = 1
+anchors_preset = 10
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -194.0
+offset_top = 12.0
+offset_right = 194.0
+offset_bottom = 72.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_hud_panel")
+
+[node name="Margin" type="MarginContainer" parent="SafeArea/TopScorePanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 5
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 5
+
+[node name="SummaryBar" type="HBoxContainer" parent="SafeArea/TopScorePanel/Margin"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="ScoreMetric" type="VBoxContainer" parent="SafeArea/TopScorePanel/Margin/SummaryBar"]
+custom_minimum_size = Vector2(96, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 0
+
+[node name="ScoreCaptionLabel" type="Label" parent="SafeArea/TopScorePanel/Margin/SummaryBar/ScoreMetric"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.34901962, 0.2901961, 0.27058825, 0.82)
+theme_override_font_sizes/font_size = 11
+text = "分数"
+horizontal_alignment = 1
+
+[node name="ScoreValueLabel" type="Label" parent="SafeArea/TopScorePanel/Margin/SummaryBar/ScoreMetric"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+theme_override_font_sizes/font_size = 24
+text = "0"
+horizontal_alignment = 1
+
+[node name="MovesMetric" type="VBoxContainer" parent="SafeArea/TopScorePanel/Margin/SummaryBar"]
+custom_minimum_size = Vector2(96, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 0
+
+[node name="MovesCaptionLabel" type="Label" parent="SafeArea/TopScorePanel/Margin/SummaryBar/MovesMetric"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.34901962, 0.2901961, 0.27058825, 0.82)
+theme_override_font_sizes/font_size = 11
+text = "步数"
+horizontal_alignment = 1
+
+[node name="MoveCountValueLabel" type="Label" parent="SafeArea/TopScorePanel/Margin/SummaryBar/MovesMetric"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+theme_override_font_sizes/font_size = 24
+text = "0"
+horizontal_alignment = 1
+
+[node name="HighestTileMetric" type="VBoxContainer" parent="SafeArea/TopScorePanel/Margin/SummaryBar"]
+custom_minimum_size = Vector2(96, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 0
+
+[node name="HighestTileCaptionLabel" type="Label" parent="SafeArea/TopScorePanel/Margin/SummaryBar/HighestTileMetric"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.34901962, 0.2901961, 0.27058825, 0.82)
+theme_override_font_sizes/font_size = 11
+text = "最大方块"
+horizontal_alignment = 1
+
+[node name="HighestTileValueLabel" type="Label" parent="SafeArea/TopScorePanel/Margin/SummaryBar/HighestTileMetric"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+theme_override_font_sizes/font_size = 24
+text = "0"
+horizontal_alignment = 1
+
+[node name="FeedbackRail" type="VBoxContainer" parent="SafeArea"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -338.0
+offset_top = 106.0
+offset_right = -18.0
+offset_bottom = 286.0
+grow_horizontal = 0
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="NotificationSlot" type="Control" parent="SafeArea/FeedbackRail"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 68)
+layout_mode = 2
+size_flags_vertical = 0
+mouse_filter = 2
+
+[node name="NotificationPanel" type="PanelContainer" parent="SafeArea/FeedbackRail/NotificationSlot"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 68)
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 68.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_notification_panel")
+
+[node name="Margin" type="MarginContainer" parent="SafeArea/FeedbackRail/NotificationSlot/NotificationPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 8
+
+[node name="NotificationLabel" type="RichTextLabel" parent="SafeArea/FeedbackRail/NotificationSlot/NotificationPanel/Margin"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+mouse_filter = 2
+bbcode_enabled = false
+fit_content = false
+scroll_active = false
+autowrap_mode = 3
+theme_override_colors/default_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+theme_override_font_sizes/normal_font_size = 16
+horizontal_alignment = 0
+
+[node name="BoardInfoPanel" type="PanelContainer" parent="SafeArea/FeedbackRail"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 122)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_board_info")
+
+[node name="Margin" type="MarginContainer" parent="SafeArea/FeedbackRail/BoardInfoPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="BoardInfoLabel" type="Label" parent="SafeArea/FeedbackRail/BoardInfoPanel/Margin"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 96)
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+theme_override_font_sizes/font_size = 15
+text = "棋盘信息\n等待棋盘数据..."
+autowrap_mode = 3
+vertical_alignment = 1
+
+[node name="DetailsToggleButton" type="Button" parent="SafeArea"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 1
+offset_left = 18.0
+offset_top = 18.0
+offset_right = 62.0
+offset_bottom = 62.0
+tooltip_text = "展开详细状态"
+text = "i"
+
+[node name="DetailsPanel" type="PanelContainer" parent="SafeArea"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+offset_left = 18.0
+offset_top = 66.0
+offset_right = 318.0
+offset_bottom = 350.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_hud_panel")
+
+[node name="Margin" type="MarginContainer" parent="SafeArea/DetailsPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="DetailsContent" type="VBoxContainer" parent="SafeArea/DetailsPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="TitleLabel" type="Label" parent="SafeArea/DetailsPanel/Margin/DetailsContent"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+text = "游戏状态"
+
+[node name="StatsContainer" type="VBoxContainer" parent="SafeArea/DetailsPanel/Margin/DetailsContent"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="BoardSummarySeparator" type="HSeparator" parent="SafeArea/DetailsPanel/Margin/DetailsContent"]
+layout_mode = 2
+
+[node name="BoardSummaryLabel" type="RichTextLabel" parent="SafeArea/DetailsPanel/Margin/DetailsContent"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(264, 112)
+layout_mode = 2
+mouse_filter = 2
+bbcode_enabled = false
+fit_content = true
+scroll_active = false
+autowrap_mode = 3
+text = "展开后显示当前棋盘摘要。"
+
+[node name="CopyBoardSummaryButton" type="Button" parent="SafeArea/DetailsPanel/Margin/DetailsContent"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+text = "复制棋盘摘要"
+
+[node name="AccessibilitySubtitlePanel" type="PanelContainer" parent="SafeArea/FeedbackRail"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 68)
+layout_mode = 2
+size_flags_vertical = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_hint_panel")
+
+[node name="Margin" type="MarginContainer" parent="SafeArea/FeedbackRail/AccessibilitySubtitlePanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 8
+
+[node name="AccessibilitySubtitleLabel" type="Label" parent="SafeArea/FeedbackRail/AccessibilitySubtitlePanel/Margin"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+mouse_filter = 2
+text = ""
+horizontal_alignment = 0
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="ControlHintPanel" type="PanelContainer" parent="SafeArea"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 18.0
+offset_top = -172.0
+offset_right = 318.0
+offset_bottom = -18.0
+grow_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_hint_panel")
+
+[node name="Margin" type="MarginContainer" parent="SafeArea/ControlHintPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 8
+
+[node name="Content" type="VBoxContainer" parent="SafeArea/ControlHintPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Hints" type="VBoxContainer" parent="SafeArea/ControlHintPanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="MoveHintLabel" type="Label" parent="SafeArea/ControlHintPanel/Margin/Content/Hints"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "移动: WASD / 方向键 / 十字键 / 滑动"
+autowrap_mode = 3
+
+[node name="ActionHintLabel" type="Label" parent="SafeArea/ControlHintPanel/Margin/Content/Hints"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "撤销 Z · 重做 Y · 书签 B · 暂停 Esc"
+autowrap_mode = 3
+
+[node name="DPad" type="GridContainer" parent="SafeArea/ControlHintPanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+columns = 3
+
+[node name="SpacerTopLeft" type="Control" parent="SafeArea/ControlHintPanel/Margin/Content/DPad"]
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+
+[node name="MoveUpButton" type="Button" parent="SafeArea/ControlHintPanel/Margin/Content/DPad"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+tooltip_text = "向上移动"
+text = "↑"
+
+[node name="SpacerTopRight" type="Control" parent="SafeArea/ControlHintPanel/Margin/Content/DPad"]
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+
+[node name="MoveLeftButton" type="Button" parent="SafeArea/ControlHintPanel/Margin/Content/DPad"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+tooltip_text = "向左移动"
+text = "←"
+
+[node name="MoveDownButton" type="Button" parent="SafeArea/ControlHintPanel/Margin/Content/DPad"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+tooltip_text = "向下移动"
+text = "↓"
+
+[node name="MoveRightButton" type="Button" parent="SafeArea/ControlHintPanel/Margin/Content/DPad"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+tooltip_text = "向右移动"
+text = "→"
+
+[node name="HintResultPanel" type="PanelContainer" parent="SafeArea"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -378.0
+offset_top = -190.0
+offset_right = -18.0
+offset_bottom = -86.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_hint_panel")
+
+[node name="Margin" type="MarginContainer" parent="SafeArea/HintResultPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 9
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 9
+
+[node name="HintResultLabel" type="RichTextLabel" parent="SafeArea/HintResultPanel/Margin"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(336, 74)
+layout_mode = 2
+mouse_filter = 2
+bbcode_enabled = true
+fit_content = true
+scroll_active = false
+autowrap_mode = 3
+theme_override_colors/default_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+
+[node name="ActionPanel" type="PanelContainer" parent="SafeArea"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -342.0
+offset_top = -78.0
+offset_right = -18.0
+offset_bottom = -18.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_hint_panel")
+
+[node name="Margin" type="MarginContainer" parent="SafeArea/ActionPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 7
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 7
+
+[node name="Buttons" type="HBoxContainer" parent="SafeArea/ActionPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="PauseButton" type="Button" parent="SafeArea/ActionPanel/Margin/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(54, 44)
+layout_mode = 2
+tooltip_text = "暂停"
+text = "Ⅱ"
+
+[node name="UndoButton" type="Button" parent="SafeArea/ActionPanel/Margin/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(54, 44)
+layout_mode = 2
+tooltip_text = "撤销"
+text = "↶"
+
+[node name="RedoButton" type="Button" parent="SafeArea/ActionPanel/Margin/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(54, 44)
+layout_mode = 2
+tooltip_text = "重做"
+text = "↷"
+
+[node name="BookmarkButton" type="Button" parent="SafeArea/ActionPanel/Margin/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(54, 44)
+layout_mode = 2
+tooltip_text = "保存书签"
+text = "☆"
+
+[node name="HintButton" type="Button" parent="SafeArea/ActionPanel/Margin/Buttons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(54, 44)
+layout_mode = 2
+tooltip_text = "分析当前棋盘"
+text = "?"

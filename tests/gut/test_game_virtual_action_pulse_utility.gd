@@ -3,7 +3,7 @@ extends GutTest
 
 
 const GAMEPLAY_INPUT_CONTEXT: GFInputContext = preload(
-	"res://features/gameplay/resources/input/gameplay_input_context.tres"
+	"res://features/game_session/resources/input/gameplay_input_context.tres"
 )
 
 

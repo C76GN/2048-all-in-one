@@ -582,6 +582,10 @@ func _create_setup(
 		GFSaveProfileUtility.new()
 	)
 	await architecture.register_utility(
+		ChunkProfileUtility,
+		ChunkProfileUtility.new()
+	)
+	await architecture.register_utility(
 		GFBackgroundWorkUtility,
 		GFBackgroundWorkUtility.new()
 	)

@@ -729,7 +729,8 @@ func test_record_metadata_formats_every_declared_field() -> void:
 	var browser: AssetReviewBrowser = AssetReviewBrowser.new()
 	autofree(browser)
 	var record: AssetReviewRecord = AssetReviewRecord.new()
-	record.library_path = "res://candidate.ogg"
+	var candidate_path: String = VerificationResourcePath.make("candidate.ogg")
+	record.library_path = candidate_path
 	record.source_pack_id = &"audio_pack"
 	record.review_status = AssetReviewRecord.STATUS_APPROVED
 	record.license_status = &"known"
@@ -738,7 +739,7 @@ func test_record_metadata_formats_every_declared_field() -> void:
 
 	var metadata_text: String = browser._format_record_meta(record)
 
-	assert_true(metadata_text.contains("res://candidate.ogg"), "元数据摘要应包含素材路径。")
+	assert_true(metadata_text.contains(candidate_path), "元数据摘要应包含素材路径。")
 	assert_true(metadata_text.contains("audio_pack"), "元数据摘要应包含来源包。")
 	assert_true(metadata_text.contains("known / CC0"), "元数据摘要应包含授权结论。")
 	assert_true(metadata_text.contains("可进入晋升审计"), "元数据摘要应包含派生晋升门禁。")

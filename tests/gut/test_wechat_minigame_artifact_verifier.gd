@@ -7,7 +7,11 @@ extends GutTest
 const ArtifactVerifier = preload(
 	"res://tools/wechat_minigame_artifact_verifier.gd"
 )
-const _FIXTURE_ROOT: String = "res://build/test_wechat_minigame_artifact_verifier"
+const _FIXTURE_BUNDLE_ROOT: String = (
+	"res://build/test_wechat_minigame_artifact_verifier"
+)
+const _FIXTURE_ROOT: String = _FIXTURE_BUNDLE_ROOT + "/wxgame"
+const _REPORT_PATH: String = _FIXTURE_BUNDLE_ROOT + "/export-report.json"
 const _CHUNK_LOADER_SOURCE_PATH: String = (
 	"res://tools/wechat_minigame/chunked_file_loader.js"
 )
@@ -51,6 +55,178 @@ func test_valid_fixture_passes_real_file_json_loader_and_budget_checks() -> void
 	var package: Dictionary = GFVariantData.get_option_dictionary(report, "package")
 	assert_true(GFVariantData.get_option_bool(package, "main_hard_limit_ok"))
 	assert_true(GFVariantData.get_option_bool(package, "total_hard_limit_ok"))
+
+
+func test_package_budget_hard_limits_are_inclusive_at_exact_boundaries() -> void:
+	var exact: Dictionary = ArtifactVerifier.evaluate_package_budget(
+		ArtifactVerifier.MAIN_PACKAGE_HARD_LIMIT_BYTES,
+		ArtifactVerifier.TOTAL_PACKAGE_HARD_LIMIT_BYTES -
+			ArtifactVerifier.MAIN_PACKAGE_HARD_LIMIT_BYTES
+	)
+	assert_true(GFVariantData.get_option_bool(exact, "main_hard_limit_ok"))
+	assert_true(GFVariantData.get_option_bool(exact, "total_hard_limit_ok"))
+
+	var main_over: Dictionary = ArtifactVerifier.evaluate_package_budget(
+		ArtifactVerifier.MAIN_PACKAGE_HARD_LIMIT_BYTES + 1,
+		0
+	)
+	assert_false(GFVariantData.get_option_bool(main_over, "main_hard_limit_ok", true))
+	assert_true(GFVariantData.get_option_bool(main_over, "total_hard_limit_ok"))
+
+	var total_over: Dictionary = ArtifactVerifier.evaluate_package_budget(
+		ArtifactVerifier.MAIN_PACKAGE_HARD_LIMIT_BYTES,
+		ArtifactVerifier.TOTAL_PACKAGE_HARD_LIMIT_BYTES -
+			ArtifactVerifier.MAIN_PACKAGE_HARD_LIMIT_BYTES + 1
+	)
+	assert_true(GFVariantData.get_option_bool(total_over, "main_hard_limit_ok"))
+	assert_false(GFVariantData.get_option_bool(total_over, "total_hard_limit_ok", true))
+
+
+func test_candidate_build_id_uses_the_cross_tool_canonical_framing() -> void:
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	var export_report: Dictionary = {
+		"godot": {"version": "4.7.2.stable.official.abcdef123"},
+		"gf": {
+			"framework_version": "11.0.0-dev.0",
+			"source_commit": "a".repeat(40),
+			"source_git_tree": "b".repeat(40),
+			"vendor_tree_sha256": "c".repeat(64),
+			"vendor_file_count": 1967,
+			"lock_sha256": "d".repeat(64),
+		},
+		"input_snapshot_sha256": "e".repeat(64),
+		"input_snapshot": {"file_count": 1234},
+		"artifact_manifest_sha256": "f".repeat(64),
+		"template": {
+			"sha256": (
+				"ae5bdeb5ba1ce9712d4efc35d337cb5ecbef3ad5bfb0f7d06ae9cb662c1f2d71"
+			),
+		},
+		"tool_identity": {
+			"export_tool": {"sha256": "0".repeat(64)},
+			"artifact_verifier": {"sha256": "1".repeat(64)},
+			"artifact_check": {"sha256": "2".repeat(64)},
+			"chunk_loader": {"sha256": "3".repeat(64)},
+			"wxmemfs_patch": {"sha256": "4".repeat(64)},
+		},
+	}
+	var actual_build_id: String = verifier.compute_report_build_id(export_report)
+	assert_true(
+		actual_build_id ==
+			"a6545b8210195a47b91de64eb4da6842fba67005c10fb89c1e0c152dd5d1edc0",
+		"PowerShell 与 GDScript 必须共享同一 build_id canonical framing。"
+	)
+
+
+func test_report_bound_fixture_recomputes_the_complete_candidate_identity() -> void:
+	assert_true(_write_valid_report())
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	var report: Dictionary = verifier.verify_report_bound(_FIXTURE_ROOT, _REPORT_PATH)
+	assert_true(GFVariantData.get_option_bool(report, "ok"), str(_get_issues(report)))
+	assert_true(_get_issues(report).is_empty())
+
+
+func test_report_binding_ignores_benign_private_configuration_changes() -> void:
+	assert_true(_write_valid_report())
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	var baseline: Dictionary = verifier.verify_report_bound(_FIXTURE_ROOT, _REPORT_PATH)
+	var baseline_files: PackedStringArray = _get_files(baseline)
+	var baseline_package: Dictionary = GFVariantData.get_option_dictionary(
+		baseline,
+		"package"
+	)
+
+	assert_true(_write_text(
+		"project.private.config.json",
+		JSON.stringify({"setting": {"urlCheck": false}})
+	))
+	var added: Dictionary = verifier.verify_report_bound(_FIXTURE_ROOT, _REPORT_PATH)
+	assert_true(GFVariantData.get_option_bool(added, "ok"), str(_get_issues(added)))
+	assert_true(_get_files(added) == baseline_files)
+	assert_true(
+		GFVariantData.get_option_dictionary(added, "package") == baseline_package
+	)
+
+	assert_true(_write_text(
+		"project.private.config.json",
+		JSON.stringify({"setting": {"urlCheck": true, "compileHotReLoad": true}})
+	))
+	var changed: Dictionary = verifier.verify_report_bound(_FIXTURE_ROOT, _REPORT_PATH)
+	assert_true(GFVariantData.get_option_bool(changed, "ok"), str(_get_issues(changed)))
+	assert_true(_get_files(changed) == baseline_files)
+	assert_true(
+		GFVariantData.get_option_dictionary(changed, "package") == baseline_package
+	)
+
+
+func test_report_binding_still_rejects_malicious_or_malformed_private_config() -> void:
+	assert_true(_write_valid_report())
+	assert_true(_write_text(
+		"project.private.config.json",
+		JSON.stringify({
+			"appid": "local-identity-override",
+			"compileType": "gamePlugin",
+		})
+	))
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	var override_report: Dictionary = verifier.verify_report_bound(
+		_FIXTURE_ROOT,
+		_REPORT_PATH
+	)
+	assert_false(GFVariantData.get_option_bool(override_report, "ok", true))
+	assert_true(_has_issue(override_report, "private_config_overrides_app_id"))
+	assert_true(_has_issue(override_report, "private_config_overrides_compile_type"))
+
+	assert_true(_write_text("project.private.config.json", "{"))
+	var malformed_report: Dictionary = verifier.verify_report_bound(
+		_FIXTURE_ROOT,
+		_REPORT_PATH
+	)
+	assert_false(GFVariantData.get_option_bool(malformed_report, "ok", true))
+	assert_true(_has_issue(malformed_report, "project_private_config_invalid_json"))
+
+
+func test_report_binding_still_rejects_other_additional_files() -> void:
+	assert_true(_write_valid_report())
+	assert_true(_write_text("unexpected.json", "{}"))
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	var report: Dictionary = verifier.verify_report_bound(_FIXTURE_ROOT, _REPORT_PATH)
+	assert_false(GFVariantData.get_option_bool(report, "ok", true))
+	assert_true(_has_issue(report, "unexpected_file:unexpected.json"))
+	assert_true(_has_issue(report, "artifact_manifest_hash_mismatch"))
+	assert_true(_has_issue(report, "report_package_files_not_exact"))
+
+
+func test_report_bound_fixture_rejects_same_length_artifact_byte_drift() -> void:
+	assert_true(_write_valid_report())
+	assert_true(_write_text("images/logo.png", "mutated"))
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	var report: Dictionary = verifier.verify_report_bound(_FIXTURE_ROOT, _REPORT_PATH)
+	assert_false(GFVariantData.get_option_bool(report, "ok", true))
+	assert_true(_has_issue(report, "artifact_manifest_hash_mismatch"))
+	assert_true(_has_issue(report, "artifact_file_hash_mismatch:images/logo.png"))
+	assert_false(_has_issue(report, "artifact_file_bytes_mismatch:images/logo.png"))
+
+
+func test_report_bound_fixture_rejects_tool_identity_and_build_id_drift() -> void:
+	var export_report: Dictionary = _make_valid_export_report()
+	var tool_identity: Dictionary = GFVariantData.get_option_dictionary(
+		export_report,
+		"tool_identity"
+	)
+	var export_tool: Dictionary = GFVariantData.get_option_dictionary(
+		tool_identity,
+		"export_tool"
+	)
+	export_tool["sha256"] = "0".repeat(64)
+	tool_identity["export_tool"] = export_tool
+	export_report["tool_identity"] = tool_identity
+	assert_true(_write_report(export_report))
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	var report: Dictionary = verifier.verify_report_bound(_FIXTURE_ROOT, _REPORT_PATH)
+	assert_false(GFVariantData.get_option_bool(report, "ok", true))
+	assert_true(_has_issue(report, "report_tool_hash_mismatch:export_tool"))
+	assert_true(_has_issue(report, "report_build_id_mismatch"))
 
 
 func test_unknown_file_and_stale_loader_are_rejected() -> void:
@@ -109,6 +285,21 @@ func test_empty_configuration_objects_are_rejected() -> void:
 	assert_true(_has_issue(report, "project_compile_type_not_minigame"))
 	assert_true(_has_issue(report, "game_orientation_not_landscape"))
 	assert_true(_has_issue(report, "game_engine_subpackage_not_exact"))
+
+
+func test_miniprogram_compile_type_is_rejected() -> void:
+	assert_true(_write_text(
+		"project.config.json",
+		JSON.stringify({
+			"projectname": _PROJECT_NAME,
+			"compileType": "miniprogram",
+			"appid": "",
+		})
+	))
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	var report: Dictionary = verifier.verify_artifact(_FIXTURE_ROOT)
+	assert_false(GFVariantData.get_option_bool(report, "ok", true))
+	assert_true(_has_issue(report, "project_compile_type_not_minigame"))
 
 
 func test_private_configuration_cannot_override_identity_or_compile_type() -> void:
@@ -216,6 +407,136 @@ func test_unpatched_or_fail_silent_wxmemfs_rename_is_rejected() -> void:
 
 # --- 私有/辅助方法 ---
 
+func _write_valid_report() -> bool:
+	return _write_report(_make_valid_export_report())
+
+
+func _make_valid_export_report() -> Dictionary:
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	var structural_report: Dictionary = verifier.verify_artifact(_FIXTURE_ROOT)
+	assert_true(GFVariantData.get_option_bool(structural_report, "ok"))
+	var package: Dictionary = GFVariantData.get_option_dictionary(
+		structural_report,
+		"package"
+	)
+	var files: PackedStringArray = _get_files(structural_report)
+	package["main_hard_limit_bytes"] = ArtifactVerifier.MAIN_PACKAGE_HARD_LIMIT_BYTES
+	package["total_hard_limit_bytes"] = ArtifactVerifier.TOTAL_PACKAGE_HARD_LIMIT_BYTES
+	package["main_soft_limit_bytes"] = ArtifactVerifier.MAIN_PACKAGE_SOFT_LIMIT_BYTES
+	package["total_soft_limit_bytes"] = ArtifactVerifier.TOTAL_PACKAGE_SOFT_LIMIT_BYTES
+	package["file_count"] = files.size()
+	package["files"] = files
+	package["missing_paths"] = []
+	package["unexpected_paths"] = []
+	package["forbidden_paths"] = []
+	var artifact_manifest: Dictionary = verifier.build_artifact_manifest(_FIXTURE_ROOT)
+	var input_hash: String = "e".repeat(64)
+	var export_report: Dictionary = {
+		"schema_version": ArtifactVerifier.EXPORT_REPORT_SCHEMA_VERSION,
+		"ok": true,
+		"scope": "toolchain_smoke",
+		"build_id": "",
+		"export_preset": "Web Compatibility Smoke",
+		"input_snapshot_sha256": input_hash,
+		"artifact_manifest_sha256": str(
+			artifact_manifest.get("manifest_sha256", "")
+		),
+		"godot": {
+			"executable": "fixture",
+			"version": _get_godot_report_version(),
+			"required_version_prefix": ArtifactVerifier.REQUIRED_GODOT_VERSION_PREFIX,
+		},
+		"gf": {
+			"framework_version": "11.0.0-dev.0",
+			"source_commit": "a".repeat(40),
+			"source_git_tree": "b".repeat(40),
+			"vendor_tree_sha256": "c".repeat(64),
+			"vendor_file_count": 1,
+			"lock_sha256": "d".repeat(64),
+		},
+		"input_snapshot": {
+			"schema_version": ArtifactVerifier.INPUT_SNAPSHOT_SCHEMA_VERSION,
+			"input_snapshot_sha256": input_hash,
+			"file_count": 1,
+			"rules": {
+				"include_exact": [
+					"default_bus_layout.tres",
+					"export_presets.cfg",
+					"icon.svg",
+					"icon.svg.import",
+					"project.godot",
+				],
+				"include_roots": ["addons", "app", "features", "shared"],
+				"exclude_exact": [
+					"features/asset_library/resources/import_sources.json",
+					"features/asset_library/resources/import_sources.local.json",
+					"shared/assets/fonts/noto_sans_sc_variable.ttf",
+				],
+				"exclude_prefixes": [
+					"addons/gf/tools/",
+					"addons/gut/",
+					"features/asset_library/resources/review/",
+					"features/asset_library/resources/source_packs/",
+					"features/asset_library/tools/",
+					"features/platform_runtime/tools/",
+					"features/themes/tools/",
+				],
+				"exclude_generated": [
+					".git/",
+					".godot/",
+					"build/",
+					"tests/",
+					"tools/",
+					"__pycache__/",
+				],
+				"exclude_cache_suffixes": [".pyc", ".pyo"],
+			},
+		},
+		"tool_identity": verifier.build_tool_identity(),
+		"template": {
+			"release": "4.7",
+			"asset": "minigame4.7.tpz",
+			"expected_bytes": 11_763_895,
+			"sha256": (
+				"ae5bdeb5ba1ce9712d4efc35d337cb5ecbef3ad5bfb0f7d06ae9cb662c1f2d71"
+			),
+		},
+		"artifact": artifact_manifest,
+		"package": package,
+		"project_name": _PROJECT_NAME,
+		"device_orientation": "landscape",
+	}
+	export_report["build_id"] = verifier.compute_report_build_id(export_report)
+	return export_report
+
+
+func _get_godot_report_version() -> String:
+	var version_info: Dictionary = Engine.get_version_info()
+	var version: String = "%d.%d.%d.%s" % [
+		GFVariantData.get_option_int(version_info, "major"),
+		GFVariantData.get_option_int(version_info, "minor"),
+		GFVariantData.get_option_int(version_info, "patch"),
+		str(version_info.get("status", "")),
+	]
+	var build: String = str(version_info.get("build", ""))
+	var version_hash: String = str(version_info.get("hash", ""))
+	if not build.is_empty():
+		version += "." + build
+	if not version_hash.is_empty():
+		version += "." + version_hash.left(9)
+	return version
+
+
+func _write_report(export_report: Dictionary) -> bool:
+	var absolute_path: String = ProjectSettings.globalize_path(_REPORT_PATH)
+	if DirAccess.make_dir_recursive_absolute(absolute_path.get_base_dir()) != OK:
+		return false
+	var file: FileAccess = FileAccess.open(absolute_path, FileAccess.WRITE)
+	if file == null:
+		return false
+	return file.store_string(JSON.stringify(export_report) + "\n")
+
+
 func _create_valid_fixture() -> bool:
 	var absolute_root: String = ProjectSettings.globalize_path(_FIXTURE_ROOT)
 	if DirAccess.make_dir_recursive_absolute(absolute_root) != OK:
@@ -309,6 +630,14 @@ func _get_issues(report: Dictionary) -> PackedStringArray:
 	return PackedStringArray()
 
 
+func _get_files(report: Dictionary) -> PackedStringArray:
+	var files_value: Variant = report.get("files", PackedStringArray())
+	if files_value is PackedStringArray:
+		var files: PackedStringArray = files_value
+		return files
+	return PackedStringArray()
+
+
 func _has_issue(report: Dictionary, prefix: String) -> bool:
 	for issue: String in _get_issues(report):
 		if issue.begins_with(prefix):
@@ -325,12 +654,23 @@ func _remove_fixture() -> void:
 	var unexpected_path: String = absolute_root.path_join("unexpected.html")
 	if FileAccess.file_exists(unexpected_path):
 		var _remove_unexpected_error: Error = DirAccess.remove_absolute(unexpected_path)
+	var unexpected_json_path: String = absolute_root.path_join("unexpected.json")
+	if FileAccess.file_exists(unexpected_json_path):
+		var _remove_unexpected_json_error: Error = DirAccess.remove_absolute(
+			unexpected_json_path
+		)
 	var private_config_path: String = absolute_root.path_join("project.private.config.json")
 	if FileAccess.file_exists(private_config_path):
 		var _remove_private_config_error: Error = DirAccess.remove_absolute(private_config_path)
+	var report_path: String = ProjectSettings.globalize_path(_REPORT_PATH)
+	if FileAccess.file_exists(report_path):
+		var _remove_report_error: Error = DirAccess.remove_absolute(report_path)
 	for relative_directory: String in PackedStringArray(["engine", "images"]):
 		var absolute_directory: String = absolute_root.path_join(relative_directory)
 		if DirAccess.dir_exists_absolute(absolute_directory):
 			var _remove_child_error: Error = DirAccess.remove_absolute(absolute_directory)
 	if DirAccess.dir_exists_absolute(absolute_root):
 		var _remove_root_error: Error = DirAccess.remove_absolute(absolute_root)
+	var absolute_bundle_root: String = ProjectSettings.globalize_path(_FIXTURE_BUNDLE_ROOT)
+	if DirAccess.dir_exists_absolute(absolute_bundle_root):
+		var _remove_bundle_error: Error = DirAccess.remove_absolute(absolute_bundle_root)

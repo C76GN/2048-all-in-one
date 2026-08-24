@@ -63,6 +63,1027 @@ func test_profile_has_seven_typed_feature_sections() -> void:
 	_dispose_setup(setup)
 
 
+func test_manifest_backed_bookmarks_commit_and_reload_through_chunk_profiles() -> void:
+	var save_dir_name: String = "gut_chunked_bookmarks_%s" % (
+		GFUuid.generate_v4().replace("-", "")
+	)
+	var setup: Dictionary = await _create_persistence_architecture(
+		save_dir_name,
+		true,
+		PackedByteArray(),
+		null,
+		null,
+		true
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	var bookmark_system: BookmarkSystem = _get_bookmark_system(setup)
+	assert_true(
+		await _await_chunk_cleanup_idle(setup),
+		"首次 Bookmark Manifest 提交后的有界尾块 cleanup 应先收敛。"
+	)
+	var observed_profile_ids: Array[StringName] = []
+	var on_profile_operation: Callable = func(result: GFSaveProfileResult) -> void:
+		if result != null:
+			observed_profile_ids.append(result.get_profile_id())
+	var connection_error: int = save_graph.profile_operation_completed.connect(
+		on_profile_operation
+	)
+	assert_true(connection_error == OK)
+
+	var bookmark: BookmarkData = _make_bookmark(598, 4096)
+	var save_result: GameSaveSectionResult = await _await_section_operation(
+		bookmark_system.request_save_bookmark(bookmark),
+		setup
+	)
+	if save_graph.profile_operation_completed.is_connected(on_profile_operation):
+		save_graph.profile_operation_completed.disconnect(on_profile_operation)
+	assert_true(
+		save_result != null and save_result.is_successful(),
+		"manifest-backed bookmarks 应完成 chunk staging 与 main commit。"
+	)
+
+	var preview: GFSaveDocument = GFSaveDocument.from_dict(
+		save_graph.preview_profile_payload()
+	)
+	assert_not_null(preview, "预览必须使用物理 Manifest section，而非业务 payload。")
+	var bookmark_section: GFSaveSection = (
+		preview.get_section(GameSaveGraphUtility.BOOKMARKS_SECTION_ID)
+		if preview != null
+		else null
+	)
+	assert_true(
+		bookmark_section != null
+		and bookmark_section.get_schema_version()
+		== BookmarkManifestSaveSectionProvider.PERSISTENCE_SCHEMA_VERSION,
+		"主 Profile bookmarks section 必须采用物理 Manifest schema。"
+	)
+	var manifest: ChunkManifest = null
+	if bookmark_section != null and bookmark_section.get_payload() is Dictionary:
+		manifest = ChunkManifest.from_dict(
+			GFVariantData.as_dictionary(bookmark_section.get_payload())
+		)
+	assert_not_null(manifest, "主 Profile 必须只暴露严格 ChunkManifest。")
+	assert_false(
+		GFVariantData.as_dictionary(
+			bookmark_section.get_payload() if bookmark_section != null else {}
+		).has(&"items"),
+		"诊断预览不得把 bookmarks 业务目录重新内联进主 Profile。"
+	)
+	if manifest != null:
+		var chunk_identity: ChunkProfileIdentity = (
+			ChunkProfileRuntimeFactory.make_identity(
+				save_graph.get_active_profile_id(),
+				save_graph.get_profile_file_name(),
+				GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+				manifest.get_bank(),
+				0
+			)
+		)
+		assert_true(
+			chunk_identity != null
+			and storage.load_data(chunk_identity.get_file_name()).ok,
+			"Manifest 指向的首个派生 chunk Profile 必须已物理持久化。"
+		)
+	var signals_are_main_profile_only: bool = not observed_profile_ids.is_empty()
+	for observed_profile_id: StringName in observed_profile_ids:
+		if observed_profile_id != save_graph.get_active_profile_id():
+			signals_are_main_profile_only = false
+			break
+	assert_true(
+		signals_are_main_profile_only,
+		"派生 chunk Profile 终态不得泄漏到 SaveGraph 的主 Profile 信号。"
+	)
+
+	_dispose_setup(setup, false)
+	var reloaded: Dictionary = await _create_persistence_architecture(
+		save_dir_name,
+		true,
+		PackedByteArray(),
+		null,
+		null,
+		true
+	)
+	var reloaded_graph: GameSaveGraphUtility = _get_save_graph(reloaded)
+	var reloaded_bookmarks: Array[BookmarkData] = (
+		_get_bookmark_system(reloaded).load_bookmarks()
+	)
+	assert_true(
+		reloaded_graph.is_profile_loaded()
+		and reloaded_bookmarks.size() == 1
+		and reloaded_bookmarks[0].bookmark_id == bookmark.bookmark_id,
+		"重启后必须先 materialize chunks，再事务应用 bookmarks 业务数据。"
+	)
+	_dispose_setup(reloaded)
+
+
+func test_manifest_backed_replays_commit_and_reload_through_chunk_profiles() -> void:
+	var save_dir_name: String = "gut_chunked_replays_%s" % (
+		GFUuid.generate_v4().replace("-", "")
+	)
+	var setup: Dictionary = await _create_persistence_architecture(
+		save_dir_name,
+		true,
+		PackedByteArray(),
+		null,
+		null,
+		false,
+		true
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	var replay_system: ReplaySystem = _get_replay_system(setup)
+	assert_true(
+		await _await_chunk_cleanup_idle(setup),
+		"首次 Replay Manifest 提交后的有界尾块 cleanup 应先收敛。"
+	)
+	var replay: ReplayData = _make_replay(599, 8192)
+	var save_result: GameSaveSectionResult = await _await_section_operation(
+		replay_system.request_save_replay(replay),
+		setup
+	)
+	assert_true(
+		save_result != null and save_result.is_successful(),
+		"manifest-backed replays 应完成 chunk staging 与 main commit：%s" % (
+			save_result.to_dict() if save_result != null else {}
+		)
+	)
+
+	var preview: GFSaveDocument = GFSaveDocument.from_dict(
+		save_graph.preview_profile_payload()
+	)
+	assert_not_null(preview, "预览必须使用物理 Replay Manifest section。")
+	var replay_section: GFSaveSection = (
+		preview.get_section(GameSaveGraphUtility.REPLAYS_SECTION_ID)
+		if preview != null
+		else null
+	)
+	assert_true(
+		replay_section != null
+		and replay_section.get_schema_version()
+		== ReplayManifestSaveSectionProvider.PERSISTENCE_SCHEMA_VERSION,
+		"主 Profile replays section 必须采用物理 Manifest schema。"
+	)
+	var manifest: ChunkManifest = null
+	if replay_section != null and replay_section.get_payload() is Dictionary:
+		manifest = ChunkManifest.from_dict(
+			GFVariantData.as_dictionary(replay_section.get_payload())
+		)
+	assert_not_null(manifest, "主 Profile 必须只暴露严格 Replay ChunkManifest。")
+	assert_false(
+		GFVariantData.as_dictionary(
+			replay_section.get_payload() if replay_section != null else {}
+		).has(&"items"),
+		"诊断预览不得把 replay 业务目录重新内联进主 Profile。"
+	)
+	if manifest != null:
+		var chunk_identity: ChunkProfileIdentity = (
+			ChunkProfileRuntimeFactory.make_identity(
+				save_graph.get_active_profile_id(),
+				save_graph.get_profile_file_name(),
+				GameSaveGraphUtility.REPLAYS_SECTION_ID,
+				manifest.get_bank(),
+				0
+			)
+		)
+		assert_true(
+			chunk_identity != null
+			and storage.load_data(chunk_identity.get_file_name()).ok,
+			"Replay Manifest 指向的首个派生 chunk Profile 必须已持久化。"
+		)
+
+	_dispose_setup(setup, false)
+	var reloaded: Dictionary = await _create_persistence_architecture(
+		save_dir_name,
+		true,
+		PackedByteArray(),
+		null,
+		null,
+		false,
+		true
+	)
+	var reloaded_graph: GameSaveGraphUtility = _get_save_graph(reloaded)
+	var reloaded_replays: Array[ReplayData] = (
+		_get_replay_system(reloaded).load_replays()
+	)
+	assert_true(
+		reloaded_graph.is_profile_loaded()
+		and reloaded_replays.size() == 1
+		and reloaded_replays[0].replay_id == replay.replay_id,
+		"重启后必须先 materialize chunks，再事务应用 replays 业务数据。"
+	)
+	_dispose_setup(reloaded)
+
+
+func test_manifest_backed_public_load_rejects_forged_chunk_context() -> void:
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		false,
+		PackedByteArray(),
+		null,
+		null,
+		false,
+		true
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var forged_context: Dictionary = {
+		ManifestBackedSaveSectionProvider.LOAD_LEASES_CONTEXT_KEY: {
+			GameSaveGraphUtility.REPLAYS_SECTION_ID: RefCounted.new(),
+		},
+		ManifestBackedSaveSectionProvider.LOAD_MAIN_PROFILE_ID_CONTEXT_KEY: (
+			save_graph.get_active_profile_id()
+		),
+		ManifestBackedSaveSectionProvider.LOAD_CANONICAL_FILE_CONTEXT_KEY: (
+			save_graph.get_profile_file_name()
+		),
+	}
+	var result: GFSaveProfileResult = await _await_profile_operation(
+		save_graph.request_load_profile(forged_context),
+		setup
+	)
+	assert_true(
+		result != null
+		and result.get_status() == GFSaveProfileResult.STATUS_INVALID_PROFILE,
+		"public load 不得把可伪造 context 当成内部 chunk preflight 权限。"
+	)
+	_dispose_setup(setup)
+
+
+func test_bookmarks_and_replays_stage_in_one_main_profile_generation() -> void:
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		true,
+		PackedByteArray(),
+		null,
+		null,
+		true,
+		true
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var chunk_utility: ChunkProfileUtility = _get_chunk_profile_utility(setup)
+	assert_true(
+		await _await_chunk_cleanup_idle(setup),
+		"双 tracer 首次 Manifest 的有界 cleanup 应先收敛。"
+	)
+	var settled_main_generations: Dictionary = {}
+	var on_lease_settled: Callable = func(lease_id: StringName) -> void:
+		var lease: ChunkSaveLease = chunk_utility.get_save_lease(lease_id)
+		if lease != null:
+			settled_main_generations[String(lease.get_section_id())] = (
+				lease.get_main_requested_generation()
+			)
+	var connection_error: int = chunk_utility.save_lease_settled.connect(
+		on_lease_settled
+	)
+	assert_true(connection_error == OK)
+
+	var bookmark: BookmarkData = _make_bookmark(600, 4096)
+	bookmark.bookmark_id = GFUuid.generate_v7(600_000)
+	var replay: ReplayData = _make_replay(601, 8192)
+	replay.replay_id = GFUuid.generate_v7(601_000)
+	var result: GameSaveSectionResult = await _await_section_operation(
+		save_graph.request_replace_sections_data({
+			String(GameSaveGraphUtility.BOOKMARKS_SECTION_ID): {
+				&"items": [bookmark.to_dict()],
+			},
+			String(GameSaveGraphUtility.REPLAYS_SECTION_ID): {
+				&"items": [replay.to_dict()],
+			},
+		}),
+		setup
+	)
+	if chunk_utility.save_lease_settled.is_connected(on_lease_settled):
+		chunk_utility.save_lease_settled.disconnect(on_lease_settled)
+	var bookmark_generation: int = GFVariantData.get_option_int(
+		settled_main_generations,
+		String(GameSaveGraphUtility.BOOKMARKS_SECTION_ID),
+		0
+	)
+	var replay_generation: int = GFVariantData.get_option_int(
+		settled_main_generations,
+		String(GameSaveGraphUtility.REPLAYS_SECTION_ID),
+		0
+	)
+	assert_true(
+		result != null
+		and result.is_successful()
+		and result.get_section_ids()
+		== PackedStringArray(["bookmarks", "replays"]),
+		"双 tracer 应由一次原子 section 事务提交：%s" % (
+			result.to_dict() if result != null else {}
+		)
+	)
+	assert_true(
+		bookmark_generation > 0
+		and bookmark_generation == replay_generation,
+		"bookmarks/replays 的 lease 必须绑定同一个主 Profile generation。"
+	)
+	assert_true(
+		_get_bookmark_system(setup).load_bookmarks().size() == 1
+		and _get_replay_system(setup).load_replays().size() == 1,
+		"双 tracer 成功后必须同时保留业务目录。"
+	)
+	_dispose_setup(setup)
+
+
+func test_profile_delete_holds_path_until_two_derived_families_settle() -> void:
+	var chunk_utility: _ControllableChunkProfileUtility = (
+		_ControllableChunkProfileUtility.new()
+	)
+	chunk_utility.hang_next_cleanup(
+		GameSaveGraphUtility.BOOKMARKS_SECTION_ID
+	)
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		false,
+		PackedByteArray(),
+		null,
+		null,
+		true,
+		true,
+		chunk_utility
+	)
+	assert_true(await _await_chunk_cleanup_idle(setup))
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	var profile_file_name: String = _make_inactive_profile_file_name(810_001)
+	assert_true(storage.save_data(profile_file_name, {&"fixture": true}) == OK)
+	var result_box: Dictionary = _begin_inactive_profile_cleanup(
+		save_graph,
+		profile_file_name
+	)
+	for _frame: int in range(120):
+		storage.wait_for_async_tasks()
+		_get_architecture(setup).tick(0.0)
+		await get_tree().process_frame
+		if chunk_utility.has_pending_cleanup(
+			GameSaveGraphUtility.BOOKMARKS_SECTION_ID
+		):
+			break
+	assert_true(
+		chunk_utility.has_pending_cleanup(
+			GameSaveGraphUtility.BOOKMARKS_SECTION_ID
+		)
+		and not GFVariantData.get_option_bool(result_box, &"done", false)
+		and save_graph.is_profile_cleanup_pending(profile_file_name),
+		"main success 后必须继续持有 canonical path，直到 derived physical terminal。"
+	)
+	chunk_utility.complete_pending_cleanup(
+		GameSaveGraphUtility.BOOKMARKS_SECTION_ID
+	)
+	var cleanup_error: Error = await _await_inactive_profile_cleanup(
+		result_box,
+		setup
+	)
+	assert_true(cleanup_error == OK)
+	assert_true(
+		chunk_utility.cleanup_calls
+		== [
+			GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+			GameSaveGraphUtility.REPLAYS_SECTION_ID,
+		]
+		and not save_graph.is_profile_cleanup_pending(profile_file_name),
+		"所有 manifest-backed provider 必须动态遍历，并在全部终态后释放 path。"
+	)
+	var cleanup_debug: Dictionary = GFVariantData.get_option_dictionary(
+		save_graph.get_debug_snapshot(),
+		&"profile_cleanup"
+	)
+	var evidence: Dictionary = GFVariantData.get_option_dictionary(
+		cleanup_debug,
+		&"last_terminal"
+	)
+	assert_true(
+		GFVariantData.get_option_int(evidence, &"derived_total_count", 0) == 2
+		and GFVariantData.get_option_int(
+			evidence,
+			&"derived_completed_count",
+			0
+		) == 2
+		and not evidence.has(&"profile_file")
+		and not evidence.has(&"profile_id"),
+		"复合 cleanup evidence 必须完整且不泄漏 logical identity/path。"
+	)
+	_dispose_setup(setup)
+
+
+func test_profile_delete_timeout_keeps_path_until_late_main_and_derived() -> void:
+	var storage: _ScriptedProfileDeleteStorage = (
+		_ScriptedProfileDeleteStorage.new()
+	)
+	var chunk_utility: _ControllableChunkProfileUtility = (
+		_ControllableChunkProfileUtility.new()
+	)
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		false,
+		PackedByteArray(),
+		storage,
+		null,
+		true,
+		true,
+		chunk_utility
+	)
+	assert_true(await _await_chunk_cleanup_idle(setup))
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var profile_file_name: String = _make_inactive_profile_file_name(810_002)
+	assert_true(storage.save_data(profile_file_name, {&"fixture": true}) == OK)
+	storage.arm_timeout(profile_file_name)
+	var terminal_count: Dictionary = {&"value": 0}
+	var _terminal_connection: int = save_graph.profile_cleanup_task_terminal.connect(
+		func(_work_id: StringName) -> void:
+			terminal_count[&"value"] = GFVariantData.get_option_int(
+				terminal_count,
+				&"value",
+				0
+			) + 1
+	)
+	var result_box: Dictionary = _begin_inactive_profile_cleanup(
+		save_graph,
+		profile_file_name
+	)
+	var caller_error: Error = await _await_inactive_profile_cleanup(
+		result_box,
+		setup
+	)
+	assert_true(
+		caller_error == ERR_TIMEOUT
+		and storage.has_pending_timeout()
+		and save_graph.is_profile_cleanup_pending(profile_file_name)
+		and chunk_utility.cleanup_calls.is_empty()
+		and GFVariantData.get_option_int(terminal_count, &"value", 0) == 0,
+		"caller timeout 必须立即返回，但不得释放 path、发 terminal 或提前删 chunks。"
+	)
+	storage.settle_timeout()
+	for _frame: int in range(120):
+		_get_architecture(setup).tick(0.0)
+		await get_tree().process_frame
+		if not save_graph.is_profile_cleanup_pending(profile_file_name):
+			break
+	assert_true(
+		not save_graph.is_profile_cleanup_pending(profile_file_name)
+		and chunk_utility.cleanup_calls.size() == 2
+		and GFVariantData.get_option_int(terminal_count, &"value", 0) == 1,
+		"迟到 main success 后必须清完全部 derived，再发布唯一 terminal。"
+	)
+	var evidence: Dictionary = GFVariantData.get_option_dictionary(
+		GFVariantData.get_option_dictionary(
+			save_graph.get_debug_snapshot(),
+			&"profile_cleanup"
+		),
+		&"last_terminal"
+	)
+	assert_true(
+		GFVariantData.get_option_bool(
+			evidence,
+			&"caller_outcome_unknown",
+			false
+		)
+	)
+	_dispose_setup(setup)
+
+
+func test_legacy_profile_cleanup_does_not_expire_before_worker_acceptance() -> void:
+	var storage: _RawFixtureStorage = _RawFixtureStorage.new()
+	storage.async_execution_mode = (
+		GFStorageUtility.AsyncExecutionMode.COOPERATIVE
+	)
+	var clock: GFManualClock = GFManualClock.new(0, 1_000_000)
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		false,
+		PackedByteArray(),
+		storage,
+		clock
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	assert_true(storage.save_data(
+		GameSaveGraphUtility.PROFILE_FILE_NAME,
+		{&"fixture": true}
+	) == OK)
+	var result_box: Dictionary = _begin_legacy_profile_cleanup(save_graph)
+	# deferred 调用只负责把 main delete 入队；刻意不 tick architecture，保证
+	# cooperative worker 尚未接纳该维护请求。
+	await get_tree().process_frame
+	var cleanup_debug: Dictionary = GFVariantData.get_option_dictionary(
+		save_graph.get_debug_snapshot(),
+		&"profile_cleanup"
+	)
+	assert_true(
+		GFVariantData.get_option_int(cleanup_debug, &"main_pending_count", 0)
+		== 1
+	)
+	assert_true(clock.advance_msec(5_001))
+	var cleanup_error: Error = await _await_profile_cleanup_without_forced_drain(
+		result_box,
+		setup
+	)
+	assert_true(
+		cleanup_error == OK,
+		"后台 legacy 维护不得因 cooperative 队列等待超过用户观察预算而取消。"
+	)
+	var evidence: Dictionary = GFVariantData.get_option_dictionary(
+		GFVariantData.get_option_dictionary(
+			save_graph.get_debug_snapshot(),
+			&"profile_cleanup"
+		),
+		&"last_terminal"
+	)
+	assert_true(
+		GFVariantData.get_option_string_name(
+			evidence,
+			&"cleanup_kind"
+		) == &"legacy_maintenance"
+		and GFVariantData.get_option_bool(
+			evidence,
+			&"main_physical_settled",
+			false
+		)
+		and GFVariantData.get_option_string_name(
+			evidence,
+			&"derived_status"
+		) == &"cleaned"
+		and not evidence.has(&"profile_file")
+		and not evidence.has(&"profile_id")
+		and not evidence.has(&"account_id"),
+		"legacy terminal 必须给出分阶段且不含身份/路径的结构化证据。"
+	)
+	_dispose_setup(setup)
+
+
+func test_user_profile_delete_preacceptance_expiry_reports_main_phase() -> void:
+	var storage: _RawFixtureStorage = _RawFixtureStorage.new()
+	storage.async_execution_mode = (
+		GFStorageUtility.AsyncExecutionMode.COOPERATIVE
+	)
+	var clock: GFManualClock = GFManualClock.new(0, 1_000_000)
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		false,
+		PackedByteArray(),
+		storage,
+		clock
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var profile_file_name: String = _make_inactive_profile_file_name(810_006)
+	assert_true(storage.save_data(profile_file_name, {&"fixture": true}) == OK)
+	var result_box: Dictionary = _begin_inactive_profile_cleanup(
+		save_graph,
+		profile_file_name
+	)
+	await get_tree().process_frame
+	assert_true(clock.advance_msec(5_001))
+	var cleanup_error: Error = await _await_profile_cleanup_without_forced_drain(
+		result_box,
+		setup
+	)
+	assert_true(cleanup_error == ERR_SKIP)
+	var evidence: Dictionary = GFVariantData.get_option_dictionary(
+		GFVariantData.get_option_dictionary(
+			save_graph.get_debug_snapshot(),
+			&"profile_cleanup"
+		),
+		&"last_terminal"
+	)
+	assert_true(
+		GFVariantData.get_option_string_name(
+			evidence,
+			&"cleanup_kind"
+		) == &"inactive_profile_request"
+		and GFVariantData.get_option_string_name(
+			evidence,
+			&"failure_phase"
+		) == &"main_delete"
+		and GFVariantData.get_option_int(
+			evidence,
+			&"main_caller_end_kind",
+			-1
+		) == int(GFStorageAsyncCallerResult.EndKind.DEADLINE_EXPIRED)
+		and GFVariantData.get_option_string_name(
+			evidence,
+			&"main_caller_reason"
+		) == &"deadline_expired"
+		and GFVariantData.get_option_int(
+			evidence,
+			&"main_physical_settlement_kind",
+			-1
+		) == int(GFStorageAsyncResult.SettlementKind.CANCELLED)
+		and GFVariantData.get_option_string_name(
+			evidence,
+			&"derived_status"
+		) == &"not_started",
+		"用户观察预算接纳前到期必须明确归因 main，而不是伪装 derived 失败。"
+	)
+	var evidence_text: String = JSON.stringify(evidence)
+	assert_false(
+		evidence_text.contains(profile_file_name)
+		or evidence.has(&"profile_file")
+		or evidence.has(&"profile_id")
+		or evidence.has(&"account_id")
+		or evidence.has(&"payload"),
+		"cleanup evidence 不得暴露路径、账号身份或存档 payload。"
+	)
+	_dispose_setup(setup)
+
+
+func test_profile_delete_known_main_failure_never_cleans_derived() -> void:
+	var storage: _ScriptedProfileDeleteStorage = (
+		_ScriptedProfileDeleteStorage.new()
+	)
+	var chunk_utility: _ControllableChunkProfileUtility = (
+		_ControllableChunkProfileUtility.new()
+	)
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		false,
+		PackedByteArray(),
+		storage,
+		null,
+		true,
+		true,
+		chunk_utility
+	)
+	assert_true(await _await_chunk_cleanup_idle(setup))
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var profile_file_name: String = _make_inactive_profile_file_name(810_003)
+	assert_true(storage.save_data(profile_file_name, {&"fixture": true}) == OK)
+	storage.arm_known_failure(profile_file_name, ERR_CANT_CREATE)
+	var cleanup_error: Error = await _await_inactive_profile_cleanup(
+		_begin_inactive_profile_cleanup(save_graph, profile_file_name),
+		setup
+	)
+	assert_true(
+		cleanup_error == ERR_CANT_CREATE
+		and chunk_utility.cleanup_calls.is_empty()
+		and storage.load_data(profile_file_name).ok
+		and not save_graph.is_profile_cleanup_pending(profile_file_name),
+		"main known failure 必须保留 derived family，且只在确定终态后释放 path。"
+	)
+	_dispose_setup(setup)
+
+
+func test_profile_delete_partial_derived_failure_is_retryable_and_idempotent() -> void:
+	var chunk_utility: _ControllableChunkProfileUtility = (
+		_ControllableChunkProfileUtility.new()
+	)
+	chunk_utility.queue_cleanup_error(
+		GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+		ERR_CANT_CREATE
+	)
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		false,
+		PackedByteArray(),
+		null,
+		null,
+		true,
+		true,
+		chunk_utility
+	)
+	assert_true(await _await_chunk_cleanup_idle(setup))
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	var profile_file_name: String = _make_inactive_profile_file_name(810_004)
+	assert_true(storage.save_data(profile_file_name, {&"fixture": true}) == OK)
+	var first_error: Error = await _await_inactive_profile_cleanup(
+		_begin_inactive_profile_cleanup(save_graph, profile_file_name),
+		setup
+	)
+	assert_true(
+		first_error == ERR_CANT_CREATE
+		and chunk_utility.cleanup_call_count(
+			GameSaveGraphUtility.BOOKMARKS_SECTION_ID
+		) == 1
+		and chunk_utility.cleanup_call_count(
+			GameSaveGraphUtility.REPLAYS_SECTION_ID
+		) == 1,
+		"derived partial failure 必须继续收敛其余 provider，并聚合首错。"
+	)
+	var retry_error: Error = await _await_inactive_profile_cleanup(
+		_begin_inactive_profile_cleanup(save_graph, profile_file_name),
+		setup
+	)
+	assert_true(
+		retry_error == OK
+		and chunk_utility.cleanup_call_count(
+			GameSaveGraphUtility.BOOKMARKS_SECTION_ID
+		) == 2
+		and chunk_utility.cleanup_call_count(
+			GameSaveGraphUtility.REPLAYS_SECTION_ID
+		) == 2,
+		"main NOT_FOUND 与已不存在 derived 必须支持整套幂等重试。"
+	)
+	_dispose_setup(setup)
+
+
+func test_profile_delete_waits_existing_derived_cleanup_then_retries_busy() -> void:
+	var chunk_utility: _ControllableChunkProfileUtility = (
+		_ControllableChunkProfileUtility.new()
+	)
+	chunk_utility.set_external_busy(
+		GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+		true
+	)
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		false,
+		PackedByteArray(),
+		null,
+		null,
+		true,
+		true,
+		chunk_utility
+	)
+	assert_true(await _await_chunk_cleanup_idle(setup))
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	var profile_file_name: String = _make_inactive_profile_file_name(810_005)
+	assert_true(storage.save_data(profile_file_name, {&"fixture": true}) == OK)
+	var result_box: Dictionary = _begin_inactive_profile_cleanup(
+		save_graph,
+		profile_file_name
+	)
+	for _frame: int in range(30):
+		storage.wait_for_async_tasks()
+		_get_architecture(setup).tick(0.0)
+		await get_tree().process_frame
+		if chunk_utility.cleanup_call_count(
+			GameSaveGraphUtility.BOOKMARKS_SECTION_ID
+		) > 0:
+			break
+	for _frame: int in range(5):
+		_get_architecture(setup).tick(0.0)
+		await get_tree().process_frame
+	assert_true(
+		chunk_utility.cleanup_call_count(
+			GameSaveGraphUtility.BOOKMARKS_SECTION_ID
+		) == 1
+		and not GFVariantData.get_option_bool(result_box, &"done", false)
+		and save_graph.is_profile_cleanup_pending(profile_file_name),
+		(
+			"typed BUSY 后必须等待既有 cleanup settlement，不得逐帧重试或释放 identity："
+			+ "calls=%d done=%s pending=%s"
+			% [
+				chunk_utility.cleanup_call_count(
+					GameSaveGraphUtility.BOOKMARKS_SECTION_ID
+				),
+				GFVariantData.get_option_bool(result_box, &"done", false),
+				save_graph.is_profile_cleanup_pending(profile_file_name),
+			]
+		)
+	)
+	chunk_utility.set_external_busy(
+		GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+		false
+	)
+	var cleanup_error: Error = await _await_inactive_profile_cleanup(
+		result_box,
+		setup
+	)
+	assert_true(
+		cleanup_error == OK
+		and chunk_utility.cleanup_call_count(
+			GameSaveGraphUtility.BOOKMARKS_SECTION_ID
+		) == 2
+		and chunk_utility.cleanup_call_count(
+			GameSaveGraphUtility.REPLAYS_SECTION_ID
+		) == 1,
+		(
+			"既有 owner settlement 后必须幂等重试同 scope，再继续后续 provider："
+			+ "error=%d bookmark_calls=%d replay_calls=%d"
+			% [
+				cleanup_error,
+				chunk_utility.cleanup_call_count(
+					GameSaveGraphUtility.BOOKMARKS_SECTION_ID
+				),
+				chunk_utility.cleanup_call_count(
+					GameSaveGraphUtility.REPLAYS_SECTION_ID
+				),
+			]
+		)
+	)
+	_dispose_setup(setup)
+
+
+func test_obsolete_active_profile_reset_cleans_two_derived_families() -> void:
+	var save_dir_name: String = "gut_chunked_active_reset_%s" % (
+		GFUuid.generate_v4().replace("-", "")
+	)
+	var original: Dictionary = await _create_persistence_architecture(
+		save_dir_name,
+		false,
+		PackedByteArray(),
+		null,
+		null,
+		true,
+		true
+	)
+	assert_true(await _await_chunk_cleanup_idle(original))
+	var original_graph: GameSaveGraphUtility = _get_save_graph(original)
+	var original_storage: GFStorageUtility = _get_storage(original)
+	var current: GFSaveDocument = GFSaveDocument.from_dict(
+		original_graph.preview_profile_payload()
+	)
+	assert_not_null(current)
+	if current == null:
+		_dispose_setup(original)
+		return
+	var obsolete: GFSaveDocument = GFSaveDocument.new().configure(
+		GameSaveGraphUtility.PROFILE_SCHEMA_ID,
+		10,
+		current.get_sections(),
+		{&"fixture": "active_reset"}
+	)
+	assert_true(
+		original_storage.save_data(
+			original_graph.get_profile_file_name(),
+			obsolete.to_dict()
+		) == OK
+	)
+	_dispose_setup(original, false)
+	original_storage.dispose()
+
+	var chunk_utility: _ControllableChunkProfileUtility = (
+		_ControllableChunkProfileUtility.new()
+	)
+	var reloaded: Dictionary = await _create_persistence_architecture(
+		save_dir_name,
+		false,
+		PackedByteArray(),
+		null,
+		null,
+		true,
+		true,
+		chunk_utility
+	)
+	var reloaded_graph: GameSaveGraphUtility = _get_save_graph(reloaded)
+	assert_true(
+		reloaded_graph.is_profile_loaded()
+		and chunk_utility.cleanup_calls
+		== [
+			GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+			GameSaveGraphUtility.REPLAYS_SECTION_ID,
+		],
+		"active destructive reset 必须在 main delete/NOT_FOUND 后清理所有 derived，再 re-register。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(
+			GFVariantData.get_option_dictionary(
+				reloaded_graph.get_debug_snapshot(),
+				&"profile_cleanup"
+			),
+			&"pending_count",
+			-1
+		) == 0,
+		"active reset 返回前不得遗留 cleanup path owner。"
+	)
+	_dispose_setup(reloaded)
+
+
+func test_fenced_pending_bookmark_save_parks_until_settlement_before_quiesce_flush() -> void:
+	var save_dir_name: String = "gut_chunked_parked_quiesce_%s" % (
+		GFUuid.generate_v4().replace("-", "")
+	)
+	var storage: _HangingProfileStorage = _HangingProfileStorage.new()
+	var clock: GFManualClock = GFManualClock.new(0, 1_000_000)
+	var setup: Dictionary = await _create_persistence_architecture(
+		save_dir_name,
+		true,
+		PackedByteArray(),
+		storage,
+		clock,
+		true
+	)
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var chunk_utility: ChunkProfileUtility = _get_chunk_profile_utility(setup)
+	assert_true(
+		await _await_chunk_cleanup_idle(setup),
+		"parked 回归必须从 bootstrap cleanup 已收敛的 scope 开始。"
+	)
+	var baseline: BookmarkData = _make_bookmark(599, 128)
+	baseline.bookmark_id = GFUuid.generate_v7(599_000)
+	var baseline_result: GameSaveSectionResult = await _await_section_operation(
+		_get_bookmark_system(setup).request_save_bookmark(baseline),
+		setup
+	)
+	assert_true(
+		baseline_result != null and baseline_result.is_successful(),
+		"parked 回归必须先建立已可见的 baseline Manifest。"
+	)
+	assert_true(
+		await _await_chunk_cleanup_idle(setup),
+		"baseline commit 的旧 bank/tail cleanup 必须在故障注入前收敛。"
+	)
+
+	var first_pending: BookmarkData = _make_bookmark(600, 256)
+	first_pending.bookmark_id = GFUuid.generate_v7(600_000)
+	storage.hang_profile_writes = true
+	assert_true(save_graph.queue_section_data(
+		GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+		{&"items": [first_pending.to_dict()]}
+	) == OK)
+	architecture.tick(1.0)
+	await _await_hanging_profile_write(storage, setup)
+	await _advance_profile_deadlines(setup, clock)
+	assert_true(
+		GFVariantData.get_option_int(
+			chunk_utility.get_debug_snapshot(),
+			&"outcome_unknown_scope_count",
+			0
+		) == 1,
+		"旧 bookmarks generation 超时后必须形成 exact scope fence。"
+	)
+
+	# 新 dirty intent 停留在 debounce pending，尚未因一次被拒保存转 parked。
+	var latest: BookmarkData = _make_bookmark(601, 512)
+	latest.bookmark_id = GFUuid.generate_v7(601_000)
+	assert_true(save_graph.queue_section_data(
+		GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
+		{&"items": [latest.to_dict()]}
+	) == OK)
+	var before_quiesce: Dictionary = save_graph.get_debug_snapshot()
+	assert_true(
+		GFVariantData.get_option_bool(before_quiesce, &"save_pending", false)
+		and not GFVariantData.get_option_bool(
+			before_quiesce,
+			&"chunk_save_parked",
+			true
+		),
+		"回归必须从未尝试 debounce 的 pending dirty intent 开始。"
+	)
+	var quiesce: GFAsyncCompletion = save_graph.begin_quiesce(
+		GFAsyncScope.new()
+	)
+	var parked_snapshot: Dictionary = save_graph.get_debug_snapshot()
+	assert_true(
+		quiesce != null
+		and quiesce.is_pending()
+		and GFVariantData.get_option_bool(
+			parked_snapshot,
+			&"chunk_save_parked",
+			false
+		)
+		and GFVariantData.get_option_bool(
+			parked_snapshot,
+			&"save_pending",
+			false
+		),
+		"quiesce 必须先 park fenced dirty intent，不得把旧 generation flush 当成成功。"
+	)
+
+	# N 迟到成功会先推进 scope basis，再触发 parked intent 的唯一次重臂。
+	storage.complete_all_hanging(OK, true)
+	assert_true(
+		await _await_chunk_cleanup_idle(setup),
+		"迟到 exact commit 必须先等旧 bank/tail cleanup fence 收敛，再重臂 dirty intent。"
+	)
+	await _await_hanging_profile_write(storage, setup)
+	var rearmed_snapshot: Dictionary = save_graph.get_debug_snapshot()
+	assert_true(
+		quiesce.is_pending()
+		and not GFVariantData.get_option_bool(
+			rearmed_snapshot,
+			&"chunk_save_parked",
+			true
+		)
+		and storage.hanging_operations.size() == 1,
+		"迟到结算后必须开始新 dirty generation；其终态前 quiesce 仍不能完成。"
+	)
+
+	storage.hang_profile_writes = false
+	storage.complete_all_hanging(OK, true)
+	for _frame: int in range(600):
+		architecture.tick(0.0)
+		storage.wait_for_async_tasks()
+		await get_tree().process_frame
+		if quiesce.is_completed():
+			break
+	assert_true(
+		quiesce.is_completed() and quiesce.is_successful(),
+		"quiesce 只能在重臂的最新 chunk generation 与其 flush 都已成功后完成。"
+	)
+
+	_dispose_setup(setup, false)
+	var reloaded: Dictionary = await _create_persistence_architecture(
+		save_dir_name,
+		true,
+		PackedByteArray(),
+		null,
+		null,
+		true
+	)
+	var reloaded_bookmarks: Array[BookmarkData] = (
+		_get_bookmark_system(reloaded).load_bookmarks()
+	)
+	assert_true(
+		reloaded_bookmarks.size() == 1
+		and reloaded_bookmarks[0].bookmark_id == latest.bookmark_id,
+		"重启必须只物化 quiesce 等到的最新 parked dirty generation。"
+	)
+	_dispose_setup(reloaded)
+
+
 func test_save_load_and_flush_expose_typed_terminal_results() -> void:
 	var setup: Dictionary = await _create_persistence_architecture()
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
@@ -698,7 +1719,7 @@ func test_late_provider_failure_rolls_back_earlier_sections() -> void:
 	_dispose_setup(setup)
 
 
-func test_profile_schema_v10_is_backed_up_then_reset_to_v11() -> void:
+func test_profile_schema_v10_is_backed_up_then_reset_to_v13() -> void:
 	var save_dir_name: String = (
 		"gut_save_profile_v10_%s"
 		% GFUuid.generate_v4().replace("-", "")
@@ -719,7 +1740,7 @@ func test_profile_schema_v10_is_backed_up_then_reset_to_v11() -> void:
 		GameSaveGraphUtility.PROFILE_SCHEMA_ID,
 		10,
 		current.get_sections(),
-		{&"app_version": "pre-profile-v11"}
+		{&"app_version": "pre-profile-v13"}
 	)
 	var legacy_payload: Dictionary = legacy.to_dict()
 	assert_true(
@@ -751,7 +1772,7 @@ func test_profile_schema_v10_is_backed_up_then_reset_to_v11() -> void:
 			"recovered_obsolete_profile"
 		)
 		and recovery_file.ends_with(".schema-10.save"),
-		"Profile schema 迁移必须显式备份 v10，再重建 v11。"
+		"Profile schema 迁移必须显式备份 v10，再重建 v13。"
 	)
 	var backup: GFStorageReadResult = reloaded_storage.load_data(
 		recovery_file
@@ -772,7 +1793,7 @@ func test_profile_schema_v10_is_backed_up_then_reset_to_v11() -> void:
 		current_document != null
 		and current_document.get_schema_version()
 		== GameSaveGraphUtility.PROFILE_SCHEMA_VERSION,
-		"活动 Profile 必须只写当前 v11 schema。"
+		"活动 Profile 必须只写当前 v13 schema。"
 	)
 	assert_true(
 		reloaded_storage.delete_file(recovery_file) == OK,
@@ -2024,23 +3045,91 @@ func test_new_bookmark_candidate_rejects_malformed_history_root() -> void:
 		)
 
 
-func test_existing_large_bookmark_history_remains_readable_without_truncation() -> void:
+func test_v6_bookmark_history_rejects_more_than_64_commands_before_apply() -> void:
 	var bookmark: BookmarkData = _make_bookmark(897, 1024)
 	bookmark.bookmark_id = GFUuid.generate_v7(897000)
-	bookmark.game_state_history = _make_bookmark_history(bookmark, 70)
+	bookmark.game_state_history = _make_bookmark_history(
+		bookmark,
+		BookmarkData.PERSISTED_HISTORY_TOTAL_LIMIT + 1
+	)
 
-	# to_dict() 模拟升级前已经落盘的当前 schema；只有新建候选入口施加产品上限。
-	var restored: BookmarkData = BookmarkData.from_dict(bookmark.to_dict())
+	# 恶意 v6 二进制载荷可在 2 MiB 内容纳超过 64 条合法命令；完整解码后
+	# 必须在逐命令语义遍历前拒绝，而不是把超额历史带入权威状态。
+	var current_payload: Dictionary = bookmark.to_dict()
+	var provider: BookmarkCatalogSaveData = BookmarkCatalogSaveData.new()
+	assert_true(
+		BookmarkData.is_persisted_envelope_lightweight_valid(current_payload),
+		"恶意样本应能通过不解码 payload 的轻量 envelope 门禁。"
+	)
+	assert_null(
+		BookmarkData.from_dict(current_payload),
+		"当前 v6 历史的 undo+redo 合计超过 64 条时必须拒绝。"
+	)
+	assert_true(
+		provider.replace_section_data({&"items": [current_payload]})
+		== ERR_INVALID_DATA,
+		"provider 完整应用不得接纳超额 v6 历史。"
+	)
 
-	assert_not_null(restored, "旧的大型书签历史必须继续可读。")
-	if restored != null:
-		assert_true(
-			GFVariantData.get_option_array(
-				restored.game_state_history,
-				"undo"
-			).size() == 70,
-			"读取旧书签不得静默截断已经持久化的命令历史。"
-		)
+	var legacy_payload: Dictionary = current_payload.duplicate(false)
+	legacy_payload["schema_version"] = 5
+	legacy_payload["game_state_history"] = bookmark.game_state_history
+	assert_not_null(
+		BookmarkData.from_dict(legacy_payload),
+		"v5 字典历史继续使用自身 1024 条迁移边界。"
+	)
+
+
+func test_bookmark_history_rejects_single_command_board_over_256_cells() -> void:
+	var bookmark: BookmarkData = _make_bookmark(896, 1024)
+	bookmark.bookmark_id = GFUuid.generate_v7(896500)
+	var oversized_history: Dictionary = _make_bookmark_history(bookmark, 1)
+	var undo_value: Variant = oversized_history.get("undo")
+	assert_true(undo_value is Array)
+	if not undo_value is Array:
+		return
+	var undo: Array = undo_value
+	assert_true(undo.size() == 1 and undo[0] is Dictionary)
+	if undo.size() != 1 or not undo[0] is Dictionary:
+		return
+	var command: Dictionary = undo[0]
+	var snapshot_value: Variant = command.get(&"snapshot")
+	assert_true(snapshot_value is Dictionary)
+	if not snapshot_value is Dictionary:
+		return
+	var snapshot: Dictionary = snapshot_value
+	var oversized_topology: BoardTopology = BoardTopology.create_rectangle(
+		Vector2i(BookmarkData.PERSISTED_BOARD_CELL_LIMIT + 1, 1)
+	)
+	assert_not_null(oversized_topology)
+	if oversized_topology == null:
+		return
+	snapshot[&"board_key"] = oversized_topology.get_stable_key()
+	snapshot[&"board_snapshot"] = _make_empty_board_snapshot(
+		oversized_topology
+	)
+
+	var current_payload: Dictionary = bookmark.to_dict()
+	var codec: GFStorageCodec = GFStorageCodec.new()
+	current_payload["game_state_history"] = {
+		"codec": "gf_storage_binary_v1",
+		"payload": codec.serialize_dictionary(
+			oversized_history,
+			GFStorageCodec.Format.BINARY
+		),
+	}
+	assert_null(
+		BookmarkData.from_dict(current_payload),
+		"v6 单命令快照的 active_cells 超过 256 时必须拒绝。"
+	)
+
+	var legacy_payload: Dictionary = current_payload.duplicate(false)
+	legacy_payload["schema_version"] = 5
+	legacy_payload["game_state_history"] = oversized_history
+	assert_null(
+		BookmarkData.from_dict(legacy_payload),
+		"v5 迁移输入同样不得绕过每条命令的 256 格业务边界。"
+	)
 
 
 func test_bookmark_catalog_initial_load_rejects_corrupt_history() -> void:
@@ -2086,7 +3175,10 @@ func test_bookmark_catalog_unchanged_envelope_reuses_validated_payload() -> void
 	var provider: BookmarkCatalogSaveData = BookmarkCatalogSaveData.new()
 	var bookmark: BookmarkData = _make_bookmark(897, 16384)
 	bookmark.bookmark_id = GFUuid.generate_v7(897000)
-	bookmark.game_state_history = _make_bookmark_history(bookmark, 512)
+	bookmark.game_state_history = _make_bookmark_history(
+		bookmark,
+		BookmarkData.PERSISTED_HISTORY_TOTAL_LIMIT
+	)
 	var section_data: Dictionary = {
 		"items": [bookmark.to_dict()],
 	}
@@ -2199,7 +3291,10 @@ func test_bookmark_catalog_failed_change_rolls_back_to_previous_envelopes() -> v
 func test_bookmark_schema_migrates_v5_dictionary_history_without_profile_reset() -> void:
 	var bookmark: BookmarkData = _make_bookmark(900, 384)
 	bookmark.bookmark_id = GFUuid.generate_v7(900000)
-	bookmark.game_state_history = _make_bookmark_history(bookmark, 6)
+	bookmark.game_state_history = _make_bookmark_history(
+		bookmark,
+		BookmarkData.PERSISTED_HISTORY_TOTAL_LIMIT + 1
+	)
 	var current_payload: Dictionary = bookmark.to_dict()
 	var legacy_payload: Dictionary = current_payload.duplicate(true)
 	legacy_payload["schema_version"] = 5
@@ -2224,9 +3319,11 @@ func test_bookmark_schema_migrates_v5_dictionary_history_without_profile_reset()
 		)
 		assert_true(
 			restored.game_state_history == bookmark.game_state_history,
-			"v5 迁移不得损失撤回或重做历史。"
+			"直接读取 v5 时仍应先完整验证其独立 legacy 边界。"
 		)
-		var upgraded_payload: Dictionary = restored.to_dict()
+		var upgraded_payload: Dictionary = (
+			restored.to_persisted_candidate_envelope()
+		)
 		assert_true(
 			GFVariantData.get_option_value(
 				GFVariantData.get_option_dictionary(
@@ -2253,6 +3350,22 @@ func test_bookmark_schema_migrates_v5_dictionary_history_without_profile_reset()
 		) == BookmarkData.SCHEMA_VERSION,
 		"provider 应把 v5 envelope 在内存中规范化，供下一次持久化升级。"
 	)
+	if provider_items.size() == 1 and provider_items[0] is Dictionary:
+		var migrated_v6: BookmarkData = BookmarkData.from_dict(
+			GFVariantData.as_dictionary(provider_items[0])
+		)
+		assert_not_null(
+			migrated_v6,
+			"v5 provider 迁移产物必须能被当前 v6 自身重新读取。"
+		)
+		if migrated_v6 != null:
+			assert_true(
+				GFVariantData.get_option_array(
+					migrated_v6.game_state_history,
+					"undo"
+				).size() == BookmarkData.PERSISTED_HISTORY_TOTAL_LIMIT,
+				"v5 超额历史升级为 v6 时必须只保留最近 64 条。"
+			)
 
 
 func test_bookmark_schema_rejects_inconsistent_target_state() -> void:
@@ -2441,6 +3554,132 @@ func test_replay_schema_rejects_non_cardinal_action() -> void:
 
 # --- 私有/辅助方法 ---
 
+func _begin_inactive_profile_cleanup(
+	save_graph: GameSaveGraphUtility,
+	profile_file_name: String
+) -> Dictionary:
+	var result_box: Dictionary = {
+		&"done": false,
+		&"error_code": int(FAILED),
+	}
+	call_deferred(
+		&"_capture_inactive_profile_cleanup",
+		save_graph,
+		profile_file_name,
+		result_box
+	)
+	return result_box
+
+
+func _capture_inactive_profile_cleanup(
+	save_graph: GameSaveGraphUtility,
+	profile_file_name: String,
+	result_box: Dictionary
+) -> void:
+	var cleanup_error: Error = await save_graph.delete_inactive_profile_async(
+		profile_file_name
+	)
+	result_box[&"error_code"] = int(cleanup_error)
+	result_box[&"done"] = true
+
+
+func _begin_legacy_profile_cleanup(
+	save_graph: GameSaveGraphUtility
+) -> Dictionary:
+	var result_box: Dictionary = {
+		&"done": false,
+		&"error_code": int(FAILED),
+	}
+	call_deferred(
+		&"_capture_legacy_profile_cleanup",
+		save_graph,
+		result_box
+	)
+	return result_box
+
+
+func _capture_legacy_profile_cleanup(
+	save_graph: GameSaveGraphUtility,
+	result_box: Dictionary
+) -> void:
+	var cleanup_error: Error = (
+		await save_graph.delete_inactive_legacy_profile_async()
+	)
+	result_box[&"error_code"] = int(cleanup_error)
+	result_box[&"done"] = true
+
+
+func _await_profile_cleanup_without_forced_drain(
+	result_box: Dictionary,
+	setup: Dictionary,
+	frame_limit: int = 600
+) -> Error:
+	var architecture: GFArchitecture = _get_architecture(setup)
+	for _frame: int in range(frame_limit):
+		if GFVariantData.get_option_bool(result_box, &"done", false):
+			break
+		architecture.tick(0.0)
+		await get_tree().process_frame
+	@warning_ignore("int_as_enum_without_cast")
+	return GFVariantData.get_option_int(
+		result_box,
+		&"error_code",
+		FAILED
+	)
+
+
+func _await_inactive_profile_cleanup(
+	result_box: Dictionary,
+	setup: Dictionary,
+	frame_limit: int = 600
+) -> Error:
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	for _frame: int in range(frame_limit):
+		if GFVariantData.get_option_bool(result_box, &"done", false):
+			break
+		storage.wait_for_async_tasks()
+		architecture.tick(0.0)
+		await get_tree().process_frame
+	@warning_ignore("int_as_enum_without_cast")
+	return GFVariantData.get_option_int(
+		result_box,
+		&"error_code",
+		FAILED
+	)
+
+
+func _make_inactive_profile_file_name(serial: int) -> String:
+	return LocalAccountCatalogUtility.make_profile_file_name(
+		GFUuid.generate_v7(serial)
+	)
+
+
+func _await_chunk_cleanup_idle(setup: Dictionary) -> bool:
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	var chunk_utility: ChunkProfileUtility = _get_chunk_profile_utility(setup)
+	for _frame: int in range(300):
+		var snapshot: Dictionary = chunk_utility.get_debug_snapshot()
+		if (
+			GFVariantData.get_option_int(
+				snapshot,
+				&"cleanup_operation_count",
+				-1
+			) == 0
+			and GFVariantData.get_option_int(
+				snapshot,
+				&"cleanup_scope_count",
+				-1
+			) == 0
+		):
+			return true
+		storage.wait_for_async_tasks()
+		architecture.tick(0.0)
+		await get_tree().process_frame
+	return false
+
+
 func _await_section_operation(
 	operation: GameSaveSectionOperation,
 	setup: Dictionary
@@ -2513,6 +3752,8 @@ func _await_hanging_profile_write(
 	var architecture: GFArchitecture = _get_architecture(setup)
 	for _frame: int in range(120):
 		architecture.tick(0.0)
+		storage.wait_for_async_tasks()
+		architecture.tick(0.0)
 		await get_tree().process_frame
 		if not storage.hanging_operations.is_empty():
 			break
@@ -2543,7 +3784,10 @@ func _create_persistence_architecture(
 	include_systems: bool = false,
 	raw_profile_bytes: PackedByteArray = PackedByteArray(),
 	storage_override: GFStorageUtility = null,
-	clock_override: GFManualClock = null
+	clock_override: GFManualClock = null,
+	use_chunked_bookmarks: bool = false,
+	use_chunked_replays: bool = false,
+	chunk_utility_override: ChunkProfileUtility = null
 ) -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var storage: GFStorageUtility = (
@@ -2551,7 +3795,10 @@ func _create_persistence_architecture(
 		if storage_override != null
 		else _RawFixtureStorage.new()
 	)
-	var save_graph: GameSaveGraphUtility = _make_game_save_graph()
+	var save_graph: GameSaveGraphUtility = _make_game_save_graph(
+		use_chunked_bookmarks,
+		use_chunked_replays
+	)
 	var platform: GamePlatformUtility = _TEST_PLATFORM_STUB_SCRIPT.new()
 	var account_catalog: LocalAccountCatalogUtility = (
 		LocalAccountCatalogUtility.new()
@@ -2569,6 +3816,8 @@ func _create_persistence_architecture(
 	assert_true(time_utility.set_clock(shared_clock))
 	var game_clock: GameClockUtility = GameClockUtility.new()
 	assert_true(game_clock.set_clock(shared_clock))
+	if clock_override != null:
+		assert_true(storage.set_async_clock_for_framework(shared_clock))
 
 	storage.save_dir_name = (
 		save_dir_name
@@ -2593,6 +3842,14 @@ func _create_persistence_architecture(
 	await architecture.register_utility(
 		GFSaveProfileUtility,
 		GFSaveProfileUtility.new()
+	)
+	await architecture.register_utility(
+		ChunkProfileUtility,
+		(
+			chunk_utility_override
+			if chunk_utility_override != null
+			else ChunkProfileUtility.new()
+		)
 	)
 	await architecture.register_utility(
 		GFBackgroundWorkUtility,
@@ -2646,6 +3903,9 @@ func _create_persistence_architecture(
 		"architecture": architecture,
 		"storage": storage,
 		"save_graph": save_graph,
+		"chunk_profile_utility": architecture.get_utility(
+			ChunkProfileUtility
+		),
 		"platform": platform,
 		"clock": shared_clock,
 		"account_catalog": account_catalog,
@@ -2660,8 +3920,23 @@ func _create_persistence_architecture(
 	}
 
 
-func _make_game_save_graph() -> GameSaveGraphUtility:
+func _make_game_save_graph(
+	use_chunked_bookmarks: bool = false,
+	use_chunked_replays: bool = false
+) -> GameSaveGraphUtility:
 	var save_graph: GameSaveGraphUtility = GameSaveGraphUtility.new()
+	var bookmark_data: BookmarkCatalogSaveData = BookmarkCatalogSaveData.new()
+	var bookmark_profile_provider: GFSaveSectionProvider = null
+	if use_chunked_bookmarks:
+		bookmark_profile_provider = BookmarkManifestSaveSectionProvider.new(
+			bookmark_data
+		)
+	var replay_data: ReplayCatalogSaveData = ReplayCatalogSaveData.new()
+	var replay_profile_provider: GFSaveSectionProvider = null
+	if use_chunked_replays:
+		replay_profile_provider = ReplayManifestSaveSectionProvider.new(
+			replay_data
+		)
 	var progress_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.PROGRESS_SECTION_ID,
 		GameStatsSaveData.new(),
@@ -2669,8 +3944,9 @@ func _make_game_save_graph() -> GameSaveGraphUtility:
 	)
 	var bookmarks_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
-		BookmarkCatalogSaveData.new(),
-		GameSaveGraphUtility.SectionOrder.NORMAL
+		bookmark_data,
+		GameSaveGraphUtility.SectionOrder.NORMAL,
+		bookmark_profile_provider
 	)
 	var custom_boards_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.CUSTOM_BOARDS_SECTION_ID,
@@ -2694,8 +3970,9 @@ func _make_game_save_graph() -> GameSaveGraphUtility:
 	)
 	var replays_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.REPLAYS_SECTION_ID,
-		ReplayCatalogSaveData.new(),
-		GameSaveGraphUtility.SectionOrder.LATE
+		replay_data,
+		GameSaveGraphUtility.SectionOrder.LATE,
+		replay_profile_provider
 	)
 	assert_true(
 		progress_registered
@@ -2958,6 +4235,20 @@ func _get_save_graph(setup: Dictionary) -> GameSaveGraphUtility:
 	return GameSaveGraphUtility.new()
 
 
+func _get_chunk_profile_utility(
+	setup: Dictionary
+) -> ChunkProfileUtility:
+	var value: Variant = GFVariantData.get_option_value(
+		setup,
+		"chunk_profile_utility"
+	)
+	if value is ChunkProfileUtility:
+		var utility: ChunkProfileUtility = value
+		return utility
+	assert_true(false, "测试 setup 缺少 ChunkProfileUtility。")
+	return ChunkProfileUtility.new()
+
+
 func _get_platform_stub(setup: Dictionary) -> GamePlatformUtility:
 	var value: Variant = GFVariantData.get_option_value(setup, "platform")
 	if value is GamePlatformUtility:
@@ -3012,6 +4303,339 @@ class _RawFixtureStorage extends GFStorageUtility:
 			return ""
 		var descriptor: Dictionary = _make_family_descriptor(file_name)
 		return GFVariantData.get_option_string(descriptor, "payload_path")
+
+
+class _ControllableChunkProfileUtility extends ChunkProfileUtility:
+	var cleanup_calls: Array[StringName] = []
+	var _hang_next_sections: Dictionary = {}
+	var _pending_operations: Dictionary = {}
+	var _external_busy_sections: Dictionary = {}
+	var _scripted_errors: Dictionary = {}
+	var _next_operation_serial: int = 1
+
+
+	## @param section_id: 下一次清理要保持待决的 section ID。
+	func hang_next_cleanup(section_id: StringName) -> void:
+		_hang_next_sections[section_id] = true
+
+
+	## @param section_id: 要注入清理结果的 section ID。
+	## @param error_code: 下一次清理应返回的错误码。
+	func queue_cleanup_error(section_id: StringName, error_code: Error) -> void:
+		var errors: Array = []
+		var existing_value: Variant = _scripted_errors.get(section_id)
+		if existing_value is Array:
+			errors = GFVariantData.as_array(existing_value)
+		errors.append(error_code)
+		_scripted_errors[section_id] = errors
+
+
+	## @param section_id: 要切换外部占用状态的 section ID。
+	## @param busy: 是否模拟该 section 被外部操作占用。
+	func set_external_busy(section_id: StringName, busy: bool) -> void:
+		if busy:
+			_external_busy_sections[section_id] = true
+			return
+		var _erased: bool = _external_busy_sections.erase(section_id)
+		cleanup_operation_settled.emit(&"test.external_owner")
+
+
+	## @param section_id: 要查询待决清理的 section ID。
+	func has_pending_cleanup(section_id: StringName) -> bool:
+		return _pending_operations.has(section_id)
+
+
+	## @param section_id: 要终止待决清理的 section ID。
+	## @param error_code: 测试清理的最终错误码。
+	func complete_pending_cleanup(
+		section_id: StringName,
+		error_code: Error = OK
+	) -> void:
+		var value: Variant = _pending_operations.get(section_id)
+		if not value is ChunkProfileCleanupOperation:
+			return
+		var operation: ChunkProfileCleanupOperation = value
+		var result: ChunkProfileCleanupResult = _make_cleanup_result(error_code)
+		var _completed: bool = operation.complete_for_persistence(result)
+		var _erased: bool = _pending_operations.erase(section_id)
+		cleanup_operation_settled.emit(operation.get_operation_id())
+
+
+	## @param section_id: 要统计清理调用次数的 section ID。
+	func cleanup_call_count(section_id: StringName) -> int:
+		var count: int = 0
+		for called_section_id: StringName in cleanup_calls:
+			if called_section_id == section_id:
+				count += 1
+		return count
+
+
+	## @param _main_profile_id: 此测试桩不使用的主 Profile ID。
+	## @param _main_file_name: 此测试桩不使用的主 Profile 文件名。
+	## @param section_id: 要按脚本结果清理的派生 section ID。
+	func cleanup_derived_family_async(
+		_main_profile_id: StringName,
+		_main_file_name: String,
+		section_id: StringName
+	) -> ChunkProfileCleanupOperation:
+		cleanup_calls.append(section_id)
+		if _external_busy_sections.has(section_id):
+			return _make_test_terminal_cleanup_operation(
+				ChunkProfileCleanupResult.STATUS_BUSY,
+				ERR_BUSY
+			)
+		if _hang_next_sections.erase(section_id):
+			var pending: ChunkProfileCleanupOperation = _make_cleanup_operation()
+			_pending_operations[section_id] = pending
+			return pending
+		var error_code: Error = OK
+		var errors_value: Variant = _scripted_errors.get(section_id)
+		if errors_value is Array:
+			var errors: Array = GFVariantData.as_array(errors_value)
+			if not errors.is_empty():
+				@warning_ignore("int_as_enum_without_cast")
+				error_code = GFVariantData.to_int(errors.pop_front())
+			if errors.is_empty():
+				var _errors_erased: bool = _scripted_errors.erase(section_id)
+			else:
+				_scripted_errors[section_id] = errors
+		return _make_test_terminal_cleanup_operation(
+			(
+				ChunkProfileCleanupResult.STATUS_CLEANED
+				if error_code == OK
+				else ChunkProfileCleanupResult.STATUS_PARTIAL_FAILURE
+			),
+			error_code
+		)
+
+
+	## @param main_profile_id: 要查询围栏的主 Profile ID。
+	## @param main_file_name: 要查询围栏的主 Profile 文件名。
+	## @param section_id: 要查询围栏的 section ID。
+	func is_save_scope_fenced(
+		main_profile_id: StringName,
+		main_file_name: String,
+		section_id: StringName
+	) -> bool:
+		return (
+			_external_busy_sections.has(section_id)
+			or super.is_save_scope_fenced(
+				main_profile_id,
+				main_file_name,
+				section_id
+			)
+		)
+
+
+	func _make_cleanup_operation() -> ChunkProfileCleanupOperation:
+		var operation: ChunkProfileCleanupOperation = (
+			ChunkProfileCleanupOperation.new()
+		)
+		var operation_id: StringName = StringName(
+			"test.cleanup.%d" % _next_operation_serial
+		)
+		_next_operation_serial += 1
+		var _configured: bool = operation.configure_for_persistence(
+			operation_id
+		)
+		return operation
+
+
+	func _make_test_terminal_cleanup_operation(
+		status: StringName,
+		error_code: Error
+	) -> ChunkProfileCleanupOperation:
+		var operation: ChunkProfileCleanupOperation = _make_cleanup_operation()
+		var _completed: bool = operation.complete_for_persistence(
+			_make_cleanup_result(error_code, status)
+		)
+		return operation
+
+
+	func _make_cleanup_result(
+		error_code: Error,
+		status: StringName = &""
+	) -> ChunkProfileCleanupResult:
+		var effective_status: StringName = status
+		if effective_status == &"":
+			effective_status = (
+				ChunkProfileCleanupResult.STATUS_CLEANED
+				if error_code == OK
+				else ChunkProfileCleanupResult.STATUS_PARTIAL_FAILURE
+			)
+		return ChunkProfileCleanupResult.create(
+			effective_status,
+			error_code,
+			"" if error_code == OK else "Injected cleanup failure.",
+			128,
+			128 if error_code == OK else 127,
+			0,
+			0 if error_code == OK else 1,
+			0,
+			0
+		)
+
+
+class _ScriptedProfileDeleteStorage extends _RawFixtureStorage:
+	var delete_calls: Array[String] = []
+	var _timeout_file_name: String = ""
+	var _known_failures: Dictionary = {}
+	var _pending_operation: GFStorageAsyncOperation = null
+	var _pending_result: GFStorageAsyncResult = null
+	var _next_request_id: int = 7_000_000
+
+
+	## @param profile_file_name: 下一次删除要保持待决的 Profile 文件名。
+	func arm_timeout(profile_file_name: String) -> void:
+		_timeout_file_name = profile_file_name
+
+
+	## @param profile_file_name: 下一次删除要模拟失败的 Profile 文件名。
+	## @param error_code: 注入删除结果的错误码。
+	func arm_known_failure(
+		profile_file_name: String,
+		error_code: Error
+	) -> void:
+		_known_failures[profile_file_name] = error_code
+
+
+	func has_pending_timeout() -> bool:
+		return _pending_operation != null and _pending_operation.is_pending()
+
+
+	func settle_timeout() -> void:
+		if _pending_operation == null or _pending_result == null:
+			return
+		var _completed: bool = _pending_operation.complete_for_framework(
+			_pending_result
+		)
+		_pending_operation = null
+		_pending_result = null
+		_timeout_file_name = ""
+
+
+	## @param file_name: 要按脚本结果删除的测试文件名。
+	## @param options: 可选的异步删除请求选项。
+	func delete_file_request_async(
+		file_name: String,
+		options: GFStorageAsyncRequestOptions = null
+	) -> GFStorageAsyncOperation:
+		delete_calls.append(file_name)
+		if file_name == _timeout_file_name:
+			var physical_error: Error = super.delete_file(file_name)
+			var timeout_operation: GFStorageAsyncOperation = (
+				_make_delete_operation(file_name, physical_error)
+			)
+			var effective_options: GFStorageAsyncRequestOptions = (
+				options
+				if options != null
+				else GFStorageAsyncRequestOptions.create(self)
+			)
+			var _consumer_configured: bool = (
+				timeout_operation.configure_consumer_for_framework(
+					timeout_operation.get_request_id(),
+					effective_options,
+					GFClock.new(),
+					Callable(self, &"_accept_test_delete_cancel")
+				)
+			)
+			var _accepted: bool = (
+				timeout_operation.mark_worker_accepted_for_framework()
+			)
+			var _caller_completed: bool = (
+				timeout_operation.complete_caller_for_framework(
+					GFStorageAsyncCallerResult.Status.OUTCOME_UNKNOWN,
+					GFStorageAsyncCallerResult.EndKind.DEADLINE_EXPIRED,
+					&"deadline_expired"
+				)
+			)
+			_pending_operation = timeout_operation
+			_pending_result = _make_test_delete_async_result(
+				timeout_operation,
+				physical_error
+			)
+			return timeout_operation
+		if _known_failures.has(file_name):
+			@warning_ignore("int_as_enum_without_cast")
+			var error_code: Error = GFVariantData.get_option_int(
+				_known_failures,
+				file_name,
+				ERR_CANT_CREATE
+			)
+			var _failure_erased: bool = _known_failures.erase(file_name)
+			var failed_operation: GFStorageAsyncOperation = (
+				_make_delete_operation(file_name, error_code)
+			)
+			var _failed_completed: bool = failed_operation.complete_for_framework(
+				_make_test_delete_async_result(failed_operation, error_code)
+			)
+			return failed_operation
+		return super.delete_file_request_async(file_name, options)
+
+
+	func _make_delete_operation(
+		file_name: String,
+		_error_code: Error
+	) -> GFStorageAsyncOperation:
+		var operation: GFStorageAsyncOperation = GFStorageAsyncOperation.new()
+		var request_id: int = _next_request_id
+		_next_request_id += 1
+		var _configured: bool = operation.configure_for_framework(
+			request_id,
+			GFStorageAsyncOperation.OPERATION_DELETE,
+			file_name
+		)
+		return operation
+
+
+	func _make_test_delete_async_result(
+		operation: GFStorageAsyncOperation,
+		error_code: Error
+	) -> GFStorageAsyncResult:
+		var delete_result: GFStorageDeleteResult = GFStorageDeleteResult.new()
+		var failure_kind: GFStorageDeleteResult.FailureKind = (
+			GFStorageDeleteResult.FailureKind.NONE
+			if error_code == OK
+			else (
+				GFStorageDeleteResult.FailureKind.NOT_FOUND
+				if error_code == ERR_FILE_NOT_FOUND
+				else GFStorageDeleteResult.FailureKind.IO_FAILED
+			)
+		)
+		var _delete_configured: bool = delete_result.configure_for_framework(
+			error_code,
+			failure_kind,
+			1 if error_code == OK else 0,
+			1 if error_code == OK else 0,
+			0,
+			(
+				GFStorageDeleteResult.FamilyMember.NONE
+				if error_code in [OK, ERR_FILE_NOT_FOUND]
+				else GFStorageDeleteResult.FamilyMember.FAMILY_METADATA
+			)
+		)
+		var result: GFStorageAsyncResult = GFStorageAsyncResult.new()
+		var _configured: bool = result.configure_for_framework(
+			operation.get_request_id(),
+			GFStorageAsyncOperation.OPERATION_DELETE,
+			operation.get_file_name(),
+			error_code == OK,
+			error_code,
+			null,
+			GFStorageAsyncResult.WriteFailureKind.NONE,
+			{},
+			delete_result
+		)
+		return result
+
+
+	func _accept_test_delete_cancel(
+		_operation: GFStorageAsyncOperation,
+		_end_kind: int,
+		_reason: StringName
+	) -> bool:
+		return true
+
 
 class _RetryStorage extends GFStorageUtility:
 	var profile_save_errors: Array[Error] = []

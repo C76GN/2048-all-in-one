@@ -43,7 +43,6 @@ const _DEFAULT_DEVICE_SNAPSHOT_TIMEOUT_SECONDS: float = 5.0
 var _log: GFLogUtility
 var _clock: GameClockUtility
 var _save_graph: GameSaveGraphUtility
-var _account_catalog: LocalAccountCatalogUtility
 var _storage: GFStorageUtility
 var _signal_utility: GFSignalUtility
 var _disposed: bool = true
@@ -64,7 +63,6 @@ func get_required_utilities() -> Array[Script]:
 		GFLogUtility,
 		GFSignalUtility,
 		GFStorageUtility,
-		LocalAccountCatalogUtility,
 	]
 
 
@@ -73,7 +71,6 @@ func ready() -> void:
 	_log = _get_log_utility()
 	_clock = _get_clock_utility()
 	_save_graph = _get_save_graph_utility()
-	_account_catalog = _get_account_catalog_utility()
 	_storage = _get_storage_utility()
 	_signal_utility = _get_signal_utility()
 
@@ -102,7 +99,6 @@ func dispose() -> void:
 	_log = null
 	_clock = null
 	_save_graph = null
-	_account_catalog = null
 	_storage = null
 	_signal_utility = null
 
@@ -272,8 +268,10 @@ func get_local_leaderboard(
 ## 当前账号直接读取最新内存 section；其余账号各提交一次 GFStorage 异步读取，
 ## 并通过 GFAsyncBatch 汇总为单一不可变结果。单个账号损坏或缺失只会把快照
 ## 标记为 partial，不会让其他账号的统计不可用。
+## @param account_catalog_snapshot: player_profiles 在调用边界冻结的严格目录值。
 ## @param cancel_token: 调用方生命周期取消令牌。
 func request_device_progress_snapshot(
+	account_catalog_snapshot: DeviceProgressAccountCatalogSnapshot,
 	cancel_token: GFCancellationToken = null
 ) -> GFAsyncCompletion:
 	var completion: GFAsyncCompletion = GFAsyncCompletion.new()
@@ -281,7 +279,6 @@ func request_device_progress_snapshot(
 		_disposed
 		or not is_instance_valid(_storage)
 		or not is_instance_valid(_signal_utility)
-		or not is_instance_valid(_account_catalog)
 		or _get_save_graph() == null
 	):
 		var _failed_unconfigured: bool = completion.fail(
@@ -296,19 +293,31 @@ func request_device_progress_snapshot(
 		)
 		return completion
 
-	var accounts: Array[LocalPlayerAccount] = _account_catalog.get_accounts()
-	var active_account_id: String = _account_catalog.get_active_account_id()
-	if accounts.is_empty() or active_account_id.is_empty():
+	if account_catalog_snapshot == null:
 		var _failed_catalog: bool = completion.fail(
 			"Local account catalog has no active account.",
 			{&"error_code": int(ERR_DOES_NOT_EXIST)}
 		)
 		return completion
-	var save_graph: GameSaveGraphUtility = _get_save_graph()
-	var catalog_profile_file: String = (
-		LocalAccountCatalogUtility.make_profile_file_name(
-			active_account_id
+	if not account_catalog_snapshot.is_valid():
+		var _failed_invalid_catalog: bool = completion.fail(
+			"Device progress account catalog snapshot is invalid.",
+			{&"error_code": int(ERR_INVALID_DATA)}
 		)
+		return completion
+	var account_descriptors: Array[Dictionary] = (
+		account_catalog_snapshot.get_account_descriptors()
+	)
+	var active_account_id: String = (
+		account_catalog_snapshot.get_active_account_id()
+	)
+	var active_account_descriptor: Dictionary = (
+		account_catalog_snapshot.get_account_descriptor(active_account_id)
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	var catalog_profile_file: String = GFVariantData.get_option_string(
+		active_account_descriptor,
+		&"profile_file_name"
 	)
 	var active_profile_file: String = save_graph.get_profile_file_name()
 	if active_profile_file != catalog_profile_file:
@@ -329,23 +338,34 @@ func request_device_progress_snapshot(
 	var snapshot: Dictionary = _make_empty_device_progress_snapshot(
 		request_id,
 		active_account_id,
-		accounts
+		account_descriptors
 	)
 	var inactive_account_ids: Array[String] = []
-	for account: LocalPlayerAccount in accounts:
-		if account.account_id == active_account_id:
+	var inactive_profile_files_by_account_id: Dictionary = {}
+	for account_descriptor: Dictionary in account_descriptors:
+		var account_id: String = GFVariantData.get_option_string(
+			account_descriptor,
+			&"account_id"
+		)
+		if account_id == active_account_id:
 			var active_entry: Dictionary = _get_snapshot_account_entry(
 				snapshot,
-				account.account_id
+				account_id
 			)
 			active_entry[&"progress"] = _get_save_data().duplicate(true)
 			_set_snapshot_account_entry(
 				snapshot,
-				account.account_id,
+				account_id,
 				active_entry
 			)
 		else:
-			inactive_account_ids.append(account.account_id)
+			inactive_account_ids.append(account_id)
+			inactive_profile_files_by_account_id[account_id] = (
+				GFVariantData.get_option_string(
+					account_descriptor,
+					&"profile_file_name"
+				)
+			)
 
 	if inactive_account_ids.is_empty():
 		var _completed_immediately: bool = completion.succeed(snapshot)
@@ -402,8 +422,12 @@ func request_device_progress_snapshot(
 	for account_id: String in inactive_account_ids:
 		if batch.is_completed():
 			break
+		var profile_file_name: String = GFVariantData.get_option_string(
+			inactive_profile_files_by_account_id,
+			account_id
+		)
 		var operation: GFStorageAsyncOperation = _storage.load_data_request_async(
-			LocalAccountCatalogUtility.make_profile_file_name(account_id)
+			profile_file_name
 		)
 		if operation == null:
 			var _marked_missing_operation: bool = batch.mark_completed(
@@ -587,16 +611,26 @@ func get_device_local_leaderboard(
 func _make_empty_device_progress_snapshot(
 	request_id: int,
 	active_account_id: String,
-	accounts: Array[LocalPlayerAccount]
+	account_descriptors: Array[Dictionary]
 ) -> Dictionary:
 	var account_order: Array[String] = []
 	var accounts_by_id: Dictionary = {}
-	for account: LocalPlayerAccount in accounts:
-		account_order.append(account.account_id)
-		accounts_by_id[account.account_id] = {
-			&"account_id": account.account_id,
-			&"display_name": account.display_name,
-			&"last_active_at": account.last_active_at,
+	for descriptor: Dictionary in account_descriptors:
+		var account_id: String = GFVariantData.get_option_string(
+			descriptor,
+			&"account_id"
+		)
+		account_order.append(account_id)
+		accounts_by_id[account_id] = {
+			&"account_id": account_id,
+			&"display_name": GFVariantData.get_option_string(
+				descriptor,
+				&"display_name"
+			),
+			&"last_active_at": GFVariantData.get_option_int(
+				descriptor,
+				&"last_active_at"
+			),
 			&"progress": {},
 		}
 	return {
@@ -1671,14 +1705,6 @@ func _get_save_graph_utility() -> GameSaveGraphUtility:
 	if utility_value is GameSaveGraphUtility:
 		var save_graph: GameSaveGraphUtility = utility_value
 		return save_graph
-	return null
-
-
-func _get_account_catalog_utility() -> LocalAccountCatalogUtility:
-	var utility_value: Object = get_utility(LocalAccountCatalogUtility)
-	if utility_value is LocalAccountCatalogUtility:
-		var account_catalog: LocalAccountCatalogUtility = utility_value
-		return account_catalog
 	return null
 
 

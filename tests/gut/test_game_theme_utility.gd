@@ -6,8 +6,12 @@ extends GutTest
 
 const _THEME_MANIFEST_PATH: String = "res://features/themes/resources/gf_content_package.json"
 const _BACKGROUND_SHADER_PATH: String = "res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader"
-const _DEFAULT_BOARD_THEME: BoardTheme = preload("res://features/themes/resources/themes/board/default_board_theme.tres")
-const _CLASSIC_TILE_THEME: TileColorScheme = preload("res://features/themes/resources/themes/tile_schemes/classic_tile_theme.tres")
+const _DEFAULT_BOARD_THEME: BoardTheme = preload(
+	"res://features/themes/resources/themes/mode_visuals/defaults/default_board_theme.tres"
+)
+const _CLASSIC_TILE_THEME: TileColorScheme = preload(
+	"res://features/themes/resources/themes/mode_visuals/defaults/classic_tile_theme.tres"
+)
 
 
 # --- 私有变量 ---
@@ -341,7 +345,7 @@ func test_theme_utility_tracks_cross_utility_signals_with_gf_signal_utility() ->
 		assert_true(signal_utility.get_connection_count() == 0, "架构释放后 GF 信号连接必须清空。")
 
 
-func test_theme_content_package_registers_independent_theme_resource_keys() -> void:
+func test_theme_content_package_registers_selectable_theme_resources_only() -> void:
 	var setup: Dictionary = await _create_theme_architecture()
 	var architecture: GFArchitecture = _get_architecture(setup)
 	var resolver: GFResourceResolverUtility = _get_resource_resolver(setup)
@@ -354,7 +358,6 @@ func test_theme_content_package_registers_independent_theme_resource_keys() -> v
 		&"game.theme.halftone_atlas",
 		GameThemeCatalogUtility.RESOURCE_TYPE_HINT
 	)
-	var blue_scheme_resource: Resource = resolver.load(&"game.tile_scheme.blue", "Resource")
 	var audio_bank_resource: Resource = resolver.load(&"game.audio_bank.printworks", "Resource")
 
 	assert_true(
@@ -363,7 +366,10 @@ func test_theme_content_package_registers_independent_theme_resource_keys() -> v
 	)
 	assert_true(resource is GameTheme, "视觉主题应能通过独立资源键加载。")
 	assert_false(resolver.has_registered_key(&"game.theme_registry"), "Resolver 不应保留旧中央注册表资源键。")
-	assert_true(blue_scheme_resource is TileColorScheme, "主题内容包应登记完整的内置方块色阶资源。")
+	assert_false(
+		resolver.has_registered_key(&"game.tile_scheme.blue"),
+		"玩法默认色阶由 gameplay 模式配置直接拥有，不应作为可选择主题资源重复登记。"
+	)
 	assert_true(audio_bank_resource is GFAudioBank, "主题内容包应登记 printworks 音频银行。")
 
 	await _dispose_architecture(architecture)
@@ -513,8 +519,6 @@ func test_game_theme_utility_resolves_board_and_tile_schemes() -> void:
 	var celebration_vfx: GameCelebrationVfxUtility = null
 	if celebration_value is GameCelebrationVfxUtility:
 		celebration_vfx = celebration_value
-	var fallback_board: BoardTheme = BoardTheme.new()
-	var fallback_scheme: TileColorScheme = TileColorScheme.new()
 	var background_rect: ColorRect = ColorRect.new()
 	var background_material: ShaderMaterial = ShaderMaterial.new()
 	var shader_resource: Resource = load(_BACKGROUND_SHADER_PATH)
@@ -523,10 +527,8 @@ func test_game_theme_utility_resolves_board_and_tile_schemes() -> void:
 		background_material.shader = background_shader
 	background_rect.material = background_material
 
-	var resolved_board: BoardTheme = theme_utility.resolve_board_theme(fallback_board)
-	var resolved_schemes: Dictionary = theme_utility.resolve_color_schemes({
-		0: fallback_scheme,
-	})
+	var resolved_board: BoardTheme = theme_utility.resolve_board_theme_for_mode(&"classic")
+	var resolved_schemes: Dictionary = theme_utility.resolve_color_schemes_for_mode(&"classic")
 	var default_scheme_value: Variant = resolved_schemes.get(0)
 	var resolved_default_scheme: TileColorScheme = null
 	if default_scheme_value is TileColorScheme:
@@ -536,6 +538,23 @@ func test_game_theme_utility_resolves_board_and_tile_schemes() -> void:
 	assert_true(
 		resolved_default_scheme == _CLASSIC_TILE_THEME,
 		"当前主题应覆盖默认方块色阶槽位。"
+	)
+	resolved_schemes.clear()
+	assert_true(
+		theme_utility.resolve_color_schemes_for_mode(&"classic").has(0),
+		"模式视觉色阶结果必须复制隔离。"
+	)
+	var unknown_board: BoardTheme = theme_utility.resolve_board_theme_for_mode(&"unknown")
+	assert_push_error("未知模式视觉 profile")
+	assert_null(
+		unknown_board,
+		"未知模式视觉 profile 必须失败关闭。"
+	)
+	var unknown_schemes: Dictionary = theme_utility.resolve_color_schemes_for_mode(&"unknown")
+	assert_push_error("未知模式视觉 profile")
+	assert_true(
+		unknown_schemes.is_empty(),
+		"未知模式视觉 profile 不得隐式回退到业务路径资源。"
 	)
 	assert_true(
 		is_instance_valid(board_feedback)
@@ -591,18 +610,12 @@ func test_game_theme_utility_resolves_board_and_tile_schemes() -> void:
 func test_board_preview_uses_current_theme_for_preview_styles() -> void:
 	var setup: Dictionary = await _create_theme_architecture()
 	var architecture: GFArchitecture = _get_architecture(setup)
-	var fallback_board: BoardTheme = BoardTheme.new()
 	var mode_config: GameModeConfig = GameModeConfig.new()
 	var context: TestArchitectureContext = TestArchitectureContext.new()
 	var preview: BoardPreview = BoardPreview.new()
 
-	fallback_board.board_panel_color = Color(1.0, 0.0, 1.0, 1.0)
-	fallback_board.board_border_color = Color(0.0, 1.0, 1.0, 1.0)
-	fallback_board.empty_cell_color = Color(1.0, 0.0, 0.0, 1.0)
-	fallback_board.empty_cell_border_color = Color(0.0, 1.0, 0.0, 1.0)
-	mode_config.board_theme = fallback_board
+	mode_config.visual_profile_id = &"classic"
 	mode_config.interaction_rule = ClassicInteractionRule.new()
-	mode_config.color_schemes = {}
 	context.test_architecture = architecture
 
 	add_child_autoqfree(context)
@@ -630,10 +643,6 @@ func test_board_preview_uses_current_theme_for_preview_styles() -> void:
 			assert_true(
 				flat_style.bg_color == _DEFAULT_BOARD_THEME.board_panel_color,
 				"回放/存档预览应跟随当前主题棋盘面板色，而不是模式默认色。"
-			)
-			assert_false(
-				flat_style.bg_color == fallback_board.board_panel_color,
-				"回放/存档预览不应绕过 GameThemeUtility。"
 			)
 
 	await _dispose_architecture(architecture)

@@ -30,23 +30,27 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/export_wechat_minigame
   -GodotExecutable godot
 ```
 
-脚本把已校验的社区 `godothub/godot-minigame` 4.7 模板与 Godot
+脚本只接受版本字符串为 `4.7.2.stable` 或以 `4.7.2.stable.` 开头的 Godot，可执行文件版本、项目当前合约与 4.7 模板必须一致。它把已校验的社区 `godothub/godot-minigame` 4.7 模板与 Godot
 `--export-pack` 产物组装为 `build/wechat_minigame_smoke/wxgame`。模板必须精确为
 11,763,895 bytes、SHA-256
 `AE5BDEB5BA1CE9712D4EFC35D337CB5ECBEF3AD5BFB0F7D06AE9CB662C1F2D71`；导出器会删除
 示例 PCK、示例分包、示例 AppID 和 private config，将项目 PCK 改为微信允许的 `.bin`，
 并把 loader 绑定到同一路径。模板默认缓存在 `build/wechat_toolchain/4.7/`，也可通过
 `-TemplateArchivePath` 传入同一份已校验归档。模板是社区工具链，不是 Godot 或微信官方支持的导出器。
-发布 stage 在替换旧输出前会在不含项目资源的临时最小 Godot 宿主中调用同一份可测试的产物验证器，
-检查 JSON、loader、精确文件白名单、AppID、包体预算、包内字体重映射和编辑器插件泄漏；失败时不会
-覆盖旧输出。完整包内检查必须由该隔离宿主执行，避免工作区中的同路径资源掩盖 PCK 缺失；在项目宿主中
-只能独立复核不挂载 PCK 的结构部分：
+导出开始前会冻结当前内容而不是 Git HEAD：精确纳入 `project.godot`、`export_presets.cfg`、默认音频总线、图标及其 import 描述，并递归纳入 `addons/`、`app/`、`features/`、`shared/`；排除项与 `Web Compatibility Smoke` 预设保持一致，`.git/`、`.godot/`、`build/`、`tests/`、非导出文档及普通 `tools/` 不进入内容快照。五个真正参与组装/验证的工具文件单独记录 SHA-256。GF 的 `.gf/vendor.lock.json`、`source_commit`、`source_git_tree`、锁文件 hash 与 `addons/gf` 实际全树 hash/文件数会在导出前后重算；其中任一项、导出内容快照或工具内容在组装期间漂移都会终止。
+
+发布 stage 固定为同一候选根下的 `{wxgame/, export-report.json}`。报告位于 `wxgame` 外，因此产物清单不会自引用；它包含除 `project.private.config.json` 本机 sidecar 外，按 ordinal path 排序的每个可发布文件 `path/bytes/sha256`、canonical manifest hash、输入快照 hash、build ID，以及 Godot、GF、模板和工具身份。替换时整候选根先备份再一次发布，任一注入或 I/O 失败都恢复旧报告和旧 `wxgame` 的同一 build ID，不会留下新报告配旧产物。
+
+发布 stage 在替换旧候选前会在不含项目资源的临时最小 Godot 宿主中调用同一份可测试的产物验证器，重算报告绑定的完整可发布清单、包体和 build ID，并检查 JSON、loader、精确文件白名单、AppID、包内字体重映射和编辑器插件泄漏；失败时不会覆盖旧候选。DevTools 可自行生成或改写的 `project.private.config.json` 不进入包体、manifest 或 build ID，但仍须位于精确白名单中，并单独通过 JSON 与身份覆盖检查；任何其他额外文件仍会失败。完整包内检查必须由该隔离宿主执行，避免工作区中的同路径资源掩盖 PCK 缺失；在项目宿主中可复核报告绑定的结构部分：
 
 ```powershell
 godot --headless --path . `
   --script res://tools/wechat_minigame_artifact_check.gd -- `
-  --artifact-root build/wechat_minigame_smoke/wxgame
+  --artifact-root build/wechat_minigame_smoke/wxgame `
+  --report-path build/wechat_minigame_smoke/export-report.json
 ```
+
+省略 `--report-path` 只运行便于夹具复用的旧结构模式，不构成候选身份复核。
 
 社区模板原始 `fsUtils.localFetch()` 会用一次异步 `readFile` 读取整个 ArrayBuffer。当前项目的
 WASM 与 PCK 分别约 8.4 MB 和 15.4 MB；微信开发者工具 2.02.2607271 的模拟器桥在大 PCK
@@ -70,7 +74,7 @@ Godot 平台冒烟场景；缺少任一终态都不能签字。若当前输出�
 
 - `build/platform_readiness_report.json`：GFCompatibilityPreflight 项目契约；
 - `build/platform_environment_report.json`：编辑器、匹配导出模板和微信开发者工具环境。
-- `build/wechat_minigame_smoke/export-report.json`：模板身份、精确发布白名单、主包/引擎分包字节数和预算结论。
+- `build/wechat_minigame_smoke/export-report.json`：与同根 `wxgame/` 原子发布的完整可发布产物 manifest（不含本机 private sidecar）、输入/GF/Godot/工具身份、build ID、主包/引擎分包字节数和预算结论。
 
 CI 或正式导出不得传 `-AllowEnvironmentBlockers`。本地仅审查项目配置时才允许该开关。
 
@@ -95,7 +99,9 @@ Web 冒烟预设名为 `Web Compatibility Smoke`，并固定：
 
 编辑器版本、导出模板和微信开发者工具 CLI 都是工作站易变状态，只以当次 `build/platform_environment_report.json` 为准，不在长期文档中复制为“当前环境”。报告出现 blocker 时，可以继续做项目侧静态审查，但不能签字微信开发者工具或真机通过。
 
-匹配的 Godot 导出工具链与微信开发者工具 CLI 就绪后，还必须在开发者工具和真机执行下方矩阵。`project.config.json` 默认不写入 AppID；首次导入时由开发者工具填写项目自己的小游戏 AppID，或者在本地调用导出器时传 `-AppId`。脚本会保留已生成输出中的有效本机 AppID 与 `project.private.config.json` 的本地 IDE 偏好，但会把私有配置里的 `appid` / `compileType` 提升到已验证的公共配置或移除，禁止其覆盖产物身份和编译目标；`build/` 始终被 Git 忽略。GF vendor 版本与上游修复状态以 `addons/gf/plugin.cfg`、`.gf/vendor.lock.json` 和当前 vendor 源码为准；本项目不得保留临时 GF 补丁。
+匹配的 Godot 导出工具链与微信开发者工具 CLI 就绪后，还必须在开发者工具和真机执行下方矩阵。`project.config.json` 默认不写入 AppID；首次导入时由开发者工具填写项目自己的小游戏 AppID，或者在本地调用导出器时传 `-AppId`。脚本会在导出开始时一次性冻结已生成输出中的有效本机 AppID 与 `project.private.config.json` 本地 IDE 偏好，后续 stage 不再读取 DevTools 正在使用的活文件；私有配置里的 `appid` / `compileType` 会被提升到已验证的公共配置或移除，禁止其覆盖产物身份和编译目标。本机 sidecar 可随候选原子发布并接受独立安全校验，但不属于可发布产物身份；`build/` 始终被 Git 忽略。GF vendor 版本与上游修复状态以 `addons/gf/plugin.cfg`、`.gf/vendor.lock.json` 和当前 vendor 源码为准；本项目不得保留临时 GF 补丁。
+
+按微信[小游戏项目配置文件](https://developers.weixin.qq.com/minigame/dev/devtools/projectconfig.html)的当前契约，普通小游戏的 `compileType` 必须精确为 `minigame`；`miniprogram` 会把工程导入为普通小程序。固定社区模板内的历史默认值也不能覆盖导出器与产物验证器的小游戏身份。
 
 ## 真机签字矩阵
 

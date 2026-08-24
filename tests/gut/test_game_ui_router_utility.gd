@@ -47,32 +47,37 @@ func test_game_ui_router_registers_project_panel_routes() -> void:
 	await architecture.register_utility(ProjectResourceCatalogUtility, catalog)
 	await architecture.register_utility(GameUiRouterUtility, ui_router)
 	architecture.register_utility_alias(GFUIRouterUtility, GameUiRouterUtility)
+	architecture.register_utility_alias(GameUiRouterPort, GameUiRouterUtility)
 	await architecture.init()
+	assert_true(
+		architecture.get_utility(GameUiRouterPort) == ui_router,
+		"Composition Root alias 应把 shared Router Port 解析到 navigation Adapter。"
+	)
 
 	var route_ids: Array[String] = _packed_strings_to_array(ui_router.get_route_ids())
 	var expected_route_ids: Array[String] = [
-		"achievements",
-		"board_editor",
+		String(AchievementListDialog.ROUTE_ID),
+		String(BoardEditorDialog.ROUTE_ID),
 		"game_over_menu",
 		"modal_dialog",
 		"pause_menu",
 		"player_profile",
 		"settings_menu",
 		"target_reached_menu",
-		"tile_catalog",
+		String(TileCatalogDialog.ROUTE_ID),
 		"tile_lab",
 	]
 	assert_true(route_ids == expected_route_ids, "项目 UI 路由应提供稳定 route_id。")
 	assert_true(
-		ui_router.get_route(&"pause_menu").scene_path == "res://features/gameplay/scenes/ui/pause_menu.tscn",
+		ui_router.get_route(&"pause_menu").scene_path == "res://features/game_session/scenes/ui/pause_menu.tscn",
 		"暂停菜单路由应指向暂停面板。"
 	)
 	assert_true(
-		ui_router.get_route(&"game_over_menu").scene_path == "res://features/gameplay/scenes/ui/game_over_menu.tscn",
+		ui_router.get_route(&"game_over_menu").scene_path == "res://features/game_session/scenes/ui/game_over_menu.tscn",
 		"游戏结束路由应指向游戏结束面板。"
 	)
 	assert_true(
-		ui_router.get_route(&"target_reached_menu").scene_path == "res://features/gameplay/scenes/ui/target_reached_menu.tscn",
+		ui_router.get_route(&"target_reached_menu").scene_path == "res://features/game_session/scenes/ui/target_reached_menu.tscn",
 		"目标达成路由应指向目标达成面板。"
 	)
 	assert_true(
@@ -80,11 +85,11 @@ func test_game_ui_router_registers_project_panel_routes() -> void:
 		"设置路由应指向设置菜单。"
 	)
 	assert_true(
-		ui_router.get_route(&"board_editor").scene_path == "res://features/board_editor/scenes/ui/board_editor_dialog.tscn",
+		ui_router.get_route(BoardEditorDialog.ROUTE_ID).scene_path == "res://features/board_editor/scenes/ui/board_editor_dialog.tscn",
 		"棋盘编辑器路由应指向 board_editor Feature 面板。"
 	)
 	assert_true(
-		ui_router.get_route(&"tile_catalog").scene_path == "res://features/tile_catalog/scenes/ui/tile_catalog_dialog.tscn",
+		ui_router.get_route(TileCatalogDialog.ROUTE_ID).scene_path == "res://features/tile_catalog/scenes/ui/tile_catalog_dialog.tscn",
 		"方块图鉴路由应指向 tile_catalog Feature 面板。"
 	)
 	assert_true(
@@ -96,7 +101,7 @@ func test_game_ui_router_registers_project_panel_routes() -> void:
 		"玩家档案路由应指向 player_profiles Feature 面板。"
 	)
 	assert_true(
-		ui_router.get_route(&"achievements").scene_path == "res://features/achievements/scenes/ui/achievement_list_dialog.tscn",
+		ui_router.get_route(AchievementListDialog.ROUTE_ID).scene_path == "res://features/achievements/scenes/ui/achievement_list_dialog.tscn",
 		"成就路由应指向 achievements Feature 面板。"
 	)
 	assert_true(
@@ -111,7 +116,7 @@ func test_game_ui_router_registers_project_panel_routes() -> void:
 		"暂停菜单应声明设置页为相邻预加载路由。"
 	)
 	assert_true(
-		ui_router.get_route(&"tile_catalog").get_adjacent_route_ids().is_empty(),
+		ui_router.get_route(TileCatalogDialog.ROUTE_ID).get_adjacent_route_ids().is_empty(),
 		"没有页内互跳入口的收藏弹层不得伪造相邻关系并阻塞预载其他三页。"
 	)
 	for modal_route_id: StringName in [
@@ -130,16 +135,16 @@ func test_game_ui_router_registers_project_panel_routes() -> void:
 		assert_true(GFVariantData.get_option_bool(options, "restore_focus_on_close"))
 		assert_false(GFVariantData.get_option_bool(options, "hide_under", true))
 	var hub_route_plan: Dictionary = ui_router.build_preload_plan(
-		&"tile_catalog",
+		TileCatalogDialog.ROUTE_ID,
 		{
 			"max_depth": 0,
 			"max_routes": 4,
 			"include_source": true,
 			"fixed_route_ids": PackedStringArray([
-				"tile_catalog",
+				String(TileCatalogDialog.ROUTE_ID),
 				"tile_lab",
 				"player_profile",
-				"achievements",
+				String(AchievementListDialog.ROUTE_ID),
 			]),
 			"group_id": &"main_menu_popup_intent",
 			"plan_id": &"main_menu_popup_intent.preload",
@@ -395,9 +400,9 @@ func test_owned_async_route_passes_owner_and_optional_scope_to_gf() -> void:
 
 func test_route_panels_apply_product_focus_after_gf_open_policy() -> void:
 	var route_panel_sources: Array[String] = [
-		"res://features/gameplay/scripts/ui/pause_menu.gd",
-		"res://features/gameplay/scripts/ui/game_over_menu.gd",
-		"res://features/gameplay/scripts/ui/target_reached_menu.gd",
+		"res://features/game_session/scripts/ui/pause_menu.gd",
+		"res://features/game_session/scripts/ui/game_over_menu.gd",
+		"res://features/game_session/scripts/ui/target_reached_menu.gd",
 		"res://features/settings/scripts/menus/settings_menu.gd",
 		"res://features/achievements/scripts/ui/achievement_list_dialog.gd",
 		"res://features/tile_catalog/scripts/ui/tile_catalog_dialog.gd",
@@ -472,6 +477,7 @@ func test_game_ui_router_uses_ui_route_registry_order() -> void:
 	await architecture.register_utility(ProjectResourceCatalogUtility, catalog)
 	await architecture.register_utility(GameUiRouterUtility, ui_router)
 	architecture.register_utility_alias(GFUIRouterUtility, GameUiRouterUtility)
+	architecture.register_utility_alias(GameUiRouterPort, GameUiRouterUtility)
 	await architecture.init()
 
 	assert_true(
@@ -497,6 +503,7 @@ func test_game_ui_router_registers_asset_group_paths_when_utility_is_ready() -> 
 	await architecture.register_utility(ProjectResourceCatalogUtility, catalog)
 	await architecture.register_utility(GameUiRouterUtility, ui_router)
 	architecture.register_utility_alias(GFUIRouterUtility, GameUiRouterUtility)
+	architecture.register_utility_alias(GameUiRouterPort, GameUiRouterUtility)
 	await architecture.init()
 
 	var group_paths: PackedStringArray = asset_utility.get_group_paths(&"ui_routes")
@@ -525,6 +532,7 @@ func test_game_ui_router_registers_resolver_resource_keys_when_utility_is_ready(
 	await architecture.register_utility(ProjectResourceCatalogUtility, catalog)
 	await architecture.register_utility(GameUiRouterUtility, ui_router)
 	architecture.register_utility_alias(GFUIRouterUtility, GameUiRouterUtility)
+	architecture.register_utility_alias(GameUiRouterPort, GameUiRouterUtility)
 	await architecture.init()
 
 	for resource_key: String in EXPECTED_UI_ROUTE_RESOURCE_KEYS:
@@ -574,6 +582,10 @@ func _make_live_router_stack() -> _RouterTestStack:
 	)
 	stack.architecture.register_utility_alias(
 		GFUIRouterUtility,
+		GameUiRouterUtility
+	)
+	stack.architecture.register_utility_alias(
+		GameUiRouterPort,
 		GameUiRouterUtility
 	)
 	await stack.architecture.init()

@@ -136,31 +136,70 @@ func test_export_tool_sets_a_distinct_devtools_project_identity() -> void:
 	))
 	assert_true(source.contains('-NotePropertyName "projectname"'))
 	assert_true(source.contains('-NotePropertyValue $WeChatProjectName'))
+	assert_true(source.contains('$projectConfig.compileType = "minigame"'))
 	assert_true(source.contains('project_name = $WeChatProjectName'))
 
 
 func test_export_tool_publishes_transactionally_and_rejects_reparse_paths() -> void:
 	var source: String = _read_tool_source()
 	var backup_index: int = source.find(
-		"Move-Item -LiteralPath $outputRoot -Destination $backupRoot"
+		"Move-Item -LiteralPath $finalRoot -Destination $backupRoot"
 	)
 	var publish_index: int = source.find(
-		"Move-Item -LiteralPath $stageRoot -Destination $outputRoot"
+		"Move-Item -LiteralPath $stageRoot -Destination $finalRoot"
 	)
-	var retire_index: int = source.find(
-		"Remove-SafeBuildTree -Path $backupRoot"
-	)
+	var retire_index: int = source.find("retired WeChat candidate bundle backup")
 	assert_true(backup_index >= 0)
 	assert_true(publish_index > backup_index)
 	assert_true(retire_index > publish_index)
-	assert_true(source.contains("$previousOutputBackedUp = $true"))
-	assert_true(source.contains("$newOutputPublished = $true"))
+	assert_true(source.contains("$previousCandidateBackedUp = $true"))
+	assert_true(source.contains("$newCandidatePublished = $true"))
 	assert_true(source.contains("$publishCommitted = $true"))
 	assert_true(source.contains("if (-not $publishCommitted)"))
-	assert_true(source.contains("The new WeChat output is committed"))
-	assert_true(source.contains("failed published WeChat smoke output"))
+	assert_true(source.contains("The new WeChat candidate is committed"))
+	assert_true(source.contains("failed published WeChat candidate bundle"))
+	assert_true(source.contains('"after_candidate_backup"'))
+	assert_true(source.contains('"after_candidate_publish"'))
 	assert_true(source.contains("[IO.FileAttributes]::ReparsePoint"))
 	assert_true(source.contains("Assert-NoReparsePointTree"))
+	assert_true(source.contains("function Assert-ExistingCandidateBundleShape"))
+	assert_true(source.contains("cannot be replaced safely"))
+	var report_index: int = source.find("-Path $stageReportPath")
+	var verification_index: int = source.find(
+		"-ReportPath $stageReportPath",
+		report_index
+	)
+	var bundle_publish_index: int = source.find(
+		"Publish-CandidateBundle `",
+		verification_index
+	)
+	assert_true(report_index >= 0)
+	assert_true(verification_index > report_index)
+	assert_true(bundle_publish_index > verification_index)
+	assert_true(source.contains('$stageRoot = Join-Path $stageCandidateRoot "wxgame"'))
+	assert_true(source.contains(
+		'$stageReportPath = Join-Path $stageCandidateRoot "export-report.json"'
+	))
+
+
+func test_export_tool_freezes_source_tool_and_complete_artifact_identity() -> void:
+	var source: String = _read_tool_source()
+	assert_true(source.contains('$RequiredGodotVersionPrefix = "4.7.2.stable"'))
+	assert_true(source.contains("function Get-GodotIdentity"))
+	assert_true(source.contains("function Get-GfVendorIdentity"))
+	assert_true(source.contains("function Get-ExportInputSnapshot"))
+	assert_true(source.contains("function Get-ToolIdentity"))
+	assert_true(source.contains("function Assert-FrozenExportIdentity"))
+	assert_true(source.contains("function Get-CandidateBuildId"))
+	assert_true(source.contains('"wechat-artifact-manifest-v$ArtifactManifestSchemaVersion"'))
+	assert_true(source.contains('schema_version = $ExportReportSchemaVersion'))
+	assert_true(source.contains('artifact_manifest_sha256 = $artifactManifestSha256'))
+	assert_true(source.contains('input_snapshot_sha256 = $inputSnapshotSha256'))
+	assert_true(source.contains('build_id = $buildId'))
+	assert_true(source.contains('gf = $gfIdentity'))
+	assert_true(source.contains('tool_identity = $toolIdentity'))
+	assert_true(source.contains('$ToolIdentityRelativePaths.Values'))
+	assert_true(source.contains('"--report-path"'))
 
 
 func test_export_tool_never_inherits_the_upstream_sample_app_id() -> void:

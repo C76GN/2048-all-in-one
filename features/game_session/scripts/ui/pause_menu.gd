@@ -1,0 +1,140 @@
+## PauseMenu: 游戏内暂停菜单的UI控制器。
+##
+## 负责处理暂停菜单的显示/隐藏，以及响应各个按钮的点击事件。
+## 它通过 GF 事件系统通知系统层执行继续、重启等操作。
+class_name PauseMenu
+extends GameUiController
+
+
+# --- 常量 ---
+
+const _ROUTE_SETTINGS_MENU: StringName = &"settings_menu"
+const _ROUTE_PAUSE_MENU: StringName = &"pause_menu"
+
+
+# --- @onready 变量 (节点引用) ---
+
+@onready var _surface: SurfaceVboxContainer = $CenterContainer/VBoxContainer
+@onready var _title_label: Label = %TitleLabel
+@onready var _continue_button: Button = $CenterContainer/VBoxContainer/ContinueButton
+@onready var _restart_button: Button = $CenterContainer/VBoxContainer/RestartButton
+@onready var _settings_button: Button = $CenterContainer/VBoxContainer/SettingsButton
+@onready var _main_menu_button: Button = $CenterContainer/VBoxContainer/MainMenuButton
+
+
+# --- Godot 生命周期方法 ---
+
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_WHEN_PAUSED
+
+	var _connect_result_27: int = _continue_button.pressed.connect(_on_continue_button_pressed)
+	var _connect_result_28: int = _restart_button.pressed.connect(_on_restart_button_pressed)
+	var _connect_result_29: int = _settings_button.pressed.connect(_on_settings_button_pressed)
+	var _connect_result_30: int = _main_menu_button.pressed.connect(_on_main_menu_button_pressed)
+
+	_update_ui_text()
+	_apply_semantic_styles()
+	call_deferred(&"_focus_initial_control")
+	call_deferred(&"_play_content_reveal")
+
+
+# --- 私有/辅助方法 ---
+
+func _get_game_ui_router_port() -> GameUiRouterPort:
+	var utility_value: Object = _find_optional_utility(GameUiRouterPort)
+	if utility_value is GameUiRouterPort:
+		var ui_router: GameUiRouterPort = utility_value
+		return ui_router
+	return null
+
+
+func _focus_initial_control() -> void:
+	if is_inside_tree() and is_instance_valid(_continue_button):
+		_continue_button.grab_focus()
+
+
+func _update_ui_text() -> void:
+	if is_instance_valid(_title_label):
+		_title_label.text = tr("TITLE_PAUSE")
+	if is_instance_valid(_continue_button):
+		_continue_button.text = tr("BTN_RESUME")
+	if is_instance_valid(_restart_button):
+		_restart_button.text = tr("BTN_RESTART")
+	if is_instance_valid(_settings_button):
+		_settings_button.text = tr("BTN_SETTINGS")
+	if is_instance_valid(_main_menu_button):
+		_main_menu_button.text = tr("BTN_MAIN_MENU")
+
+
+func _apply_semantic_styles() -> void:
+	var style: GameUiStyleUtility = _get_ui_style_utility()
+	if not is_instance_valid(style):
+		return
+	style.style_control(_surface)
+	style.style_label(_title_label, GameUiStyleUtility.TextRole.DISPLAY, 34)
+	style.style_button(_continue_button, GameUiStyleUtility.ButtonRole.PRIMARY)
+	style.style_button(_restart_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+	style.style_button(_settings_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+	style.style_button(_main_menu_button, GameUiStyleUtility.ButtonRole.QUIET)
+
+
+func _play_content_reveal() -> void:
+	var motion: GameUiMotionUtility = _get_ui_motion_utility()
+	if is_instance_valid(motion):
+		var _revealed_count: int = motion.play_children_reveal(
+			_surface,
+			Vector2.ZERO,
+			0.035
+		)
+
+
+func _configure_settings_panel(panel: Node) -> void:
+	panel.process_mode = Node.PROCESS_MODE_ALWAYS
+
+
+# --- 信号处理函数 ---
+
+## 响应"继续游戏"按钮的点击事件。
+func _on_continue_button_pressed() -> void:
+	var _sent: bool = _close_current_popup_route_and_send_event(
+		_ROUTE_PAUSE_MENU,
+		EventNames.RESUME_GAME_REQUESTED
+	)
+
+
+## 响应"重新开始"按钮的点击事件。
+func _on_restart_button_pressed() -> void:
+	var _sent: bool = _close_current_popup_route_and_send_event(
+		_ROUTE_PAUSE_MENU,
+		EventNames.RESTART_GAME_REQUESTED
+	)
+
+
+## 响应"返回主界面"按钮的点击事件。
+func _on_main_menu_button_pressed() -> void:
+	var _sent: bool = _close_current_popup_route_and_send_event(
+		_ROUTE_PAUSE_MENU,
+		EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED
+	)
+
+
+func _on_settings_button_pressed() -> void:
+	var ui_router: GameUiRouterPort = _get_game_ui_router_port()
+	if not is_instance_valid(ui_router):
+		push_error("[PauseMenu] 缺少 GFUIRouterUtility，无法打开设置菜单。")
+		return
+	var result: GFUIRouteResult = await ui_router.push_owned_route_async(
+		self,
+		_ROUTE_SETTINGS_MENU,
+		{
+			GameUiRouterPort.PARAM_SETTINGS_RETURN_TO_MAIN_MENU_ON_BACK: false,
+		},
+		{},
+		_configure_settings_panel,
+		GameUiRouterPort.PRELOAD_NONE
+	)
+	if result != null and not result.is_successful():
+		push_error("[PauseMenu] GF UI 路由未能打开设置菜单：status=%s, reason=%s。" % [
+			result.get_status(),
+			result.get_reason(),
+		])

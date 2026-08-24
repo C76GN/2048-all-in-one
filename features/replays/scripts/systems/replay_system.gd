@@ -272,7 +272,7 @@ func notify_playback_step_settled() -> void:
 
 ## 请求通过现有 MoveCommand/GFCommandHistoryUtility 重建到目标步。
 ##
-## 本 System 只验证并发布请求；实际命令执行由 ReplayInputSystem 单一拥有。
+## 本 System 只验证并发布请求；实际命令执行由会话回放输入执行器单一拥有。
 ## @param target_step: 要重建到的 0-based 回放进度步。
 func jump_to_step(target_step: int) -> bool:
 	if (
@@ -316,7 +316,7 @@ func jump_to_next_marker() -> bool:
 	return jump_to_marker(marker_index) if marker_index >= 0 else false
 
 
-## ReplayInputSystem 在命令历史达到目标或首次失败后关闭请求。
+## 会话回放输入执行器在命令历史达到目标或首次失败后关闭请求。
 ## @param request_id: 当前跳转请求的稳定序号。
 ## @param target_step: 请求期望达到的回放步数。
 ## @param succeeded: 命令历史是否成功重建到目标步。

@@ -1083,6 +1083,16 @@ func _reveal_simulation_result() -> void:
 		var _result_tween: Tween = motion.play_content_switch(_result_panel)
 
 
+## 删除确认只消费 shared foundation 的 Router Port；具体 Adapter 由 Composition
+## Root 选择，tile_lab 不依赖 navigation Implementation。
+func _get_game_ui_router_port() -> GameUiRouterPort:
+	var utility_value: Object = _find_optional_utility(GameUiRouterPort)
+	if utility_value is GameUiRouterPort:
+		var ui_router: GameUiRouterPort = utility_value
+		return ui_router
+	return null
+
+
 # --- 信号处理函数 ---
 
 func _on_section_reconciliation_settled(evidence: Dictionary) -> void:
@@ -1253,10 +1263,10 @@ func _on_delete_pressed() -> void:
 		_current_blueprint_id
 	)
 	var blueprint_id: String = _current_blueprint_id
-	var ui_router: GameUiRouterUtility = _get_game_ui_router_utility()
+	var ui_router: GameUiRouterPort = _get_game_ui_router_port()
 	if not is_instance_valid(ui_router):
 		return
-	var config: GFModalConfig = GameUiRouterUtility.make_confirmation_modal_config(
+	var config: GFModalConfig = GameUiRouterPort.make_confirmation_modal_config(
 		_localized_text("TILE_LAB_DELETE_CONFIRM_TITLE", "删除蓝图"),
 		_localized_format(
 			"TILE_LAB_DELETE_CONFIRM",

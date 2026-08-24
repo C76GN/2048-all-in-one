@@ -1,0 +1,39 @@
+[gd_scene load_steps=4 format=3 uid="uid://rjwnauxjodw8"]
+
+[ext_resource type="Script" uid="uid://caysggyfw3ps7" path="res://features/themes/scripts/ui/tiles/tile.gd" id="1_3dk36"]
+[ext_resource type="Script" uid="uid://b7ksu6loea2rv" path="res://features/themes/scripts/ui/tiles/tile_pattern_overlay.gd" id="2_pattern"]
+[ext_resource type="Script" path="res://features/themes/scripts/ui/tiles/tile_shape_surface.gd" id="3_surface"]
+
+[node name="Tile" type="Node2D" unique_id=1060939717]
+script = ExtResource("1_3dk36")
+
+[node name="Background" type="Control" parent="." unique_id=530941927]
+offset_left = -50.0
+offset_top = -50.0
+offset_right = 50.0
+offset_bottom = 50.0
+mouse_filter = 2
+clip_contents = true
+script = ExtResource("3_surface")
+
+[node name="PatternOverlay" type="Control" parent="." unique_id=1840065201]
+offset_left = -42.0
+offset_top = -42.0
+offset_right = 42.0
+offset_bottom = 42.0
+mouse_filter = 2
+clip_contents = true
+script = ExtResource("2_pattern")
+
+[node name="ValueLabel" type="Label" parent="." unique_id=1616873056]
+offset_left = -50.0
+offset_top = -50.0
+offset_right = 50.0
+offset_bottom = 50.0
+theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
+theme_override_colors/font_outline_color = Color(1, 0.972549, 0.9098039, 0.66)
+theme_override_constants/outline_size = 2
+theme_override_font_sizes/font_size = 48
+text = "2"
+horizontal_alignment = 1
+vertical_alignment = 1

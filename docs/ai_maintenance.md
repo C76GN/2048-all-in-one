@@ -33,10 +33,13 @@
 - gf 装配入口：`app/scripts/game_architecture_installer.gd` 注册项目 Model、System、Utility，并通过 Project Settings 的 `gf/project/installers` 接入。
 - Feature：`features/<feature_id>/` 内聚脚本、场景、资源、文档和局部工具；GF 层目录只在所属 Feature 内出现。
 - Shared：`shared/**` 只保存跨 Feature 契约、基础算法、UI 原语、素材和 Utility，禁止引用具体 Feature。
-- 场景控制器：`features/gameplay/scripts/controllers/**` 放置使用 `GFController` 基类能力的游戏场景控制器，类名保留 `Controller` 后缀。
+- 玩法内核：`features/gameplay/**` 只拥有棋盘拓扑/状态、命令、规则、模式、确定性、回合结果和提示，不拥有游戏场景树、HUD、输入或动画。
+- 对局场景控制器：`features/game_session/scripts/controllers/**` 放置使用 `GFController` 基类能力的游戏场景控制器，类名保留 `Controller` 后缀；可复用棋盘/方块表现原语归 `features/themes/**`。
 - 规则资源：`features/gameplay/scripts/rules/**` 定义移动、交互、生成、结束判定；`features/gameplay/resources/modes/*.tres` 组合这些规则形成不同玩法模式。
-- 对局 session：`GameInitSystem` 使用 `GFLevelUtility` 记录当前一局的模式、尺寸、种子和来源；这只是运行时 session 语义，不代表项目引入关卡进度玩法。
-- 对局暂停：业务 Module 只能调用 `GamePauseUtility`；该 Adapter 同步 `GFTimeUtility` 与 `SceneTree.paused`。除它之外不得直接写场景树暂停状态。需要在暂停期间运行的 System 必须显式设置 `ignore_pause`，并自行门控所有非暂停意图。
+- 对局 session：`features/game_session/**` 拥有统一启动、运行期状态、玩家/回放输入、流程、场景控制器、HUD 和动画；其中 `GameInitSystem` 使用 `GFLevelUtility` 记录当前一局的模式、拓扑、种子和来源。这只是运行时 session 语义，不代表项目引入关卡进度玩法。
+- 对局启动：navigation、bookmarks 与 replays 只调用 shared 的 `GameSessionLaunchPort` 并提交稳定路径、UUID 或严格值快照；`GameSessionLaunchSystem` 独占重新解析、校验、会话模型写入和经 `GameSceneRouterPort` 路由。跨 Feature UI 同理只依赖 `GameUiRouterPort`，具体 Adapter 仍归 navigation。
+- 对局暂停：game_session 业务 Module 只能调用 `GamePauseUtility`；该 Adapter 同步 `GFTimeUtility` 与 `SceneTree.paused`。除它之外不得直接写场景树暂停状态。需要在暂停期间运行的 System 必须显式设置 `ignore_pause`，并自行门控所有非暂停意图。
+- 历史内容列表：`features/saved_content_browser/scripts/menus/base_list_menu.gd` 统一拥有列表物化、焦点、预览、响应式布局和删除终态；bookmarks/replays 子类只保留业务查询、文案与稳定 ID 激活动作。
 - 模式目录：`features/gameplay/resources/registries/game_mode_registry.tres` 使用 `GFResourceRegistry` 维护可玩模式列表，`GameModeCatalogUtility` 通过 `ProjectResourceCatalogUtility` 启动 `GFAssetLoadSession`，`BootRuntime` 必须等待会话进入 committed 终态；业务热路径只读取 `GFAssetUtility` 缓存，禁止在会话仍进行或缓存缺失时同步 `ResourceLoader` 降级。会话、缓存与分组生命周期均由 GF 资产层独占管理。
 - UI 路由：`features/navigation/resources/registries/ui_route_registry.tres` 使用 `GFResourceRegistry` 维护 `GFUIRoute` 资源目录；业务 UI 按 route ID 打开，不保留路径调用后备。菜单负责关闭自身路由，System 不得直接调用 `GFUIUtility.pop_panel()` 或 `clear_all()`。
 - UI 焦点：动态纵向列表使用 `GFControlFocusUtility.apply_focus_order()`；项目层只维护跨列、返回选中项等界面特有关系，不重新实现顺序遍历、首尾循环或相对路径计算。
@@ -106,8 +109,8 @@ python addons/gf/tools/ai_developer/gf_ai_project.py snapshot --project-root .
 - `features/gameplay/resources/registries/game_mode_registry.tres`
 - `features/themes/resources/themes/**`
 - `features/gameplay/scripts/systems/rule_system.gd`
-- `features/gameplay/scripts/systems/game_init_system.gd`
-- `features/gameplay/scripts/queries/get_hud_stats_query.gd`
+- `features/game_session/scripts/systems/game_init_system.gd`
+- `features/game_session/scripts/queries/get_hud_stats_query.gd`
 - `shared/assets/translations.csv`
 - 对外稳定定位、最小运行入口或权威文档链接变化时才更新 `README.md`；模式实现流程归本 Feature 文档和 `docs/architecture.md`
 
@@ -117,10 +120,10 @@ python addons/gf/tools/ai_developer/gf_ai_project.py snapshot --project-root .
 
 检查并按需更新：
 
-- `features/gameplay/resources/input/gameplay_input_context.tres`
-- `features/replays/resources/input/replay_input_context.tres`
-- `features/gameplay/scripts/systems/player_input_system.gd`
-- `features/replays/scripts/systems/replay_input_system.gd`
+- `features/game_session/resources/input/gameplay_input_context.tres`
+- `features/game_session/resources/input/replay_input_context.tres`
+- `features/game_session/scripts/systems/player_input_system.gd`
+- `features/game_session/scripts/systems/replay_input_system.gd`
 - `features/gameplay/scripts/systems/grid_movement_system.gd`
 - `features/gameplay/scripts/commands/move_command.gd`
 - `features/replays/scripts/systems/replay_system.gd`
@@ -158,11 +161,14 @@ python addons/gf/tools/ai_developer/gf_ai_project.py snapshot --project-root .
 - `features/navigation/resources/registries/ui_route_registry.tres`
 - `features/navigation/resources/ui_routes/*.tres`
 - `features/navigation/scripts/utilities/game_ui_router_utility.gd`
+- `shared/scripts/ui/game_ui_router_port.gd`
+- `shared/scripts/navigation/game_scene_router_port.gd`
+- `features/saved_content_browser/scripts/menus/base_list_menu.gd`
 - `features/themes/scripts/utilities/game_ui_style_utility.gd`
 - `features/themes/scripts/utilities/game_ui_motion_utility.gd`
 - `features/themes/scripts/utilities/game_board_feedback_utility.gd`
-- `features/gameplay/scripts/controllers/game_play_controller.gd`
-- `features/gameplay/scripts/controllers/game_board_controller.gd`
+- `features/game_session/scripts/controllers/game_play_controller.gd`
+- `features/game_session/scripts/controllers/game_board_controller.gd`
 - `shared/assets/translations.csv`
 - `features/themes/resources/themes/**`
 - `docs/visual_style.md`

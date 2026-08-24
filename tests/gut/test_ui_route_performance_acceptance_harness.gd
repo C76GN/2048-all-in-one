@@ -345,7 +345,7 @@ func test_scene_signals_capture_load_switch_preload_and_total_duration() -> void
 	assert_true(
 		harness.begin_scene_route(
 			&"main_to_mode",
-			"res://mode_selection.tscn"
+			VerificationResourcePath.make("mode_selection.tscn")
 		)
 	)
 
@@ -359,27 +359,27 @@ func test_scene_signals_capture_load_switch_preload_and_total_duration() -> void
 	)
 	screen_transition.transition_started.emit(cover_effect)
 	screen_transition.transition_finished.emit(cover_effect)
-	scene_utility.scene_load_started.emit("res://mode_selection.tscn")
+	scene_utility.scene_load_started.emit(VerificationResourcePath.make("mode_selection.tscn"))
 	scene_utility.scene_switch_started.emit(
-		"res://mode_selection.tscn",
-		"res://main_menu.tscn"
+		VerificationResourcePath.make("mode_selection.tscn"),
+		VerificationResourcePath.make("main_menu.tscn")
 	)
 	scene_utility.scene_load_completed.emit(
-		"res://mode_selection.tscn",
+		VerificationResourcePath.make("mode_selection.tscn"),
 		null
 	)
 	scene_utility.scene_switch_completed.emit(
-		"res://mode_selection.tscn",
-		"res://main_menu.tscn"
+		VerificationResourcePath.make("mode_selection.tscn"),
+		VerificationResourcePath.make("main_menu.tscn")
 	)
 	screen_transition.transition_started.emit(reveal_effect)
 	screen_transition.transition_finished.emit(reveal_effect)
 	var scene_record: Dictionary = harness.complete_scene_route(true, {
 		"interactive_ready": true,
 	})
-	scene_utility.scene_preload_started.emit("res://game_play.tscn")
+	scene_utility.scene_preload_started.emit(VerificationResourcePath.make("game_play.tscn"))
 	scene_utility.scene_preload_completed.emit(
-		"res://game_play.tscn",
+		VerificationResourcePath.make("game_play.tscn"),
 		null
 	)
 	var preload_records: Array[Dictionary] = (
@@ -606,7 +606,7 @@ func test_scene_preload_failure_without_started_signal_is_not_dropped() -> void:
 	var scene_utility: GFSceneUtility = GFSceneUtility.new()
 	assert_true(harness.bind_scene_utility(scene_utility))
 
-	scene_utility.scene_preload_failed.emit("res://missing_scene.tscn")
+	scene_utility.scene_preload_failed.emit(VerificationResourcePath.make("missing_scene.tscn"))
 	var preload_records: Array[Dictionary] = (
 		harness.get_scene_preload_records()
 	)
@@ -631,7 +631,7 @@ func test_preload_already_running_at_bind_blocks_terminal_report() -> void:
 		"minimum_ui_route_samples": 0,
 		"minimum_scene_route_samples": 0,
 	})
-	var path: String = "res://already_running.tscn"
+	var path: String = VerificationResourcePath.make("already_running.tscn")
 	harness._preloading_scene_paths_at_bind[path] = true
 
 	var pending_report: Dictionary = harness.build_report()
@@ -677,7 +677,7 @@ func test_cancelled_transition_is_recorded_as_incomplete_evidence() -> void:
 	assert_true(
 		harness.begin_scene_route(
 			&"cancelled_route",
-			"res://cancelled.tscn"
+			VerificationResourcePath.make("cancelled.tscn")
 		)
 	)
 	var cover_effect: GFScreenTransitionEffect = _make_transition_effect(
@@ -768,8 +768,8 @@ func test_report_writer_emits_parseable_json() -> void:
 
 func test_report_writer_rejects_paths_outside_owned_report_roots() -> void:
 	var harness: HarnessType = HarnessType.new()
-	var forbidden_path: String = (
-		"res://features/__ui_route_performance_forbidden_report.json"
+	var forbidden_path: String = VerificationResourcePath.make(
+		"features/__ui_route_performance_forbidden_report.json"
 	)
 
 	assert_true(
@@ -806,7 +806,7 @@ func _make_scene_terminal_record(
 	assert_true(
 		harness.begin_scene_route(
 			&"terminal_contract",
-			"res://target.tscn"
+			VerificationResourcePath.make("target.tscn")
 		)
 	)
 	harness._active_scene_route["load_status"] = load_status

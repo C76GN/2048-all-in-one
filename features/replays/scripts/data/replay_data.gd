@@ -149,16 +149,28 @@ func get_session_metadata() -> GameSessionMetadata:
 	return GameSessionMetadata.from_dict(session_metadata)
 
 
+## 判断规则集指纹是否为规范的小写 SHA-256 文本。
+## @param value: 待校验的规则集指纹文本。
+static func is_canonical_ruleset_fingerprint(value: String) -> bool:
+	return (
+		value.length() == 64
+		and value == value.to_lower()
+		and value.is_valid_hex_number(false)
+	)
+
+
 # --- 私有/辅助方法 ---
 
 func _is_valid_contract(initial_topology: BoardTopology) -> bool:
 	var metadata: GameSessionMetadata = get_session_metadata()
 	if (
 		schema_version != SCHEMA_VERSION
+		or timestamp < 0
 		or mode_config_path.is_empty()
 		or ruleset_id == &""
 		or ruleset_version <= 0
-		or ruleset_fingerprint.length() != 64
+		or not is_canonical_ruleset_fingerprint(ruleset_fingerprint)
+		or final_score < 0
 		or metadata == null
 		or actions.size() > MAX_STEP_COUNT
 		or checkpoints.size() > MAX_STEP_COUNT

@@ -8,6 +8,9 @@ extends GFModel
 # --- 常量 ---
 
 const SNAPSHOT_SCHEMA_VERSION: int = 3
+const _CAPABILITY_STATE_CANONICAL_OPTIONS: Dictionary = {
+	"allow_floats": true,
+}
 
 
 # --- 公共变量 ---
@@ -128,7 +131,13 @@ func can_restore_snapshot(
 	if prepared.is_empty():
 		return false
 	var prepared_tiles: Array[TileState] = []
-	for tile_value: Variant in GFVariantData.get_option_array(prepared, &"tiles"):
+	var prepared_tiles_value: Variant = GFVariantData.get_option_value(
+		prepared,
+		&"tiles"
+	)
+	if not prepared_tiles_value is Array:
+		return false
+	for tile_value: Variant in GFVariantData.as_array(prepared_tiles_value):
 		if tile_value is TileState:
 			prepared_tiles.append(tile_value)
 	_release_tiles(prepared_tiles)
@@ -288,14 +297,24 @@ static func is_snapshot_envelope_valid(snapshot: Dictionary) -> bool:
 		return false
 	if GFVariantData.get_option_int(snapshot, &"schema_version", 0) != SNAPSHOT_SCHEMA_VERSION:
 		return false
+	var topology_data_value: Variant = GFVariantData.get_option_value(
+		snapshot,
+		&"topology"
+	)
+	var tiles_value: Variant = GFVariantData.get_option_value(
+		snapshot,
+		&"tiles"
+	)
+	if not topology_data_value is Dictionary or not tiles_value is Array:
+		return false
 	var topology_value: BoardTopology = BoardTopology.from_dict(
-		GFVariantData.get_option_dictionary(snapshot, &"topology")
+		GFVariantData.as_dictionary(topology_data_value)
 	)
 	if topology_value == null:
 		return false
 	var seen_cells: Dictionary = {}
 	var seen_tile_ids: Dictionary = {}
-	var tiles: Array = GFVariantData.get_option_array(snapshot, &"tiles")
+	var tiles: Array = GFVariantData.as_array(tiles_value)
 	if tiles.size() > topology_value.get_cell_count():
 		return false
 	for tile_value: Variant in tiles:
@@ -331,8 +350,21 @@ func _prepare_snapshot_restore(
 			report_errors
 		)
 
+	var topology_data_value: Variant = GFVariantData.get_option_value(
+		snapshot,
+		&"topology"
+	)
+	var tiles_value: Variant = GFVariantData.get_option_value(
+		snapshot,
+		&"tiles"
+	)
+	if not topology_data_value is Dictionary or not tiles_value is Array:
+		return _snapshot_restore_failure(
+			"棋盘快照包含无效拓扑或方块根。",
+			report_errors
+		)
 	var restored_topology: BoardTopology = BoardTopology.from_dict(
-		GFVariantData.get_option_dictionary(snapshot, &"topology")
+		GFVariantData.as_dictionary(topology_data_value)
 	)
 	if restored_topology == null:
 		return _snapshot_restore_failure("棋盘快照包含无效拓扑。", report_errors)
@@ -340,7 +372,7 @@ func _prepare_snapshot_restore(
 	var restored_tiles_by_cell: Dictionary = {}
 	var restored_tiles: Array[TileState] = []
 	var seen_tile_ids: Dictionary = {}
-	for raw_tile_info: Variant in GFVariantData.get_option_array(snapshot, &"tiles"):
+	for raw_tile_info: Variant in GFVariantData.as_array(tiles_value):
 		if not raw_tile_info is Dictionary:
 			_release_tiles(restored_tiles)
 			return _snapshot_restore_failure(
@@ -447,8 +479,19 @@ static func _is_tile_snapshot_envelope_valid(tile: Dictionary, seen_tile_ids: Di
 		return false
 	seen_tile_ids[tile_id] = true
 
+	var recipe_ids_value: Variant = GFVariantData.get_option_value(
+		tile,
+		&"capability_recipe_ids"
+	)
+	var capability_state_value: Variant = GFVariantData.get_option_value(
+		tile,
+		&"capability_state"
+	)
+	if not recipe_ids_value is Array or not capability_state_value is Dictionary:
+		return false
+	var recipe_ids: Array = GFVariantData.as_array(recipe_ids_value)
 	var seen_recipe_ids: Dictionary = {}
-	for recipe_id_value: Variant in GFVariantData.get_option_array(tile, &"capability_recipe_ids"):
+	for recipe_id_value: Variant in recipe_ids:
 		if not recipe_id_value is StringName:
 			return false
 		var recipe_id: StringName = recipe_id_value
@@ -458,8 +501,15 @@ static func _is_tile_snapshot_envelope_valid(tile: Dictionary, seen_tile_ids: Di
 	if seen_recipe_ids.is_empty():
 		return false
 
-	var capability_state: Dictionary = GFVariantData.get_option_dictionary(tile, &"capability_state")
+	var capability_state: Dictionary = GFVariantData.as_dictionary(
+		capability_state_value
+	)
 	for state_key: Variant in capability_state:
 		if not state_key is StringName or not seen_recipe_ids.has(state_key):
 			return false
-	return true
+	# capability_state 是 gameplay-owned 领域状态；在它进入 MoveCommand、
+	# 书签或回放之前统一拒绝 Object、环、unsupported 与 NaN/Inf。
+	return not GFDeterministicVariantSerializer.to_canonical_bytes(
+		capability_state,
+		_CAPABILITY_STATE_CANONICAL_OPTIONS
+	).is_empty()

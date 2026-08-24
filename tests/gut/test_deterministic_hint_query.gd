@@ -5,7 +5,7 @@ extends GutTest
 # --- 常量 ---
 
 const _HUD_SCENE: PackedScene = preload(
-	"res://features/gameplay/scenes/ui/hud.tscn"
+	"res://features/game_session/scenes/ui/hud.tscn"
 )
 const GameHintResultType = preload(
 	"res://features/gameplay/scripts/data/game_hint_result.gd"
@@ -14,11 +14,11 @@ const DeterministicHintQueryType = preload(
 	"res://features/gameplay/scripts/queries/deterministic_hint_query.gd"
 )
 const _GAMEPLAY_INPUT_CONTEXT: GFInputContext = preload(
-	"res://features/gameplay/resources/input/gameplay_input_context.tres"
+	"res://features/game_session/resources/input/gameplay_input_context.tres"
 )
-const _HUD_SCRIPT_PATH: String = "res://features/gameplay/scripts/ui/hud.gd"
+const _HUD_SCRIPT_PATH: String = "res://features/game_session/scripts/ui/hud.gd"
 const _PLAYER_INPUT_SCRIPT_PATH: String = (
-	"res://features/gameplay/scripts/systems/player_input_system.gd"
+	"res://features/game_session/scripts/systems/player_input_system.gd"
 )
 const _MODE_PATHS: PackedStringArray = [
 	"res://features/gameplay/resources/modes/classic_mode_config.tres",

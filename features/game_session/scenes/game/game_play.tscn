@@ -1,0 +1,295 @@
+[gd_scene format=3 uid="uid://28ale2iku1n4"]
+
+[ext_resource type="PackedScene" uid="uid://b3x8q5j4l2k1" path="res://features/themes/scenes/layouts/base_three_column_layout.tscn" id="1_base"]
+[ext_resource type="Script" uid="uid://fmrvmyx3dskq" path="res://features/game_session/scripts/controllers/game_play_controller.gd" id="2_script"]
+[ext_resource type="PackedScene" uid="uid://cjq41cf2jqg1h" path="res://features/game_session/scenes/ui/hud.tscn" id="3_hud"]
+[ext_resource type="Script" uid="uid://boe2tlkv8ivfw" path="res://features/game_session/scripts/controllers/game_board_controller.gd" id="4_board"]
+[ext_resource type="Shader" uid="uid://bcbbruhugjje" path="res://features/asset_library/resources/shaders/background/halftone_paper_background.gdshader" id="6_background_shader"]
+[ext_resource type="Script" path="res://features/game_session/scripts/controllers/board_world_viewport_controller.gd" id="7_board_viewport"]
+[ext_resource type="Script" path="res://features/game_session/scripts/controllers/gameplay_responsive_layout_controller.gd" id="8_responsive_layout"]
+[ext_resource type="Script" path="res://addons/gf/extensions/feedback/nodes/gf_shake_receiver_2d.gd" id="9_shake_receiver"]
+[ext_resource type="Script" path="res://features/themes/scripts/ui/board/board_feedback_canvas.gd" id="10_feedback_canvas"]
+[ext_resource type="Script" path="res://features/themes/scripts/ui/board/board_motion_backdrop.gd" id="11_motion_backdrop"]
+[ext_resource type="Script" path="res://addons/gf/standard/utilities/spatial_canvas/gf_spatial_canvas_2d.gd" id="12_spatial_canvas"]
+[ext_resource type="PackedScene" path="res://features/game_session/scenes/ui/replay_timeline.tscn" id="13_replay_timeline"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_background"]
+shader = ExtResource("6_background_shader")
+shader_parameter/base_color = Color(0.95686275, 0.92941177, 0.8666667, 1)
+shader_parameter/accent_color = Color(0.61960787, 0.85882354, 0.8352941, 1)
+shader_parameter/secondary_color = Color(0.9372549, 0.81960785, 0.3647059, 1)
+shader_parameter/warm_color = Color(0.9607843, 0.6392157, 0.7882353, 1)
+shader_parameter/grid_strength = 0.035
+shader_parameter/glow_strength = 0.0
+shader_parameter/vignette_strength = 0.045
+shader_parameter/pulse_speed = 0.0
+shader_parameter/grain_strength = 0.018
+shader_parameter/stipple_strength = 0.006
+shader_parameter/flow_scale = 1.35
+shader_parameter/scanline_strength = 0.0
+shader_parameter/interaction_offset = Vector2(0, 0)
+shader_parameter/interaction_direction = Vector2(0, 0)
+shader_parameter/interaction_energy = 0.0
+shader_parameter/interaction_phase = 1.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_0wfyh"]
+bg_color = Color(0, 0, 0, 0)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_view_controls"]
+bg_color = Color(1, 0.972549, 0.9098039, 0.94)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.18431373, 0.1882353, 0.21568628, 0.9)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[node name="GamePlay" unique_id=993855468 instance=ExtResource("1_base")]
+script = ExtResource("2_script")
+
+[node name="Background" parent="." index="0"]
+material = SubResource("ShaderMaterial_background")
+
+[node name="HUD" parent="." index="2" unique_id=758110357 instance=ExtResource("3_hud")]
+unique_name_in_owner = true
+z_index = 20
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="GameplayResponsiveLayoutController" type="Node" parent="." index="3" unique_id=709227198]
+unique_name_in_owner = true
+script = ExtResource("8_responsive_layout")
+
+[node name="ReplayControlsContainer" type="PanelContainer" parent="." index="4" unique_id=1861338845]
+unique_name_in_owner = true
+visible = false
+z_index = 21
+layout_mode = 1
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = 8.0
+offset_top = -160.0
+offset_right = 308.0
+offset_bottom = 160.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_view_controls")
+
+[node name="MarginContainer" type="MarginContainer" parent="ReplayControlsContainer" index="0"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 10
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ReplayControlsContainer/MarginContainer" index="0"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ReplayProgressLabel" type="Label" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="0" unique_id=1478657253]
+unique_name_in_owner = true
+layout_mode = 2
+text = "0 / 0"
+horizontal_alignment = 1
+
+[node name="ReplayTimeline" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="1" instance=ExtResource("13_replay_timeline")]
+unique_name_in_owner = true
+focus_neighbor_top = NodePath("../Transport/ReplayExitButton")
+focus_neighbor_bottom = NodePath("../ReplayMarkerPicker")
+
+[node name="ReplayMarkerPicker" type="OptionButton" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="2"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+focus_neighbor_top = NodePath("../ReplayTimeline")
+focus_neighbor_bottom = NodePath("../MarkerTransport/ReplayPrevMarkerButton")
+fit_to_longest_item = false
+allow_reselect = true
+text_overrun_behavior = 3
+
+[node name="MarkerTransport" type="GridContainer" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="3"]
+layout_mode = 2
+theme_override_constants/separation = 8
+columns = 2
+
+[node name="ReplayPrevMarkerButton" type="Button" parent="ReplayControlsContainer/MarginContainer/VBoxContainer/MarkerTransport" index="0"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(128, 44)
+layout_mode = 2
+focus_neighbor_top = NodePath("../../ReplayMarkerPicker")
+focus_neighbor_bottom = NodePath("../../Transport/ReplayPrevButton")
+text = "上一标记"
+
+[node name="ReplayNextMarkerButton" type="Button" parent="ReplayControlsContainer/MarginContainer/VBoxContainer/MarkerTransport" index="1"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(128, 44)
+layout_mode = 2
+focus_neighbor_top = NodePath("../../ReplayMarkerPicker")
+focus_neighbor_bottom = NodePath("../../Transport/ReplayNextButton")
+text = "下一标记"
+
+[node name="Transport" type="GridContainer" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="4"]
+layout_mode = 2
+theme_override_constants/separation = 8
+columns = 2
+
+[node name="ReplayPrevButton" type="Button" parent="ReplayControlsContainer/MarginContainer/VBoxContainer/Transport" index="0"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(128, 44)
+layout_mode = 2
+focus_neighbor_top = NodePath("../../MarkerTransport/ReplayPrevMarkerButton")
+focus_neighbor_bottom = NodePath("../ReplayContinueButton")
+text = "上一步"
+
+[node name="ReplayNextButton" type="Button" parent="ReplayControlsContainer/MarginContainer/VBoxContainer/Transport" index="1"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(128, 44)
+layout_mode = 2
+focus_neighbor_top = NodePath("../../MarkerTransport/ReplayNextMarkerButton")
+focus_neighbor_bottom = NodePath("../ReplayExitButton")
+text = "下一步"
+
+[node name="ReplayContinueButton" type="Button" parent="ReplayControlsContainer/MarginContainer/VBoxContainer/Transport" index="2"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(128, 44)
+layout_mode = 2
+focus_neighbor_top = NodePath("../ReplayPrevButton")
+focus_neighbor_bottom = NodePath("../../ReplayTimeline")
+text = "从此继续"
+
+[node name="ReplayExitButton" type="Button" parent="ReplayControlsContainer/MarginContainer/VBoxContainer/Transport" index="3"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(128, 44)
+layout_mode = 2
+focus_neighbor_top = NodePath("../ReplayNextButton")
+focus_neighbor_bottom = NodePath("../../ReplayTimeline")
+text = "退出回放"
+
+[node name="ReplayEligibilityLabel" type="Label" parent="ReplayControlsContainer/MarginContainer/VBoxContainer" index="5"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.46666667, 0.45882353, 0.43529412, 1)
+theme_override_font_sizes/font_size = 12
+text = "从此继续会退出回放，并标记为不参与竞赛成绩。"
+autowrap_mode = 2
+
+[node name="LeftColumn" parent="MarginContainer/ColumnsContainer" index="0"]
+visible = false
+
+[node name="RightColumn" parent="MarginContainer/ColumnsContainer" index="2"]
+visible = false
+
+[node name="PageTitle" parent="MarginContainer/ColumnsContainer/CenterColumn" index="0"]
+visible = false
+text = ""
+
+[node name="BoardViewport" type="Control" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder" index="0" unique_id=1450272152]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+clip_contents = true
+script = ExtResource("12_spatial_canvas")
+
+[node name="BoardWorldViewportController" type="Node" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport" index="0" unique_id=200455013]
+unique_name_in_owner = true
+script = ExtResource("7_board_viewport")
+
+[node name="BoardWorld" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport" index="1" unique_id=1153818284]
+unique_name_in_owner = true
+
+[node name="BoardFeedbackRoot" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld" index="0"]
+unique_name_in_owner = true
+
+[node name="BoardMotionBackdrop" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot" index="0"]
+unique_name_in_owner = true
+script = ExtResource("11_motion_backdrop")
+
+[node name="BoardShakeRoot" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot" index="1"]
+unique_name_in_owner = true
+
+[node name="GameBoardHost" type="Control" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot/BoardShakeRoot" index="0" unique_id=156759848]
+unique_name_in_owner = true
+mouse_filter = 2
+
+[node name="BoardBackground" type="Panel" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot/BoardShakeRoot/GameBoardHost" index="0" unique_id=169865869]
+unique_name_in_owner = true
+z_index = 0
+mouse_filter = 2
+layout_mode = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_0wfyh")
+
+[node name="BoardContainer" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot/BoardShakeRoot/GameBoardHost" index="1" unique_id=788591149]
+unique_name_in_owner = true
+
+[node name="GameBoard" type="Node" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot/BoardShakeRoot/GameBoardHost" index="2" unique_id=2054564402]
+unique_name_in_owner = true
+script = ExtResource("4_board")
+
+[node name="BoardFeedbackCanvas" type="Node2D" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot" index="2"]
+unique_name_in_owner = true
+script = ExtResource("10_feedback_canvas")
+
+[node name="BoardShakeReceiver" type="Node" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/BoardWorld/BoardFeedbackRoot" index="3"]
+script = ExtResource("9_shake_receiver")
+target_path = NodePath("../BoardShakeRoot")
+channel = &"board"
+apply_position = true
+apply_rotation = true
+apply_scale = false
+
+[node name="ViewControls" type="PanelContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport" index="2" unique_id=828732938]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -240.0
+offset_top = 12.0
+offset_right = -12.0
+offset_bottom = 64.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_view_controls")
+
+[node name="Margin" type="MarginContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/ViewControls" index="0" unique_id=51778164]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 4
+
+[node name="Buttons" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/ViewControls/Margin" index="0" unique_id=1238524070]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="ZoomOutButton" type="Button" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/ViewControls/Margin/Buttons" index="0" unique_id=461885615]
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+tooltip_text = "缩小棋盘"
+text = "-"
+
+[node name="ZoomLabel" type="Label" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/ViewControls/Margin/Buttons" index="1" unique_id=531058721]
+custom_minimum_size = Vector2(52, 44)
+layout_mode = 2
+text = "100%"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="FitButton" type="Button" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/ViewControls/Margin/Buttons" index="2" unique_id=1633632445]
+custom_minimum_size = Vector2(64, 44)
+layout_mode = 2
+tooltip_text = "显示完整棋盘"
+text = "适配"
+
+[node name="ZoomInButton" type="Button" parent="MarginContainer/ColumnsContainer/CenterColumn/CenterContentHolder/BoardViewport/ViewControls/Margin/Buttons" index="3" unique_id=742923946]
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+tooltip_text = "放大棋盘"
+text = "+"

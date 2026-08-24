@@ -8,7 +8,7 @@ const _PROFILE: GameBoardFeedbackProfile = preload(
 	"res://features/themes/resources/themes/game/feedback/halftone_atlas_board_feedback_profile.tres"
 )
 const _HUD_SCENE: PackedScene = preload(
-	"res://features/gameplay/scenes/ui/hud.tscn"
+	"res://features/game_session/scenes/ui/hud.tscn"
 )
 
 

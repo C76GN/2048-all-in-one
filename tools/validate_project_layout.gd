@@ -1,4 +1,4 @@
-## 使用项目 profile 运行 GFProjectLayoutValidator，并写入机器可读报告。
+## 使用项目 profile 运行 GFProjectLayoutAnalyzer，并写入机器可读报告。
 extends SceneTree
 
 
@@ -11,19 +11,25 @@ const REPORT_PATH: String = "res://build/project_layout_report.json"
 # --- Godot 生命周期方法 ---
 
 func _init() -> void:
-	var validator: GFProjectLayoutValidator = GFProjectLayoutValidator.new()
-	var report: Dictionary = validator.validate_profile_path(PROFILE_PATH, {
+	var analyzer: GFProjectLayoutAnalyzer = GFProjectLayoutAnalyzer.new()
+	var report: Dictionary = analyzer.analyze_profile_path(PROFILE_PATH, {
 		"root_path": "res://",
-		"include_hidden": false,
-		"max_scanned_files": 50000,
-		"max_scanned_directories": 20000,
-		"max_scan_depth": 64,
 	})
+	var resource_reference_report: Dictionary = (
+		ProjectResourceReferenceValidator.validate_project_resources()
+	)
+	_merge_resource_reference_report(report, resource_reference_report)
 	var write_error: Error = _write_report(report)
 	var is_clean: bool = (
 		write_error == OK
 		and
-		GFVariantData.get_option_bool(report, "success")
+		GFVariantData.get_option_int(report, "schema_version") == 1
+		and GFVariantData.get_option_string(report, "kind") == "project_layout_analysis"
+		and GFVariantData.get_option_string(report, "evaluation_status") == "complete"
+		and GFVariantData.get_option_bool(report, "input_complete")
+		and GFVariantData.get_option_bool(report, "evaluation_complete")
+		and GFVariantData.get_option_bool(report, "success")
+		and GFVariantData.get_option_bool(resource_reference_report, "success")
 		and GFVariantData.get_option_int(report, "warning_count") == 0
 	)
 	_print_summary(report, is_clean)
@@ -31,6 +37,26 @@ func _init() -> void:
 
 
 # --- 私有/辅助方法 ---
+
+func _merge_resource_reference_report(
+	report: Dictionary,
+	resource_reference_report: Dictionary
+) -> void:
+	report["resource_reference_validation"] = resource_reference_report
+	var issues: Array = GFVariantData.get_option_array(report, "issues")
+	issues.append_array(GFVariantData.get_option_array(resource_reference_report, "issues"))
+	report["issues"] = issues
+	var resource_error_count: int = GFVariantData.get_option_int(
+		resource_reference_report,
+		"error_count"
+	)
+	report["error_count"] = (
+		GFVariantData.get_option_int(report, "error_count") + resource_error_count
+	)
+	report["success"] = (
+		GFVariantData.get_option_bool(report, "success")
+		and GFVariantData.get_option_bool(resource_reference_report, "success")
+	)
 
 func _write_report(report: Dictionary) -> Error:
 	var artifact_report: Dictionary = GFGeneratedArtifactReport.save_text(
@@ -50,11 +76,16 @@ func _write_report(report: Dictionary) -> Error:
 
 func _print_summary(report: Dictionary, succeeded: bool) -> void:
 	var summary_prefix: String = "Project layout:" if succeeded else "Project layout failed:"
-	print("%s profile=%s files=%d directories=%d errors=%d warnings=%d" % [
+	var resource_report: Dictionary = GFVariantData.get_option_dictionary(
+		report,
+		"resource_reference_validation"
+	)
+	print("%s profile=%s files=%d directories=%d refs=%d errors=%d warnings=%d" % [
 		summary_prefix,
 		GFVariantData.get_option_string(report, "profile_id"),
 		GFVariantData.get_option_int(report, "file_count"),
 		GFVariantData.get_option_int(report, "directory_count"),
+		GFVariantData.get_option_int(resource_report, "reference_count"),
 		GFVariantData.get_option_int(report, "error_count"),
 		GFVariantData.get_option_int(report, "warning_count"),
 	])

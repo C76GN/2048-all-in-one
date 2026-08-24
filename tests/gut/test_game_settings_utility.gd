@@ -27,14 +27,14 @@ func test_project_defaults_register_independent_audio_bus_volumes() -> void:
 		)
 	assert_true(
 		settings.has_setting(
-			GameSettingsUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY
+			GamePerformanceTraceUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY
 		),
 		"项目设置必须注册本地性能诊断的显式同意项。"
 	)
 	assert_false(
 		GFVariantData.to_bool(
 			settings.get_value(
-				GameSettingsUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
+				GamePerformanceTraceUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
 				true
 			),
 			true

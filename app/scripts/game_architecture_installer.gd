@@ -25,23 +25,26 @@ const _LOCAL_ACCOUNT_SYSTEM_SCRIPT: Script = preload(
 	"res://features/player_profiles/scripts/systems/local_account_system.gd"
 )
 const _GAME_SAVE_GRAPH_UTILITY_SCRIPT: Script = preload("res://features/persistence/scripts/utilities/game_save_graph_utility.gd")
+const _CHUNK_PROFILE_UTILITY_SCRIPT: Script = preload(
+	"res://features/persistence/scripts/chunking/chunk_profile_utility.gd"
+)
 const _GAME_MODE_CATALOG_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/utilities/game_mode_catalog_utility.gd")
 const _GAME_DETERMINISM_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/utilities/game_determinism_utility.gd")
 const _GAME_PERFORMANCE_TRACE_UTILITY_SCRIPT: Script = preload(
-	"res://features/gameplay/scripts/utilities/game_performance_trace_utility.gd"
+	"res://features/game_session/scripts/utilities/game_performance_trace_utility.gd"
 )
 const _TILE_CATALOG_UTILITY_SCRIPT: Script = preload("res://features/tile_catalog/scripts/utilities/tile_catalog_utility.gd")
 const _ACHIEVEMENT_CATALOG_UTILITY_SCRIPT: Script = preload("res://features/achievements/scripts/utilities/achievement_catalog_utility.gd")
-const _GAME_PAUSE_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/utilities/game_pause_utility.gd")
+const _GAME_PAUSE_UTILITY_SCRIPT: Script = preload("res://features/game_session/scripts/utilities/game_pause_utility.gd")
 const _GAME_REALTIME_TIMER_UTILITY_SCRIPT: Script = preload(
-	"res://features/gameplay/scripts/utilities/game_realtime_timer_utility.gd"
+	"res://features/game_session/scripts/utilities/game_realtime_timer_utility.gd"
 )
-const _GAME_INPUT_PROFILE_UTILITY_SCRIPT: Script = preload("res://features/settings/scripts/utilities/game_input_profile_utility.gd")
-const _GAME_ACCESSIBILITY_UTILITY_SCRIPT: Script = preload("res://features/settings/scripts/utilities/game_accessibility_utility.gd")
+const _GAME_INPUT_PROFILE_UTILITY_SCRIPT: Script = preload("res://features/game_session/scripts/utilities/game_input_profile_utility.gd")
+const _GAME_ACCESSIBILITY_UTILITY_SCRIPT: Script = preload("res://features/accessibility/scripts/utilities/game_accessibility_utility.gd")
 const _GAME_ACCESSIBILITY_SUMMARY_UTILITY_SCRIPT: Script = preload(
 	"res://features/accessibility/scripts/utilities/game_accessibility_summary_utility.gd"
 )
-const _GAME_BOARD_ANIMATION_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/utilities/game_board_animation_utility.gd")
+const _GAME_BOARD_ANIMATION_UTILITY_SCRIPT: Script = preload("res://features/game_session/scripts/utilities/game_board_animation_utility.gd")
 const _TILE_COMPOSITION_UTILITY_SCRIPT: Script = preload("res://features/gameplay/scripts/tiles/utilities/tile_composition_utility.gd")
 const _GAME_UI_ROUTER_UTILITY_SCRIPT: Script = preload("res://features/navigation/scripts/utilities/game_ui_router_utility.gd")
 const _GAME_UI_STYLE_UTILITY_SCRIPT: Script = preload("res://features/themes/scripts/utilities/game_ui_style_utility.gd")
@@ -187,11 +190,20 @@ func _bind_required_scripts(
 
 
 func _bind_models(binder: GFBinder, scope: GFAsyncScope) -> void:
-	var required_models: Array[Script] = [
-		AppConfigModel,
+	var gameplay_core_models: Array[Script] = [
 		GridModel,
 		GameStatusModel,
+	]
+	var game_session_models: Array[Script] = [
+		AppConfigModel,
 		CurrentGameModel,
+	]
+	# 保留既有注册顺序：AppConfig -> Grid -> Status -> CurrentGame。
+	var required_models: Array[Script] = [
+		game_session_models[0],
+		gameplay_core_models[0],
+		gameplay_core_models[1],
+		game_session_models[1],
 	]
 	if not await _bind_required_scripts(binder, scope, &"model", required_models):
 		return
@@ -342,6 +354,13 @@ func _bind_content_and_gameplay_utilities(binder: GFBinder, scope: GFAsyncScope)
 	):
 		return
 	if not await _bind_required(
+		binder.bind_utility(_CHUNK_PROFILE_UTILITY_SCRIPT),
+		scope,
+		&"utility",
+		_CHUNK_PROFILE_UTILITY_SCRIPT
+	):
+		return
+	if not await _bind_required(
 		binder.bind_utility(_GAME_SAVE_GRAPH_UTILITY_SCRIPT).from_instance(
 			_create_game_save_graph_utility()
 		),
@@ -400,6 +419,11 @@ func _bind_presentation_utilities(binder: GFBinder, scope: GFAsyncScope) -> void
 		GFUIRouterUtility
 	):
 		return
+	# 两个 alias 都直接指向 navigation Adapter，禁止形成 alias 链。
+	_architecture.register_utility_alias(
+		GameUiRouterPort,
+		_GAME_UI_ROUTER_UTILITY_SCRIPT
+	)
 	var project_presentation_scripts: Array[Script] = [
 		_GAME_ASSET_LIBRARY_UTILITY_SCRIPT,
 		_GAME_BACKGROUND_MUSIC_UTILITY_SCRIPT,
@@ -463,11 +487,20 @@ func _bind_systems(binder: GFBinder, scope: GFAsyncScope) -> void:
 
 
 func _bind_state_and_navigation_systems(binder: GFBinder, scope: GFAsyncScope) -> void:
-	var navigation_system_scripts: Array[Script] = [
-		GameStateSystem,
+	if not await _bind_required(
+		binder.bind_system(GameStateSystem),
+		scope,
+		&"system",
+		GameStateSystem
+	):
+		return
+	if not await _bind_required(
+		binder.bind_system(SceneRouterSystem).with_alias(GameSceneRouterPort),
+		scope,
+		&"system",
 		SceneRouterSystem,
-	]
-	if not await _bind_required_scripts(binder, scope, &"system", navigation_system_scripts):
+		GameSceneRouterPort
+	):
 		return
 
 
@@ -487,17 +520,40 @@ func _bind_progression_systems(binder: GFBinder, scope: GFAsyncScope) -> void:
 
 
 func _bind_gameplay_systems(binder: GFBinder, scope: GFAsyncScope) -> void:
-	var gameplay_system_scripts: Array[Script] = [
-		GameFlowSystem,
+	if not await _bind_required(
+		binder.bind_system(GameSessionLaunchSystem).with_alias(
+			GameSessionLaunchPort
+		),
+		scope,
+		&"system",
+		GameSessionLaunchSystem,
+		GameSessionLaunchPort
+	):
+		return
+	var gameplay_core_systems: Array[Script] = [
 		GridMovementSystem,
 		RuleSystem,
-		GameTurnSystem,
 		GridSpawnSystem,
+	]
+	var game_session_systems: Array[Script] = [
+		GameFlowSystem,
+		GameTurnSystem,
 		GameInitSystem,
 		PlayerInputSystem,
 		ReplayInputSystem,
 	]
-	if not await _bind_required_scripts(binder, scope, &"system", gameplay_system_scripts):
+	# 保留既有依赖敏感顺序，只显式标注 core/session 所有权。
+	var ordered_system_scripts: Array[Script] = [
+		game_session_systems[0],
+		gameplay_core_systems[0],
+		gameplay_core_systems[1],
+		game_session_systems[1],
+		gameplay_core_systems[2],
+		game_session_systems[2],
+		game_session_systems[3],
+		game_session_systems[4],
+	]
+	if not await _bind_required_scripts(binder, scope, &"system", ordered_system_scripts):
 		return
 
 
@@ -558,6 +614,14 @@ func _create_platform_runtime() -> GFPlatformRuntime:
 
 func _create_game_save_graph_utility() -> GameSaveGraphUtility:
 	var save_graph: GameSaveGraphUtility = GameSaveGraphUtility.new()
+	var bookmark_data: BookmarkCatalogSaveData = BookmarkCatalogSaveData.new()
+	var bookmark_profile_provider: BookmarkManifestSaveSectionProvider = (
+		BookmarkManifestSaveSectionProvider.new(bookmark_data)
+	)
+	var replay_data: ReplayCatalogSaveData = ReplayCatalogSaveData.new()
+	var replay_profile_provider: ReplayManifestSaveSectionProvider = (
+		ReplayManifestSaveSectionProvider.new(replay_data)
+	)
 	var progress_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.PROGRESS_SECTION_ID,
 		GameStatsSaveData.new(),
@@ -565,8 +629,9 @@ func _create_game_save_graph_utility() -> GameSaveGraphUtility:
 	)
 	var bookmarks_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
-		BookmarkCatalogSaveData.new(),
-		GameSaveGraphUtility.SectionOrder.NORMAL
+		bookmark_data,
+		GameSaveGraphUtility.SectionOrder.NORMAL,
+		bookmark_profile_provider
 	)
 	var custom_boards_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.CUSTOM_BOARDS_SECTION_ID,
@@ -590,8 +655,9 @@ func _create_game_save_graph_utility() -> GameSaveGraphUtility:
 	)
 	var replays_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.REPLAYS_SECTION_ID,
-		ReplayCatalogSaveData.new(),
-		GameSaveGraphUtility.SectionOrder.LATE
+		replay_data,
+		GameSaveGraphUtility.SectionOrder.LATE,
+		replay_profile_provider
 	)
 	if (
 		not progress_registered

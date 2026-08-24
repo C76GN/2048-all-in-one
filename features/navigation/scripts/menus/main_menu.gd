@@ -22,11 +22,11 @@ const _INTRO_MENU_DELAY: float = 0.24
 const _FULL_INTRO_WINDOW: float = 0.92
 const _POPUP_INTENT_PRELOAD_GROUP_ID: StringName = &"main_menu_popup_intent"
 const _POPUP_INTENT_PRELOAD_PLAN_ID: StringName = &"main_menu_popup_intent.preload"
-const _POPUP_INTENT_PRELOAD_ROUTE_IDS: Array[String] = [
-	"tile_catalog",
-	"tile_lab",
-	"player_profile",
-	"achievements",
+const _POPUP_INTENT_PRELOAD_ROUTE_IDS: Array[StringName] = [
+	TileCatalogDialog.ROUTE_ID,
+	GameUiRouterUtility.ROUTE_TILE_LAB,
+	GameUiRouterUtility.ROUTE_PLAYER_PROFILE,
+	AchievementListDialog.ROUTE_ID,
 ]
 
 
@@ -55,7 +55,7 @@ static var _has_played_full_intro: bool = false
 var _layout_update_queued: bool = false
 var _viewport_utility: GFViewportUtility = null
 var _content_scroll: ScrollContainer = null
-var _latest_valid_bookmark: BookmarkData = null
+var _latest_resumable_bookmark_id: String = ""
 var _initial_scroll_restored: bool = false
 var _intro_in_progress: bool = false
 var _intro_completion_tween: Tween = null
@@ -143,6 +143,18 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # --- 私有/辅助方法 ---
 
+func _get_game_ui_router_utility() -> GameUiRouterUtility:
+	var utility_value: Object = _find_optional_utility(GameUiRouterUtility)
+	if utility_value is GameUiRouterUtility:
+		var ui_router: GameUiRouterUtility = utility_value
+		return ui_router
+	var aliased_utility: GFUIRouterUtility = _get_ui_router_utility()
+	if aliased_utility is GameUiRouterUtility:
+		var game_ui_router: GameUiRouterUtility = aliased_utility
+		return game_ui_router
+	return null
+
+
 func _goto_scene(scene_path: String, property_name: String) -> void:
 	if scene_path.is_empty():
 		push_error("[MainMenu] 场景路径 %s 未设置。" % property_name)
@@ -170,7 +182,7 @@ func _start_popup_intent_preload_after_first_draw() -> void:
 		return
 	var asset_utility: GFAssetUtility = asset_value
 	var preload_result: Dictionary = ui_router.build_preload_plan(
-		GameUiRouterUtility.ROUTE_TILE_CATALOG,
+		TileCatalogDialog.ROUTE_ID,
 		{
 			"max_depth": 0,
 			"max_routes": _POPUP_INTENT_PRELOAD_ROUTE_IDS.size(),
@@ -593,43 +605,24 @@ func _is_reduced_motion_enabled() -> bool:
 	return false
 
 
-func _get_bookmark_system() -> BookmarkSystem:
-	var system_value: Object = get_system(BookmarkSystem)
-	if system_value is BookmarkSystem:
-		var bookmark_system: BookmarkSystem = system_value
-		return bookmark_system
-	return null
-
-
-func _get_app_config_model() -> AppConfigModel:
-	var model_value: Object = get_model(AppConfigModel)
-	if model_value is AppConfigModel:
-		var app_config: AppConfigModel = model_value
-		return app_config
-	return null
-
-
-func _get_mode_catalog_utility() -> GameModeCatalogUtility:
-	var utility_value: Object = get_utility(GameModeCatalogUtility)
-	if utility_value is GameModeCatalogUtility:
-		var mode_catalog: GameModeCatalogUtility = utility_value
-		return mode_catalog
-	return null
-
-
-func _get_determinism_utility() -> GameDeterminismUtility:
-	var utility_value: Object = get_utility(GameDeterminismUtility)
-	if utility_value is GameDeterminismUtility:
-		var determinism: GameDeterminismUtility = utility_value
-		return determinism
+func _get_session_launch_port() -> GameSessionLaunchPort:
+	var system_value: Object = get_system(GameSessionLaunchPort)
+	if system_value is GameSessionLaunchPort:
+		var launch_port: GameSessionLaunchPort = system_value
+		return launch_port
 	return null
 
 
 func _refresh_continue_game_state() -> void:
-	_latest_valid_bookmark = _find_latest_valid_bookmark()
+	_latest_resumable_bookmark_id = ""
+	var launch_port: GameSessionLaunchPort = _get_session_launch_port()
+	if is_instance_valid(launch_port):
+		_latest_resumable_bookmark_id = (
+			launch_port.get_latest_resumable_bookmark_id()
+		)
 	if not is_instance_valid(_continue_game_button):
 		return
-	_continue_game_button.disabled = not is_instance_valid(_latest_valid_bookmark)
+	_continue_game_button.disabled = _latest_resumable_bookmark_id.is_empty()
 	if is_instance_valid(_continue_hint_label):
 		_continue_hint_label.visible = _continue_game_button.disabled
 	_continue_game_button.tooltip_text = (
@@ -641,55 +634,14 @@ func _refresh_continue_game_state() -> void:
 		_prime_scene_for_button(_continue_game_button, game_scene_path)
 
 
-func _find_latest_valid_bookmark() -> BookmarkData:
-	var bookmark_system: BookmarkSystem = _get_bookmark_system()
-	var mode_catalog: GameModeCatalogUtility = _get_mode_catalog_utility()
-	var determinism: GameDeterminismUtility = _get_determinism_utility()
-	if (
-		not is_instance_valid(bookmark_system)
-		or not is_instance_valid(mode_catalog)
-		or not is_instance_valid(determinism)
-	):
-		return null
-
-	var registered_paths: PackedStringArray = mode_catalog.get_registered_config_paths()
-	for bookmark: BookmarkData in bookmark_system.load_bookmarks():
-		if not registered_paths.has(bookmark.mode_config_path):
-			continue
-		var mode_config: GameModeConfig = mode_catalog.get_config(bookmark.mode_config_path)
-		if not _is_bookmark_valid_for_resume(bookmark, mode_config, determinism):
-			continue
-		return bookmark
-	return null
-
-
-static func _is_bookmark_valid_for_resume(
-	bookmark: BookmarkData,
-	mode_config: GameModeConfig,
-	determinism: GameDeterminismUtility
-) -> bool:
-	return (
-		is_instance_valid(bookmark)
-		and is_instance_valid(mode_config)
-		and is_instance_valid(determinism)
-		and mode_config.validate()
-		and bookmark.target_tile_value == maxi(mode_config.target_tile_value, 0)
-		and bookmark.matches_ruleset(mode_config, determinism)
-	)
-
-
-func _resume_bookmark(bookmark: BookmarkData) -> void:
-	if not is_instance_valid(bookmark):
+func _resume_bookmark(bookmark_id: String) -> void:
+	if bookmark_id.is_empty():
 		return
-	var app_config: AppConfigModel = _get_app_config_model()
-	if not is_instance_valid(app_config):
-		push_error("[MainMenu] 缺少 AppConfigModel，无法继续存档。")
+	var launch_port: GameSessionLaunchPort = _get_session_launch_port()
+	if not is_instance_valid(launch_port):
+		push_error("[MainMenu] 缺少 GameSessionLaunchPort，无法继续存档。")
 		return
-	app_config.current_replay_data.set_value(null)
-	app_config.selected_bookmark_data.set_value(bookmark)
-	app_config.selected_mode_config_path.set_value("")
-	app_config.selected_board_topology.set_value(null)
-	_goto_scene(game_scene_path, "game_scene_path")
+	var _launched: bool = launch_port.launch_bookmark(bookmark_id)
 
 
 func _report_route_open_failure(result: GFUIRouteResult, route_id: StringName) -> void:
@@ -766,8 +718,8 @@ func _on_start_game_button_pressed() -> void:
 
 func _on_continue_game_button_pressed() -> void:
 	_refresh_continue_game_state()
-	if is_instance_valid(_latest_valid_bookmark):
-		_resume_bookmark(_latest_valid_bookmark)
+	if not _latest_resumable_bookmark_id.is_empty():
+		_resume_bookmark(_latest_resumable_bookmark_id)
 
 
 func _on_load_bookmark_button_pressed() -> void:
@@ -780,7 +732,7 @@ func _on_replays_button_pressed() -> void:
 
 func _on_tile_catalog_button_pressed() -> void:
 	await _open_popup_route(
-		GameUiRouterUtility.ROUTE_TILE_CATALOG,
+		TileCatalogDialog.ROUTE_ID,
 		_tile_catalog_button,
 		"方块图鉴"
 	)
@@ -804,7 +756,7 @@ func _on_player_profile_button_pressed() -> void:
 
 func _on_achievements_button_pressed() -> void:
 	await _open_popup_route(
-		GameUiRouterUtility.ROUTE_ACHIEVEMENTS,
+		AchievementListDialog.ROUTE_ID,
 		_achievements_button,
 		"成就列表"
 	)

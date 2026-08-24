@@ -6,7 +6,7 @@ extends GutTest
 
 const SOURCE_ROOTS: Array[String] = [
 	"res://app",
-	"res://features",
+	VerificationResourcePath.FEATURES_ROOT,
 	"res://shared",
 	"res://tests/gut",
 ]
@@ -16,7 +16,7 @@ const SOURCE_EXCLUDED_ROOTS: Array[String] = [
 const PROJECT_DOCUMENTATION_ROOTS: Array[String] = [
 	"res://app",
 	"res://docs",
-	"res://features",
+	VerificationResourcePath.FEATURES_ROOT,
 	"res://shared",
 ]
 const PROJECT_DOCUMENTATION_FILES: Array[String] = [

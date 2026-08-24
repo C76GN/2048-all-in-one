@@ -5,7 +5,7 @@ extends SceneTree
 
 const _PROJECT_USAGE_SCAN_ROOTS: PackedStringArray = [
 	"res://app",
-	"res://features",
+	VerificationResourcePath.FEATURES_ROOT,
 	"res://shared",
 ]
 const _REPORT_ROOT: String = "res://build/asset_library"

@@ -7,7 +7,8 @@
     "game_theme",
     "visual_theme",
     "audio_theme",
-    "audio_bank"
+    "audio_bank",
+    "mode_visual_profiles"
   ],
   "dependencies": [
     "c76.asset_library.core"
@@ -47,6 +48,16 @@
       }
     },
     {
+      "key": "game.mode_visual_profiles.default",
+      "path": "themes/mode_visuals/default_mode_visual_profile_registry.tres",
+      "type_hint": "Resource",
+      "priority": 100,
+      "metadata": {
+        "catalog_role": "mode_visual_profile_registry",
+        "is_default": true
+      }
+    },
+    {
       "key": "game.audio_theme.printworks",
       "path": "themes/game/printworks_audio_theme.tres",
       "type_hint": "Resource",
@@ -69,65 +80,6 @@
           "audio_bank"
         ],
         "theme_id": "printworks"
-      }
-    },
-    {
-      "key": "game.board_theme.default",
-      "path": "themes/board/default_board_theme.tres",
-      "type_hint": "Resource",
-      "priority": 100,
-      "metadata": {
-        "theme_id": "halftone_atlas"
-      }
-    },
-    {
-      "key": "game.tile_scheme.classic",
-      "path": "themes/tile_schemes/classic_tile_theme.tres",
-      "type_hint": "Resource",
-      "priority": 100,
-      "metadata": {
-        "theme_id": "halftone_atlas",
-        "scheme_slot": 0
-      }
-    },
-    {
-      "key": "game.tile_scheme.fibonacci",
-      "path": "themes/tile_schemes/fibonacci_tile_theme.tres",
-      "type_hint": "Resource",
-      "priority": 100,
-      "metadata": {
-        "theme_id": "halftone_atlas",
-        "mode_id": "fibonacci"
-      }
-    },
-    {
-      "key": "game.tile_scheme.lucas",
-      "path": "themes/tile_schemes/lucas_tile_theme.tres",
-      "type_hint": "Resource",
-      "priority": 100,
-      "metadata": {
-        "theme_id": "halftone_atlas",
-        "mode_id": "lucas_fibonacci"
-      }
-    },
-    {
-      "key": "game.tile_scheme.red",
-      "path": "themes/tile_schemes/red_tile_theme.tres",
-      "type_hint": "Resource",
-      "priority": 100,
-      "metadata": {
-        "theme_id": "halftone_atlas",
-        "scheme_slot": 1
-      }
-    },
-    {
-      "key": "game.tile_scheme.blue",
-      "path": "themes/tile_schemes/blue_tile_theme.tres",
-      "type_hint": "Resource",
-      "priority": 100,
-      "metadata": {
-        "theme_id": "halftone_atlas",
-        "scheme_slot": 2
       }
     }
   ],

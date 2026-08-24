@@ -21,6 +21,7 @@ var _signal_utility: GFSignalUtility = null
 var _async_tracker: GFAsyncTrackerUtility = null
 var _async_tracking_ids: Dictionary = {}
 var _last_cleanup_error: Error = OK
+var _last_legacy_cleanup_evidence: Dictionary = {}
 var _pending_operation: LocalAccountOperation = null
 var _disposed: bool = false
 var _dispose_requested: bool = false
@@ -57,6 +58,7 @@ func ready() -> void:
 	_activation_bootstrap_completion = null
 	_legacy_cleanup_in_progress = false
 	_legacy_cleanup_runner_started = false
+	_last_legacy_cleanup_evidence.clear()
 	_catalog = _resolve_catalog_utility()
 	_save_graph = _resolve_save_graph_utility()
 	_profile_utility = _resolve_profile_utility()
@@ -290,9 +292,45 @@ func get_active_account() -> LocalPlayerAccount:
 	return _catalog.get_active_account() if is_instance_valid(_catalog) else null
 
 
+## 冻结跨账号 progress 聚合所需的最小目录视图。
+##
+## player_profiles 在调用边界把目录实现投影为 progress-owned 值对象；消费者
+## 不会获得 LocalPlayerAccount 或 LocalAccountCatalogUtility 的静态依赖。
+## @return 当前目录完整且规范时返回复制隔离快照，否则返回 null。
+func capture_device_progress_account_catalog_snapshot(
+) -> DeviceProgressAccountCatalogSnapshot:
+	if not is_instance_valid(_catalog):
+		return null
+	var active_account_id: String = _catalog.get_active_account_id()
+	var accounts: Array[LocalPlayerAccount] = _catalog.get_accounts()
+	var descriptors: Array[Dictionary] = []
+	for account: LocalPlayerAccount in accounts:
+		if account == null or not account.is_valid():
+			return null
+		descriptors.append({
+			&"account_id": account.account_id,
+			&"display_name": account.display_name,
+			&"last_active_at": account.last_active_at,
+			&"profile_file_name": (
+				LocalAccountCatalogUtility.make_profile_file_name(
+					account.account_id
+				)
+			),
+		})
+	return DeviceProgressAccountCatalogSnapshot.create(
+		active_account_id,
+		descriptors
+	)
+
+
 ## 返回最近一次孤立 Profile 文件清理错误。
 func get_last_cleanup_error() -> Error:
 	return _last_cleanup_error
+
+
+## 返回最近一次后台 legacy cleanup 的身份无关结构化证据。
+func get_last_legacy_cleanup_evidence() -> Dictionary:
+	return _last_legacy_cleanup_evidence.duplicate(true)
 
 
 ## 返回当前账号事务；没有在途事务时返回 null。
@@ -324,6 +362,13 @@ func request_account_reconciliation() -> Error:
 		return OK
 	if not _catalog_reconciliation.is_empty():
 		if GFVariantData.get_option_bool(
+			_catalog_reconciliation,
+			&"cleanup_retry_explicit_required",
+			false
+		):
+			_catalog_reconciliation[&"cleanup_retry_explicit_required"] = false
+			_catalog_reconciliation[&"reconcile_ready"] = true
+		elif GFVariantData.get_option_bool(
 			_catalog_reconciliation,
 			&"cleanup_pending",
 			false
@@ -486,34 +531,50 @@ func _run_create_account_operation(
 		)
 		if not _is_current_operation(operation):
 			return
+		if catalog_rollback_error != OK:
+			var catalog_rollback_outcome_unknown: bool = (
+				_catalog_outcome_unknown()
+			)
+			if not catalog_rollback_outcome_unknown:
+				_publish_retained_create_candidate_catalog_changed(
+					account.account_id
+				)
+			_complete_account_operation(
+				operation,
+				(
+					LocalAccountOperationResult.STATUS_CATALOG_OUTCOME_UNKNOWN
+					if catalog_rollback_outcome_unknown
+					else LocalAccountOperationResult.STATUS_ROLLBACK_FAILED
+				),
+				catalog_rollback_error,
+				null,
+				previous_account.account_id if previous_account != null else "",
+				profile_file_name if catalog_rollback_outcome_unknown else "",
+				account.account_id if catalog_rollback_outcome_unknown else ""
+			)
+			return
 		var profile_cleanup_error: Error = (
 			await _save_graph.delete_inactive_profile_async(
 				profile_file_name
 			)
 		)
+		_last_cleanup_error = profile_cleanup_error
 		if not _is_current_operation(operation):
 			return
-		var rollback_error: Error = (
-			catalog_rollback_error
-			if catalog_rollback_error != OK
-			else profile_cleanup_error
-		)
 		_complete_account_operation(
 			operation,
 			(
-				LocalAccountOperationResult.STATUS_CATALOG_OUTCOME_UNKNOWN
-				if _catalog_outcome_unknown()
-				else (
-					LocalAccountOperationResult.STATUS_CLEANUP_OUTCOME_UNKNOWN
-					if profile_cleanup_error == ERR_TIMEOUT
-					else LocalAccountOperationResult.STATUS_ROLLBACK_FAILED
-				)
-				if rollback_error != OK
+				LocalAccountOperationResult.STATUS_CLEANUP_OUTCOME_UNKNOWN
+				if profile_cleanup_error == ERR_TIMEOUT
+				else LocalAccountOperationResult.STATUS_ROLLBACK_FAILED
+				if profile_cleanup_error != OK
 				else LocalAccountOperationResult.STATUS_PROFILE_FAILED
 			),
-			rollback_error if rollback_error != OK else profile_error,
+			profile_cleanup_error if profile_cleanup_error != OK else profile_error,
 			null,
-			previous_account.account_id if previous_account != null else ""
+			previous_account.account_id if previous_account != null else "",
+			profile_file_name,
+			account.account_id
 		)
 		return
 
@@ -572,34 +633,50 @@ func _run_create_account_operation(
 		)
 		if not _is_current_operation(operation):
 			return
+		if catalog_cleanup_error != OK:
+			var catalog_cleanup_outcome_unknown: bool = (
+				_catalog_outcome_unknown()
+			)
+			if not catalog_cleanup_outcome_unknown:
+				_publish_retained_create_candidate_catalog_changed(
+					account.account_id
+				)
+			_complete_account_operation(
+				operation,
+				(
+					LocalAccountOperationResult.STATUS_CATALOG_OUTCOME_UNKNOWN
+					if catalog_cleanup_outcome_unknown
+					else LocalAccountOperationResult.STATUS_ROLLBACK_FAILED
+				),
+				catalog_cleanup_error,
+				null,
+				previous_account.account_id if previous_account != null else "",
+				profile_file_name if catalog_cleanup_outcome_unknown else "",
+				account.account_id if catalog_cleanup_outcome_unknown else ""
+			)
+			return
 		var profile_cleanup_error: Error = (
 			await _save_graph.delete_inactive_profile_async(
 				profile_file_name
 			)
 		)
+		_last_cleanup_error = profile_cleanup_error
 		if not _is_current_operation(operation):
 			return
-		var rollback_error: Error = profile_rollback_error
-		if rollback_error == OK:
-			rollback_error = catalog_cleanup_error
-		if rollback_error == OK:
-			rollback_error = profile_cleanup_error
 		_complete_account_operation(
 			operation,
 			(
-				LocalAccountOperationResult.STATUS_CATALOG_OUTCOME_UNKNOWN
-				if _catalog_outcome_unknown()
-				else (
-					LocalAccountOperationResult.STATUS_CLEANUP_OUTCOME_UNKNOWN
-					if profile_cleanup_error == ERR_TIMEOUT
-					else LocalAccountOperationResult.STATUS_ROLLBACK_FAILED
-				)
-				if rollback_error != OK
+				LocalAccountOperationResult.STATUS_CLEANUP_OUTCOME_UNKNOWN
+				if profile_cleanup_error == ERR_TIMEOUT
+				else LocalAccountOperationResult.STATUS_ROLLBACK_FAILED
+				if profile_cleanup_error != OK
 				else LocalAccountOperationResult.STATUS_CATALOG_FAILED
 			),
-			rollback_error if rollback_error != OK else activate_error,
+			profile_cleanup_error if profile_cleanup_error != OK else activate_error,
 			null,
-			previous_account.account_id if previous_account != null else ""
+			previous_account.account_id if previous_account != null else "",
+			profile_file_name,
+			account.account_id
 		)
 		return
 
@@ -906,7 +983,9 @@ func _run_delete_account_operation(
 		),
 		_last_cleanup_error,
 		fallback if deleted_active else _catalog.get_active_account(),
-		active_account.account_id if active_account != null else ""
+		active_account.account_id if active_account != null else "",
+		LocalAccountCatalogUtility.make_profile_file_name(account_id),
+		account_id
 	)
 
 
@@ -926,27 +1005,152 @@ func _cleanup_legacy_profile_async() -> void:
 	if not _legacy_cleanup_in_progress:
 		return
 	_legacy_cleanup_runner_started = true
-	if _disposed or _dispose_requested or not is_instance_valid(_save_graph):
+	var save_graph: GameSaveGraphUtility = _save_graph
+	if _disposed or _dispose_requested or not is_instance_valid(save_graph):
 		_legacy_cleanup_in_progress = false
 		_legacy_cleanup_runner_started = false
 		_try_complete_quiesce()
 		return
 	var legacy_cleanup_error: Error = (
-		await _save_graph.delete_inactive_legacy_profile_async()
+		await save_graph.delete_inactive_legacy_profile_async()
 	)
 	_legacy_cleanup_in_progress = false
 	_legacy_cleanup_runner_started = false
 	_try_complete_quiesce()
-	if _disposed or _dispose_requested:
+	if (
+		_disposed
+		or _dispose_requested
+		or not is_instance_valid(_save_graph)
+		or not is_same(_save_graph, save_graph)
+	):
 		return
+	_last_cleanup_error = legacy_cleanup_error
+	_last_legacy_cleanup_evidence = _make_legacy_cleanup_evidence(
+		legacy_cleanup_error,
+		save_graph.get_last_profile_cleanup_evidence()
+	)
 	if legacy_cleanup_error not in [OK, ERR_INVALID_PARAMETER]:
 		push_error(
 			(
 				"[LocalAccountSystem] 当前账号已激活，但 legacy Profile "
-				+ "异步清理失败，错误码：%d。"
+				+ "异步清理失败，错误码：%d，结构化证据：%s。"
 			)
-			% legacy_cleanup_error
+			% [
+				legacy_cleanup_error,
+				JSON.stringify(_last_legacy_cleanup_evidence),
+			]
 		)
+
+
+func _make_legacy_cleanup_evidence(
+	cleanup_error: Error,
+	source: Dictionary
+) -> Dictionary:
+	# 固定 allowlist 阻止 SaveGraph 私有 logical identity、路径或 payload
+	# 被后续扩展意外带入启动日志。
+	return {
+		&"cleanup_kind": GFVariantData.get_option_string_name(
+			source,
+			&"cleanup_kind",
+			&"legacy_maintenance"
+		),
+		&"phase": GFVariantData.get_option_string_name(source, &"phase"),
+		&"failure_phase": GFVariantData.get_option_string_name(
+			source,
+			&"failure_phase",
+			&"unknown"
+		),
+		&"status": GFVariantData.get_option_string_name(source, &"status"),
+		&"error_code": int(cleanup_error),
+		&"main_error_code": GFVariantData.get_option_int(
+			source,
+			&"main_error_code",
+			int(cleanup_error)
+		),
+		&"derived_error_code": GFVariantData.get_option_int(
+			source,
+			&"derived_error_code",
+			OK
+		),
+		&"main_caller_status": GFVariantData.get_option_int(
+			source,
+			&"main_caller_status",
+			-1
+		),
+		&"main_caller_end_kind": GFVariantData.get_option_int(
+			source,
+			&"main_caller_end_kind",
+			-1
+		),
+		&"main_caller_reason": GFVariantData.get_option_string_name(
+			source,
+			&"main_caller_reason"
+		),
+		&"main_physical_settled": GFVariantData.get_option_bool(
+			source,
+			&"main_physical_settled",
+			false
+		),
+		&"main_physical_settlement_kind": GFVariantData.get_option_int(
+			source,
+			&"main_physical_settlement_kind",
+			-1
+		),
+		&"main_physical_cancelled": GFVariantData.get_option_bool(
+			source,
+			&"main_physical_cancelled",
+			false
+		),
+		&"main_physical_error_code": GFVariantData.get_option_int(
+			source,
+			&"main_physical_error_code",
+			-1
+		),
+		&"main_delete_failure_kind": GFVariantData.get_option_int(
+			source,
+			&"main_delete_failure_kind",
+			int(GFStorageDeleteResult.FailureKind.NONE)
+		),
+		&"derived_status": GFVariantData.get_option_string_name(
+			source,
+			&"derived_status",
+			&"unknown"
+		),
+		&"derived_total_count": GFVariantData.get_option_int(
+			source,
+			&"derived_total_count",
+			0
+		),
+		&"derived_completed_count": GFVariantData.get_option_int(
+			source,
+			&"derived_completed_count",
+			0
+		),
+		&"derived_failed_count": GFVariantData.get_option_int(
+			source,
+			&"derived_failed_count",
+			0
+		),
+		&"derived_first_status": GFVariantData.get_option_string_name(
+			source,
+			&"derived_first_status"
+		),
+		&"derived_first_error_code": GFVariantData.get_option_int(
+			source,
+			&"derived_first_error_code",
+			OK
+		),
+		&"derived_first_delete_failure_kind": GFVariantData.get_option_int(
+			source,
+			&"derived_first_delete_failure_kind",
+			int(GFStorageDeleteResult.FailureKind.NONE)
+		),
+		&"caller_outcome_unknown": GFVariantData.get_option_bool(
+			source,
+			&"caller_outcome_unknown",
+			false
+		),
+	}
 
 
 func _on_activation_bootstrap_completed(
@@ -1083,7 +1287,9 @@ func _complete_account_operation(
 	status: StringName,
 	error_code: Error,
 	account: LocalPlayerAccount = null,
-	previous_account_id: String = ""
+	previous_account_id: String = "",
+	cleanup_profile_file: String = "",
+	cleanup_account_id: String = ""
 ) -> void:
 	if operation == null or operation.is_completed():
 		return
@@ -1094,7 +1300,9 @@ func _complete_account_operation(
 		_begin_catalog_reconciliation(
 			operation,
 			account,
-			previous_account_id
+			previous_account_id,
+			cleanup_profile_file,
+			cleanup_account_id
 		)
 	elif (
 		status == LocalAccountOperationResult.STATUS_PROFILE_OUTCOME_UNKNOWN
@@ -1112,7 +1320,26 @@ func _complete_account_operation(
 		_begin_cleanup_reconciliation(
 			operation,
 			account,
-			previous_account_id
+			previous_account_id,
+			cleanup_profile_file,
+			cleanup_account_id,
+			error_code
+		)
+	elif (
+		error_code != OK
+		and status in [
+			LocalAccountOperationResult.STATUS_CLEANUP_FAILED,
+			LocalAccountOperationResult.STATUS_ROLLBACK_FAILED,
+		]
+		and not _disposed
+	):
+		_begin_cleanup_reconciliation(
+			operation,
+			account,
+			previous_account_id,
+			cleanup_profile_file,
+			cleanup_account_id,
+			error_code
 		)
 	if _pending_operation == operation:
 		_pending_operation = null
@@ -1189,7 +1416,9 @@ func _try_complete_quiesce() -> void:
 func _begin_catalog_reconciliation(
 	operation: LocalAccountOperation,
 	account: LocalPlayerAccount,
-	previous_account_id: String
+	previous_account_id: String,
+	cleanup_profile_file: String = "",
+	cleanup_account_id: String = ""
 ) -> void:
 	if (
 		operation == null
@@ -1197,6 +1426,15 @@ func _begin_catalog_reconciliation(
 		or not _profile_reconciliation.is_empty()
 	):
 		return
+	var cleanup_target: Dictionary = _resolve_cleanup_target(
+		operation,
+		cleanup_profile_file,
+		cleanup_account_id
+	)
+	var suppress_create_rollback_events: bool = (
+		operation.get_operation() == LocalAccountOperation.OPERATION_CREATE
+		and not cleanup_target.is_empty()
+	)
 	_catalog_reconciliation = {
 		&"operation": operation.get_operation(),
 		&"target_account_id": operation.get_target_account_id(),
@@ -1207,7 +1445,18 @@ func _begin_catalog_reconciliation(
 		&"settlement_received": false,
 		&"reconcile_ready": false,
 		&"publish_success": false,
-		&"publish_events": true,
+		&"publish_events": not suppress_create_rollback_events,
+		&"success_events_published": false,
+		&"failure_catalog_event_published": false,
+		&"cleanup_required": not cleanup_target.is_empty(),
+		&"cleanup_profile_file": GFVariantData.get_option_string(
+			cleanup_target,
+			&"profile_file"
+		),
+		&"cleanup_account_id": GFVariantData.get_option_string(
+			cleanup_target,
+			&"account_id"
+		),
 	}
 	_last_reconciliation_evidence = {
 		&"ok": false,
@@ -1268,21 +1517,34 @@ func _begin_profile_reconciliation(
 func _begin_cleanup_reconciliation(
 	operation: LocalAccountOperation,
 	account: LocalPlayerAccount,
-	previous_account_id: String
+	previous_account_id: String,
+	cleanup_profile_file: String,
+	cleanup_account_id: String,
+	initial_cleanup_error: Error = ERR_TIMEOUT
 ) -> void:
 	if (
 		operation == null
-		or operation.get_operation()
-		!= LocalAccountOperation.OPERATION_DELETE
 		or not _catalog_reconciliation.is_empty()
 		or not _profile_reconciliation.is_empty()
 	):
 		return
-	var cleanup_profile_file: String = (
-		LocalAccountCatalogUtility.make_profile_file_name(
-			operation.get_target_account_id()
-		)
+	var cleanup_target: Dictionary = _resolve_cleanup_target(
+		operation,
+		cleanup_profile_file,
+		cleanup_account_id
 	)
+	if cleanup_target.is_empty():
+		return
+	var resolved_cleanup_profile_file: String = (
+		GFVariantData.get_option_string(cleanup_target, &"profile_file")
+	)
+	var resolved_cleanup_account_id: String = (
+		GFVariantData.get_option_string(cleanup_target, &"account_id")
+	)
+	var waits_for_cleanup_terminal: bool = initial_cleanup_error in [
+		ERR_TIMEOUT,
+		ERR_BUSY,
+	]
 	_catalog_reconciliation = {
 		&"operation": operation.get_operation(),
 		&"target_account_id": operation.get_target_account_id(),
@@ -1294,19 +1556,66 @@ func _begin_cleanup_reconciliation(
 		&"reconcile_ready": false,
 		&"publish_success": true,
 		&"publish_events": false,
-		&"cleanup_pending": true,
-		&"cleanup_profile_file": cleanup_profile_file,
+		&"cleanup_pending": waits_for_cleanup_terminal,
+		&"cleanup_retry_explicit_required": not waits_for_cleanup_terminal,
+		&"cleanup_required": true,
+		&"cleanup_profile_file": resolved_cleanup_profile_file,
+		&"cleanup_account_id": resolved_cleanup_account_id,
 		&"cleanup_only": true,
+		&"success_events_published": true,
+		&"failure_catalog_event_published": false,
 	}
+	_last_cleanup_error = initial_cleanup_error
 	_last_reconciliation_evidence = {
 		&"ok": false,
-		&"status": "cleanup_outcome_unknown",
-		&"error_code": int(ERR_TIMEOUT),
+		&"status": (
+			_make_cleanup_pending_evidence_status(
+				operation.get_operation(),
+				true,
+				initial_cleanup_error
+			)
+			if waits_for_cleanup_terminal
+			else _make_cleanup_retry_required_evidence_status(
+				operation.get_operation(),
+				true
+			)
+		),
+		&"error_code": int(initial_cleanup_error),
 		&"operation": String(operation.get_operation()),
 		&"target_account_id": operation.get_target_account_id(),
-		&"cleanup_profile_file": cleanup_profile_file,
+		&"cleanup_account_id": resolved_cleanup_account_id,
+		&"cleanup_profile_file": resolved_cleanup_profile_file,
 	}
 	_publish_reconciliation_state_changed(true)
+
+
+func _resolve_cleanup_target(
+	operation: LocalAccountOperation,
+	cleanup_profile_file: String,
+	cleanup_account_id: String
+) -> Dictionary:
+	if operation == null:
+		return {}
+	var resolved_account_id: String = cleanup_account_id.strip_edges()
+	if (
+		resolved_account_id.is_empty()
+		and operation.get_operation() == LocalAccountOperation.OPERATION_DELETE
+	):
+		resolved_account_id = operation.get_target_account_id()
+	if not GFUuid.is_valid(resolved_account_id, 7):
+		return {}
+	var expected_profile_file: String = (
+		LocalAccountCatalogUtility.make_profile_file_name(resolved_account_id)
+	)
+	var resolved_profile_file: String = cleanup_profile_file.strip_edges()
+	if resolved_profile_file.is_empty():
+		resolved_profile_file = expected_profile_file
+	if resolved_profile_file != expected_profile_file:
+		return {}
+	return {
+		&"account_id": resolved_account_id,
+		&"profile_file": resolved_profile_file,
+	}
 
 
 func _on_catalog_storage_late_settled(
@@ -1415,7 +1724,7 @@ func _on_profile_state_changed(
 		and profile_id == _profile_id_for_account(
 			GFVariantData.get_option_string(
 				_catalog_reconciliation,
-				&"target_account_id"
+				&"cleanup_account_id"
 			)
 		)
 	):
@@ -1736,51 +2045,53 @@ func _run_catalog_reconciliation() -> void:
 		&"cleanup_only",
 		false
 	)
+	var cleanup_required: bool = GFVariantData.get_option_bool(
+		reconciliation,
+		&"cleanup_required",
+		false
+	)
 	var cleanup_error: Error = OK
-	var cleanup_profile_file: String = ""
-	if (
-		publish_success
-		and operation_kind == LocalAccountOperation.OPERATION_DELETE
-	):
-		var target_account_id: String = GFVariantData.get_option_string(
-			reconciliation,
-			&"target_account_id"
-		)
-		cleanup_profile_file = (
-			LocalAccountCatalogUtility.make_profile_file_name(
-				target_account_id
+	var cleanup_attempted: bool = false
+	var cleanup_profile_file: String = GFVariantData.get_option_string(
+		reconciliation,
+		&"cleanup_profile_file"
+	)
+	var cleanup_account_id: String = GFVariantData.get_option_string(
+		reconciliation,
+		&"cleanup_account_id"
+	)
+	if publish_success and cleanup_required:
+		cleanup_attempted = true
+		if cleanup_profile_file.is_empty():
+			cleanup_error = ERR_INVALID_PARAMETER
+		else:
+			cleanup_error = await _save_graph.delete_inactive_profile_async(
+				cleanup_profile_file
 			)
-		)
-		cleanup_error = await _save_graph.delete_inactive_profile_async(
-			cleanup_profile_file
-		)
 		if _disposed or _catalog_reconciliation.is_empty():
 			_catalog_reconciliation_running = false
 			return
 		_last_cleanup_error = cleanup_error
 		if cleanup_error in [ERR_TIMEOUT, ERR_BUSY]:
 			_catalog_reconciliation[&"cleanup_pending"] = true
+			_catalog_reconciliation[&"cleanup_retry_explicit_required"] = false
 			_catalog_reconciliation[&"cleanup_profile_file"] = (
 				cleanup_profile_file
 			)
 			_last_reconciliation_evidence = {
 				&"ok": false,
-				&"status": (
-					(
-						"cleanup_outcome_unknown"
-						if cleanup_only
-						else "catalog_late_success_cleanup_outcome_unknown"
-					)
-					if cleanup_error == ERR_TIMEOUT
-					else (
-						"cleanup_reconciliation_pending"
-						if cleanup_only
-						else "catalog_late_success_cleanup_pending"
-					)
+				&"status": _make_cleanup_pending_evidence_status(
+					operation_kind,
+					cleanup_only,
+					cleanup_error
 				),
 				&"error_code": int(cleanup_error),
 				&"operation": String(operation_kind),
-				&"target_account_id": target_account_id,
+				&"target_account_id": GFVariantData.get_option_string(
+					reconciliation,
+					&"target_account_id"
+				),
+				&"cleanup_account_id": cleanup_account_id,
 				&"catalog_active_account_id": authoritative_account.account_id,
 				&"profile_file": _save_graph.get_profile_file_name(),
 				&"cleanup_profile_file": cleanup_profile_file,
@@ -1791,26 +2102,45 @@ func _run_catalog_reconciliation() -> void:
 			}
 			_catalog_reconciliation_running = false
 			return
+		if cleanup_error != OK:
+			# 确定性失败只终结本次 cleanup attempt，不终结账号级补偿 saga。
+			# 后续只能由显式 reconciliation 请求重臂，避免 tick 形成 IO 热循环。
+			_catalog_reconciliation[&"cleanup_pending"] = false
+			_catalog_reconciliation[&"cleanup_retry_explicit_required"] = true
+			_catalog_reconciliation[&"reconcile_ready"] = false
+			_last_reconciliation_evidence = {
+				&"ok": false,
+				&"status": _make_cleanup_retry_required_evidence_status(
+					operation_kind,
+					cleanup_only
+				),
+				&"error_code": int(cleanup_error),
+				&"operation": String(operation_kind),
+				&"target_account_id": GFVariantData.get_option_string(
+					reconciliation,
+					&"target_account_id"
+				),
+				&"cleanup_account_id": cleanup_account_id,
+				&"catalog_active_account_id": authoritative_account.account_id,
+				&"profile_file": _save_graph.get_profile_file_name(),
+				&"cleanup_profile_file": cleanup_profile_file,
+				&"storage_result": GFVariantData.get_option_dictionary(
+					reconciliation,
+					&"storage_result"
+				),
+			}
+			_publish_catalog_reconciliation_success_once(authoritative_account)
+			_catalog_reconciliation_running = false
+			return
 	_last_reconciliation_evidence = {
 		&"ok": cleanup_error == OK,
 		&"status": (
-			(
-				(
-					"cleanup_outcome_unknown_reconciled"
-					if cleanup_only
-					else "catalog_late_success_cleanup_succeeded"
-				)
-				if cleanup_error == OK
-				else (
-					"cleanup_reconciliation_failed"
-					if cleanup_only
-					else "catalog_late_success_cleanup_failed"
-				)
+			_make_cleanup_terminal_evidence_status(
+				operation_kind,
+				cleanup_only,
+				cleanup_error
 			)
-			if (
-				publish_success
-				and operation_kind == LocalAccountOperation.OPERATION_DELETE
-			)
+			if cleanup_attempted
 			else (
 				"catalog_late_success_reconciled"
 				if publish_success
@@ -1821,6 +2151,7 @@ func _run_catalog_reconciliation() -> void:
 		&"operation": String(
 			operation_kind
 		),
+		&"cleanup_account_id": cleanup_account_id,
 		&"catalog_active_account_id": authoritative_account.account_id,
 		&"profile_file": _save_graph.get_profile_file_name(),
 		&"cleanup_profile_file": cleanup_profile_file,
@@ -1829,21 +2160,133 @@ func _run_catalog_reconciliation() -> void:
 			&"storage_result"
 		),
 	}
+	if publish_success:
+		_publish_catalog_reconciliation_success_once(authoritative_account)
+	else:
+		_publish_retained_create_candidate_from_reconciliation_once()
 	_catalog_reconciliation.clear()
 	_catalog_reconciliation_running = false
 	_publish_reconciliation_state_changed(false)
+
+
+func _make_cleanup_pending_evidence_status(
+	operation_kind: StringName,
+	cleanup_only: bool,
+	cleanup_error: Error
+) -> String:
+	if operation_kind == LocalAccountOperation.OPERATION_CREATE:
+		return (
+			"create_rollback_cleanup_outcome_unknown"
+			if cleanup_error == ERR_TIMEOUT
+			else "create_rollback_cleanup_pending"
+		)
+	if cleanup_error == ERR_TIMEOUT:
+		return (
+			"cleanup_outcome_unknown"
+			if cleanup_only
+			else "catalog_late_success_cleanup_outcome_unknown"
+		)
+	return (
+		"cleanup_reconciliation_pending"
+		if cleanup_only
+		else "catalog_late_success_cleanup_pending"
+	)
+
+
+func _make_cleanup_terminal_evidence_status(
+	operation_kind: StringName,
+	cleanup_only: bool,
+	cleanup_error: Error
+) -> String:
+	if operation_kind == LocalAccountOperation.OPERATION_CREATE:
+		return (
+			"create_rollback_cleanup_reconciled"
+			if cleanup_error == OK
+			else "create_rollback_cleanup_failed"
+		)
+	if cleanup_error == OK:
+		return (
+			"cleanup_outcome_unknown_reconciled"
+			if cleanup_only
+			else "catalog_late_success_cleanup_succeeded"
+		)
+	return (
+		"cleanup_reconciliation_failed"
+		if cleanup_only
+		else "catalog_late_success_cleanup_failed"
+	)
+
+
+func _make_cleanup_retry_required_evidence_status(
+	operation_kind: StringName,
+	cleanup_only: bool
+) -> String:
+	if operation_kind == LocalAccountOperation.OPERATION_CREATE:
+		return "create_rollback_cleanup_retry_required"
+	return (
+		"cleanup_retry_required"
+		if cleanup_only
+		else "catalog_late_success_cleanup_retry_required"
+	)
+
+
+func _publish_catalog_reconciliation_success_once(
+	active_account: LocalPlayerAccount
+) -> void:
 	if (
-		publish_success
-		and GFVariantData.get_option_bool(
-			reconciliation,
+		_catalog_reconciliation.is_empty()
+		or not GFVariantData.get_option_bool(
+			_catalog_reconciliation,
+			&"publish_success",
+			false
+		)
+		or not GFVariantData.get_option_bool(
+			_catalog_reconciliation,
 			&"publish_events",
 			true
 		)
-	):
-		_publish_reconciled_catalog_success(
-			reconciliation,
-			authoritative_account
+		or GFVariantData.get_option_bool(
+			_catalog_reconciliation,
+			&"success_events_published",
+			false
 		)
+	):
+		return
+	_catalog_reconciliation[&"success_events_published"] = true
+	_publish_reconciled_catalog_success(
+		_catalog_reconciliation.duplicate(true),
+		active_account
+	)
+
+
+func _publish_retained_create_candidate_from_reconciliation_once() -> void:
+	if (
+		_catalog_reconciliation.is_empty()
+		or GFVariantData.get_option_string_name(
+			_catalog_reconciliation,
+			&"operation"
+		)
+		!= LocalAccountOperation.OPERATION_CREATE
+		or GFVariantData.get_option_bool(
+			_catalog_reconciliation,
+			&"failure_catalog_event_published",
+			false
+		)
+	):
+		return
+	var candidate_account_id: String = GFVariantData.get_option_string(
+		_catalog_reconciliation,
+		&"cleanup_account_id"
+	)
+	if candidate_account_id.is_empty():
+		candidate_account_id = GFVariantData.get_option_string(
+			_catalog_reconciliation,
+			&"result_account_id"
+		)
+	if not _is_retained_create_candidate(candidate_account_id):
+		return
+	_catalog_reconciliation[&"failure_catalog_event_published"] = true
+	_publish_catalog_changed()
 
 
 func _publish_reconciled_catalog_success(
@@ -1884,6 +2327,21 @@ func _catalog_outcome_unknown() -> bool:
 			&"status"
 		)
 		== &"outcome_unknown"
+	)
+
+
+func _publish_retained_create_candidate_catalog_changed(
+	candidate_account_id: String
+) -> void:
+	if _is_retained_create_candidate(candidate_account_id):
+		_publish_catalog_changed()
+
+
+func _is_retained_create_candidate(candidate_account_id: String) -> bool:
+	return (
+		is_instance_valid(_catalog)
+		and GFUuid.is_valid(candidate_account_id, 7)
+		and _catalog.get_account(candidate_account_id) != null
 	)
 
 

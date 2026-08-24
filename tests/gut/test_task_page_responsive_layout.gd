@@ -8,7 +8,7 @@ const _SAFE_AREA_PAGE_SCRIPTS: Array[String] = [
 	"res://features/navigation/scripts/menus/main_menu.gd",
 	"res://features/settings/scripts/menus/settings_menu.gd",
 	"res://features/navigation/scripts/menus/mode_selection.gd",
-	"res://features/navigation/scripts/menus/base_list_menu.gd",
+	"res://features/saved_content_browser/scripts/menus/base_list_menu.gd",
 ]
 const _MODE_SELECTION_SCENE: PackedScene = preload(
 	"res://features/navigation/scenes/menus/mode_selection.tscn"
@@ -28,16 +28,16 @@ const _BOARD_EDITOR_SCENE: PackedScene = preload(
 	"res://features/board_editor/scenes/ui/board_editor_dialog.tscn"
 )
 const _GAMEPLAY_SCENE: PackedScene = preload(
-	"res://features/gameplay/scenes/game/game_play.tscn"
+	"res://features/game_session/scenes/game/game_play.tscn"
 )
 const _PAUSE_MENU_SCENE: PackedScene = preload(
-	"res://features/gameplay/scenes/ui/pause_menu.tscn"
+	"res://features/game_session/scenes/ui/pause_menu.tscn"
 )
 const _TARGET_REACHED_MENU_SCENE: PackedScene = preload(
-	"res://features/gameplay/scenes/ui/target_reached_menu.tscn"
+	"res://features/game_session/scenes/ui/target_reached_menu.tscn"
 )
 const _GAME_OVER_MENU_SCENE: PackedScene = preload(
-	"res://features/gameplay/scenes/ui/game_over_menu.tscn"
+	"res://features/game_session/scenes/ui/game_over_menu.tscn"
 )
 
 

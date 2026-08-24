@@ -6,20 +6,20 @@ extends GutTest
 
 const SOURCE_ROOTS: Array[String] = [
 	"res://app",
-	"res://features",
+	VerificationResourcePath.FEATURES_ROOT,
 	"res://shared",
 	"res://tests/gut",
 ]
 const NAMING_SOURCE_ROOTS: Array[String] = [
 	"res://app",
-	"res://features",
+	VerificationResourcePath.FEATURES_ROOT,
 	"res://shared",
 	"res://tests/gut",
 	"res://tools",
 ]
 const CLASS_NAME_REQUIRED_ROOTS: Array[String] = [
 	"res://app",
-	"res://features",
+	VerificationResourcePath.FEATURES_ROOT,
 	"res://shared",
 ]
 const SOURCE_EXCLUDED_ROOTS: Array[String] = [

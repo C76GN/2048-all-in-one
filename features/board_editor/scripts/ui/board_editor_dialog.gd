@@ -11,6 +11,8 @@ signal interaction_ready
 
 # --- 常量 ---
 
+## board_editor Feature 拥有的稳定 UI route 身份。
+const ROUTE_ID: StringName = &"board_editor"
 const _INPUT_CONTEXT: GFInputContext = preload(
 	"res://features/board_editor/resources/input/board_editor_input_context.tres"
 )
@@ -857,7 +859,7 @@ func _on_delete_button_pressed() -> void:
 
 
 func _on_cancel_button_pressed() -> void:
-	var _closed: bool = _close_current_popup_route(GameUiRouterUtility.ROUTE_BOARD_EDITOR)
+	var _closed: bool = _close_current_popup_route(ROUTE_ID)
 
 
 func _on_apply_button_pressed() -> void:
@@ -869,4 +871,4 @@ func _on_apply_button_pressed() -> void:
 	if topology == null:
 		return
 	topology_applied.emit(topology)
-	var _closed: bool = _close_current_popup_route(GameUiRouterUtility.ROUTE_BOARD_EDITOR)
+	var _closed: bool = _close_current_popup_route(ROUTE_ID)

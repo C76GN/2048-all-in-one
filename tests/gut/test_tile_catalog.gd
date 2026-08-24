@@ -450,6 +450,10 @@ func _create_discovery_setup(save_dir_name: String) -> Dictionary:
 		GFSaveProfileUtility.new()
 	)
 	await architecture.register_utility(
+		ChunkProfileUtility,
+		ChunkProfileUtility.new()
+	)
+	await architecture.register_utility(
 		GFBackgroundWorkUtility,
 		GFBackgroundWorkUtility.new()
 	)

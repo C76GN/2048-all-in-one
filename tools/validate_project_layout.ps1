@@ -18,6 +18,14 @@ if (-not (Test-Path -LiteralPath $reportPath)) {
 	throw "Project layout report was not created: $reportPath"
 }
 $report = Get-Content -LiteralPath $reportPath -Raw -Encoding UTF8 | ConvertFrom-Json
-if (-not $report.success -or [int]$report.warning_count -ne 0) {
+if (
+	[int]$report.schema_version -ne 1 `
+	-or [string]$report.kind -ne "project_layout_analysis" `
+	-or [string]$report.evaluation_status -ne "complete" `
+	-or -not $report.input_complete `
+	-or -not $report.evaluation_complete `
+	-or -not $report.success `
+	-or [int]$report.warning_count -ne 0
+) {
 	throw "Project layout report contains errors or warnings: $reportPath"
 }

@@ -6,7 +6,7 @@
 
 [node name="ModeSelection" unique_id=1133187568 instance=ExtResource("1_base")]
 script = ExtResource("2_script")
-game_play_scene_path = "res://features/gameplay/scenes/game/game_play.tscn"
+game_play_scene_path = "res://features/game_session/scenes/game/game_play.tscn"
 
 [node name="LeftColumn" parent="MarginContainer/ColumnsContainer" index="0"]
 visible = false

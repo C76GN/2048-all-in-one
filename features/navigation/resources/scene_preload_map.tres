@@ -13,31 +13,31 @@ metadata = {"role": "hub"}
 [sub_resource type="Resource" id="Entry_mode_selection"]
 script = ExtResource("2_entry")
 scene_path = "res://features/navigation/scenes/menus/mode_selection.tscn"
-adjacent_scene_paths = PackedStringArray("res://features/navigation/scenes/menus/main_menu.tscn", "res://features/gameplay/scenes/game/game_play.tscn")
+adjacent_scene_paths = PackedStringArray("res://features/navigation/scenes/menus/main_menu.tscn", "res://features/game_session/scenes/game/game_play.tscn")
 metadata = {"role": "game_setup"}
 
 [sub_resource type="Resource" id="Entry_gameplay"]
 script = ExtResource("2_entry")
-scene_path = "res://features/gameplay/scenes/game/game_play.tscn"
+scene_path = "res://features/game_session/scenes/game/game_play.tscn"
 adjacent_scene_paths = PackedStringArray("res://features/navigation/scenes/menus/mode_selection.tscn", "res://features/settings/scenes/menus/settings_menu.tscn")
 metadata = {"role": "gameplay"}
 
 [sub_resource type="Resource" id="Entry_bookmarks"]
 script = ExtResource("2_entry")
 scene_path = "res://features/bookmarks/scenes/menus/bookmark_list.tscn"
-adjacent_scene_paths = PackedStringArray("res://features/navigation/scenes/menus/main_menu.tscn", "res://features/gameplay/scenes/game/game_play.tscn")
+adjacent_scene_paths = PackedStringArray("res://features/navigation/scenes/menus/main_menu.tscn", "res://features/game_session/scenes/game/game_play.tscn")
 metadata = {"role": "collection"}
 
 [sub_resource type="Resource" id="Entry_replays"]
 script = ExtResource("2_entry")
 scene_path = "res://features/replays/scenes/menus/replay_list.tscn"
-adjacent_scene_paths = PackedStringArray("res://features/navigation/scenes/menus/main_menu.tscn", "res://features/gameplay/scenes/game/game_play.tscn")
+adjacent_scene_paths = PackedStringArray("res://features/navigation/scenes/menus/main_menu.tscn", "res://features/game_session/scenes/game/game_play.tscn")
 metadata = {"role": "collection"}
 
 [sub_resource type="Resource" id="Entry_settings"]
 script = ExtResource("2_entry")
 scene_path = "res://features/settings/scenes/menus/settings_menu.tscn"
-adjacent_scene_paths = PackedStringArray("res://features/navigation/scenes/menus/main_menu.tscn", "res://features/gameplay/scenes/game/game_play.tscn")
+adjacent_scene_paths = PackedStringArray("res://features/navigation/scenes/menus/main_menu.tscn", "res://features/game_session/scenes/game/game_play.tscn")
 metadata = {"role": "settings"}
 
 [resource]
