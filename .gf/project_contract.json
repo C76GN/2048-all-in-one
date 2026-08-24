@@ -125,7 +125,7 @@
         ],
         "acceptance": [
           "当前账号的 Feature-owned GFSaveSectionProvider 只注册到一个 GFSaveProfile；GFSaveProfileUtility 拥有 typed save/load/flush、generation 合并、有界重试与事务 apply，GameSaveGraphUtility 只保留项目账号路径、恢复策略和业务入口，业务 System 不直接写文件。",
-          "全局设置通过注册为精确 GFSettingsStoreUtility alias 的 GFStorageSettingsStoreUtility 访问 GFStorage；GFSettingsUtility 自身拥有 activation 自动加载、mutation admission、冻结保存记录、多目标 batch/debounce quiesce drain 和 dispose 生命周期，项目只保留恢复授权、未来版本阻断与健康诊断策略。payload 损坏可经同一 Store 覆写恢复；私有 family 结构损坏若无 GF 公开授权重建入口必须失败关闭：激活前由 Storage 阻止架构 READY，已激活后的显式重载只恢复内存默认值并将持久化标记失败、保留证据，项目不得直接修改私有成员。",
+          "全局设置通过精确 GFSettingsStoreUtility alias 访问 GFStorage；GFSettingsUtility 拥有 activation、mutation admission、冻结保存、多目标 quiesce drain 与 dispose，项目只保留恢复、未来版本阻断和健康策略。payload 损坏可经同一 Store 覆写；GF 已提供绑定同一 Utility 原始 CORRUPT 读取的一次性 family-reset 授权，但项目尚未接入，私有结构损坏当前仍失败关闭：激活前阻止 READY，显式重载只恢复内存默认值并标记持久化失败、保留证据。后续只能消费 source-bound 授权和类型化 reset 终态，不得修改私有成员。",
           "项目只持有 GFStorage logical identity，不解析或管理 .gf-storage/v1 的私有 family 成员；Profile 删除必须使用 delete_file_request_async() 的 caller/physical 双终态，caller outcome-unknown 时继续持有账号协调锁与 logical identity，直到物理 completed 终态完成对账。",
           "大型 Section 采用 manifest-backed chunk Profiles：主 Profile 只保存严格 ChunkManifest，载荷按可信主身份派生到 A/B bank；单块不超过 128 KiB、单 Section 不超过 64 块或 8 MiB。inactive bank 不产生可见性，只有绑定的主 generation 已知持久化后才提交 Manifest；stage/main outcome-unknown 分别保留 exact Profile/scope fence 并通过 GF public snapshot 对账。",
           "生产 tracers 为 bookmarks（业务 schema 9、Manifest schema 10、流 schema 2）与 replays（业务 schema 6、Manifest schema 8、流 schema 2）；书签的状态根、棋盘、2 MiB 历史和 8192-step trace，以及回放的大拓扑、终局方块和步骤都必须有界分帧，加载通过异步增量物化为一次性 PreparedState。",

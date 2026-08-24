@@ -2,8 +2,8 @@
   "schema_version": 2,
   "catalog_version": "2.0.0",
   "framework_version": "11.0.0-dev.0",
-  "source_digest": "954f19e48ea73d5c91ea9f51290552111fb284bcea1d87fa6b3acb7373cd56e8",
-  "class_count": 822,
+  "source_digest": "5f234329e83b14a1d1f9318c020b6948d34257ff5ba02529fe648af86c5b68cb",
+  "class_count": 827,
   "autoload_count": 1,
   "package_count": 56,
   "packages": [
@@ -10305,6 +10305,68 @@
         }
       ]
     },
+    "GFBackgroundWorkContext": {
+      "owner_kind": "class",
+      "extends": "RefCounted",
+      "module": "standard",
+      "package_id": "gf.standard.assets",
+      "path": "addons/gf/standard/utilities/jobs/gf_background_work_context.gd",
+      "summary": "GFBackgroundWorkContext: CPU/IO worker 的线程安全只读协作取消句柄。 Utility 为已接纳的 CPU/IO work record 建立并由 Task 持有。 opt-in 时作为 worker 第二参数；无需 release，终态、clear、dispose 后仍可读且不延长 Utility/线程寿命。",
+      "visibility": "public",
+      "category": "runtime_handle",
+      "since": "unreleased",
+      "members": [
+        {
+          "kind": "enum",
+          "name": "CancellationReason",
+          "signature": "enum CancellationReason {\n\t## 尚未请求取消。\n\tNONE = 0,\n\t## cancel_work() 请求取消。\n\tCANCEL_WORK = 1,\n\t## cancel_all() 请求取消。\n\tCANCEL_ALL = 2,\n\t## clear_all() 请求取消并清空任务。\n\tCLEAR_ALL = 3,\n\t## GFBackgroundWorkUtility.dispose() 请求取消。\n\tUTILITY_DISPOSED = 4,\n}",
+          "summary": "框架拥有的稳定取消原因。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_work_id",
+          "signature": "func get_work_id() -> StringName",
+          "summary": "返回所属工作的稳定 ID。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "is_cancel_requested",
+          "signature": "func is_cancel_requested() -> bool",
+          "summary": "返回是否已经收到取消请求。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_cancel_reason",
+          "signature": "func get_cancel_reason() -> CancellationReason",
+          "summary": "返回稳定取消原因。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_cancel_requested_msec",
+          "signature": "func get_cancel_requested_msec() -> int",
+          "summary": "返回首次取消请求发生时的 Time.get_ticks_msec()。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_debug_snapshot",
+          "signature": "func get_debug_snapshot() -> Dictionary",
+          "summary": "获取纯数据取消状态快照。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "cancellation_reason_name",
+          "signature": "static func cancellation_reason_name(reason: CancellationReason) -> String",
+          "summary": "获取取消原因名称。",
+          "visibility": "public"
+        }
+      ]
+    },
     "GFBackgroundWorkTask": {
       "owner_kind": "class",
       "extends": "RefCounted",
@@ -10418,7 +10480,7 @@
           "kind": "var",
           "name": "cancel_requested",
           "signature": "var cancel_requested: bool = false",
-          "summary": "是否已请求取消。正在执行的线程任务不会被强行终止，只会在返回后转入取消终态。",
+          "summary": "是否已请求取消。正在执行的线程任务不会被强行终止。",
           "visibility": "public"
         },
         {
@@ -10447,6 +10509,13 @@
           "name": "is_finished",
           "signature": "func is_finished() -> bool",
           "summary": "当前工作是否已经进入终态。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_cancellation_context",
+          "signature": "func get_cancellation_context() -> GFBackgroundWorkContext",
+          "summary": "获取框架拥有的只读协作取消上下文。",
           "visibility": "public"
         },
         {
@@ -11875,6 +11944,13 @@
       "members": [
         {
           "kind": "func",
+          "name": "create_required_plan",
+          "signature": "func create_required_plan() -> GFBindingPlan",
+          "summary": "创建一个绑定到当前候选 Architecture 的 required binding plan。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
           "name": "bind_model",
           "signature": "func bind_model(script_cls: Script) -> GFBindBuilder",
           "summary": "声明一个 Model 绑定。",
@@ -11919,6 +11995,172 @@
           "name": "Lifetime",
           "signature": "enum Lifetime {\n\t## 首次解析后缓存实例，后续解析复用。\n\tSINGLETON,\n\t## 每次解析都重新创建实例。\n\tTRANSIENT,\n}",
           "summary": "绑定实例的生命周期。",
+          "visibility": "public"
+        }
+      ]
+    },
+    "GFBindingPlan": {
+      "owner_kind": "class",
+      "extends": "RefCounted",
+      "module": "kernel",
+      "package_id": "gf.kernel",
+      "path": "addons/gf/kernel/core/gf_binding_plan.gd",
+      "summary": "GFBindingPlan: Installer 使用的显式、顺序、fail-fast required binding 计划。 声明时冻结每个 Builder 的配置；execute() 仅接纳尚未进入 init/READY 的候选 Architecture。首个失败会冻结类型化结果、使候选初始化失败并结算 Installer",
+      "visibility": "public",
+      "category": "protocol",
+      "since": "unreleased",
+      "members": [
+        {
+          "kind": "func",
+          "name": "require_singleton",
+          "signature": "func require_singleton( binding_id: StringName, builder: GFBindBuilder ) -> GFBindingPlan",
+          "summary": "追加一个 required singleton entry，并立即冻结 Builder 配置。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "require_transient",
+          "signature": "func require_transient( binding_id: StringName, builder: GFBindBuilder ) -> GFBindingPlan",
+          "summary": "追加一个 required transient factory entry，并立即冻结 Builder 配置。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "execute",
+          "signature": "func execute(scope: GFAsyncScope) -> GFBindingPlanResult",
+          "summary": "按声明顺序执行 required entry，并在首个失败处停止。",
+          "visibility": "public"
+        }
+      ]
+    },
+    "GFBindingPlanResult": {
+      "owner_kind": "class",
+      "extends": "RefCounted",
+      "module": "kernel",
+      "package_id": "gf.kernel",
+      "path": "addons/gf/kernel/core/gf_binding_plan_result.gd",
+      "summary": "GFBindingPlanResult: required binding plan 的不可变终态结果。 结果精确标识首个失败 entry、绑定类别、阶段与稳定原因；不保留 Builder、 Architecture、Scope、实例或 Callable 引用，可安全用于诊断与持久化日志。",
+      "visibility": "public",
+      "category": "value_object",
+      "since": "unreleased",
+      "members": [
+        {
+          "kind": "enum",
+          "name": "Status",
+          "signature": "enum Status {\n\t## 全部 required entry 已按顺序成功执行。\n\tSUCCESS = 0,\n\t## 某个 required entry 执行失败。\n\tFAILED = 1,\n\t## Scope 在执行前或执行期间取消。\n\tCANCELLED = 2,\n\t## Plan、Builder ownership 或 Scope 请求无效。\n\tINVALID_REQUEST = 3,\n}",
+          "summary": "Plan 终态。",
+          "visibility": "public"
+        },
+        {
+          "kind": "enum",
+          "name": "BindingKind",
+          "signature": "enum BindingKind {\n\t## 没有具体 entry。\n\tNONE = 0,\n\t## Model 生命周期模块。\n\tMODEL = 1,\n\t## System 生命周期模块。\n\tSYSTEM = 2,\n\t## Utility 生命周期模块。\n\tUTILITY = 3,\n\t## 短生命周期对象工厂。\n\tFACTORY = 4,\n}",
+          "summary": "绑定类别。",
+          "visibility": "public"
+        },
+        {
+          "kind": "enum",
+          "name": "Phase",
+          "signature": "enum Phase {\n\t## 没有失败阶段。\n\tNONE = 0,\n\t## Plan、Scope、Architecture 或 entry 前置校验。\n\tVALIDATION = 1,\n\t## SELF、factory 或 instance 来源的 candidate 创建。\n\tINSTANCE_CREATION = 2,\n\t## 生命周期模块或对象工厂注册。\n\tREGISTRATION = 3,\n\t## 模块查询别名注册。\n\tALIAS = 4,\n\t## Scope 取消观察。\n\tCANCELLATION = 5,\n}",
+          "summary": "首个失败阶段。",
+          "visibility": "public"
+        },
+        {
+          "kind": "enum",
+          "name": "Reason",
+          "signature": "enum Reason {\n\t## 没有失败原因。\n\tNONE = 0,\n\t## Plan 配置无效。\n\tINVALID_PLAN = 1,\n\t## Builder 不属于 Plan 的 Architecture。\n\tBUILDER_OWNERSHIP_MISMATCH = 2,\n\t## binding_id 在同一 Plan 中重复。\n\tDUPLICATE_BINDING_ID = 3,\n\t## 正在执行的 Plan 被重入，或已结算 Plan 被再次执行。\n\tALREADY_EXECUTED = 4,\n\t## Scope 为空或已经 complete。\n\tSCOPE_UNAVAILABLE = 5,\n\t## Scope 在执行前或执行期间取消。\n\tSCOPE_CANCELLED = 6,\n\t## Architecture 不再接纳 required binding mutation。\n\tARCHITECTURE_UNAVAILABLE = 7,\n\t## Entry 目标或冻结配置无效。\n\tINVALID_ENTRY = 8,\n\t## Entry 生命周期与目标类别不兼容。\n\tINVALID_LIFETIME = 9,\n\t## 无法创建绑定 candidate。\n\tINSTANCE_CREATION_FAILED = 10,\n\t## Architecture 拒绝注册模块或工厂。\n\tREGISTRATION_REJECTED = 11,\n\t## Architecture 拒绝注册模块别名。\n\tALIAS_REJECTED = 12,\n}",
+          "summary": "稳定失败原因。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "is_successful",
+          "signature": "func is_successful() -> bool",
+          "summary": "返回终态是否成功。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_status",
+          "signature": "func get_status() -> Status",
+          "summary": "返回 Plan 终态。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_binding_kind",
+          "signature": "func get_binding_kind() -> BindingKind",
+          "summary": "返回首个失败 entry 的绑定类别。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_failed_phase",
+          "signature": "func get_failed_phase() -> Phase",
+          "summary": "返回首个失败阶段。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_reason",
+          "signature": "func get_reason() -> Reason",
+          "summary": "返回稳定失败原因。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_entry_index",
+          "signature": "func get_entry_index() -> int",
+          "summary": "返回首个失败 entry 的零基索引。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_binding_id",
+          "signature": "func get_binding_id() -> StringName",
+          "summary": "返回首个失败 entry 的稳定调用方 ID。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_target_path",
+          "signature": "func get_target_path() -> String",
+          "summary": "返回目标脚本的稳定 res:// 路径。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_lifetime",
+          "signature": "func get_lifetime() -> int",
+          "summary": "返回 entry 请求的绑定生命周期。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_executed_count",
+          "signature": "func get_executed_count() -> int",
+          "summary": "返回已尝试的 entry 数量。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_detail",
+          "signature": "func get_detail() -> String",
+          "summary": "返回有界稳定诊断文本。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "duplicate_result",
+          "signature": "func duplicate_result() -> GFBindingPlanResult",
+          "summary": "创建终态结果的隔离副本。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "to_dict",
+          "signature": "func to_dict() -> Dictionary",
+          "summary": "转换为精确、纯数据 Dictionary。",
           "visibility": "public"
         }
       ]
@@ -71482,7 +71724,7 @@
       "module": "extensions/save",
       "package_id": "gf.extension.save",
       "path": "addons/gf/extensions/save/profile/gf_save_profile_recovery_lease.gd",
-      "summary": "GFSaveProfileRecoveryLease: 缺失或损坏 Profile 的一次性恢复授权。 Lease 由失败的 activate 操作创建，并绑定创建时的事务、Profile、Provider domain generation 与 lifecycle epoch。bootstrap/adopt 必须原样提交同一 Lease；",
+      "summary": "GFSaveProfileRecoveryLease: 缺失或损坏 Profile 的一次性恢复授权。 Lease 由失败的 activate 或 switch 操作创建，并绑定创建时的事务、来源与目标 Profile、Provider domain generation 与 lifecycle epoch。恢复入口必须原样提交同一",
       "visibility": "public",
       "category": "runtime_handle",
       "since": "unreleased",
@@ -71491,14 +71733,14 @@
           "kind": "const",
           "name": "REASON_MISSING",
           "signature": "const REASON_MISSING: StringName = &\"missing\"",
-          "summary": "激活目标没有持久化文档。",
+          "summary": "activate 或 switch 目标没有持久化文档。",
           "visibility": "public"
         },
         {
           "kind": "const",
           "name": "REASON_CORRUPT",
           "signature": "const REASON_CORRUPT: StringName = &\"corrupt\"",
-          "summary": "激活目标文档损坏或完整性无效。",
+          "summary": "activate 或 switch 目标文档损坏、完整性无效或 Storage family 结构损坏。",
           "visibility": "public"
         },
         {
@@ -71534,6 +71776,13 @@
           "name": "get_transaction_id",
           "signature": "func get_transaction_id() -> int",
           "summary": "获取产生当前 Lease 的事务 ID。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_source_profile_id",
+          "signature": "func get_source_profile_id() -> StringName",
+          "summary": "获取恢复事务绑定的来源 Profile ID。",
           "visibility": "public"
         },
         {
@@ -72144,6 +72393,20 @@
         },
         {
           "kind": "func",
+          "name": "bootstrap_and_switch_profile",
+          "signature": "func bootstrap_and_switch_profile( lease: GFSaveProfileRecoveryLease, request: GFSaveProfileRequest = null ) -> GFSaveProfileTransactionOperation",
+          "summary": "使用 switch 返回的 missing lease 创建目标并原子切换活动身份。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "adopt_and_switch_profile",
+          "signature": "func adopt_and_switch_profile( lease: GFSaveProfileRecoveryLease, request: GFSaveProfileRequest = null ) -> GFSaveProfileTransactionOperation",
+          "summary": "使用 switch 返回的 corrupt lease 恢复目标并原子切换活动身份。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
           "name": "mutate_and_persist",
           "signature": "func mutate_and_persist( profile_id: StringName, request: GFSaveProfileMutationRequest ) -> GFSaveProfileTransactionOperation",
           "summary": "事务化应用一个或多个完整 section replacement 并持久化活动 Profile。",
@@ -72202,6 +72465,20 @@
           "name": "OPERATION_ADOPT",
           "signature": "const OPERATION_ADOPT: StringName = &\"adopt\"",
           "summary": "显式采用当前 Provider 状态作为恢复后的活跃 Profile。",
+          "visibility": "public"
+        },
+        {
+          "kind": "const",
+          "name": "OPERATION_BOOTSTRAP_AND_SWITCH",
+          "signature": "const OPERATION_BOOTSTRAP_AND_SWITCH: StringName = &\"bootstrap_and_switch\"",
+          "summary": "从活动来源重新 flush 后，以当前 Provider 状态创建缺失目标并原子切换。",
+          "visibility": "public"
+        },
+        {
+          "kind": "const",
+          "name": "OPERATION_ADOPT_AND_SWITCH",
+          "signature": "const OPERATION_ADOPT_AND_SWITCH: StringName = &\"adopt_and_switch\"",
+          "summary": "从活动来源重新 flush 后，以当前 Provider 状态覆盖损坏目标并原子切换。",
           "visibility": "public"
         },
         {
@@ -72317,6 +72594,20 @@
         },
         {
           "kind": "const",
+          "name": "STATUS_BOOTSTRAPPED_AND_SWITCHED",
+          "signature": "const STATUS_BOOTSTRAPPED_AND_SWITCHED: StringName = &\"bootstrapped_and_switched\"",
+          "summary": "缺失目标已持久化，活动身份随后从来源原子切换到目标。",
+          "visibility": "public"
+        },
+        {
+          "kind": "const",
+          "name": "STATUS_ADOPTED_AND_SWITCHED",
+          "signature": "const STATUS_ADOPTED_AND_SWITCHED: StringName = &\"adopted_and_switched\"",
+          "summary": "损坏目标已显式恢复并持久化，活动身份随后从来源原子切换到目标。",
+          "visibility": "public"
+        },
+        {
+          "kind": "const",
           "name": "STATUS_MUTATED",
           "signature": "const STATUS_MUTATED: StringName = &\"mutated\"",
           "summary": "候选 sections 已应用并持久化。",
@@ -72382,7 +72673,7 @@
           "kind": "const",
           "name": "STATUS_RECOVERY_REQUIRED",
           "signature": "const STATUS_RECOVERY_REQUIRED: StringName = &\"recovery_required\"",
-          "summary": "activate 检测到缺失或损坏文档，必须显式选择 bootstrap 或 adopt。",
+          "summary": "activate 或 switch 检测到可恢复的缺失/损坏目标，必须显式选择对应恢复入口。",
           "visibility": "public"
         },
         {
@@ -72557,7 +72848,7 @@
           "kind": "func",
           "name": "get_recovery_lease",
           "signature": "func get_recovery_lease() -> GFSaveProfileRecoveryLease",
-          "summary": "获取显式 bootstrap/adopt 所需的同一身份 Recovery Lease。",
+          "summary": "获取显式 bootstrap/adopt 或 bootstrap/adopt-and-switch 所需的同一身份 Recovery Lease。",
           "visibility": "public"
         },
         {
@@ -83527,7 +83818,7 @@
       "module": "standard",
       "package_id": "gf.standard.storage",
       "path": "addons/gf/standard/utilities/storage/gf_storage_async_caller_result.gd",
-      "summary": "GFStorageAsyncCallerResult: 单个 Storage consumer 的不可变 caller 终态。 caller 终态与 `GFStorageAsyncOperation.completed` 表示的物理终态彼此独立。已接纳 save/delete 在 caller 提前离开时返回 `OUTCOME_UNKNOWN`，不会把“停止观察”伪装成",
+      "summary": "GFStorageAsyncCallerResult: 单个 Storage consumer 的不可变 caller 终态。 caller 终态与 `GFStorageAsyncOperation.completed` 表示的物理终态彼此独立。已接纳 save/delete/reset 在 caller 提前离开时返回 `OUTCOME_UNKNOWN`，不会把“停止观察”伪装成",
       "visibility": "public",
       "category": "value_object",
       "since": "unreleased",
@@ -83535,7 +83826,7 @@
         {
           "kind": "enum",
           "name": "Status",
-          "signature": "enum Status {\n\t## caller 获得了同一请求的确定物理终态。\n\tPHYSICAL_SETTLED,\n\t## caller 已安全停止观察，且不会声称存在持久化副作用的不确定性。\n\tCANCELLED,\n\t## caller 已停止观察，但 save/delete 的持久化结果仍未知。\n\tOUTCOME_UNKNOWN,\n}",
+          "signature": "enum Status {\n\t## caller 获得了同一请求的确定物理终态。\n\tPHYSICAL_SETTLED,\n\t## caller 已安全停止观察，且不会声称存在持久化副作用的不确定性。\n\tCANCELLED,\n\t## caller 已停止观察，但 save/delete/reset 的持久化结果仍未知。\n\tOUTCOME_UNKNOWN,\n}",
           "summary": "caller 观察的闭合终态分类。",
           "visibility": "public"
         },
@@ -83693,6 +83984,13 @@
           "visibility": "public"
         },
         {
+          "kind": "const",
+          "name": "OPERATION_RESET",
+          "signature": "const OPERATION_RESET: StringName = &\"reset\"",
+          "summary": "异步破坏性 family reset/recreate 请求。",
+          "visibility": "public"
+        },
+        {
           "kind": "func",
           "name": "get_request_id",
           "signature": "func get_request_id() -> int",
@@ -83826,14 +84124,14 @@
         {
           "kind": "enum",
           "name": "SettlementKind",
-          "signature": "enum SettlementKind {\n\t## 存在对应 save/load/delete 类型化领域结果；也包含接纳前校验或启动失败。\n\tDOMAIN_RESULT,\n\t## 请求在 worker 接纳前被取消，没有执行领域物理工作。\n\tCANCELLED,\n}",
+          "signature": "enum SettlementKind {\n\t## 存在对应 save/load/delete/reset 类型化领域结果；也包含接纳前校验或启动失败。\n\tDOMAIN_RESULT,\n\t## 请求在 worker 接纳前被取消，没有执行领域物理工作。\n\tCANCELLED,\n}",
           "summary": "物理终态的闭合判别种类。",
           "visibility": "public"
         },
         {
           "kind": "enum",
           "name": "WriteFailureKind",
-          "signature": "enum WriteFailureKind {\n\t## 写入成功，或当前结果不是写入请求。\n\tNONE,\n\t## 文件名、transfer 状态或冻结绑定无效。\n\tINVALID_REQUEST,\n\t## payload 不是 Storage worker 可安全处理的纯 Variant 图。\n\tPAYLOAD_INVALID,\n\t## worker 编码未能生成有效 bytes。\n\tENCODE_FAILED,\n\t## worker 线程未能启动。\n\tTHREAD_START_FAILED,\n\t## Utility dispose 等生命周期边界使任务不可执行。\n\tUNAVAILABLE,\n\t## 目录、临时文件或事务提交 I/O 失败。\n\tIO_FAILED,\n}",
+          "signature": "enum WriteFailureKind {\n\t## 写入成功，或当前结果不是写入请求。\n\tNONE,\n\t## 文件名、transfer 状态或冻结绑定无效。\n\tINVALID_REQUEST,\n\t## payload 不是 Storage worker 可安全处理的纯 Variant 图。\n\tPAYLOAD_INVALID,\n\t## worker 编码未能生成有效 bytes。\n\tENCODE_FAILED,\n\t## threaded executor worker 未能启动。\n\tTHREAD_START_FAILED,\n\t## Utility dispose 等生命周期边界使任务不可执行。\n\tUNAVAILABLE,\n\t## 目录、临时文件或事务提交 I/O 失败。\n\tIO_FAILED,\n}",
           "summary": "异步写入失败的稳定分类。",
           "visibility": "public"
         },
@@ -83898,6 +84196,13 @@
           "name": "get_delete_result",
           "signature": "func get_delete_result() -> GFStorageDeleteResult",
           "summary": "获取删除结果副本。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_reset_result",
+          "signature": "func get_reset_result() -> GFStorageFamilyResetResult",
+          "summary": "获取 family reset/recreate 结果副本。",
           "visibility": "public"
         },
         {
@@ -84597,6 +84902,214 @@
         }
       ]
     },
+    "GFStorageFamilyResetAuthorization": {
+      "owner_kind": "class",
+      "extends": "RefCounted",
+      "module": "standard",
+      "package_id": "gf.standard.storage",
+      "path": "addons/gf/standard/utilities/storage/gf_storage_family_reset_authorization.gd",
+      "summary": "GFStorageFamilyResetAuthorization: 单个 Storage logical family 的一次性破坏性恢复授权。 授权只能由 GFStorageUtility 为当前实例、冻结 root 与 canonical logical identity 创建。 reset 必须原样提交同一对象；跨 Utility、跨 root/file 或重复提交都会失败关闭。",
+      "visibility": "public",
+      "category": "runtime_handle",
+      "since": "unreleased",
+      "members": [
+        {
+          "kind": "const",
+          "name": "REASON_CORRUPT",
+          "signature": "const REASON_CORRUPT: StringName = &\"corrupt\"",
+          "summary": "调用方已经确认目标读失败属于可破坏恢复的损坏状态。",
+          "visibility": "public"
+        },
+        {
+          "kind": "const",
+          "name": "STATE_AVAILABLE",
+          "signature": "const STATE_AVAILABLE: StringName = &\"available\"",
+          "summary": "授权尚未被 reset 请求消费。",
+          "visibility": "public"
+        },
+        {
+          "kind": "const",
+          "name": "STATE_CLAIMED",
+          "signature": "const STATE_CLAIMED: StringName = &\"claimed\"",
+          "summary": "授权已经被一个 reset 请求消费。",
+          "visibility": "public"
+        },
+        {
+          "kind": "const",
+          "name": "STATE_STALE",
+          "signature": "const STATE_STALE: StringName = &\"stale\"",
+          "summary": "授权无效、绑定不匹配或已经过期。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_authorization_id",
+          "signature": "func get_authorization_id() -> int",
+          "summary": "获取当前 Utility 生命周期内唯一的授权 ID。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_logical_path",
+          "signature": "func get_logical_path() -> String",
+          "summary": "获取授权绑定的 canonical logical identity。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_reason",
+          "signature": "func get_reason() -> StringName",
+          "summary": "获取调用方确认的破坏性恢复原因。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_state",
+          "signature": "func get_state() -> StringName",
+          "summary": "获取授权当前状态。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "is_available",
+          "signature": "func is_available() -> bool",
+          "summary": "检查授权是否仍可提交一次。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "is_claimed",
+          "signature": "func is_claimed() -> bool",
+          "summary": "检查授权是否已经被 reset 请求消费。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "is_stale",
+          "signature": "func is_stale() -> bool",
+          "summary": "检查授权是否无效或已经过期。",
+          "visibility": "public"
+        }
+      ]
+    },
+    "GFStorageFamilyResetResult": {
+      "owner_kind": "class",
+      "extends": "RefCounted",
+      "module": "standard",
+      "package_id": "gf.standard.storage",
+      "path": "addons/gf/standard/utilities/storage/gf_storage_family_reset_result.gd",
+      "summary": "GFStorageFamilyResetResult: 单个 Storage logical family 破坏性 reset/recreate 的不可变终态。 结果只公开 logical 层分类、阶段与有界计数，不暴露 Storage root、family path、 retirement staging 或任何私有 sidecar 名称。实例只能由 Storage 框架内部配置一次。",
+      "visibility": "public",
+      "category": "value_object",
+      "since": "unreleased",
+      "members": [
+        {
+          "kind": "enum",
+          "name": "FailureKind",
+          "signature": "enum FailureKind {\n\t## reset/recreate 成功。\n\tNONE,\n\t## logical identity、参数或结果形状无效。\n\tINVALID_REQUEST,\n\t## 目标 logical family 不存在。\n\tNOT_FOUND,\n\t## 未提供匹配且可用的一次性破坏性授权。\n\tUNAUTHORIZED,\n\t## 私有 layout 版本高于当前运行时理解范围。\n\tUNSUPPORTED_LAYOUT,\n\t## 当前 layout 或 retirement evidence 无法安全归属于精确目标。\n\tCONFLICT,\n\t## reset worker 线程未能启动。\n\tTHREAD_START_FAILED,\n\t## Utility 生命周期、准入或同 family 串行边界未接纳请求。\n\tUNAVAILABLE,\n\t## retirement、recreate 或 cleanup I/O 失败。\n\tIO_FAILED,\n}",
+          "summary": "reset/recreate 失败的稳定分类。",
+          "visibility": "public"
+        },
+        {
+          "kind": "enum",
+          "name": "SourceKind",
+          "signature": "enum SourceKind {\n\t## 尚未完成目标分类。\n\tUNKNOWN,\n\t## 精确 logical family 不存在。\n\tMISSING,\n\t## catalog/owner identity 有效；损坏只可能位于 payload 或可变事务 evidence。\n\tPAYLOAD_ONLY,\n\t## catalog、owner、事务身份或 family 结构发生冲突。\n\tSTRUCTURAL_IDENTITY,\n}",
+          "summary": "reset 前精确目标的稳定分类。",
+          "visibility": "public"
+        },
+        {
+          "kind": "enum",
+          "name": "Phase",
+          "signature": "enum Phase {\n\t## 没有失败阶段。\n\tNONE,\n\t## layout、authorization 或目标 evidence 预检。\n\tPREFLIGHT,\n\t## 把精确旧 family identity 移入 retirement staging。\n\tRETIRE,\n\t## 发布新的 owner 与 catalog claim。\n\tRECREATE,\n\t## 清理已退休的私有 evidence。\n\tCLEANUP,\n}",
+          "summary": "失败发生的稳定 reset 阶段。",
+          "visibility": "public"
+        },
+        {
+          "kind": "enum",
+          "name": "FamilyMember",
+          "signature": "enum FamilyMember {\n\t## 没有失败成员。\n\tNONE,\n\t## 全局私有 layout manifest 或版本目录。\n\tLAYOUT,\n\t## 精确 logical identity 的 catalog claim。\n\tCATALOG,\n\t## family owner claim。\n\tOWNER,\n\t## payload、candidate、backup、resource stage 或事务 evidence。\n\tMUTABLE_EVIDENCE,\n\t## 精确 family 容器或其 retirement staging。\n\tFAMILY_CONTAINER,\n\t## 与精确 logical identity 绑定的不可变 reset intent。\n\tRESET_INTENT,\n}",
+          "summary": "reset 结果可报告的路径无关成员分类。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "is_successful",
+          "signature": "func is_successful() -> bool",
+          "summary": "检查 reset/recreate 是否完整成功。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_error_code",
+          "signature": "func get_error_code() -> Error",
+          "summary": "获取 reset/recreate 的 Godot Error 码。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_failure_kind",
+          "signature": "func get_failure_kind() -> FailureKind",
+          "summary": "获取稳定失败分类。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_source_kind",
+          "signature": "func get_source_kind() -> SourceKind",
+          "summary": "获取 reset 前目标状态分类。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_failed_phase",
+          "signature": "func get_failed_phase() -> Phase",
+          "summary": "获取失败发生的阶段。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_retired_member_count",
+          "signature": "func get_retired_member_count() -> int",
+          "summary": "获取已移入 retirement staging 的 identity root 数量。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_recreated_member_count",
+          "signature": "func get_recreated_member_count() -> int",
+          "summary": "获取已重新发布的 claim 成员数量。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_remaining_evidence_count",
+          "signature": "func get_remaining_evidence_count() -> int",
+          "summary": "获取终态仍未清除的旧 family、retirement 或 reset intent evidence 数量。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "get_failed_member",
+          "signature": "func get_failed_member() -> FamilyMember",
+          "summary": "获取阻止 reset 继续执行的成员分类。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "duplicate_result",
+          "signature": "func duplicate_result() -> GFStorageFamilyResetResult",
+          "summary": "创建隔离结果副本。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "to_dict",
+          "signature": "func to_dict() -> Dictionary",
+          "summary": "转换为不含物理路径的可报告字典。",
+          "visibility": "public"
+        }
+      ]
+    },
     "GFStoragePayloadTransfer": {
       "owner_kind": "class",
       "extends": "RefCounted",
@@ -84765,14 +85278,14 @@
           "kind": "func",
           "name": "configure_success",
           "signature": "func configure_success( p_payload: Dictionary, p_metadata: Dictionary = {}, p_integrity_status: IntegrityStatus = IntegrityStatus.NOT_CHECKED, p_document_schema_version: int = 0 ) -> GFStorageReadResult",
-          "summary": "配置成功结果。",
+          "summary": "配置成功结果，并清除任何不透明 Storage 来源绑定。",
           "visibility": "public"
         },
         {
           "kind": "func",
           "name": "configure_failure",
           "signature": "func configure_failure( p_error: String, p_error_code: Error = ERR_INVALID_DATA, p_metadata: Dictionary = {}, p_integrity_status: IntegrityStatus = IntegrityStatus.NOT_CHECKED, p_document_schema_version: int = 0, p_failure_kind: FailureKind = FailureKind.IO_FAILED ) -> GFStorageReadResult",
-          "summary": "配置失败结果。",
+          "summary": "配置失败结果，并清除任何不透明 Storage 来源绑定。",
           "visibility": "public"
         },
         {
@@ -84793,21 +85306,21 @@
           "kind": "func",
           "name": "to_dict",
           "signature": "func to_dict() -> Dictionary",
-          "summary": "转换为线程、报告和工具可传递的字典。",
+          "summary": "转换为执行器、报告和工具可传递的字典。",
           "visibility": "public"
         },
         {
           "kind": "func",
           "name": "apply_dict",
           "signature": "func apply_dict(data: Dictionary) -> void",
-          "summary": "从字典应用读取结果字段。",
+          "summary": "从字典应用读取结果字段，并清除任何不透明 Storage 来源绑定。",
           "visibility": "public"
         },
         {
           "kind": "func",
           "name": "from_dict",
           "signature": "static func from_dict(data: Dictionary) -> GFStorageReadResult",
-          "summary": "从字典创建读取结果。",
+          "summary": "从字典创建不带 Storage 来源绑定的读取结果。",
           "visibility": "public"
         }
       ]
@@ -85347,6 +85860,27 @@
         },
         {
           "kind": "func",
+          "name": "create_family_reset_authorization",
+          "signature": "func create_family_reset_authorization( file_name: String, observed_result: GFStorageReadResult ) -> GFStorageFamilyResetAuthorization",
+          "summary": "为一次显式的破坏性 family reset 创建绑定授权。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "reset_file_family",
+          "signature": "func reset_file_family( file_name: String, authorization: GFStorageFamilyResetAuthorization ) -> GFStorageFamilyResetResult",
+          "summary": "同步 retire 并重新 claim 一个显式授权的 logical family。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
+          "name": "reset_file_family_request_async",
+          "signature": "func reset_file_family_request_async( file_name: String, authorization: GFStorageFamilyResetAuthorization, options: GFStorageAsyncRequestOptions = null ) -> GFStorageAsyncOperation",
+          "summary": "通过当前 Storage executor 异步 retire 并重新 claim 一个显式授权的 logical family。",
+          "visibility": "public"
+        },
+        {
+          "kind": "func",
           "name": "save_data",
           "signature": "func save_data(file_name: String, data: Dictionary) -> Error",
           "summary": "保存纯字典数据。",
@@ -85419,7 +85953,7 @@
           "kind": "func",
           "name": "wait_for_async_tasks",
           "signature": "func wait_for_async_tasks() -> void",
-          "summary": "等待已经入队和正在执行的异步纯数据任务全部完成。",
+          "summary": "等待已经入队和正在执行的异步 save/load/delete/reset 任务全部完成。",
           "visibility": "public"
         },
         {

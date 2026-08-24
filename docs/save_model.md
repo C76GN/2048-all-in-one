@@ -6,7 +6,7 @@
 
 1. 每个账号只有一个主玩家 Profile 作为业务可见提交点；普通 Section 直接进入主 `GFSaveDocument`，大型 Section 只在主文档保存 `ChunkManifest`，载荷写入由可信主身份派生的 A/B chunk Profiles。chunk Profiles 不是 Feature 自行维护的旁路文件，也不能独立发布业务可见性。GFStorage 私有拥有每个 logical family 的 metadata、payload 与事务成员，项目不得拼接、枚举或修改这些物理成员。彼此独立的业务操作仍各自拥有明确的类型化终态。
 2. 每个 Feature 拥有自己的业务 Schema，持久化 Feature 不解释业务字段。
-3. 加载前严格校验 GFStorage logical family、`GFSaveProfile`、typed section 和 Feature Schema；immutable claim 有效时的不可解析载荷只允许丢弃并重建，同源旧 Profile 只允许先备份再重建；私有 family 结构损坏、未来版本或业务 Schema 错误直接拒绝并保留原档。
+3. 加载前严格校验 GFStorage logical family、`GFSaveProfile`、typed section 和 Feature Schema；immutable claim 有效时的不可解析载荷只允许丢弃并重建，同源旧 Profile 只允许先备份再重建；私有 family 结构损坏在项目接入 GF 的 source-bound 一次性授权重置前仍直接拒绝并保留证据，未来版本或业务 Schema 错误始终拒绝并保留原档。
 4. 复用 `GFSaveProfileUtility`、`GFSaveProfile`、`GFSaveSectionProvider`、`GFSaveProfileOperation`/`GFSaveProfileResult`、`GFSaveRecoveryPolicy`、`GFSaveDocument` 和 `GFStorageUtility`，不在项目层重复实现 generation 合并、重试、flush barrier、事务 apply/rollback、文档封装或原子文件提交。
 5. 不保留旧 SaveSlot 或时间戳 Resource 集合的运行时双读分支。
 
@@ -43,7 +43,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 当前项目仍处于未发布开发阶段，主 Profile schema 为 13。文档 metadata 精确标识为同一 Profile schema、版本为历史正整数且低于 13，或当前主版本中任一已知 Section schema 低于运行时 Provider 时，启动流程先把完整规范文档保存到带账号身份和旧版本的 `recovery/` 路径，确认备份成功后再通过当前 section 默认值重建活动文件。不读取、转换或合并历史业务字段，不为 v12 及更早版本保留运行时兼容；备份失败时不得覆盖原活动文件。未来版本和未知 schema 仍拒绝且不得破坏性重置。
 
-`ProjectStorageRecoveryPolicy` 只把 GF 已归类为 `GFStorageReadResult.FailureKind.CORRUPT` 的读取视为可尝试重置。项目绝不消费其中的字段；immutable claim 有效时先由 GF 拒绝读取，再由 GFStorage 的 logical-family 删除入口清理可变成员，最后以当前默认 section 写回新 Profile。若 catalog、owner 或事务身份等私有 family 结构已损坏，公开删除同样失败，项目必须保留证据并失败关闭。项目不拼接 `.tmp`、`.bak`、事务证据或其他私有 sidecar。未来 GFStorage 版本、未来 Profile 版本、未知 schema ID、畸形业务文档和当前 section 校验失败必须保留原档并显式失败。
+`ProjectStorageRecoveryPolicy` 只把 GF 已归类为 `GFStorageReadResult.FailureKind.CORRUPT` 的读取视为可尝试重置。当前项目不消费读取结果中的私有字段；immutable claim 有效时先由 GF 拒绝读取，再由 GFStorage 的 logical-family 删除入口清理可变成员，最后以当前默认 section 写回新 Profile。`f6d7b87a` 已新增 `create_family_reset_authorization()` 与同步/异步 `reset_file_family` 入口，可用同一 `GFStorageUtility` 返回的原始 CORRUPT 结果签发绑定 Utility、Storage root 和 canonical logical identity 的一次性授权；项目尚未把该能力接入 Settings、账号目录和主 Profile 恢复，因此 catalog、owner 或事务身份等私有 family 结构损坏仍保留证据并失败关闭。后续独立切片只能在类型化 reset 确定成功后写回默认值，不得拼接 `.tmp`、`.bak`、事务证据或其他私有 sidecar。未来 GFStorage 版本、未来 Profile 版本、未知 schema ID、畸形业务文档和当前 section 校验失败必须保留原档并显式失败。
 
 ### 设置
 
@@ -53,7 +53,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 设置是全局偏好，不参与玩家数据图事务。语言、显示、主音量、视觉主题、音效主题、GF 输入覆盖、棋盘动画响应策略和默认关闭的本地性能诊断同意项不随书签或回放恢复；撤回诊断同意必须立即清空内存轨迹。Composition Root 把 `GFStorageSettingsStoreUtility` 注册为精确 `GFSettingsStoreUtility` alias；该 Store 声明并缓存 Storage 生命周期依赖，`GFSettingsUtility` 在 Store ready 后的 activation 边界加载设置。架构关闭时由 GF Settings 先冻结 mutation admission，再按冻结时的原目标文件顺序冲刷全部 debounce/batch 记录；项目不得读取框架私有队列，也不得把最后一次保存拖到 Storage 已释放后的 `dispose()`。
 
-设置只接受当前 GF Storage codec 和当前设置定义。项目不再在运行时识别旧版 `XOR + Base64 JSON` 载荷；payload、envelope 或 checksum 损坏由 GF 明确拒绝，再按同一 `ProjectStorageRecoveryPolicy` 通过 Settings Store 覆写当前默认设置，未知载荷中的字段不得猜测。若损坏位于 GF 私有 catalog、owner 或事务身份，公开 load/save/delete 都无法完成单 family 授权重建：架构激活前发现时由 Storage 阻止启动进入 READY；Storage 已激活后的显式设置重载可以应用内存默认值，但该加载诊断与持久化健康必须失败，原证据和 logical identity 保持不动并阻断后续写入。项目不得解析或修改私有成员。未来存储版本和设置业务错误同样不自动删除。发布后若存在必须保留的数据，只提供显式一次性迁移工具，不把旧格式双读留在主路径。
+设置只接受当前 GF Storage codec 和当前设置定义。项目不再在运行时识别旧版 `XOR + Base64 JSON` 载荷；payload、envelope 或 checksum 损坏由 GF 明确拒绝，再按同一 `ProjectStorageRecoveryPolicy` 通过 Settings Store 覆写当前默认设置，未知载荷中的字段不得猜测。GF 已提供与原始 CORRUPT 读取绑定的一次性 family-reset 授权，但设置恢复尚未接入：私有 catalog、owner 或事务身份损坏在架构激活前仍由 Storage 阻止启动进入 READY；Storage 已激活后的显式设置重载可以应用内存默认值，但该加载诊断与持久化健康必须失败，原证据和 logical identity 保持不动并阻断后续写入。后续接入只能由同一 Storage 消费 source-bound 授权和类型化 reset 结果，项目不得解析或修改私有成员。未来存储版本和设置业务错误同样不自动删除。发布后若存在必须保留的数据，只提供显式一次性迁移工具，不把旧格式双读留在主路径。
 
 ## GFSaveProfile 结构
 
@@ -85,13 +85,15 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 ## GF Profile Coordinator 迁移边界
 
-当前 vendored 开发版本已经提供 `GFSaveProfileTransactionCoordinator`，但项目暂不迁移。可用 API 不等于已满足本项目账号契约；`GameSaveGraphUtility` 目前仍拥有活动 Profile 身份、切换 gate、项目恢复决策、section 事务与对账证据，底层 generation、Storage I/O 和 Provider apply/rollback 继续由 `GFSaveProfileUtility` 拥有。暂缓迁移仍有一个已由源码确认的 blocker：
+当前 vendored 开发版本已经提供 `GFSaveProfileTransactionCoordinator`，但项目暂不迁移。`f6d7b87a` 已解除先前的切换恢复 blocker：`switch_profile()` 对 missing/corrupt 目标返回与原事务、domain generation 和来源身份绑定的 `GFSaveProfileRecoveryLease`；`bootstrap_and_switch_profile()` / `adopt_and_switch_profile()` 会重新冲刷来源，必要时消费同一次结构损坏读取签发的 family-reset 授权，并只在目标确定持久化后原子切换身份。source flush、target save、reset 的 outcome-unknown 以及 quiesce/dispose 都保留类型化终态和对账栅栏，恢复完成前来源身份与 section 状态保持不变，不能把来源账号当前 Provider 状态写入目标而造成跨账号数据泄漏。
 
-1. `activate_profile()` 在 domain 尚未激活时会为 missing/corrupt 目标返回 `GFSaveProfileRecoveryLease`，但 `switch_profile()` 的目标加载遇到相同状态时只返回 `GFSaveProfileTransactionResult.STATUS_TARGET_LOAD_FAILED`，不提供可继续 `bootstrap_profile()` / `adopt_profile()` 的 recovery lease。项目切换到新账号或需重建的目标档时，必须保持来源账号为活动真源，先按项目策略初始化默认 section，或备份并重建损坏/过时目标，再原子提交目标身份；不能把来源账号当前 Provider 状态直接写入目标而造成跨账号数据泄漏。
+先前的恢复 blocker 已解除，但项目仍不能直接迁移：bookmarks/replays 的 manifest-backed Provider 必须先读取目标主 Profile，校验 Manifest，再异步物化派生 chunk 并把一次性 lease 放入 load context，随后才能 apply Provider。Coordinator 的 `switch_profile(target_profile_id, context, metadata)` 要求在接纳事务时就交付 context；接纳后先冲刷来源，再直接用该 context 启动严格目标加载，当前没有在其目标主文档读取完成后、Provider apply 前执行项目异步 preflight 的 seam。外部预读与物化可以依靠 `ChunkMaterializationLease.claim_for_manifest()` 对第二次读取的完整 Manifest 做一致性校验并在漂移时失败关闭，但这段异步工作发生在 Coordinator domain admission/reservation 之前，不受其取消、quiesce 和类型化终态管辖；若继续保留项目外层 gate 持有它，又会形成双重事务权威。
+
+因此 `GameSaveGraphUtility` 目前仍拥有活动 Profile 身份、切换 gate、项目恢复决策、chunk preflight、section 事务与对账证据，底层 generation、Storage I/O 和 Provider apply/rollback 继续由 `GFSaveProfileUtility` 拥有。本轮只更新 vendor，不建立 Coordinator 双轨。
 
 当前版本已经允许在共享 Provider domain 仍有另一个活动身份时安全注销目标非活动 Profile，前提是目标不是活动身份且 domain 没有在途事务或 recovery/reconcile lease；原注销 blocker 已解除。该修复只缩小了未来迁移范围，不授权把账号状态机拆成 Coordinator 与项目 transition gate 各管一半。
 
-只有上游补齐以下剩余边界后，才允许进行一次性切换：切换事务能为 missing/corrupt 目标返回与原事务、domain generation 和来源身份绑定的 recovery lease，恢复成功前来源身份与 section 状态不变；outcome-unknown、rollback failure、quiesce 与 dispose 继续提供唯一 typed 终态并保持 Profile/path 所有权。迁移验收仍必须覆盖同 domain 活动身份存在时注销无事务、无 recovery/reconcile lease、无 detached 写的非活动 Profile。迁移时 Coordinator 应统一接管 Profile 注册、活动身份、source flush、target load、recovery/reconcile lease 和 `mutate_and_persist()`；项目继续拥有本地账号目录、账号 ID 到 logical identity 的映射、当前 layout 内的默认 Profile 收养，以及旧业务档备份/重建策略；物理 family 与成员清理由 GFStorage 独占。不得让项目 transition gate 与 Coordinator 双重协调，也不得保留新旧两套运行时入口；注册、切换、section mutation、对账和关闭顺序必须在同一批改动与回归测试中整体切换。
+只有异步 chunk preflight 能在单一事务 authority 下完成准入、取消、迟到完成抑制与类型化结算，并在其后原子进入 target load/apply，才允许安排独立的一次性迁移纵向切片。迁移验收仍必须覆盖 missing/corrupt 目标恢复、preflight 取消/失败/迟到完成、outcome-unknown、rollback failure、quiesce/dispose，以及同 domain 活动身份存在时注销无事务、无 recovery/reconcile lease、无 detached 写的非活动 Profile。Coordinator 应统一接管 Profile 注册、活动身份、source flush、target load、recovery/reconcile lease 和 `mutate_and_persist()`；项目继续拥有本地账号目录、账号 ID 到 logical identity 的映射、chunk Manifest 校验与物化、当前 layout 内的默认 Profile 收养，以及旧业务档备份/重建策略；物理 family 与成员清理由 GFStorage 独占。迁移完成前不得让项目 transition gate 与 Coordinator 双重协调，也不得保留新旧两套运行时入口；注册、切换、section mutation、对账和关闭顺序必须在同一批改动与回归测试中整体切换。
 
 ## 事务语义
 
@@ -119,7 +121,7 @@ Profile 删除使用 `GFStorageUtility.delete_file_request_async()` 和 `GFStora
 4. 直接调用同步返回句柄的 `request_load_profile()` 无法先完成 chunk I/O；存在 manifest-backed Section 时，该公共入口无条件拒绝外部 context，不能把可猜测的 Dictionary key 当成内部授权。生产加载必须走 `begin_bootstrap_profile()` 或 `activate_profile_async()` 的异步 preflight。
 5. 缺失文件可以按当前内存默认值恢复并随后保存；未来 schema、未知 section、畸形 metadata 或当前 Feature schema 错误必须明确失败并保留原档。
 
-首次运行没有文件是正常状态。payload/envelope 格式损坏不是首次运行，必须记录拒绝原因并在 immutable claim 有效时按 `reset_allowed` 重建；私有 family 结构损坏、未来版本或业务 Schema 错误必须明确失败且保留原档。
+首次运行没有文件是正常状态。payload/envelope 格式损坏不是首次运行，必须记录拒绝原因并在 immutable claim 有效时按 `reset_allowed` 重建；私有 family 结构损坏在项目接入 GF 的 source-bound 授权重置前必须明确失败并保留证据，未来版本或业务 Schema 错误始终失败且保留原档。
 
 ## Feature 数据
 
@@ -231,7 +233,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 - Binary 往返后严格类型与稳定 UUID 保留。
 - 后期 section 应用失败时早期 section 回滚。
 - 同源旧 Profile 先完整备份再以当前默认 section 重建，且运行时不双读旧业务字段。
-- immutable claim 有效时，不可解析的 GFStorage logical family 载荷只重建当前默认值；私有 family 结构损坏与未来存储版本不得自动删除。
+- immutable claim 有效时，不可解析的 GFStorage logical family 载荷只重建当前默认值；私有 family 结构损坏在独立恢复切片接入同源一次性授权和类型化 reset 终态前不得自动重建，未来存储版本不得自动删除。
 - 未来 Profile、未知 schema、畸形 metadata 和当前 section Schema 不匹配时拒绝载荷。
 - 保存失败时内存 section 回滚。
 - 回放继续游玩清理 redo 历史，设置恢复不污染玩家数据。
