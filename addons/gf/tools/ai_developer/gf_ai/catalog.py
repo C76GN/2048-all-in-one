@@ -56,6 +56,7 @@ _LOCKFILE_REGISTRY_SOURCE_ALLOWED_FIELDS = frozenset({
 	"registry_size_bytes",
 })
 _LOCK_ENTRY_REASONS = frozenset({"manual", "dependency", "preset", "bundled", "dev"})
+API_INDEX_CATALOG_VERSION = "2.0.0"
 
 
 def load_api_index() -> dict[str, Any]:
@@ -382,6 +383,11 @@ def known_package_ids() -> set[str]:
 
 def known_api_classes() -> set[str]:
 	return set(_class_records(load_api_index()))
+
+
+def api_index_issues(api_index: dict[str, Any]) -> list[str]:
+	"""Return all closed API-index validation issues without raising."""
+	return _api_index_issues(api_index)
 
 
 def catalog_reference_issues(
@@ -933,6 +939,10 @@ def _api_index_issues(data: dict[str, Any]) -> list[str]:
 		issues.append("API index fields do not match the version 2 contract.")
 	if data.get("schema_version") != 2:
 		issues.append("API index schema_version must equal 2.")
+	if data.get("catalog_version") != API_INDEX_CATALOG_VERSION:
+		issues.append(
+			f"API index catalog_version must equal {API_INDEX_CATALOG_VERSION}."
+		)
 	for field in ("catalog_version", "framework_version"):
 		if not isinstance(data.get(field), str) or not data.get(field):
 			issues.append(f"API index {field} must be a non-empty string.")
@@ -975,6 +985,7 @@ def _api_index_issues(data: dict[str, Any]) -> list[str]:
 		for dependency_id in dependencies:
 			if not isinstance(dependency_id, str) or dependency_id not in package_ids:
 				issues.append(f"API index package has an unknown dependency: {package_id} -> {dependency_id!r}.")
+	issues.extend(_package_dependency_cycle_issues(packages, package_ids))
 	owner_identities: dict[str, str] = {}
 	for owner_kind, records in (("class", classes), ("autoload", autoloads)):
 		for owner_name, record in records.items():
@@ -994,7 +1005,12 @@ def _api_index_issues(data: dict[str, Any]) -> list[str]:
 				issues.append(
 					f"API index {owner_kind} record owner_kind is invalid: {owner_name}."
 				)
-			if record.get("package_id") not in package_ids:
+			if record.get("visibility") != "public":
+				issues.append(
+					f"API index {owner_kind} record visibility must equal public: {owner_name}."
+				)
+			owner_package_id = record.get("package_id")
+			if not isinstance(owner_package_id, str) or owner_package_id not in package_ids:
 				issues.append(
 					f"API index {owner_kind} has no known owner package: {owner_name}."
 				)
@@ -1009,6 +1025,64 @@ def _api_index_issues(data: dict[str, Any]) -> list[str]:
 	if not isinstance(digest, str) or digest != expected_digest:
 		issues.append("API index source_digest does not match its content.")
 	return issues
+
+
+def _package_dependency_cycle_issues(
+	packages: list[Any],
+	package_ids: set[str],
+) -> list[str]:
+	graph: dict[str, list[str]] = {}
+	for package in packages:
+		if not isinstance(package, dict) or not isinstance(package.get("id"), str):
+			continue
+		raw_dependencies = package.get("dependencies", [])
+		dependencies = raw_dependencies if isinstance(raw_dependencies, list) else []
+		graph[str(package["id"])] = sorted(
+			dependency_id
+			for dependency_id in dependencies
+			if isinstance(dependency_id, str) and dependency_id in package_ids
+		)
+	state: dict[str, int] = {}
+	cycles: set[tuple[str, ...]] = set()
+
+	for start_id in sorted(graph):
+		if state.get(start_id) == 2:
+			continue
+		path = [start_id]
+		positions = {start_id: 0}
+		state[start_id] = 1
+		stack: list[tuple[str, int]] = [(start_id, 0)]
+		while stack:
+			package_id, dependency_index = stack[-1]
+			dependencies = graph.get(package_id, [])
+			if dependency_index >= len(dependencies):
+				stack.pop()
+				state[package_id] = 2
+				positions.pop(package_id, None)
+				path.pop()
+				continue
+			dependency_id = dependencies[dependency_index]
+			stack[-1] = (package_id, dependency_index + 1)
+			dependency_state = state.get(dependency_id, 0)
+			if dependency_state == 2:
+				continue
+			if dependency_state == 1:
+				cycle_start = positions.get(dependency_id)
+				if cycle_start is not None:
+					cycle = path[cycle_start:]
+					minimum_index = min(range(len(cycle)), key=cycle.__getitem__)
+					cycles.add(tuple(cycle[minimum_index:] + cycle[:minimum_index]))
+				continue
+			positions[dependency_id] = len(path)
+			path.append(dependency_id)
+			state[dependency_id] = 1
+			stack.append((dependency_id, 0))
+	return [
+		"API index package dependency graph contains a cycle: "
+		+ " -> ".join((*cycle, cycle[0]))
+		+ "."
+		for cycle in sorted(cycles)
+	]
 
 
 def _recipe_reference_issues(

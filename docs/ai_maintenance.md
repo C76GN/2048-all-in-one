@@ -24,7 +24,7 @@
 - Godot 编辑器中的 GDScript warning 不能只靠 GUT 判断。修改 `.gd` 后，尤其涉及 Variant、返回值、Signal 连接、`append()`、`erase()`、局部变量命名或 tool 脚本时，应运行 `tools/check_gdscript_lsp_diagnostics.ps1`。
 - 不要提交临时分析、调试报告、AI 会话记录或一次性生成文件。确需跟踪的 golden fixture 必须放在测试 fixture 目录，声明输入与更新方式；生成状态仍以忽略提交的 `build/` 报告为准。
 - 不要把框架限制绕到业务层长期堆积；如果确认为 gf 能力缺口，应在实现中保留清晰边界，并在回复中说明反哺建议。
-- GF Module 的 `init()` / `async_init()` 不得直接或经 helper 获取跨模块依赖；统一在 `ready()` 解析。除组成应用 Composition Root 的 `app/scripts/boot.gd` 与 `app/scripts/boot_runtime.gd` 外，项目脚本不得直接访问全局 `Gf` 或 `GFAutoload`。
+- GF Module 的 `init()` / `async_init()` 不得直接或经 helper 获取跨模块依赖；统一在 `ready()` 解析。除组成应用 Composition Root 的 `app/scripts/boot.gd` 与 `app/scripts/boot_runtime.gd` 外，项目脚本不得直接访问全局 `Gf` 或 GF AutoLoad 基类。
 
 ## 架构速览
 

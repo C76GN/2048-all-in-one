@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 5,
   "project": {
     "id": "project_2048_all_in_one",
     "summary": "基于 GF Framework 的可扩展 2048 规则组合示例游戏，面向 Steam、移动端、Web 与微信小游戏，支持确定性回放、可组合方块、主题内容包和自定义棋盘。",
@@ -881,7 +881,62 @@
       "全部构建只安装无 UI、严格有界的 GFOperationDiagnosticsUtility 运行基线；Console、Overlay、Inspector、Screenshot、支持报告界面和测试工具只在 with_dev_tools feature 下安装，不得进入玩家首屏依赖链。",
       "不为旧 API、旧业务 schema 或未知损坏数据保留运行时兼容分支；必要迁移使用显式一次性工具。"
     ],
-    "project_profile_path": "gf_project_profile.json"
+    "project_profile_path": "gf_project_profile.json",
+    "path_roles": [
+      {
+        "path": "res://features",
+        "role": "scan_root"
+      },
+      {
+        "path": "res://docs",
+        "role": "scan_root"
+      },
+      {
+        "path": "res://.gf/packages.lock.json",
+        "role": "optional_input"
+      }
+    ],
+    "source_domains": [
+      {
+        "root": "res://tests",
+        "domain": "test"
+      },
+      {
+        "root": "res://addons/gut",
+        "domain": "test"
+      },
+      {
+        "root": "res://tools",
+        "domain": "tool"
+      },
+      {
+        "root": "res://features/asset_library/tools",
+        "domain": "tool"
+      },
+      {
+        "root": "res://features/platform_runtime/tools",
+        "domain": "tool"
+      },
+      {
+        "root": "res://features/themes/tools",
+        "domain": "tool"
+      },
+      {
+        "root": "res://addons/wechat_minigame_smoke_export",
+        "domain": "editor"
+      }
+    ],
+    "documentation_roots": [
+      "res://docs",
+      "res://features/achievements/docs",
+      "res://features/asset_library/docs",
+      "res://features/board_editor/docs",
+      "res://features/gameplay/docs",
+      "res://features/platform_runtime/docs",
+      "res://features/themes/docs",
+      "res://features/tile_catalog/docs",
+      "res://features/tile_lab/docs"
+    ]
   },
   "constraints": {
     "platforms": [

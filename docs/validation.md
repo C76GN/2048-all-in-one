@@ -78,7 +78,7 @@ powershell -ExecutionPolicy Bypass -File tools/test_invoke_godot_project_tool.ps
 `tests/gut/test_gf_project_conformance.gd` 使用 `GFScriptStructureTools` 扫描 `app/`、`features/`、`shared/` 和当前 `addons/gf/`：
 
 - 动态读取 GF 源码中的 `@deprecated` 方法，并按项目接收者类型阻止调用。
-- 限制全局 `Gf` / `GFAutoload` 只能由 `app/scripts/boot.gd` 与 `app/scripts/boot_runtime.gd` 组成的应用组合根访问。
+- 限制全局 `Gf` / GF AutoLoad 基类只能由 `app/scripts/boot.gd` 与 `app/scripts/boot_runtime.gd` 组成的应用组合根访问。
 - 沿项目本地 helper 调用链检查 GF Module 的 `init()` / `async_init()`，禁止提前获取跨模块依赖。
 
 更新 vendored GF 或修改 Module 生命周期时，先运行：

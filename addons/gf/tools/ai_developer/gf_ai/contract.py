@@ -20,12 +20,19 @@ from .paths import (
 	atomic_write_json,
 	is_reserved_framework_resource_path,
 	normalize_portable_ownership_path,
+	portable_ownership_path_identity,
 	project_path_has_link_component,
 	read_json_object,
 	resolve_project_path,
 	sha256_json,
 )
 from .schema import validate_schema_file
+
+
+_SOURCE_DOMAIN_EXCLUDED_ROOTS = frozenset({
+	".git", ".gf", ".godot", ".import", "__pycache__", "ai_analysis", "build", "node_modules", "site",
+})
+_MAX_DOCUMENTATION_ROOTS = 100
 
 
 def contract_path(project_root: Path, relative_path: str = DEFAULT_CONTRACT_PATH) -> Path:
@@ -112,7 +119,7 @@ def load_contract(
 	raw_schema_version = data.get("schema_version")
 	schema_version = raw_schema_version if isinstance(raw_schema_version, int) and not isinstance(raw_schema_version, bool) else 0
 	migration_required = schema_version > 0 and schema_version != CONTRACT_SCHEMA_VERSION
-	migration_available = schema_version == 1 and CONTRACT_SCHEMA_VERSION == 2
+	migration_available = schema_version in (1, 2, 3, 4) and CONTRACT_SCHEMA_VERSION == 5
 	if migration_required and migration_available:
 		issues = [_issue(
 			"error",
@@ -152,7 +159,15 @@ def validate_contract_data(data: dict[str, Any], project_root: Path) -> list[dic
 		for item in validate_schema_file(data, SCHEMA_ROOT / "project_contract.schema.json")
 	]
 	if not issues:
-		issues.extend(_semantic_issues(data, project_root))
+		try:
+			issues.extend(_semantic_issues(data, project_root))
+		except (OSError, UnicodeDecodeError, ValueError) as exc:
+			issues.append(_issue(
+				"error",
+				"catalog_invalid",
+				"$.framework",
+				f"GF API/package catalog is invalid: {exc}",
+			))
 	return issues
 
 
@@ -207,6 +222,10 @@ def _semantic_issues(data: dict[str, Any], project_root: Path) -> list[dict[str,
 		for raw_path in architecture.get("owned_resources", [])
 		if isinstance(raw_path, str)
 	]
+	path_roles = _object_list(architecture, "path_roles")
+	source_domains = _object_list(architecture, "source_domains")
+	documentation_roots_value = architecture.get("documentation_roots", [])
+	documentation_roots = documentation_roots_value if isinstance(documentation_roots_value, list) else []
 	module_ids = _unique_ids(modules, "$.architecture.modules", issues)
 	adapters = _object_list(framework, "adapter_boundaries")
 	adapter_ids = _unique_ids(adapters, "$.framework.adapter_boundaries", issues)
@@ -342,6 +361,18 @@ def _semantic_issues(data: dict[str, Any], project_root: Path) -> list[dict[str,
 			f"$.architecture.owned_resources[{index}]",
 			issues,
 		)
+	for index, path_role in enumerate(path_roles):
+		raw_path = path_role.get("path")
+		if isinstance(raw_path, str):
+			_validate_path_role_path(
+				project_root,
+				raw_path,
+				f"$.architecture.path_roles[{index}].path",
+				issues,
+			)
+	issues.extend(_path_role_overlap_issues(path_roles))
+	issues.extend(_source_domain_issues(project_root, source_domains, modules))
+	issues.extend(_documentation_root_issues(documentation_roots, modules))
 	issues.extend(_module_dependency_cycle_issues(modules, module_ids))
 	for index, adapter in enumerate(adapters):
 		raw_path = adapter.get("project_root")
@@ -432,6 +463,32 @@ def _validate_owned_resource_path(
 	_validate_contract_path(project_root, normalized_path.removeprefix("res://"), path, issues)
 
 
+def _validate_path_role_path(
+	project_root: Path,
+	raw_path: str,
+	path: str,
+	issues: list[dict[str, str]],
+) -> None:
+	normalized_path = normalize_portable_ownership_path(raw_path)
+	if not normalized_path:
+		issues.append(_issue(
+			"error",
+			"non_canonical_path_role_path",
+			path,
+			"Path roles must use one canonical cross-platform non-root res:// path.",
+		))
+		return
+	if is_reserved_framework_resource_path(normalized_path):
+		issues.append(_issue(
+			"error",
+			"framework_path_role",
+			path,
+			"Project path roles must stay outside the reserved res://addons/gf boundary.",
+		))
+		return
+	_validate_contract_path(project_root, normalized_path.removeprefix("res://"), path, issues)
+
+
 def _validate_ownership_root_path(
 	project_root: Path,
 	raw_path: str,
@@ -456,6 +513,159 @@ def _validate_ownership_root_path(
 		))
 		return
 	_validate_contract_path(project_root, normalized_path.removeprefix("res://"), path, issues)
+
+
+def _source_domain_issues(
+	project_root: Path,
+	source_domains: list[dict[str, Any]],
+	modules: list[dict[str, Any]],
+) -> list[dict[str, str]]:
+	issues: list[dict[str, str]] = []
+	seen: dict[str, int] = {}
+	generated_root_identities = {
+		identity
+		for module in modules
+		if module.get("ownership") == "generated"
+		for raw_root in module.get("roots", [])
+		if isinstance(raw_root, str)
+		for identity in (portable_ownership_path_identity(raw_root),)
+		if identity
+	}
+	for index, declaration in enumerate(source_domains):
+		raw_root = declaration.get("root")
+		if not isinstance(raw_root, str):
+			continue
+		path = f"$.architecture.source_domains[{index}].root"
+		normalized = normalize_portable_ownership_path(raw_root)
+		if not normalized:
+			issues.append(_issue(
+				"error",
+				"non_canonical_source_domain_root",
+				path,
+				"Source-domain roots must use one canonical cross-platform non-root res:// path.",
+			))
+			continue
+		identity = portable_ownership_path_identity(normalized)
+		if identity in seen:
+			issues.append(_issue(
+				"error",
+				"duplicate_source_domain_root",
+				path,
+				f"Source-domain root duplicates declaration {seen[identity]} under portable path identity: {raw_root}.",
+			))
+		else:
+			seen[identity] = index
+		if is_reserved_framework_resource_path(normalized):
+			issues.append(_issue(
+				"error",
+				"reserved_source_domain_root",
+				path,
+				"Source-domain roots must stay outside the reserved res://addons/gf boundary.",
+			))
+			continue
+		parts = [part.casefold() for part in normalized.removeprefix("res://").split("/")]
+		if any(part in _SOURCE_DOMAIN_EXCLUDED_ROOTS for part in parts):
+			issues.append(_issue(
+				"error",
+				"excluded_source_domain_root",
+				path,
+				f"Source-domain root is inside a scanner-excluded project directory: {raw_root}.",
+			))
+			continue
+		if any(
+			identity == generated_identity or identity.startswith(generated_identity + "/")
+			for generated_identity in generated_root_identities
+		):
+			issues.append(_issue(
+				"error",
+				"generated_source_domain_root",
+				path,
+				f"Source-domain root is owned by a target-only generated module: {raw_root}.",
+			))
+	return issues
+
+
+def _documentation_root_issues(
+	documentation_roots: list[Any],
+	modules: list[dict[str, Any]],
+) -> list[dict[str, str]]:
+	issues: list[dict[str, str]] = []
+	seen: dict[str, int] = {}
+	identities: list[tuple[str, tuple[str, ...]]] = []
+	generated_root_identities = {
+		identity
+		for module in modules
+		if module.get("ownership") == "generated"
+		for raw_root in module.get("roots", [])
+		if isinstance(raw_root, str)
+		for identity in (portable_ownership_path_identity(raw_root),)
+		if identity
+	}
+	for index, raw_root in enumerate(documentation_roots[:_MAX_DOCUMENTATION_ROOTS]):
+		if not isinstance(raw_root, str):
+			continue
+		path = f"$.architecture.documentation_roots[{index}]"
+		normalized = normalize_portable_ownership_path(raw_root)
+		if not normalized:
+			issues.append(_issue(
+				"error",
+				"non_canonical_documentation_root",
+				path,
+				"Documentation roots must use one canonical cross-platform non-root res:// path.",
+			))
+			continue
+		identity = portable_ownership_path_identity(normalized)
+		if identity in seen:
+			issues.append(_issue(
+				"error",
+				"duplicate_documentation_root",
+				path,
+				f"Documentation root duplicates declaration {seen[identity]} under portable path identity: {raw_root}.",
+			))
+			continue
+		seen[identity] = index
+		if is_reserved_framework_resource_path(normalized):
+			issues.append(_issue(
+				"error",
+				"reserved_documentation_root",
+				path,
+				"Documentation roots must stay outside the reserved res://addons/gf boundary.",
+			))
+			continue
+		parts = tuple(identity.removeprefix("res://").split("/"))
+		if any(part in _SOURCE_DOMAIN_EXCLUDED_ROOTS for part in parts):
+			issues.append(_issue(
+				"error",
+				"excluded_documentation_root",
+				path,
+				f"Documentation root is inside a scanner-excluded project directory: {raw_root}.",
+			))
+			continue
+		if any(
+			identity == generated_identity
+			or identity.startswith(generated_identity + "/")
+			or generated_identity.startswith(identity + "/")
+			for generated_identity in generated_root_identities
+		):
+			issues.append(_issue(
+				"error",
+				"generated_documentation_root",
+				path,
+				f"Documentation root overlaps a target-only generated module: {raw_root}.",
+			))
+			continue
+		identities.append((raw_root, parts))
+	for left_index, (left_root, left_parts) in enumerate(identities):
+		for right_root, right_parts in identities[left_index + 1:]:
+			if not _parts_overlap(left_parts, right_parts):
+				continue
+			issues.append(_issue(
+				"error",
+				"documentation_root_overlap",
+				"$.architecture.documentation_roots",
+				f"Documentation roots must not share an exact or ancestor identity: {left_root} and {right_root}.",
+			))
+	return issues
 
 
 def _unique_ids(
@@ -528,6 +738,32 @@ def _ownership_root_overlap_issues(
 				"ownership_root_overlap",
 				"$.architecture.modules",
 				f"Ownership roots overlap between {left_owner} ({left_path}) and {right_owner} ({right_path}).",
+			))
+	return issues
+
+
+def _path_role_overlap_issues(
+	path_roles: list[dict[str, Any]],
+) -> list[dict[str, str]]:
+	identities: list[tuple[str, tuple[str, ...]]] = []
+	for path_role in path_roles:
+		raw_path = path_role.get("path")
+		if not isinstance(raw_path, str):
+			continue
+		identity = portable_ownership_path_identity(raw_path)
+		if not identity:
+			continue
+		identities.append((raw_path, tuple(identity.removeprefix("res://").split("/"))))
+	issues: list[dict[str, str]] = []
+	for left_index, (left_path, left_parts) in enumerate(identities):
+		for right_path, right_parts in identities[left_index + 1:]:
+			if not _parts_overlap(left_parts, right_parts):
+				continue
+			issues.append(_issue(
+				"error",
+				"path_role_overlap",
+				"$.architecture.path_roles",
+				f"Path roles must not share an exact or ancestor identity: {left_path} and {right_path}.",
 			))
 	return issues
 

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://gf-framework.dev/schemas/project-contract-v2.json",
+  "$id": "https://gf-framework.dev/schemas/project-contract-v5.json",
   "title": "GF Project Intent Contract",
   "type": "object",
   "additionalProperties": false,
@@ -18,7 +18,7 @@
   "properties": {
     "schema_version": {
       "type": "integer",
-      "const": 2
+      "const": 5
     },
     "project": {
       "type": "object",
@@ -185,7 +185,7 @@
     "architecture": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["modules", "global_rules", "project_profile_path"],
+      "required": ["modules", "path_roles", "source_domains", "documentation_roots", "global_rules", "project_profile_path"],
       "properties": {
         "modules": {
           "type": "array",
@@ -252,6 +252,60 @@
           "maxItems": 100,
           "uniqueItems": true,
           "description": "Exact project-owned resource files that are governance inputs rather than module dependency targets.",
+          "items": {
+            "type": "string",
+            "maxLength": 240,
+            "pattern": "^res://(?!addons/gf(?:/|$))[^\\u0000-\\u001F\\u007F\\\\]+$"
+          }
+        },
+        "path_roles": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "description": "Closed project path roles used by dependency analysis without weakening high-confidence resource evidence.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "role"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "maxLength": 240,
+                "pattern": "^res://[^\\u0000-\\u001F\\u007F\\\\]+$"
+              },
+              "role": {
+                "type": "string",
+                "enum": ["scan_root", "test_fixture", "optional_input"]
+              }
+            }
+          }
+        },
+        "source_domains": {
+          "type": "array",
+          "maxItems": 100,
+          "description": "Closed project source-domain ownership. The deepest canonical path-segment root wins; unmatched scripts default fail-safe to runtime.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["root", "domain"],
+            "properties": {
+              "root": {
+                "type": "string",
+                "maxLength": 240,
+                "pattern": "^res://(?!addons/gf(?:/|$))[^\\u0000-\\u001F\\u007F\\\\]+$"
+              },
+              "domain": {
+                "type": "string",
+                "enum": ["runtime", "test", "tool", "editor"]
+              }
+            }
+          }
+        },
+        "documentation_roots": {
+          "type": "array",
+          "maxItems": 100,
+          "uniqueItems": true,
+          "description": "Closed opt-in Markdown roots checked against the exact installed GF API catalog. Empty keeps documentation analysis disabled; Godot .gdignore markers do not narrow an explicitly declared documentation root.",
           "items": {
             "type": "string",
             "maxLength": 240,

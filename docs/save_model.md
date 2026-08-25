@@ -43,7 +43,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 
 当前项目仍处于未发布开发阶段，主 Profile schema 为 13。文档 metadata 精确标识为同一 Profile schema、版本为历史正整数且低于 13，或当前主版本中任一已知 Section schema 低于运行时 Provider 时，启动流程先把完整规范文档保存到带账号身份和旧版本的 `recovery/` 路径，确认备份成功后再通过当前 section 默认值重建活动文件。不读取、转换或合并历史业务字段，不为 v12 及更早版本保留运行时兼容；备份失败时不得覆盖原活动文件。未来版本和未知 schema 仍拒绝且不得破坏性重置。
 
-`ProjectStorageRecoveryPolicy` 只把 GF 已归类为 `GFStorageReadResult.FailureKind.CORRUPT` 的读取视为可尝试重置。当前项目不消费读取结果中的私有字段；immutable claim 有效时先由 GF 拒绝读取，再由 GFStorage 的 logical-family 删除入口清理可变成员，最后以当前默认 section 写回新 Profile。`f6d7b87a` 已新增 `create_family_reset_authorization()` 与同步/异步 `reset_file_family` 入口，可用同一 `GFStorageUtility` 返回的原始 CORRUPT 结果签发绑定 Utility、Storage root 和 canonical logical identity 的一次性授权；项目尚未把该能力接入 Settings、账号目录和主 Profile 恢复，因此 catalog、owner 或事务身份等私有 family 结构损坏仍保留证据并失败关闭。后续独立切片只能在类型化 reset 确定成功后写回默认值，不得拼接 `.tmp`、`.bak`、事务证据或其他私有 sidecar。未来 GFStorage 版本、未来 Profile 版本、未知 schema ID、畸形业务文档和当前 section 校验失败必须保留原档并显式失败。
+`ProjectStorageRecoveryPolicy` 只把 GF 已归类为 `GFStorageReadResult.FailureKind.CORRUPT` 的读取视为可尝试重置。当前项目不消费读取结果中的私有字段；immutable claim 有效时先由 GF 拒绝读取，再由 GFStorage 的 logical-family 删除入口清理可变成员，最后以当前默认 section 写回新 Profile。`f6d7b87a` 已新增 `create_family_reset_authorization()` 与同步/异步 `reset_file_family` 入口，可用同一 `GFStorageUtility` 返回的原始 CORRUPT 结果签发绑定 Utility、Storage root 和 canonical logical identity 的一次性授权；自 `7d63ff5a` 起还会冻结签发时的 family observation，任何较新的同 family 写入或修复都会令旧授权失效，消费方必须基于新的原始读取重新取得授权。项目尚未把该能力接入 Settings、账号目录和主 Profile 恢复，因此 catalog、owner 或事务身份等私有 family 结构损坏仍保留证据并失败关闭。后续独立切片只能在类型化 reset 确定成功后写回默认值，不得拼接 `.tmp`、`.bak`、事务证据或其他私有 sidecar。未来 GFStorage 版本、未来 Profile 版本、未知 schema ID、畸形业务文档和当前 section 校验失败必须保留原档并显式失败。
 
 ### 设置
 
@@ -81,7 +81,7 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 }
 ```
 
-`features/persistence/scripts/data/game_save_section_data.gd` 同时继承 `GFSaveSectionProvider`，把 envelope 中的 `data` 映射为磁盘 `GFSaveSection.payload`。manifest-backed Section 是明确例外：业务 envelope 仍由 Feature Provider 拥有，主 Profile payload 只保存 `ChunkManifest`。磁盘文档不再嵌套 SaveGraph Source。具体字段校验分别位于 `progress`、`bookmarks`、`board_editor`、`tile_catalog`、`tile_lab`、`achievements` 和 `replays` Feature，禁止把业务 Schema 下沉到 persistence 或 shared。
+`features/persistence/scripts/data/game_save_section_data.gd` 同时继承 `GFSaveSectionProvider`，把 envelope 中的 `data` 映射为磁盘 `GFSaveSection` 的 `payload` 字段。manifest-backed Section 是明确例外：业务 envelope 仍由 Feature Provider 拥有，主 Profile payload 只保存 `ChunkManifest`。磁盘文档不再嵌套 SaveGraph Source。具体字段校验分别位于 `progress`、`bookmarks`、`board_editor`、`tile_catalog`、`tile_lab`、`achievements` 和 `replays` Feature，禁止把业务 Schema 下沉到 persistence 或 shared。
 
 ## GF Profile Coordinator 迁移边界
 
