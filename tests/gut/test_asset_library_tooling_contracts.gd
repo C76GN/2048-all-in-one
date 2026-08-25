@@ -15,6 +15,16 @@ const GENERATED_TEXT_TOOL_PATHS: PackedStringArray = [
 	"res://features/asset_library/tools/import_asset_sources.gd",
 	"res://tools/purge_rejected_assets.gd",
 ]
+const BOUNDED_JSON_CALLER_PATHS: PackedStringArray = [
+	"res://features/asset_library/scripts/data/asset_source_exclusion_index.gd",
+	"res://features/asset_library/tools/import_asset_sources.gd",
+]
+const ASSET_JSON_ENTRY_BUDGET_PATH: String = (
+	"res://features/asset_library/scripts/data/asset_json_entry_budget.gd"
+)
+const REMOVED_ASSET_JSON_READER_PATH: String = (
+	"res://features/asset_library/scripts/data/asset_bounded_json_object_reader.gd"
+)
 
 
 # --- 测试用例 ---
@@ -64,4 +74,28 @@ func test_asset_text_outputs_use_generated_artifact_reports() -> void:
 	assert_false(
 		purge_source.contains("FileAccess.open(REPORT_PATH, FileAccess.WRITE)"),
 		"拒绝素材清理不得保留报告直写分支。"
+	)
+
+
+func test_asset_json_callers_delegate_file_and_parse_boundary_to_gf() -> void:
+	for path: String in BOUNDED_JSON_CALLER_PATHS:
+		var source: String = FileAccess.get_file_as_string(path)
+		assert_false(source.is_empty(), "素材 JSON 调用方源码必须可读取：%s。" % path)
+		assert_true(
+			source.contains("GFBoundedJsonObjectReader.read_object("),
+			"素材 JSON 调用方必须使用 GF 有界读取器：%s。" % path
+		)
+		assert_true(
+			source.contains("asset_json_entry_budget.gd"),
+			"素材 JSON 调用方必须保留项目条目预算：%s。" % path
+		)
+
+	var entry_budget_source: String = FileAccess.get_file_as_string(
+		ASSET_JSON_ENTRY_BUDGET_PATH
+	)
+	assert_false(entry_budget_source.contains("FileAccess."))
+	assert_false(entry_budget_source.contains("JSON.parse"))
+	assert_false(
+		FileAccess.file_exists(REMOVED_ASSET_JSON_READER_PATH),
+		"GF 已提供公开信任边界后，不得恢复项目重复 reader。"
 	)

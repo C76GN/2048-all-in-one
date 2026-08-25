@@ -543,11 +543,11 @@ func test_catalog_quiesce_rejects_new_mutations_and_drains_late_write() -> void:
 	var catalog: LocalAccountCatalogUtility = _get_account_catalog(setup)
 	var request_state: Dictionary = {
 		&"done": false,
-		&"account": null,
+		&"result": null,
 	}
 	storage.arm_next_catalog_write(OK)
 	var request_runner: Callable = func() -> void:
-		request_state[&"account"] = await catalog.create_account_async(
+		request_state[&"result"] = await catalog.create_account_async(
 			"静默排空账号",
 			false
 		)
@@ -568,11 +568,31 @@ func test_catalog_quiesce_rejects_new_mutations_and_drains_late_write() -> void:
 		await get_tree().process_frame
 		if GFVariantData.get_option_bool(request_state, &"done"):
 			break
+	var request_result_value: Variant = request_state.get(&"result")
+	var request_result: LocalAccountCatalogMutationResult = (
+		request_result_value
+		if request_result_value is LocalAccountCatalogMutationResult
+		else null
+	)
 	assert_true(
 		GFVariantData.get_option_bool(request_state, &"done")
-		and request_state.get(&"account") == null
+		and request_result != null
+		and request_result.is_outcome_unknown()
 		and catalog.has_pending_late_storage_settlement(),
 		"GF caller deadline 后目录写必须转为 outcome-unknown physical settlement。"
+	)
+	var blocked_result: LocalAccountCatalogMutationResult = (
+		await catalog.create_account_async(
+			"迟到写期间拒绝账号",
+			false
+		)
+	)
+	assert_true(
+		blocked_result != null
+		and not blocked_result.is_successful()
+		and not blocked_result.is_outcome_unknown()
+		and blocked_result.get_error_code() == ERR_BUSY,
+		"既有迟到写只能让新请求确定性 BUSY，不能污染为本请求 outcome-unknown。"
 	)
 
 	var scope: GFAsyncScope = GFAsyncScope.new()
@@ -581,11 +601,19 @@ func test_catalog_quiesce_rejects_new_mutations_and_drains_late_write() -> void:
 		completion != null and completion.is_pending(),
 		"目录存在迟到物理写时 quiesce 不得提前成功。"
 	)
-	var rejected_account: LocalPlayerAccount = await catalog.create_account_async(
+	var rejected_result: LocalAccountCatalogMutationResult = (
+		await catalog.create_account_async(
 		"静默后拒绝账号",
 		false
+		)
 	)
-	assert_null(rejected_account, "quiesce 后必须停止接纳新目录事务。")
+	assert_true(
+		rejected_result != null
+		and not rejected_result.is_successful()
+		and not rejected_result.is_outcome_unknown()
+		and rejected_result.get_error_code() == ERR_UNAVAILABLE,
+		"quiesce 后必须以确定性失败终态拒绝新目录事务。"
+	)
 	assert_true(catalog.get_last_error() == ERR_UNAVAILABLE)
 
 	storage.wait_for_async_tasks()
@@ -2531,11 +2559,15 @@ func _capture_catalog_activation_result(
 	account_id: String,
 	result_box: Dictionary
 ) -> void:
-	var error_code: Error = await catalog.set_active_account_async(
-		account_id,
-		false
+	var result: LocalAccountCatalogMutationResult = (
+		await catalog.set_active_account_async(
+			account_id,
+			false
+		)
 	)
-	result_box[&"error_code"] = int(error_code)
+	result_box[&"error_code"] = int(
+		result.get_error_code() if result != null else ERR_CANT_CREATE
+	)
 	result_box[&"done"] = true
 
 
@@ -3565,18 +3597,30 @@ class _ScriptedRollbackCatalog extends LocalAccountCatalogUtility:
 	func set_active_account_async(
 		account_id: String,
 		publish_signals: bool = true
-	) -> Error:
+	) -> LocalAccountCatalogMutationResult:
 		if timeout_next_set_active:
 			timeout_next_set_active = false
 			pending_set_active_account_id = account_id
 			pending_set_active_previous_account_id = get_active_account_id()
 			_set_scripted_storage_result(&"outcome_unknown", ERR_TIMEOUT)
-			return ERR_TIMEOUT
+			return _record_catalog_mutation_result(
+				&"activate",
+				ERR_TIMEOUT,
+				null,
+				true,
+				_scripted_storage_result
+			)
 		if next_set_active_error != OK:
 			var scripted_error: Error = next_set_active_error
 			next_set_active_error = OK
 			_set_scripted_storage_result(&"failed", scripted_error)
-			return scripted_error
+			return _record_catalog_mutation_result(
+				&"activate",
+				scripted_error,
+				null,
+				false,
+				_scripted_storage_result
+			)
 		_scripted_storage_result.clear()
 		return await super.set_active_account_async(account_id, publish_signals)
 
@@ -3612,19 +3656,31 @@ class _ScriptedRollbackCatalog extends LocalAccountCatalogUtility:
 	func delete_account_async(
 		account_id: String,
 		publish_signals: bool = true
-	) -> Error:
+	) -> LocalAccountCatalogMutationResult:
 		delete_call_count += 1
 		if timeout_next_delete:
 			timeout_next_delete = false
 			pending_delete_account_id = account_id
 			pending_previous_active_account_id = get_active_account_id()
 			_set_scripted_storage_result(&"outcome_unknown", ERR_TIMEOUT)
-			return ERR_TIMEOUT
+			return _record_catalog_mutation_result(
+				&"delete_inactive",
+				ERR_TIMEOUT,
+				null,
+				true,
+				_scripted_storage_result
+			)
 		if next_delete_error != OK:
 			var scripted_error: Error = next_delete_error
 			next_delete_error = OK
 			_set_scripted_storage_result(&"failed", scripted_error)
-			return scripted_error
+			return _record_catalog_mutation_result(
+				&"delete_inactive",
+				scripted_error,
+				null,
+				false,
+				_scripted_storage_result
+			)
 		_scripted_storage_result.clear()
 		return await super.delete_account_async(account_id, publish_signals)
 

@@ -8,7 +8,15 @@ extends Resource
 # --- 常量 ---
 
 const SERIALIZATION_SCHEMA_VERSION: int = 1
-const MAX_CELL_COUNT: int = 262144
+## 领域/工具拓扑的序列化防御上限。它不代表当前可玩棋盘容量。
+const MAX_SERIALIZED_CELL_COUNT: int = 262144
+## 规范化坐标的序列化防御上限，确保包围盒加一和面积计算不会溢出。
+const MAX_SERIALIZED_COORDINATE: int = MAX_SERIALIZED_CELL_COUNT - 1
+## 当前 GridModel、逐格表现和无障碍密集投影共同接受的可玩预算。
+const MAX_PLAYABLE_CELL_COUNT: int = 256
+const MAX_PLAYABLE_BOUNDS_WIDTH: int = 256
+const MAX_PLAYABLE_BOUNDS_HEIGHT: int = 256
+const MAX_PLAYABLE_BOUNDS_AREA: int = 256
 
 
 # --- 导出变量 ---
@@ -54,9 +62,9 @@ static func create_rectangle(size: Vector2i, requested_id: StringName = &"") -> 
 	if (
 		size.x <= 0
 		or size.y <= 0
-		or size.x > MAX_CELL_COUNT
-		or size.y > MAX_CELL_COUNT
-		or size.x * size.y > MAX_CELL_COUNT
+		or size.x > MAX_SERIALIZED_CELL_COUNT
+		or size.y > MAX_SERIALIZED_CELL_COUNT
+		or size.x * size.y > MAX_SERIALIZED_CELL_COUNT
 	):
 		return topology
 
@@ -86,14 +94,14 @@ static func create_cross(
 	if (
 		arm_length < 0
 		or arm_thickness <= 0
-		or arm_length > MAX_CELL_COUNT
-		or arm_thickness > MAX_CELL_COUNT
+		or arm_length > MAX_SERIALIZED_CELL_COUNT
+		or arm_thickness > MAX_SERIALIZED_CELL_COUNT
 	):
 		return topology
 
 	var side: int = arm_length * 2 + arm_thickness
 	var cell_count: int = 2 * side * arm_thickness - arm_thickness * arm_thickness
-	if cell_count > MAX_CELL_COUNT:
+	if cell_count > MAX_SERIALIZED_CELL_COUNT:
 		return topology
 	var center_start: int = arm_length
 	var center_end: int = center_start + arm_thickness
@@ -129,14 +137,24 @@ static func from_dict(data: Dictionary) -> BoardTopology:
 		return null
 	if GFVariantData.get_option_int(data, &"schema_version", 0) != SERIALIZATION_SCHEMA_VERSION:
 		return null
+	var cell_values: Array = GFVariantData.get_option_array(data, &"active_cells")
+	if cell_values.is_empty() or cell_values.size() > MAX_SERIALIZED_CELL_COUNT:
+		return null
 
 	var topology: BoardTopology = BoardTopology.new()
 	topology.topology_id = StringName(GFVariantData.get_option_string(data, &"topology_id"))
 	var cells: Array[Vector2i] = []
-	for cell_value: Variant in GFVariantData.get_option_array(data, &"active_cells"):
+	for cell_value: Variant in cell_values:
 		if not cell_value is Vector2i:
 			return null
 		var cell: Vector2i = cell_value
+		if (
+			cell.x < 0
+			or cell.y < 0
+			or cell.x > MAX_SERIALIZED_COORDINATE
+			or cell.y > MAX_SERIALIZED_COORDINATE
+		):
+			return null
 		cells.append(cell)
 	topology.active_cells = cells
 
@@ -323,10 +341,10 @@ func get_validation_report() -> GFValidationReport:
 			resource_path
 		)
 		return report
-	if _active_cells.size() > MAX_CELL_COUNT:
+	if _active_cells.size() > MAX_SERIALIZED_CELL_COUNT:
 		var _capacity_issue: RefCounted = report.add_error(
 			&"cell_capacity_exceeded",
-			"active_cells 超过安全上限 %d。" % MAX_CELL_COUNT,
+			"active_cells 超过序列化安全上限 %d。" % MAX_SERIALIZED_CELL_COUNT,
 			&"active_cells",
 			resource_path
 		)
@@ -342,6 +360,19 @@ func get_validation_report() -> GFValidationReport:
 			var _negative_issue: RefCounted = report.add_error(
 				&"negative_cell",
 				"活跃单元不能使用负坐标：%s。" % cell,
+				index,
+				resource_path
+			)
+		elif (
+			cell.x > MAX_SERIALIZED_COORDINATE
+			or cell.y > MAX_SERIALIZED_COORDINATE
+		):
+			var _coordinate_capacity_issue: RefCounted = report.add_error(
+				&"coordinate_capacity_exceeded",
+				"活跃单元坐标超过序列化安全上限 %d：%s。" % [
+					MAX_SERIALIZED_COORDINATE,
+					cell,
+				],
 				index,
 				resource_path
 			)
@@ -372,15 +403,105 @@ func get_validation_report() -> GFValidationReport:
 	return report
 
 
+## 返回当前逐格玩法、表现与密集辅助投影共享的严格预算报告。
+##
+## 领域拓扑可以合法表示更大的稀疏空间；只有进入 GridModel 或需要逐格物化
+## 时才必须通过本报告。调用方不得只检查活跃格数量而忽略坐标和包围盒面积。
+func get_playable_validation_report() -> GFValidationReport:
+	var report: GFValidationReport = GFValidationReport.new(
+		"PlayableBoardTopology:%s" % topology_id,
+		{
+			&"topology_id": topology_id,
+			&"resource_path": resource_path,
+			&"max_cell_count": MAX_PLAYABLE_CELL_COUNT,
+			&"max_bounds_width": MAX_PLAYABLE_BOUNDS_WIDTH,
+			&"max_bounds_height": MAX_PLAYABLE_BOUNDS_HEIGHT,
+			&"max_bounds_area": MAX_PLAYABLE_BOUNDS_AREA,
+		}
+	)
+	var _domain_report: RefCounted = report.merge(get_validation_report(), false)
+	if not report.is_ok():
+		return report
+
+	var bounds_size: Vector2i = get_bounds_size()
+	var bounds_area: int = bounds_size.x * bounds_size.y
+	if _active_cells.size() > MAX_PLAYABLE_CELL_COUNT:
+		var _playable_cell_issue: RefCounted = report.add_error(
+			&"playable_cell_capacity_exceeded",
+			"可玩棋盘活跃单元超过上限 %d。" % MAX_PLAYABLE_CELL_COUNT,
+			&"active_cells",
+			resource_path
+		)
+	var first_outside_coordinate: Vector2i = Vector2i(-1, -1)
+	for cell: Vector2i in _active_cells:
+		if (
+			cell.x >= MAX_PLAYABLE_BOUNDS_WIDTH
+			or cell.y >= MAX_PLAYABLE_BOUNDS_HEIGHT
+		):
+			first_outside_coordinate = cell
+			break
+	if first_outside_coordinate.x >= 0:
+		var _playable_coordinate_issue: RefCounted = report.add_error(
+			&"playable_coordinate_capacity_exceeded",
+			"活跃单元坐标超出当前可玩范围：%s。" % first_outside_coordinate,
+			&"active_cells",
+			resource_path
+		)
+	if bounds_size.x > MAX_PLAYABLE_BOUNDS_WIDTH:
+		var _playable_width_issue: RefCounted = report.add_error(
+			&"playable_bounds_width_exceeded",
+			"可玩棋盘包围盒宽度 %d 超过上限 %d。" % [
+				bounds_size.x,
+				MAX_PLAYABLE_BOUNDS_WIDTH,
+			],
+			&"active_cells",
+			resource_path
+		)
+	if bounds_size.y > MAX_PLAYABLE_BOUNDS_HEIGHT:
+		var _playable_height_issue: RefCounted = report.add_error(
+			&"playable_bounds_height_exceeded",
+			"可玩棋盘包围盒高度 %d 超过上限 %d。" % [
+				bounds_size.y,
+				MAX_PLAYABLE_BOUNDS_HEIGHT,
+			],
+			&"active_cells",
+			resource_path
+		)
+	if bounds_area > MAX_PLAYABLE_BOUNDS_AREA:
+		var _playable_area_issue: RefCounted = report.add_error(
+			&"playable_bounds_area_exceeded",
+			"可玩棋盘包围盒面积 %d 超过逐格物化上限 %d。" % [
+				bounds_area,
+				MAX_PLAYABLE_BOUNDS_AREA,
+			],
+			&"active_cells",
+			resource_path
+		)
+	report.extra_fields = {
+		&"cell_count": _active_cells.size(),
+		&"bounds_size": bounds_size,
+		&"bounds_area": bounds_area,
+	}
+	return report
+
+
 # --- 私有/辅助方法 ---
 
 static func _canonicalize_cells(cells: Array[Vector2i]) -> Array[Vector2i]:
-	if cells.is_empty():
+	if cells.is_empty() or cells.size() > MAX_SERIALIZED_CELL_COUNT:
 		return []
 	var minimum: Vector2i = cells[0]
+	var maximum: Vector2i = cells[0]
 	for cell: Vector2i in cells:
 		minimum.x = mini(minimum.x, cell.x)
 		minimum.y = mini(minimum.y, cell.y)
+		maximum.x = maxi(maximum.x, cell.x)
+		maximum.y = maxi(maximum.y, cell.y)
+	if (
+		maximum.x - minimum.x > MAX_SERIALIZED_COORDINATE
+		or maximum.y - minimum.y > MAX_SERIALIZED_COORDINATE
+	):
+		return []
 
 	var result: Array[Vector2i] = []
 	var seen: Dictionary = {}

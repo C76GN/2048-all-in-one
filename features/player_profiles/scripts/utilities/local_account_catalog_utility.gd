@@ -44,6 +44,7 @@ var _accounts: Array[LocalPlayerAccount] = []
 var _active_account_id: String = ""
 var _last_error: Error = OK
 var _last_async_storage_result: Dictionary = {}
+var _last_mutation_result: LocalAccountCatalogMutationResult = null
 var _disposed: bool = false
 var _quiescing: bool = false
 var _quiesce_completion: GFAsyncCompletion = null
@@ -147,6 +148,7 @@ func dispose() -> void:
 	_active_account_id = ""
 	_last_error = OK
 	_last_async_storage_result.clear()
+	_last_mutation_result = null
 	_pending_storage_operation = null
 	_late_storage_operations.clear()
 	_quiesce_completion = null
@@ -162,6 +164,15 @@ func get_last_error() -> Error:
 ## 返回最近一次异步目录提交的 GFStorageAsyncResult 证据。
 func get_last_async_storage_result() -> Dictionary:
 	return _last_async_storage_result.duplicate(true)
+
+
+## 返回最近一次目录事务的不可变类型化终态。
+func get_last_mutation_result() -> LocalAccountCatalogMutationResult:
+	return (
+		_last_mutation_result.duplicate_result()
+		if _last_mutation_result != null
+		else null
+	)
 
 
 ## 是否仍有 deadline 后尚未抵达真实终态的目录写入。
@@ -206,30 +217,32 @@ func get_account(account_id: String) -> LocalPlayerAccount:
 func create_account_async(
 	display_name: String,
 	publish_signals: bool = true
-) -> LocalPlayerAccount:
+) -> LocalAccountCatalogMutationResult:
+	var action: StringName = &"create"
 	if not _begin_async_catalog_mutation(&"create"):
-		return null
+		return _record_catalog_mutation_result(action, _last_error)
 	var mutation_token: int = _get_active_mutation_token()
 	if _accounts.size() >= MAX_ACCOUNTS:
-		_finish_async_catalog_mutation(ERR_OUT_OF_MEMORY)
-		return null
+		return _finish_catalog_mutation_result(
+			action,
+			ERR_OUT_OF_MEMORY
+		)
 	var normalized_name: String = LocalPlayerAccount.normalize_display_name(
 		display_name
 	)
 	if normalized_name.is_empty() or _has_display_name(normalized_name):
-		_finish_async_catalog_mutation(
+		return _finish_catalog_mutation_result(
+			action,
 			ERR_ALREADY_EXISTS
 			if not normalized_name.is_empty()
 			else ERR_INVALID_PARAMETER
 		)
-		return null
 	var account: LocalPlayerAccount = LocalPlayerAccount.create(
 		normalized_name,
 		_get_unix_timestamp()
 	)
 	if account == null:
-		_finish_async_catalog_mutation(ERR_INVALID_DATA)
-		return null
+		return _finish_catalog_mutation_result(action, ERR_INVALID_DATA)
 	var candidate: Dictionary = _make_catalog_payload()
 	var candidate_accounts: Array = GFVariantData.get_option_array(
 		candidate,
@@ -239,18 +252,36 @@ func create_account_async(
 	candidate[&"accounts"] = candidate_accounts
 	var save_error: Error = await _save_catalog_async(candidate)
 	if not _owns_async_catalog_mutation(mutation_token):
-		return null
+		return _record_catalog_mutation_result(action, ERR_UNAVAILABLE)
 	if save_error != OK:
-		_finish_async_catalog_mutation(save_error)
-		return null
+		return _finish_catalog_mutation_result(
+			action,
+			save_error,
+			null,
+			_is_current_storage_outcome_unknown(),
+			_last_async_storage_result
+		)
 	var apply_error: Error = _apply_catalog_payload(candidate)
 	if apply_error != OK:
-		_finish_async_catalog_mutation(apply_error)
-		return null
-	_finish_async_catalog_mutation(OK)
+		return _finish_catalog_mutation_result(
+			action,
+			apply_error,
+			null,
+			false,
+			_last_async_storage_result
+		)
+	var result: LocalAccountCatalogMutationResult = (
+		_finish_catalog_mutation_result(
+			action,
+			OK,
+			account,
+			false,
+			_last_async_storage_result
+		)
+	)
 	if publish_signals:
 		account_catalog_changed.emit()
-	return get_account(account.account_id)
+	return result
 
 
 ## 异步重命名账号；失败时恢复内存名称且不发布目录信号。
@@ -261,23 +292,25 @@ func rename_account_async(
 	account_id: String,
 	display_name: String,
 	publish_signals: bool = true
-) -> Error:
+) -> LocalAccountCatalogMutationResult:
+	var action: StringName = &"rename"
 	if not _begin_async_catalog_mutation(&"rename"):
-		return _last_error
+		return _record_catalog_mutation_result(action, _last_error)
 	var mutation_token: int = _get_active_mutation_token()
 	var account: LocalPlayerAccount = _find_account(account_id)
 	var normalized_name: String = LocalPlayerAccount.normalize_display_name(
 		display_name
 	)
 	if account == null or normalized_name.is_empty():
-		_finish_async_catalog_mutation(ERR_INVALID_PARAMETER)
-		return _last_error
+		return _finish_catalog_mutation_result(
+			action,
+			ERR_INVALID_PARAMETER
+		)
 	if (
 		account.display_name.to_lower() != normalized_name.to_lower()
 		and _has_display_name(normalized_name)
 	):
-		_finish_async_catalog_mutation(ERR_ALREADY_EXISTS)
-		return _last_error
+		return _finish_catalog_mutation_result(action, ERR_ALREADY_EXISTS)
 	var candidate: Dictionary = _make_catalog_payload()
 	var candidate_accounts: Array = GFVariantData.get_option_array(
 		candidate,
@@ -292,18 +325,36 @@ func rename_account_async(
 	candidate[&"accounts"] = candidate_accounts
 	var save_error: Error = await _save_catalog_async(candidate)
 	if not _owns_async_catalog_mutation(mutation_token):
-		return ERR_UNAVAILABLE
+		return _record_catalog_mutation_result(action, ERR_UNAVAILABLE)
 	if save_error != OK:
-		_finish_async_catalog_mutation(save_error)
-		return save_error
+		return _finish_catalog_mutation_result(
+			action,
+			save_error,
+			null,
+			_is_current_storage_outcome_unknown(),
+			_last_async_storage_result
+		)
 	var apply_error: Error = _apply_catalog_payload(candidate)
 	if apply_error != OK:
-		_finish_async_catalog_mutation(apply_error)
-		return apply_error
-	_finish_async_catalog_mutation(OK)
+		return _finish_catalog_mutation_result(
+			action,
+			apply_error,
+			null,
+			false,
+			_last_async_storage_result
+		)
+	var result: LocalAccountCatalogMutationResult = (
+		_finish_catalog_mutation_result(
+			action,
+			OK,
+			get_account(account_id),
+			false,
+			_last_async_storage_result
+		)
+	)
 	if publish_signals:
 		account_catalog_changed.emit()
-	return OK
+	return result
 
 
 ## 异步激活账号并持久化最近使用时间。
@@ -312,17 +363,20 @@ func rename_account_async(
 func set_active_account_async(
 	account_id: String,
 	publish_signals: bool = true
-) -> Error:
+) -> LocalAccountCatalogMutationResult:
+	var action: StringName = &"activate"
 	if not _begin_async_catalog_mutation(&"activate"):
-		return _last_error
+		return _record_catalog_mutation_result(action, _last_error)
 	var mutation_token: int = _get_active_mutation_token()
 	var account: LocalPlayerAccount = _find_account(account_id)
 	if account == null:
-		_finish_async_catalog_mutation(ERR_DOES_NOT_EXIST)
-		return _last_error
+		return _finish_catalog_mutation_result(action, ERR_DOES_NOT_EXIST)
 	if _active_account_id == account_id:
-		_finish_async_catalog_mutation(OK)
-		return OK
+		return _finish_catalog_mutation_result(
+			action,
+			OK,
+			account
+		)
 	var candidate: Dictionary = _make_catalog_payload()
 	var candidate_accounts: Array = GFVariantData.get_option_array(
 		candidate,
@@ -341,19 +395,37 @@ func set_active_account_async(
 	candidate[&"accounts"] = candidate_accounts
 	var save_error: Error = await _save_catalog_async(candidate)
 	if not _owns_async_catalog_mutation(mutation_token):
-		return ERR_UNAVAILABLE
+		return _record_catalog_mutation_result(action, ERR_UNAVAILABLE)
 	if save_error != OK:
-		_finish_async_catalog_mutation(save_error)
-		return save_error
+		return _finish_catalog_mutation_result(
+			action,
+			save_error,
+			null,
+			_is_current_storage_outcome_unknown(),
+			_last_async_storage_result
+		)
 	var apply_error: Error = _apply_catalog_payload(candidate)
 	if apply_error != OK:
-		_finish_async_catalog_mutation(apply_error)
-		return apply_error
-	_finish_async_catalog_mutation(OK)
+		return _finish_catalog_mutation_result(
+			action,
+			apply_error,
+			null,
+			false,
+			_last_async_storage_result
+		)
+	var result: LocalAccountCatalogMutationResult = (
+		_finish_catalog_mutation_result(
+			action,
+			OK,
+			get_account(account_id),
+			false,
+			_last_async_storage_result
+		)
+	)
 	if publish_signals:
 		active_account_changed.emit(account_id)
 		account_catalog_changed.emit()
-	return OK
+	return result
 
 
 ## 异步删除非当前账号；候选目录写入成功后才交换内存状态。
@@ -362,21 +434,20 @@ func set_active_account_async(
 func delete_account_async(
 	account_id: String,
 	publish_signals: bool = true
-) -> Error:
+) -> LocalAccountCatalogMutationResult:
+	var action: StringName = &"delete_inactive"
 	if not _begin_async_catalog_mutation(&"delete_inactive"):
-		return _last_error
+		return _record_catalog_mutation_result(action, _last_error)
 	var mutation_token: int = _get_active_mutation_token()
 	if (
 		_accounts.size() <= 1
 		or account_id.is_empty()
 		or account_id == _active_account_id
 	):
-		_finish_async_catalog_mutation(ERR_BUSY)
-		return _last_error
+		return _finish_catalog_mutation_result(action, ERR_BUSY)
 	var index: int = _find_account_index(account_id)
 	if index < 0:
-		_finish_async_catalog_mutation(ERR_DOES_NOT_EXIST)
-		return _last_error
+		return _finish_catalog_mutation_result(action, ERR_DOES_NOT_EXIST)
 	var candidate: Dictionary = _make_catalog_payload()
 	var candidate_accounts: Array = GFVariantData.get_option_array(
 		candidate,
@@ -386,18 +457,36 @@ func delete_account_async(
 	candidate[&"accounts"] = candidate_accounts
 	var save_error: Error = await _save_catalog_async(candidate)
 	if not _owns_async_catalog_mutation(mutation_token):
-		return ERR_UNAVAILABLE
+		return _record_catalog_mutation_result(action, ERR_UNAVAILABLE)
 	if save_error != OK:
-		_finish_async_catalog_mutation(save_error)
-		return save_error
+		return _finish_catalog_mutation_result(
+			action,
+			save_error,
+			null,
+			_is_current_storage_outcome_unknown(),
+			_last_async_storage_result
+		)
 	var apply_error: Error = _apply_catalog_payload(candidate)
 	if apply_error != OK:
-		_finish_async_catalog_mutation(apply_error)
-		return apply_error
-	_finish_async_catalog_mutation(OK)
+		return _finish_catalog_mutation_result(
+			action,
+			apply_error,
+			null,
+			false,
+			_last_async_storage_result
+		)
+	var result: LocalAccountCatalogMutationResult = (
+		_finish_catalog_mutation_result(
+			action,
+			OK,
+			get_active_account(),
+			false,
+			_last_async_storage_result
+		)
+	)
 	if publish_signals:
 		account_catalog_changed.emit()
-	return OK
+	return result
 
 
 ## 异步删除当前账号并在同一次目录写入中激活回退账号。
@@ -408,9 +497,10 @@ func delete_active_account_with_fallback_async(
 	account_id: String,
 	fallback_account_id: String,
 	publish_signals: bool = true
-) -> Error:
+) -> LocalAccountCatalogMutationResult:
+	var action: StringName = &"delete_active_with_fallback"
 	if not _begin_async_catalog_mutation(&"delete_active_with_fallback"):
-		return _last_error
+		return _record_catalog_mutation_result(action, _last_error)
 	var mutation_token: int = _get_active_mutation_token()
 	if (
 		_accounts.size() <= 1
@@ -419,13 +509,14 @@ func delete_active_account_with_fallback_async(
 		or account_id == fallback_account_id
 		or account_id != _active_account_id
 	):
-		_finish_async_catalog_mutation(ERR_INVALID_PARAMETER)
-		return _last_error
+		return _finish_catalog_mutation_result(
+			action,
+			ERR_INVALID_PARAMETER
+		)
 	var removed_index: int = _find_account_index(account_id)
 	var fallback: LocalPlayerAccount = _find_account(fallback_account_id)
 	if removed_index < 0 or fallback == null:
-		_finish_async_catalog_mutation(ERR_DOES_NOT_EXIST)
-		return _last_error
+		return _finish_catalog_mutation_result(action, ERR_DOES_NOT_EXIST)
 	var candidate: Dictionary = _make_catalog_payload()
 	var candidate_accounts: Array = GFVariantData.get_option_array(
 		candidate,
@@ -444,8 +535,7 @@ func delete_active_account_with_fallback_async(
 			fallback_candidate_index = index
 			break
 	if fallback_candidate_index < 0:
-		_finish_async_catalog_mutation(ERR_DOES_NOT_EXIST)
-		return _last_error
+		return _finish_catalog_mutation_result(action, ERR_DOES_NOT_EXIST)
 	var candidate_fallback: Dictionary = GFVariantData.as_dictionary(
 		candidate_accounts[fallback_candidate_index]
 	)
@@ -458,19 +548,37 @@ func delete_active_account_with_fallback_async(
 	candidate[&"accounts"] = candidate_accounts
 	var save_error: Error = await _save_catalog_async(candidate)
 	if not _owns_async_catalog_mutation(mutation_token):
-		return ERR_UNAVAILABLE
+		return _record_catalog_mutation_result(action, ERR_UNAVAILABLE)
 	if save_error != OK:
-		_finish_async_catalog_mutation(save_error)
-		return save_error
+		return _finish_catalog_mutation_result(
+			action,
+			save_error,
+			null,
+			_is_current_storage_outcome_unknown(),
+			_last_async_storage_result
+		)
 	var apply_error: Error = _apply_catalog_payload(candidate)
 	if apply_error != OK:
-		_finish_async_catalog_mutation(apply_error)
-		return apply_error
-	_finish_async_catalog_mutation(OK)
+		return _finish_catalog_mutation_result(
+			action,
+			apply_error,
+			null,
+			false,
+			_last_async_storage_result
+		)
+	var result: LocalAccountCatalogMutationResult = (
+		_finish_catalog_mutation_result(
+			action,
+			OK,
+			get_account(fallback_account_id),
+			false,
+			_last_async_storage_result
+		)
+	)
 	if publish_signals:
 		active_account_changed.emit(fallback_account_id)
 		account_catalog_changed.emit()
-	return OK
+	return result
 
 
 ## 返回账号独立 Save Profile 的存储相对路径。
@@ -765,6 +873,74 @@ func _finish_async_catalog_mutation(error_code: Error) -> void:
 		)
 	_active_mutation_lease = null
 	_try_complete_quiesce()
+
+
+func _finish_catalog_mutation_result(
+	action: StringName,
+	error_code: Error,
+	account: LocalPlayerAccount = null,
+	outcome_unknown: bool = false,
+	storage_evidence: Dictionary = {}
+) -> LocalAccountCatalogMutationResult:
+	_finish_async_catalog_mutation(error_code)
+	return _record_catalog_mutation_result(
+		action,
+		error_code,
+		account,
+		outcome_unknown,
+		storage_evidence
+	)
+
+
+func _record_catalog_mutation_result(
+	action: StringName,
+	error_code: Error,
+	account: LocalPlayerAccount = null,
+	outcome_unknown: bool = false,
+	storage_evidence: Dictionary = {}
+) -> LocalAccountCatalogMutationResult:
+	var status: StringName = LocalAccountCatalogMutationResult.STATUS_FAILED
+	if error_code == OK:
+		status = LocalAccountCatalogMutationResult.STATUS_SUCCEEDED
+	elif outcome_unknown:
+		status = LocalAccountCatalogMutationResult.STATUS_OUTCOME_UNKNOWN
+	var evidence: Dictionary = storage_evidence.duplicate(true)
+	if evidence.is_empty():
+		evidence = {
+			&"ok": error_code == OK,
+			&"status": String(status),
+			&"error_code": int(error_code),
+			&"storage_requested": false,
+		}
+	var result: LocalAccountCatalogMutationResult = (
+		LocalAccountCatalogMutationResult.new()
+	)
+	var configured: bool = result.configure_for_catalog(
+		action,
+		status,
+		error_code,
+		account,
+		evidence
+	)
+	if not configured:
+		push_error(
+			"[LocalAccountCatalogUtility] 无法构造目录事务终态：%s。"
+			% String(action)
+		)
+		return null
+	if not _disposed:
+		_last_mutation_result = result.duplicate_result()
+	return result
+
+
+func _is_current_storage_outcome_unknown() -> bool:
+	return (
+		GFVariantData.get_option_string_name(
+			_last_async_storage_result,
+			&"status"
+		)
+		== LocalAccountCatalogMutationResult.STATUS_OUTCOME_UNKNOWN
+	)
 
 
 func _owns_async_catalog_mutation(mutation_token: int) -> bool:

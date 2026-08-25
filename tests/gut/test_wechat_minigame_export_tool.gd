@@ -5,6 +5,7 @@ extends GutTest
 # --- 常量 ---
 
 const _TOOL_PATH: String = "res://tools/export_wechat_minigame_smoke.ps1"
+const _RELEASE_TOOL_PATH: String = "res://tools/export_wechat_minigame_release.ps1"
 const _EXPORT_CONFIG_PATH: String = "res://export_presets.cfg"
 const _PROJECT_CONFIG_PATH: String = "res://project.godot"
 const _SMOKE_FONT_PATH: String = "res://shared/assets/fonts/wechat_smoke_sans_subset.ttf"
@@ -14,6 +15,22 @@ const _SMOKE_FONT_IMPORT_PATH: String = (
 const _SMOKE_FONT_RESOURCE_PATH: String = (
 	"res://shared/assets/fonts/ui_sans_wechat_smoke.tres"
 )
+const _RELEASE_FONT_PATH: String = (
+	"res://shared/assets/fonts/wechat_release_sans_subset.ttf"
+)
+const _RELEASE_FONT_IMPORT_PATH: String = (
+	"res://shared/assets/fonts/wechat_release_sans_subset.ttf.import"
+)
+const _RELEASE_FONT_RESOURCE_PATH: String = (
+	"res://shared/assets/fonts/ui_sans_wechat_release.tres"
+)
+const _RELEASE_COVERAGE_PATH: String = (
+	"res://shared/assets/fonts/wechat_release_font_coverage.txt"
+)
+const _RELEASE_COVERAGE_MANIFEST_PATH: String = (
+	"res://shared/assets/fonts/wechat_release_font_coverage.json"
+)
+const _FONT_LICENSE_PATH: String = "res://shared/assets/fonts/noto_sans_sc_ofl.txt"
 const _EXPORT_PLUGIN_CONFIG_PATH: String = (
 	"res://addons/wechat_minigame_smoke_export/plugin.cfg"
 )
@@ -29,7 +46,14 @@ const _WXMEMFS_RENAME_PATCH_PATH: String = (
 const _SMOKE_FONT_SHA256: String = (
 	"38bdd2457e67c2c1721f5734fee67059bc1b961563afb4f3e0f8b8c8b8049c22"
 )
+const _SOURCE_FONT_SHA256: String = (
+	"763146584cf0710223441356b4395e279021b0806c196614377a7a0174ae074a"
+)
+const _FONT_LICENSE_SHA256: String = (
+	"6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2"
+)
 const _WEB_PRESET_NAME: String = "Web Compatibility Smoke"
+const _RELEASE_PRESET_NAME: String = "Web Compatibility WeChat Release"
 const _VISIBLE_TEXT_SOURCE_PATHS: PackedStringArray = [
 	"res://app/scripts/boot.gd",
 	"res://app/scripts/boot_runtime.gd",
@@ -73,7 +97,7 @@ func test_export_tool_rewrites_the_pack_and_rejects_browser_artifacts() -> void:
 	assert_true(source.contains("/engine/$PackFileName"))
 	assert_true(source.contains("Move-Item -LiteralPath $temporaryPackPath"))
 	assert_true(source.contains("'(?i)\\.(?:pck|html|wasm)$'"))
-	assert_true(source.contains('scope = "toolchain_smoke"'))
+	assert_true(source.contains("scope = $ReportScope"))
 
 
 func test_export_tool_installs_the_canonical_chunked_large_file_reader() -> void:
@@ -121,6 +145,14 @@ func test_export_tool_enforces_conservative_wechat_package_budgets() -> void:
 	assert_true(source.contains("Initialize-GodotArtifactVerificationProject"))
 	assert_true(source.contains("-VerificationProjectRoot $verificationProjectRoot"))
 	assert_true(source.contains('config/name="2048 WeChat Artifact Verification Host"'))
+	assert_true(source.contains("global_script_class_cache.cfg"))
+	assert_true(source.contains('"class": &"GFBoundedJsonObjectReader"'))
+	assert_true(source.contains('"class": &"GFPathTools"'))
+	assert_true(
+		source.contains("$ReleaseFontCoverageManifestRelativePath")
+		and source.contains("$ReleaseFontCoverageRelativePath"),
+		"正式字体 coverage 证据应复制到隔离 verifier host，而不是塞进运行时 pack。"
+	)
 
 
 func test_export_tool_has_one_fixed_landscape_smoke_contract() -> void:
@@ -131,13 +163,25 @@ func test_export_tool_has_one_fixed_landscape_smoke_contract() -> void:
 
 func test_export_tool_sets_a_distinct_devtools_project_identity() -> void:
 	var source: String = _read_tool_source()
-	assert_true(source.contains(
-		'$WeChatProjectName = "2048 Chunked Toolchain Smoke"'
-	))
+	assert_true(source.contains('$WeChatProjectName = if ($IsReleaseProfile)'))
+	assert_true(source.contains('"2048 Chunked Toolchain Smoke"'))
 	assert_true(source.contains('-NotePropertyName "projectname"'))
 	assert_true(source.contains('-NotePropertyValue $WeChatProjectName'))
 	assert_true(source.contains('$projectConfig.compileType = "minigame"'))
 	assert_true(source.contains('project_name = $WeChatProjectName'))
+	assert_true(source.contains('"2048 Full Game Release Candidate"'))
+
+
+func test_release_entry_reuses_the_audited_export_transaction() -> void:
+	var release_source: String = FileAccess.get_file_as_string(_RELEASE_TOOL_PATH)
+	assert_false(release_source.is_empty())
+	assert_true(release_source.contains("export_wechat_minigame_smoke.ps1"))
+	assert_true(release_source.contains("-Profile Release @args"))
+	assert_false(release_source.contains("Invoke-GodotPackExport"))
+	var source: String = _read_tool_source()
+	assert_true(source.contains('[ValidateSet("Smoke", "Release")]'))
+	assert_true(source.contains('$ReportScope = if ($IsReleaseProfile)'))
+	assert_true(source.contains("Get-ReleaseFontPolicyEvidence"))
 
 
 func test_export_tool_publishes_transactionally_and_rejects_reparse_paths() -> void:
@@ -199,7 +243,18 @@ func test_export_tool_freezes_source_tool_and_complete_artifact_identity() -> vo
 	assert_true(source.contains('gf = $gfIdentity'))
 	assert_true(source.contains('tool_identity = $toolIdentity'))
 	assert_true(source.contains('$ToolIdentityRelativePaths.Values'))
+	assert_true(source.contains(
+		'bounded_json_reader = "addons/gf/kernel/core/gf_bounded_json_object_reader.gd"'
+	))
+	assert_true(source.contains(
+		'path_tools = "addons/gf/kernel/core/gf_path_tools.gd"'
+	))
 	assert_true(source.contains('"--report-path"'))
+	var verifier_source: String = FileAccess.get_file_as_string(
+		"res://tools/wechat_minigame_artifact_verifier.gd"
+	)
+	assert_true(verifier_source.contains("GFBoundedJsonObjectReader.read_object("))
+	assert_false(verifier_source.contains("GFVariantData"))
 
 
 func test_export_tool_never_inherits_the_upstream_sample_app_id() -> void:
@@ -236,6 +291,13 @@ func test_wechat_smoke_font_is_pinned_and_only_overrides_the_smoke_feature() -> 
 			"theme/custom_font.wechat_minigame_smoke",
 			""
 		)) == _SMOKE_FONT_RESOURCE_PATH
+	)
+	assert_true(
+		str(project_config.get_value(
+			"gui",
+			"theme/custom_font.wechat_minigame_release",
+			""
+		)) == _RELEASE_FONT_RESOURCE_PATH
 	)
 
 
@@ -290,7 +352,118 @@ func test_web_smoke_remaps_the_full_font_and_includes_the_subset() -> void:
 	assert_true(exclude_filter.contains("addons/wechat_minigame_smoke_export/*"))
 
 
-func test_export_plugin_replaces_the_font_only_for_the_wechat_smoke_feature() -> void:
+func test_wechat_release_preset_exports_the_full_game_without_platform_smoke() -> void:
+	var export_config: ConfigFile = ConfigFile.new()
+	assert_true(export_config.load(_EXPORT_CONFIG_PATH) == OK)
+	var preset_section: String = ""
+	for section: String in export_config.get_sections():
+		if str(export_config.get_value(section, "name", "")) == _RELEASE_PRESET_NAME:
+			preset_section = section
+			break
+	assert_false(preset_section.is_empty())
+	var custom_features: PackedStringArray = str(export_config.get_value(
+		preset_section,
+		"custom_features",
+		""
+	)).split(",", false)
+	assert_true(custom_features.has("wechat_minigame_release"))
+	assert_false(custom_features.has("platform_smoke"))
+	var include_filter: String = str(export_config.get_value(
+		preset_section,
+		"include_filter",
+		""
+	))
+	var exclude_filter: String = str(export_config.get_value(
+		preset_section,
+		"exclude_filter",
+		""
+	))
+	assert_true(include_filter.contains("shared/assets/fonts/wechat_release_sans_subset.ttf"))
+	assert_true(include_filter.contains("shared/assets/fonts/ui_sans_wechat_release.tres"))
+	assert_false(include_filter.contains("shared/assets/fonts/wechat_release_font_coverage.json"))
+	assert_true(include_filter.contains("shared/assets/fonts/noto_sans_sc_ofl.txt"))
+	assert_true(exclude_filter.contains("shared/assets/fonts/noto_sans_sc_variable.ttf"))
+	assert_true(exclude_filter.contains("shared/assets/fonts/wechat_smoke_sans_subset.ttf"))
+	assert_true(exclude_filter.contains("shared/assets/fonts/wechat_release_font_coverage.txt"))
+	assert_true(exclude_filter.contains("shared/assets/fonts/wechat_release_font_coverage.json"))
+
+
+func test_wechat_release_font_hash_license_and_declared_coverage_are_exact() -> void:
+	for path: String in PackedStringArray([
+		_RELEASE_FONT_PATH,
+		_RELEASE_FONT_IMPORT_PATH,
+		_RELEASE_FONT_RESOURCE_PATH,
+		_RELEASE_COVERAGE_PATH,
+		_RELEASE_COVERAGE_MANIFEST_PATH,
+		_FONT_LICENSE_PATH,
+	]):
+		assert_true(FileAccess.file_exists(path), "正式微信字体证据缺失：%s" % path)
+	var manifest_value: Variant = JSON.parse_string(
+		FileAccess.get_file_as_string(_RELEASE_COVERAGE_MANIFEST_PATH)
+	)
+	assert_true(manifest_value is Dictionary)
+	if not manifest_value is Dictionary:
+		return
+	var manifest: Dictionary = manifest_value
+	assert_true(str(manifest.get("policy_id", "")) == "wechat-release-shipped-literals-v1")
+	var source_font: Dictionary = GFVariantData.get_option_dictionary(
+		manifest,
+		"source_font"
+	)
+	var license: Dictionary = GFVariantData.get_option_dictionary(manifest, "license")
+	var subset_font: Dictionary = GFVariantData.get_option_dictionary(
+		manifest,
+		"subset_font"
+	)
+	assert_true(str(source_font.get("sha256", "")) == _SOURCE_FONT_SHA256)
+	assert_true(str(license.get("spdx", "")) == "OFL-1.1")
+	assert_true(str(license.get("sha256", "")) == _FONT_LICENSE_SHA256)
+	assert_true(
+		FileAccess.get_sha256(_FONT_LICENSE_PATH).to_lower() == _FONT_LICENSE_SHA256
+	)
+	assert_true(
+		FileAccess.get_sha256(_RELEASE_FONT_PATH).to_lower()
+		== str(subset_font.get("sha256", ""))
+	)
+	assert_true(
+		FileAccess.get_sha256(_RELEASE_COVERAGE_PATH).to_lower()
+		== str(
+			GFVariantData.get_option_dictionary(manifest, "coverage").get(
+				"codepoints_sha256",
+				""
+			)
+		)
+	)
+
+	var import_config: ConfigFile = ConfigFile.new()
+	assert_true(import_config.load(_RELEASE_FONT_IMPORT_PATH) == OK)
+	assert_false(GFVariantData.to_bool(
+		import_config.get_value("params", "allow_system_fallback", true),
+		true
+	))
+	var font_resource: Resource = load(_RELEASE_FONT_PATH)
+	assert_true(font_resource is Font)
+	if not font_resource is Font:
+		return
+	var font: Font = font_resource
+	var declared_count: int = 0
+	for token: String in FileAccess.get_file_as_string(
+		_RELEASE_COVERAGE_PATH
+	).strip_edges().split(",", false):
+		var codepoint: int = token.trim_prefix("U+").hex_to_int()
+		assert_true(codepoint > 0, "正式微信字体覆盖 token 无效：%s" % token)
+		assert_true(font.has_char(codepoint), "正式微信字体缺少 %s" % token)
+		declared_count += 1
+	assert_true(
+		declared_count
+		== GFVariantData.get_option_int(
+			GFVariantData.get_option_dictionary(manifest, "coverage"),
+			"codepoint_count"
+		)
+	)
+
+
+func test_export_plugin_replaces_fonts_for_smoke_and_release_profiles_only() -> void:
 	assert_true(FileAccess.file_exists(_EXPORT_PLUGIN_CONFIG_PATH))
 	var project_config: ConfigFile = ConfigFile.new()
 	assert_true(project_config.load(_PROJECT_CONFIG_PATH) == OK)
@@ -302,13 +475,22 @@ func test_export_plugin_replaces_the_font_only_for_the_wechat_smoke_feature() ->
 	assert_true(enabled_plugins.has(_EXPORT_PLUGIN_CONFIG_PATH))
 
 	var source: String = FileAccess.get_file_as_string(_EXPORT_PLUGIN_PATH)
+	var plugin_config: String = FileAccess.get_file_as_string(
+		_EXPORT_PLUGIN_CONFIG_PATH
+	)
+	assert_true(plugin_config.contains("WeChat Mini Game Profile Font Export"))
+	assert_true(plugin_config.contains("directory name is retained for compatibility"))
 	assert_true(source.contains('const _SMOKE_FEATURE: String = "wechat_minigame_smoke"'))
+	assert_true(source.contains('const _RELEASE_FEATURE: String = "wechat_minigame_release"'))
+	assert_true(source.contains("WeChatMiniGameProfileFontExportPlugin"))
+	assert_false(source.contains("WeChatMiniGameSmokeExportPlugin"))
 	assert_true(source.contains("func _begin_customize_resources("))
-	assert_true(source.contains("features.has(_SMOKE_FEATURE)"))
+	assert_true(source.contains("features.has(feature)"))
 	assert_true(source.contains("_FONT_VARIATION_PATHS.has(path)"))
 	assert_true(source.contains("resource.duplicate(true)"))
-	assert_true(source.contains("customized_font.base_font = smoke_font"))
-	assert_true(source.contains("load(_SMOKE_FONT_PATH)"))
+	assert_true(source.contains("customized_font.base_font = profile_font"))
+	assert_true(source.contains("load(_active_font_path)"))
+	assert_true(source.contains("_active_font_path,"))
 
 
 # --- 私有/辅助方法 ---

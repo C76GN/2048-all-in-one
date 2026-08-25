@@ -484,9 +484,16 @@ func _run_create_account_operation(
 		return
 	_operation_runner_started = true
 	var previous_account: LocalPlayerAccount = _catalog.get_active_account()
-	var account: LocalPlayerAccount = await _catalog.create_account_async(
-		display_name,
-		false
+	var create_result: LocalAccountCatalogMutationResult = (
+		await _catalog.create_account_async(
+			display_name,
+			false
+		)
+	)
+	var account: LocalPlayerAccount = (
+		create_result.get_account()
+		if create_result != null and create_result.is_successful()
+		else null
 	)
 	if not _is_current_operation(operation):
 		return
@@ -495,10 +502,14 @@ func _run_create_account_operation(
 			operation,
 			(
 				LocalAccountOperationResult.STATUS_CATALOG_OUTCOME_UNKNOWN
-				if _catalog_outcome_unknown()
+				if create_result != null and create_result.is_outcome_unknown()
 				else LocalAccountOperationResult.STATUS_CATALOG_FAILED
 			),
-			_catalog.get_last_error(),
+			(
+				create_result.get_error_code()
+				if create_result != null
+				else ERR_CANT_CREATE
+			),
 			null,
 			previous_account.account_id if previous_account != null else ""
 		)
@@ -523,7 +534,7 @@ func _run_create_account_operation(
 				previous_account.account_id if previous_account != null else ""
 			)
 			return
-		var catalog_rollback_error: Error = (
+		var catalog_rollback_result: LocalAccountCatalogMutationResult = (
 			await _catalog.delete_account_async(
 				account.account_id,
 				false
@@ -531,9 +542,15 @@ func _run_create_account_operation(
 		)
 		if not _is_current_operation(operation):
 			return
+		var catalog_rollback_error: Error = (
+			catalog_rollback_result.get_error_code()
+			if catalog_rollback_result != null
+			else ERR_CANT_CREATE
+		)
 		if catalog_rollback_error != OK:
 			var catalog_rollback_outcome_unknown: bool = (
-				_catalog_outcome_unknown()
+				catalog_rollback_result != null
+				and catalog_rollback_result.is_outcome_unknown()
 			)
 			if not catalog_rollback_outcome_unknown:
 				_publish_retained_create_candidate_catalog_changed(
@@ -578,14 +595,21 @@ func _run_create_account_operation(
 		)
 		return
 
-	var activate_error: Error = await _catalog.set_active_account_async(
-		account.account_id,
-		false
+	var activate_result: LocalAccountCatalogMutationResult = (
+		await _catalog.set_active_account_async(
+			account.account_id,
+			false
+		)
+	)
+	var activate_error: Error = (
+		activate_result.get_error_code()
+		if activate_result != null
+		else ERR_CANT_CREATE
 	)
 	if not _is_current_operation(operation):
 		return
 	if activate_error != OK:
-		if _catalog_outcome_unknown():
+		if activate_result != null and activate_result.is_outcome_unknown():
 			_complete_account_operation(
 				operation,
 				LocalAccountOperationResult.STATUS_CATALOG_OUTCOME_UNKNOWN,
@@ -625,7 +649,7 @@ func _run_create_account_operation(
 				previous_account.account_id if previous_account != null else ""
 			)
 			return
-		var catalog_cleanup_error: Error = (
+		var catalog_cleanup_result: LocalAccountCatalogMutationResult = (
 			await _catalog.delete_account_async(
 				account.account_id,
 				false
@@ -633,9 +657,15 @@ func _run_create_account_operation(
 		)
 		if not _is_current_operation(operation):
 			return
+		var catalog_cleanup_error: Error = (
+			catalog_cleanup_result.get_error_code()
+			if catalog_cleanup_result != null
+			else ERR_CANT_CREATE
+		)
 		if catalog_cleanup_error != OK:
 			var catalog_cleanup_outcome_unknown: bool = (
-				_catalog_outcome_unknown()
+				catalog_cleanup_result != null
+				and catalog_cleanup_result.is_outcome_unknown()
 			)
 			if not catalog_cleanup_outcome_unknown:
 				_publish_retained_create_candidate_catalog_changed(
@@ -740,14 +770,21 @@ func _run_switch_account_operation(
 			previous_account.account_id if previous_account != null else ""
 		)
 		return
-	var catalog_error: Error = await _catalog.set_active_account_async(
-		account_id,
-		false
+	var catalog_result: LocalAccountCatalogMutationResult = (
+		await _catalog.set_active_account_async(
+			account_id,
+			false
+		)
+	)
+	var catalog_error: Error = (
+		catalog_result.get_error_code()
+		if catalog_result != null
+		else ERR_CANT_CREATE
 	)
 	if not _is_current_operation(operation):
 		return
 	if catalog_error != OK:
-		if _catalog_outcome_unknown():
+		if catalog_result != null and catalog_result.is_outcome_unknown():
 			_complete_account_operation(
 				operation,
 				LocalAccountOperationResult.STATUS_CATALOG_OUTCOME_UNKNOWN,
@@ -806,10 +843,17 @@ func _run_rename_account_operation(
 		return
 	_operation_runner_started = true
 	var previous_account: LocalPlayerAccount = _catalog.get_active_account()
-	var rename_error: Error = await _catalog.rename_account_async(
-		account_id,
-		display_name,
-		false
+	var rename_result: LocalAccountCatalogMutationResult = (
+		await _catalog.rename_account_async(
+			account_id,
+			display_name,
+			false
+		)
+	)
+	var rename_error: Error = (
+		rename_result.get_error_code()
+		if rename_result != null
+		else ERR_CANT_CREATE
 	)
 	if not _is_current_operation(operation):
 		return
@@ -818,7 +862,7 @@ func _run_rename_account_operation(
 			operation,
 			(
 				LocalAccountOperationResult.STATUS_CATALOG_OUTCOME_UNKNOWN
-				if _catalog_outcome_unknown()
+				if rename_result != null and rename_result.is_outcome_unknown()
 				else LocalAccountOperationResult.STATUS_CATALOG_FAILED
 			),
 			rename_error,
@@ -905,9 +949,9 @@ func _run_delete_account_operation(
 			)
 			return
 
-	var delete_error: Error = OK
+	var delete_result: LocalAccountCatalogMutationResult = null
 	if deleted_active:
-		delete_error = (
+		delete_result = (
 			await _catalog.delete_active_account_with_fallback_async(
 				account_id,
 				fallback.account_id,
@@ -915,14 +959,19 @@ func _run_delete_account_operation(
 			)
 		)
 	else:
-		delete_error = await _catalog.delete_account_async(
+		delete_result = await _catalog.delete_account_async(
 			account_id,
 			false
 		)
+	var delete_error: Error = (
+		delete_result.get_error_code()
+		if delete_result != null
+		else ERR_CANT_CREATE
+	)
 	if not _is_current_operation(operation):
 		return
 	if delete_error != OK:
-		if _catalog_outcome_unknown():
+		if delete_result != null and delete_result.is_outcome_unknown():
 			_complete_account_operation(
 				operation,
 				LocalAccountOperationResult.STATUS_CATALOG_OUTCOME_UNKNOWN,
@@ -2321,13 +2370,10 @@ func _publish_reconciled_catalog_success(
 func _catalog_outcome_unknown() -> bool:
 	if not is_instance_valid(_catalog):
 		return false
-	return (
-		GFVariantData.get_option_string_name(
-			_catalog.get_last_async_storage_result(),
-			&"status"
-		)
-		== &"outcome_unknown"
+	var result: LocalAccountCatalogMutationResult = (
+		_catalog.get_last_mutation_result()
 	)
+	return result != null and result.is_outcome_unknown()
 
 
 func _publish_retained_create_candidate_catalog_changed(

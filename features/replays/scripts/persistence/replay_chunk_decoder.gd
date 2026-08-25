@@ -12,10 +12,12 @@ extends RefCounted
 const STREAM_SCHEMA_ID: StringName = &"replay_record_stream"
 const STREAM_SCHEMA_VERSION: int = 2
 const BUSINESS_SCHEMA_VERSION: int = ReplayCatalogSaveData.SCHEMA_VERSION
-const CHUNK_BYTES: int = ChunkManifest.MAX_CHUNK_BYTES
-const MAX_TOTAL_BYTES: int = ChunkManifest.MAX_TOTAL_BYTES
-const MAX_FRAME_BYTES: int = ChunkManifest.MAX_CHUNK_BYTES
-const MAX_FRAME_PAYLOAD_BYTES: int = MAX_FRAME_BYTES - 4
+const CHUNK_BYTES: int = ChunkFrameStreamReader.CHUNK_BYTES
+const MAX_TOTAL_BYTES: int = ChunkFrameStreamReader.MAX_TOTAL_BYTES
+const MAX_FRAME_BYTES: int = ChunkFrameStreamReader.CHUNK_BYTES
+const MAX_FRAME_PAYLOAD_BYTES: int = (
+	ChunkFrameStreamReader.MAX_FRAME_PAYLOAD_BYTES
+)
 
 const TOPOLOGY_CELL_BATCH_SIZE: int = (
 	ReplayChunkSourceSnapshot.TOPOLOGY_CELL_BATCH_SIZE
@@ -30,7 +32,6 @@ const RECORD_TOPOLOGY_CELLS: StringName = &"topology_cells"
 const RECORD_FINAL_TILES: StringName = &"final_tiles"
 const RECORD_STEP: StringName = &"step"
 
-const _LENGTH_PREFIX_BYTES: int = 4
 const _PHASE_HEADER: int = 0
 const _PHASE_METADATA: int = 1
 const _PHASE_CELLS: int = 2
@@ -96,7 +97,7 @@ const _TILE_FIELDS: Array[StringName] = [
 
 # --- 私有变量 ---
 
-var _reader: _ChunkReader = null
+var _reader: ChunkFrameStreamReader = null
 var _phase: int = _PHASE_HEADER
 var _replay_count: int = -1
 var _next_replay_index: int = 0
@@ -134,11 +135,13 @@ var _error: String = ""
 static func begin_decode(
 	chunks: Array[PackedByteArray]
 ) -> ReplayChunkDecoder:
-	if not _validate_chunk_boundaries(chunks):
+	var reader: ChunkFrameStreamReader = (
+		ChunkFrameStreamReader.begin_reading_taking_ownership(chunks)
+	)
+	if reader == null:
 		return null
-	var owned_root: Array[PackedByteArray] = chunks.duplicate()
 	var decoder: ReplayChunkDecoder = ReplayChunkDecoder.new()
-	decoder._reader = _ChunkReader.new(owned_root)
+	decoder._reader = reader
 	return decoder
 
 
@@ -149,7 +152,7 @@ func advance(frame_budget: int) -> int:
 		return 0
 	var consumed_units: int = 0
 	while consumed_units < frame_budget and not _complete and not is_failed():
-		var frame_result: Dictionary = _read_variant_frame(_reader)
+		var frame_result: Dictionary = _reader.read_variant_frame()
 		if not GFVariantData.get_option_bool(frame_result, &"ok", false):
 			_fail(ERR_FILE_CORRUPT, "Replay stream frame is invalid.")
 			break
@@ -452,6 +455,12 @@ func _finish_current_replay() -> bool:
 		&"topology_id": _current_metadata.get(&"topology_id"),
 		&"active_cells": _current_cells,
 	}
+	var topology_value: BoardTopology = BoardTopology.from_dict(topology)
+	if (
+		topology_value == null
+		or not topology_value.get_playable_validation_report().is_ok()
+	):
+		return false
 	var replay: ReplayData = ReplayData.new()
 	replay.schema_version = ReplayData.SCHEMA_VERSION
 	replay.replay_id = GFVariantData.get_option_string(
@@ -500,6 +509,8 @@ func _finish_current_replay() -> bool:
 		&"topology": topology,
 		&"tiles": _current_tiles,
 	}
+	if not GridModel.is_snapshot_envelope_valid(replay.final_board_snapshot):
+		return false
 	_items.append(replay)
 	_next_replay_index += 1
 	_clear_current_replay()
@@ -665,7 +676,7 @@ static func _is_valid_scalar_metadata(frame: Dictionary) -> bool:
 		== BoardTopology.SERIALIZATION_SCHEMA_VERSION
 		and not topology_id.is_empty()
 		and cell_count > 0
-		and cell_count <= BoardTopology.MAX_CELL_COUNT
+		and cell_count <= BoardTopology.MAX_PLAYABLE_CELL_COUNT
 		and frame.get(&"snapshot_schema_version")
 		== GridModel.SNAPSHOT_SCHEMA_VERSION
 		and tile_count >= 0
@@ -673,45 +684,6 @@ static func _is_valid_scalar_metadata(frame: Dictionary) -> bool:
 		and step_count >= 0
 		and step_count <= ReplayData.MAX_STEP_COUNT
 	)
-
-
-static func _read_variant_frame(reader: _ChunkReader) -> Dictionary:
-	var length_bytes: PackedByteArray = reader.read_exact(_LENGTH_PREFIX_BYTES)
-	if length_bytes.size() != _LENGTH_PREFIX_BYTES:
-		return {&"ok": false}
-	var payload_length: int = _decode_u32(length_bytes)
-	if (
-		payload_length <= 0
-		or payload_length > MAX_FRAME_PAYLOAD_BYTES
-		or payload_length > reader.get_remaining_bytes()
-	):
-		return {&"ok": false}
-	var payload: PackedByteArray = reader.read_exact(payload_length)
-	if payload.size() != payload_length:
-		return {&"ok": false}
-	# 显式禁止 Object；对象 Variant 无法越过 canonical re-encode。
-	var value: Variant = bytes_to_var(payload)
-	if var_to_bytes(value) != payload:
-		return {&"ok": false}
-	return {&"ok": true, &"value": value}
-
-
-static func _validate_chunk_boundaries(
-	chunks: Array[PackedByteArray]
-) -> bool:
-	if chunks.is_empty() or chunks.size() > ChunkManifest.MAX_CHUNK_COUNT:
-		return false
-	var total_bytes: int = 0
-	for index: int in range(chunks.size()):
-		var chunk: PackedByteArray = chunks[index]
-		if chunk.is_empty() or chunk.size() > CHUNK_BYTES:
-			return false
-		if index < chunks.size() - 1 and chunk.size() != CHUNK_BYTES:
-			return false
-		total_bytes += chunk.size()
-		if total_bytes > MAX_TOTAL_BYTES:
-			return false
-	return total_bytes > 0
 
 
 static func _has_record_type(
@@ -759,59 +731,3 @@ static func _is_cardinal_direction(direction: Vector2i) -> bool:
 		or direction == Vector2i.UP
 		or direction == Vector2i.DOWN
 	)
-
-
-static func _decode_u32(payload: PackedByteArray) -> int:
-	return (
-		(int(payload[0]) << 24)
-		| (int(payload[1]) << 16)
-		| (int(payload[2]) << 8)
-		| int(payload[3])
-	)
-
-
-# --- 内部类 ---
-
-class _ChunkReader extends RefCounted:
-	var _chunks: Array[PackedByteArray] = []
-	var _chunk_index: int = 0
-	var _chunk_offset: int = 0
-	var _remaining_bytes: int = 0
-
-	func _init(chunks: Array[PackedByteArray]) -> void:
-		_chunks = chunks
-		for chunk: PackedByteArray in chunks:
-			_remaining_bytes += chunk.size()
-
-	func get_remaining_bytes() -> int:
-		return _remaining_bytes
-
-	## 使用 PackedByteArray slice/append_array 跨 chunk 复制，禁止逐字节循环。
-	## @param byte_count: 从当前位置精确读取的字节数。
-	func read_exact(byte_count: int) -> PackedByteArray:
-		if byte_count < 0 or byte_count > _remaining_bytes:
-			return PackedByteArray()
-		var result: PackedByteArray = PackedByteArray()
-		var copied_bytes: int = 0
-		while copied_bytes < byte_count:
-			var chunk: PackedByteArray = _chunks[_chunk_index]
-			var copy_count: int = mini(
-				chunk.size() - _chunk_offset,
-				byte_count - copied_bytes
-			)
-			result.append_array(
-				chunk.slice(_chunk_offset, _chunk_offset + copy_count)
-			)
-			copied_bytes += copy_count
-			_chunk_offset += copy_count
-			_remaining_bytes -= copy_count
-			if _chunk_offset == chunk.size():
-				_chunk_index += 1
-				_chunk_offset = 0
-		return result
-
-	func release() -> void:
-		_chunks.clear()
-		_chunk_index = 0
-		_chunk_offset = 0
-		_remaining_bytes = 0

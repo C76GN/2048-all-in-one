@@ -1082,16 +1082,19 @@ func _wait_for_section_serial_lane() -> void:
 
 
 func _await_section_operation_settlement(
-	operation: GameSaveSectionOperation
+	operation: GameSaveSectionOperation,
+	observed_result: GameSaveSectionResult = null
 ) -> Dictionary:
 	if operation == null:
 		return {
 			&"candidate_persisted": false,
 			&"error_code": int(ERR_UNCONFIGURED),
 		}
-	var result: GameSaveSectionResult = operation.get_result()
-	if result == null:
-		result = await operation.completed
+	var result: GameSaveSectionResult = (
+		observed_result
+		if observed_result != null
+		else await operation.await_result()
+	)
 	if result == null:
 		return {
 			&"candidate_persisted": false,
@@ -1105,7 +1108,7 @@ func _await_section_operation_settlement(
 			&"memory_rolled_back": result.was_memory_rolled_back(),
 			&"error_code": int(OK),
 		}
-	if result.get_status() != GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN:
+	if not result.requires_reconciliation():
 		return {
 			&"transaction_id": result.get_transaction_id(),
 			&"status": String(result.get_status()),
@@ -1478,18 +1481,13 @@ func _complete_bookmark_save(
 	if owner_epoch != _persistence_epoch:
 		return
 	var initial_result: GameSaveSectionResult = (
-		operation.get_result()
-		if operation != null
-		else null
+		await operation.await_result() if operation != null else null
 	)
-	if initial_result == null and operation != null:
-		initial_result = await operation.completed
 	if owner_epoch != _persistence_epoch:
 		return
 	if (
 		initial_result != null
-		and initial_result.get_status()
-		== GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN
+		and initial_result.requires_reconciliation()
 	):
 		_push_gameplay_notification(
 			tr("SNAPSHOT_SAVE_PENDING"),
@@ -1499,7 +1497,8 @@ func _complete_bookmark_save(
 			GFNotificationUtility.Priority.HIGH
 		)
 	var outcome: Dictionary = await _await_section_operation_settlement(
-		operation
+		operation,
+		initial_result
 	)
 	if owner_epoch != _persistence_epoch:
 		return

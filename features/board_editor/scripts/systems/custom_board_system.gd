@@ -55,7 +55,7 @@ func request_save_custom_board(
 	var display_name: String = CustomBoardData.normalize_display_name(custom_board.display_name)
 	if display_name.is_empty():
 		return _reject_operation(save_graph, ERR_INVALID_DATA)
-	if not custom_board.topology.get_validation_report().is_ok():
+	if not custom_board.topology.get_playable_validation_report().is_ok():
 		return _reject_operation(save_graph, ERR_INVALID_DATA)
 
 	var boards: Array[CustomBoardData] = load_custom_boards()
@@ -245,10 +245,7 @@ func _on_saved_board_operation_completed(
 	):
 		return
 	if not result.is_successful():
-		if (
-			result.get_status()
-			== GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN
-		):
+		if result.requires_reconciliation():
 			_apply_saved_board_after_reconciliation(
 				result.get_transaction_id(),
 				strict_candidate,

@@ -583,10 +583,7 @@ func _on_save_blueprint_operation_completed(
 	):
 		return
 	if not result.is_successful():
-		if (
-			result.get_status()
-			== GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN
-		):
+		if result.requires_reconciliation():
 			_connect_saved_blueprint_reconciliation(
 				result.get_transaction_id(),
 				strict_candidate,
@@ -628,10 +625,7 @@ func _on_blueprints_changed_operation_completed(
 		return
 	if result.is_successful():
 		blueprints_changed.emit()
-	elif (
-		result.get_status()
-		== GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN
-	):
+	elif result.requires_reconciliation():
 		_connect_blueprints_changed_reconciliation(
 			result.get_transaction_id()
 		)

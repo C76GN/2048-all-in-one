@@ -1416,7 +1416,7 @@ func _on_recorded_result_operation_completed(
 	if result.is_successful():
 		send_event(strict_result)
 		return
-	if result.get_status() != GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN:
+	if not result.requires_reconciliation():
 		return
 	_publish_recorded_result_after_reconciliation(
 		result.get_transaction_id(),

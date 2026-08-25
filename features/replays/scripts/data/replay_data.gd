@@ -121,7 +121,10 @@ static func from_dict(data: Dictionary) -> ReplayData:
 		&"initial_board_topology"
 	).duplicate(true)
 	var initial_topology: BoardTopology = BoardTopology.from_dict(result.initial_board_topology)
-	if initial_topology == null:
+	if (
+		initial_topology == null
+		or not initial_topology.get_playable_validation_report().is_ok()
+	):
 		return null
 	result.final_score = GFVariantData.get_option_int(data, &"final_score")
 	for action_value: Variant in GFVariantData.get_option_array(data, &"actions"):
@@ -175,6 +178,7 @@ func _is_valid_contract(initial_topology: BoardTopology) -> bool:
 		or actions.size() > MAX_STEP_COUNT
 		or checkpoints.size() > MAX_STEP_COUNT
 		or checkpoints.size() != actions.size()
+		or not initial_topology.get_playable_validation_report().is_ok()
 		or not GridModel.is_snapshot_envelope_valid(final_board_snapshot)
 	):
 		return false

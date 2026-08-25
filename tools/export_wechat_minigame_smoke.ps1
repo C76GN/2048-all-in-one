@@ -4,6 +4,8 @@ param(
 	[string]$TemplateArchivePath = "",
 	[string]$OutputPath = "",
 	[string]$AppId = "",
+	[ValidateSet("Smoke", "Release")]
+	[string]$Profile = "Smoke",
 	[ValidateRange(1, 3600)]
 	[int]$TimeoutSeconds = 600,
 	[switch]$FunctionsOnly,
@@ -29,8 +31,20 @@ $RequiredGodotVersionPrefix = "4.7.2.stable"
 $ExportReportSchemaVersion = 2
 $ArtifactManifestSchemaVersion = 1
 $InputSnapshotSchemaVersion = 1
-$BuildIdentitySchemaVersion = 1
-$ExportPreset = "Web Compatibility Smoke"
+$BuildIdentitySchemaVersion = 2
+$IsReleaseProfile = $Profile -eq "Release"
+$ExportPreset = if ($IsReleaseProfile) {
+	"Web Compatibility WeChat Release"
+}
+else {
+	"Web Compatibility Smoke"
+}
+$ReportScope = if ($IsReleaseProfile) {
+	"full_game_release_candidate"
+}
+else {
+	"toolchain_smoke"
+}
 $PackFileName = "2048-all-in-one.bin"
 $ChunkLoaderSourceRelativePath = "tools\wechat_minigame\chunked_file_loader.js"
 $ChunkLoaderOutputRelativePath = "engine\wechat-chunked-file-loader.js"
@@ -38,7 +52,18 @@ $WxMemFsRenamePatchRelativePath = "tools\wechat_minigame\wxmemfs_rename_patch.ps
 $TemplateGodotRuntimeSha256 = "CC396C67F410502C958185003EA72F5F67E5ACBCD040774D1AAF5B9622491B15"
 $PatchedGodotRuntimeSha256 = "FD91EA35F0515360BE35AE6FD2425D102CBAF17F30F5B7CCB8688AF635CE3638"
 $ChunkBytes = 4194304
-$WeChatProjectName = "2048 Chunked Toolchain Smoke"
+$WeChatProjectName = if ($IsReleaseProfile) {
+	"2048 Full Game Release Candidate"
+}
+else {
+	"2048 Chunked Toolchain Smoke"
+}
+$ProjectDescription = if ($IsReleaseProfile) {
+	"2048-all-in-one - Godot 4.7 WeChat Mini Game full-game release candidate"
+}
+else {
+	"2048-all-in-one - Godot 4.7 WeChat Mini Game smoke"
+}
 $MainPackageHardLimitBytes = 4000000
 $TotalPackageHardLimitBytes = 30000000
 $MainPackageSoftLimitBytes = 3600000
@@ -76,10 +101,25 @@ $ExportInputExcludedExactPaths = @(
 	"features/asset_library/resources/import_sources.local.json",
 	"shared/assets/fonts/noto_sans_sc_variable.ttf"
 )
+$ReleaseFontCoverageManifestRelativePath = (
+	"shared\assets\fonts\wechat_release_font_coverage.json"
+)
+$ReleaseFontCoverageRelativePath = (
+	"shared\assets\fonts\wechat_release_font_coverage.txt"
+)
+$ReleaseFontSubsetRelativePath = (
+	"shared\assets\fonts\wechat_release_sans_subset.ttf"
+)
+$ReleaseFontSourceRelativePath = (
+	"shared\assets\fonts\noto_sans_sc_variable.ttf"
+)
+$ReleaseFontLicenseRelativePath = "shared\assets\fonts\noto_sans_sc_ofl.txt"
 $ToolIdentityRelativePaths = [ordered]@{
 	export_tool = "tools/export_wechat_minigame_smoke.ps1"
 	artifact_verifier = "tools/wechat_minigame_artifact_verifier.gd"
 	artifact_check = "tools/wechat_minigame_artifact_check.gd"
+	bounded_json_reader = "addons/gf/kernel/core/gf_bounded_json_object_reader.gd"
+	path_tools = "addons/gf/kernel/core/gf_path_tools.gd"
 	chunk_loader = "tools/wechat_minigame/chunked_file_loader.js"
 	wxmemfs_patch = "tools/wechat_minigame/wxmemfs_rename_patch.ps1"
 }
@@ -87,7 +127,13 @@ $ToolIdentityRelativePaths = [ordered]@{
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $projectBuildRoot = [IO.Path]::GetFullPath((Join-Path $ProjectRoot "build"))
 $outputRoot = if ([string]::IsNullOrWhiteSpace($OutputPath)) {
-	Join-Path $projectBuildRoot "wechat_minigame_smoke\wxgame"
+	$defaultCandidate = if ($IsReleaseProfile) {
+		"wechat_minigame_release_candidate\wxgame"
+	}
+	else {
+		"wechat_minigame_smoke\wxgame"
+	}
+	Join-Path $projectBuildRoot $defaultCandidate
 }
 elseif ([IO.Path]::IsPathRooted($OutputPath)) {
 	$OutputPath
@@ -344,6 +390,87 @@ function Get-FileSha256 {
 	finally {
 		$sha256.Dispose()
 		$stream.Dispose()
+	}
+}
+
+function Get-ReleaseFontPolicyEvidence {
+	param([Parameter(Mandatory = $true)][string]$Root)
+
+	$manifestPath = Join-Path $Root $ReleaseFontCoverageManifestRelativePath
+	$coveragePath = Join-Path $Root $ReleaseFontCoverageRelativePath
+	$subsetPath = Join-Path $Root $ReleaseFontSubsetRelativePath
+	$sourcePath = Join-Path $Root $ReleaseFontSourceRelativePath
+	$licensePath = Join-Path $Root $ReleaseFontLicenseRelativePath
+	foreach ($requiredPath in @(
+		$manifestPath,
+		$coveragePath,
+		$subsetPath,
+		$sourcePath,
+		$licensePath
+	)) {
+		if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+			throw "WeChat release font evidence is missing: $requiredPath"
+		}
+	}
+
+	$manifest = Read-JsonObject -Path $manifestPath -Label "release font coverage manifest"
+	if ([int]$manifest.schema_version -ne 1) {
+		throw "WeChat release font coverage manifest schema must be 1."
+	}
+	if ([string]$manifest.policy_id -ne "wechat-release-shipped-literals-v1") {
+		throw "WeChat release font coverage policy is not recognized."
+	}
+	$expectedSubsetPath = $ReleaseFontSubsetRelativePath.Replace("\", "/")
+	$expectedSourcePath = $ReleaseFontSourceRelativePath.Replace("\", "/")
+	$expectedLicensePath = $ReleaseFontLicenseRelativePath.Replace("\", "/")
+	if ([string]$manifest.subset_font.path -ne $expectedSubsetPath) {
+		throw "WeChat release font manifest points to an unexpected subset."
+	}
+	if ([string]$manifest.license.path -ne $expectedLicensePath) {
+		throw "WeChat release font manifest points to an unexpected license."
+	}
+	if ([string]$manifest.source_font.path -ne $expectedSourcePath) {
+		throw "WeChat release font manifest points to an unexpected source font."
+	}
+
+	$subsetSha256 = (Get-FileSha256 -Path $subsetPath).ToLowerInvariant()
+	$sourceSha256 = (Get-FileSha256 -Path $sourcePath).ToLowerInvariant()
+	$coverageSha256 = (Get-FileSha256 -Path $coveragePath).ToLowerInvariant()
+	$licenseSha256 = (Get-FileSha256 -Path $licensePath).ToLowerInvariant()
+	if ($subsetSha256 -ne ([string]$manifest.subset_font.sha256).ToLowerInvariant()) {
+		throw "WeChat release font subset hash does not match its coverage manifest."
+	}
+	if ((Get-Item -LiteralPath $subsetPath).Length -ne [int64]$manifest.subset_font.bytes) {
+		throw "WeChat release font subset byte count does not match its coverage manifest."
+	}
+	if ($sourceSha256 -ne ([string]$manifest.source_font.sha256).ToLowerInvariant()) {
+		throw "WeChat release source font hash does not match its coverage manifest."
+	}
+	if ($coverageSha256 -ne ([string]$manifest.coverage.codepoints_sha256).ToLowerInvariant()) {
+		throw "WeChat release font coverage hash does not match its manifest."
+	}
+	if ($licenseSha256 -ne ([string]$manifest.license.sha256).ToLowerInvariant()) {
+		throw "WeChat release font license hash does not match its manifest."
+	}
+	if ([string]$manifest.license.spdx -ne "OFL-1.1") {
+		throw "WeChat release font license must remain OFL-1.1."
+	}
+
+	return [ordered]@{
+		policy_id = [string]$manifest.policy_id
+		coverage_manifest_path = $ReleaseFontCoverageManifestRelativePath.Replace("\", "/")
+		coverage_manifest_sha256 = (Get-FileSha256 -Path $manifestPath).ToLowerInvariant()
+		coverage_path = $ReleaseFontCoverageRelativePath.Replace("\", "/")
+		coverage_sha256 = $coverageSha256
+		codepoint_count = [int]$manifest.coverage.codepoint_count
+		subset_font_path = $expectedSubsetPath
+		subset_font_sha256 = $subsetSha256
+		subset_font_bytes = [int64]$manifest.subset_font.bytes
+		source_font_path = $expectedSourcePath
+		source_font_sha256 = $sourceSha256
+		license_path = $expectedLicensePath
+		license_spdx = [string]$manifest.license.spdx
+		license_sha256 = $licenseSha256
 	}
 }
 
@@ -671,7 +798,7 @@ function Get-GodotIdentity {
 	$requiredPattern = '^' + [regex]::Escape($RequiredGodotVersionPrefix) + '(?:\.|$)'
 	if ($versionOutput -cnotmatch $requiredPattern) {
 		throw (
-			"Godot $RequiredGodotVersionPrefix is required for this WeChat smoke export; " +
+			"Godot $RequiredGodotVersionPrefix is required for this WeChat export profile; " +
 			"got $versionOutput from $godotPath."
 		)
 	}
@@ -707,11 +834,19 @@ function Get-CandidateBuildId {
 		[Parameter(Mandatory = $true)][string]$InputSnapshotSha256,
 		[Parameter(Mandatory = $true)][int]$InputSnapshotFileCount,
 		[Parameter(Mandatory = $true)][string]$ArtifactManifestSha256,
-		[Parameter(Mandatory = $true)][object]$ToolIdentity
+		[Parameter(Mandatory = $true)][object]$ToolIdentity,
+		[string]$Scope = $ReportScope,
+		[string]$Preset = $ExportPreset,
+		[string]$ReleaseFontManifestSha256 = "",
+		[string]$ReleaseFontSubsetSha256 = ""
 	)
 
 	$records = @(
 		"wechat-candidate-build-v$BuildIdentitySchemaVersion",
+		"scope=$Scope",
+		"export_preset=$Preset",
+		"release_font_manifest_sha256=$ReleaseFontManifestSha256",
+		"release_font_subset_sha256=$ReleaseFontSubsetSha256",
 		"godot=$($GodotIdentity.version)",
 		"gf_framework_version=$($GfIdentity.framework_version)",
 		"gf_source_commit=$($GfIdentity.source_commit)",
@@ -726,6 +861,8 @@ function Get-CandidateBuildId {
 		"export_tool_sha256=$($ToolIdentity.export_tool.sha256)",
 		"artifact_verifier_sha256=$($ToolIdentity.artifact_verifier.sha256)",
 		"artifact_check_sha256=$($ToolIdentity.artifact_check.sha256)",
+		"bounded_json_reader_sha256=$($ToolIdentity.bounded_json_reader.sha256)",
+		"path_tools_sha256=$($ToolIdentity.path_tools.sha256)",
 		"chunk_loader_sha256=$($ToolIdentity.chunk_loader.sha256)",
 		"wxmemfs_patch_sha256=$($ToolIdentity.wxmemfs_patch.sha256)"
 	)
@@ -875,7 +1012,7 @@ function Invoke-GodotPackExport {
 	if (-not $completedInTime) {
 		$exportProcess.Kill()
 		$exportProcess.WaitForExit()
-		throw "Godot WeChat smoke pack export timed out after $TimeoutSeconds seconds."
+		throw "Godot WeChat pack export timed out after $TimeoutSeconds seconds."
 	}
 	$exportProcess.WaitForExit()
 	$stdoutText = $stdoutTask.GetAwaiter().GetResult().Trim()
@@ -983,6 +1120,34 @@ config/name="2048 WeChat Artifact Verification Host"
 
 renderer/rendering_method="gl_compatibility"
 "@
+	$globalScriptCachePath = Join-Path `
+		$VerificationProjectRoot `
+		".godot\global_script_class_cache.cfg"
+	$null = New-Item `
+		-ItemType Directory `
+		-Force `
+		-Path (Split-Path -Parent $globalScriptCachePath)
+	Write-Utf8Text `
+		-Path $globalScriptCachePath `
+		-Text @"
+list=[{
+"base": &"RefCounted",
+"class": &"GFBoundedJsonObjectReader",
+"icon": "",
+"is_abstract": false,
+"is_tool": false,
+"language": &"GDScript",
+"path": "res://addons/gf/kernel/core/gf_bounded_json_object_reader.gd"
+}, {
+"base": &"RefCounted",
+"class": &"GFPathTools",
+"icon": "",
+"is_abstract": false,
+"is_tool": false,
+"language": &"GDScript",
+"path": "res://addons/gf/kernel/core/gf_path_tools.gd"
+}]
+"@
 	foreach ($relativePath in $ToolIdentityRelativePaths.Values) {
 		$destinationPath = Join-Path $VerificationProjectRoot $relativePath
 		$null = New-Item `
@@ -992,6 +1157,24 @@ renderer/rendering_method="gl_compatibility"
 		Copy-Item `
 			-LiteralPath (Join-Path $ProjectRoot $relativePath) `
 			-Destination $destinationPath
+	}
+	# Coverage evidence belongs to the isolated verification host, not the
+	# runtime pack. The verifier binds these copies to the frozen report hashes
+	# while the mounted pack must contain only the subset font and runtime data.
+	if ($IsReleaseProfile) {
+		foreach ($relativePath in @(
+			$ReleaseFontCoverageManifestRelativePath,
+			$ReleaseFontCoverageRelativePath
+		)) {
+			$destinationPath = Join-Path $VerificationProjectRoot $relativePath
+			$null = New-Item `
+				-ItemType Directory `
+				-Force `
+				-Path (Split-Path -Parent $destinationPath)
+			Copy-Item `
+				-LiteralPath (Join-Path $ProjectRoot $relativePath) `
+				-Destination $destinationPath
+		}
 	}
 }
 
@@ -1231,9 +1414,15 @@ if ($FunctionsOnly) {
 }
 
 $AppId = Assert-WeChatAppId -Value $AppId -Source "-AppId"
-$outputRoot = Assert-SafeBuildChildPath -Path $outputRoot -Label "WeChat smoke output"
+$releaseFontPolicy = if ($IsReleaseProfile) {
+	Get-ReleaseFontPolicyEvidence -Root $ProjectRoot
+}
+else {
+	$null
+}
+$outputRoot = Assert-SafeBuildChildPath -Path $outputRoot -Label "WeChat candidate output"
 if ((Split-Path -Leaf $outputRoot) -ne "wxgame") {
-	throw "WeChat smoke OutputPath must end in a dedicated wxgame directory."
+	throw "WeChat OutputPath must end in a dedicated wxgame directory."
 }
 $outputCandidateRoot = Assert-SafeBuildChildPath `
 	-Path $outputCandidateRoot `
@@ -1388,7 +1577,7 @@ try {
 	$projectConfigPath = Join-Path $stageRoot "project.config.json"
 	$projectConfig = Get-Content -Raw -Encoding UTF8 -LiteralPath $projectConfigPath |
 		ConvertFrom-Json
-	$projectConfig.description = "2048-all-in-one - Godot 4.7 WeChat Mini Game smoke"
+	$projectConfig.description = $ProjectDescription
 	$projectConfig | Add-Member `
 		-NotePropertyName "projectname" `
 		-NotePropertyValue $WeChatProjectName `
@@ -1507,11 +1696,29 @@ GODOTSDK.startGame(exe, pack)
 		-InputSnapshotSha256 $inputSnapshotSha256 `
 		-InputSnapshotFileCount ([int]$inputSnapshot.file_count) `
 		-ArtifactManifestSha256 $artifactManifestSha256 `
-		-ToolIdentity $toolIdentity
+		-ToolIdentity $toolIdentity `
+		-Scope $ReportScope `
+		-Preset $ExportPreset `
+		-ReleaseFontManifestSha256 $(
+			if ($IsReleaseProfile) {
+				[string]$releaseFontPolicy.coverage_manifest_sha256
+			}
+			else {
+				""
+			}
+		) `
+		-ReleaseFontSubsetSha256 $(
+			if ($IsReleaseProfile) {
+				[string]$releaseFontPolicy.subset_font_sha256
+			}
+			else {
+				""
+			}
+		)
 	$report = [ordered]@{
 		schema_version = $ExportReportSchemaVersion
 		ok = $true
-		scope = "toolchain_smoke"
+		scope = $ReportScope
 		build_id = $buildId
 		generated_at = [DateTimeOffset]::Now.ToString("o")
 		output_path = $outputRoot
@@ -1539,11 +1746,23 @@ GODOTSDK.startGame(exe, pack)
 		user_file_system = $wxMemFsRenameEvidence
 		large_file_reader = $largeFileReaderEvidence
 		package = $packageEvidence
-		limitations = @(
-			"This is a platform/toolchain smoke build, not a production release.",
-			"WeChat login, share, payment, cloud save and open-data capabilities are not enabled.",
-			"Preview, upload and device validation require the project's own Mini Game AppID."
-		)
+		limitations = if ($IsReleaseProfile) {
+			@(
+				"This candidate contains the full game, but is not a signed production release.",
+				"WeChat login, share, payment, cloud save and open-data capabilities are not enabled.",
+				"Preview, upload and device validation require the project's own Mini Game AppID."
+			)
+		}
+		else {
+			@(
+				"This is a platform/toolchain smoke build, not a production release.",
+				"WeChat login, share, payment, cloud save and open-data capabilities are not enabled.",
+				"Preview, upload and device validation require the project's own Mini Game AppID."
+			)
+		}
+	}
+	if ($IsReleaseProfile) {
+		$report.Add("font_policy", $releaseFontPolicy)
 	}
 	Write-Utf8Text `
 		-Path $stageReportPath `
@@ -1587,7 +1806,7 @@ GODOTSDK.startGame(exe, pack)
 		-BackupCandidateRoot $backupCandidateRoot `
 		-FailureInjection $TestFailureInjection
 
-	Write-Host "WeChat Mini Game smoke export: PASS"
+	Write-Host "WeChat Mini Game $Profile export: PASS"
 	Write-Host "Output: $outputRoot"
 	Write-Host "Build ID: $buildId"
 	Write-Host (

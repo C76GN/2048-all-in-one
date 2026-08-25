@@ -16,6 +16,9 @@ const _BOARD_EDITOR_SCRIPT_PATH: String = (
 const _BOARD_EDITOR_VIEWPORT_SCRIPT_PATH: String = (
 	"res://features/board_editor/scripts/ui/board_editor_viewport_controller.gd"
 )
+const _SPATIAL_CANVAS_POLICY_SCRIPT_PATH: String = (
+	"res://shared/scripts/foundation/game_spatial_canvas_input_policy.gd"
+)
 const _BOARD_EDITOR_CONTEXT_SCRIPT_PATH: String = (
 	"res://features/board_editor/scripts/contexts/board_editor_context.gd"
 )
@@ -154,6 +157,21 @@ func test_custom_board_schema_requires_uuid_owned_topology_identity() -> void:
 	var legacy_field: Dictionary = serialized.duplicate(true)
 	legacy_field["grid_size"] = Vector2i(5, 5)
 	assert_null(CustomBoardData.from_dict(legacy_field), "严格 schema 不得接受旧尺寸旁路字段。")
+	var wide_sparse: Dictionary = serialized.duplicate(true)
+	var wide_topology: Dictionary = GFVariantData.get_option_dictionary(
+		wide_sparse,
+		"topology"
+	)
+	wide_topology[&"active_cells"] = [Vector2i.ZERO, Vector2i(10000, 10000)]
+	wide_sparse["topology"] = wide_topology
+	assert_false(
+		CustomBoardData.is_persisted_envelope_copy_boundary_valid(wide_sparse),
+		"自定义棋盘复制边界不能只检查 active cell 数量。"
+	)
+	assert_null(
+		CustomBoardData.from_dict(wide_sparse),
+		"领域合法但超出可玩包围盒预算的玩家棋盘必须失败关闭。"
+	)
 
 
 func test_custom_board_catalog_rejects_duplicate_ids_atomically() -> void:
@@ -256,8 +274,18 @@ func test_board_editor_scene_initializes_with_injected_topology_context() -> voi
 		)
 		assert_true(operation_token > 0)
 		assert_true(apply_button.disabled, "存档操作在途时必须阻止重复应用。")
-		panel._persistence_outcome_unknown = true
-		panel._pending_persistence_transaction_id = 73
+		var unknown_result: GameSaveSectionResult = GameSaveSectionResult.new()
+		assert_true(unknown_result.configure_for_utility(
+			73,
+			&"test_profile",
+			PackedStringArray([&"custom_boards"]),
+			GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN,
+			ERR_TIMEOUT,
+			true,
+			false
+		))
+		assert_true(panel._finish_persistence_operation(operation_token))
+		assert_true(panel._persistence_state.begin_reconciliation(unknown_result))
 		await panel._on_section_reconciliation_settled({
 			&"transaction_id": 73,
 			&"status": "late_failure_rolled_back",
@@ -265,11 +293,11 @@ func test_board_editor_scene_initializes_with_injected_topology_context() -> voi
 			&"memory_rolled_back": true,
 		})
 		assert_false(
-			panel._persistence_outcome_unknown,
+			panel._persistence_state.is_reconciling(),
 			"晚到回滚终态必须解除棋盘编辑器的持久化锁定。"
 		)
 		assert_false(
-			panel._persistence_operation_busy,
+			panel._persistence_state.is_busy(),
 			"棋盘库完成回滚重载后必须解除忙碌态。"
 		)
 		assert_true(
@@ -562,14 +590,16 @@ func test_editor_viewport_disables_framework_grid_overlay() -> void:
 
 func test_editor_viewport_keeps_mouse_strokes_and_delegates_navigation_to_gf_policy() -> void:
 	var source: String = _read_text(_BOARD_EDITOR_VIEWPORT_SCRIPT_PATH)
+	var policy_source: String = _read_text(_SPATIAL_CANVAS_POLICY_SCRIPT_PATH)
 
 	assert_true(source.contains("GFSpatialCanvas2D"))
 	assert_true(source.contains("GFSpatialCanvasInputPolicy"))
+	assert_true(source.contains("GameSpatialCanvasInputPolicy.create_navigation_policy"))
 	assert_false(source.contains("CanvasViewportMath"))
 	assert_false(source.contains("GFViewportUtility"))
-	assert_true(source.contains("TouchPrimaryBehavior.NONE"))
-	assert_true(source.contains("touch_multi_pan_enabled = true"))
-	assert_true(source.contains("touch_multi_zoom_enabled = true"))
+	assert_true(policy_source.contains("TouchPrimaryBehavior.NONE"))
+	assert_true(policy_source.contains("touch_multi_pan_enabled = true"))
+	assert_true(policy_source.contains("touch_multi_zoom_enabled = true"))
 	assert_true(source.contains("_mouse_stroke_button"))
 	assert_true(source.contains("_handle_touch_stroke_event"))
 	assert_true(source.contains("_canvas.cancel_stroke()"))

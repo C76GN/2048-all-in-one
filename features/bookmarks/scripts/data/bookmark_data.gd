@@ -19,7 +19,7 @@ const PERSISTED_HISTORY_TOTAL_LIMIT: int = 64
 const LEGACY_HISTORY_ABSOLUTE_COMMAND_LIMIT: int = 1024
 ## 玩家可达棋盘当前不超过 8x8；为未来 16x16 布局预留到 256 格，
 ## 同时阻止通用 BoardTopology 的工具级极限进入每步命令快照。
-const PERSISTED_BOARD_CELL_LIMIT: int = 256
+const PERSISTED_BOARD_CELL_LIMIT: int = BoardTopology.MAX_PLAYABLE_CELL_COUNT
 ## 回放轨迹属于书签恢复证据而不是无界日志。
 const PERSISTED_REPLAY_TRACE_LIMIT: int = 8192
 const _LEGACY_DICTIONARY_HISTORY_SCHEMA_VERSION: int = 5
@@ -916,13 +916,22 @@ static func _is_board_snapshot_within_persisted_bounds(
 		&"active_cells"
 	) is Array:
 		return false
+	var cells: Array = GFVariantData.as_array(
+		GFVariantData.get_option_value(topology_data, &"active_cells")
+	)
+	var tiles: Array = GFVariantData.as_array(
+		GFVariantData.get_option_value(snapshot, &"tiles")
+	)
+	if (
+		cells.is_empty()
+		or cells.size() > PERSISTED_BOARD_CELL_LIMIT
+		or tiles.size() > PERSISTED_BOARD_CELL_LIMIT
+	):
+		return false
+	var topology: BoardTopology = BoardTopology.from_dict(topology_data)
 	return (
-		GFVariantData.as_array(
-			GFVariantData.get_option_value(topology_data, &"active_cells")
-		).size() <= PERSISTED_BOARD_CELL_LIMIT
-		and GFVariantData.as_array(
-			GFVariantData.get_option_value(snapshot, &"tiles")
-		).size() <= PERSISTED_BOARD_CELL_LIMIT
+		topology != null
+		and topology.get_playable_validation_report().is_ok()
 	)
 
 

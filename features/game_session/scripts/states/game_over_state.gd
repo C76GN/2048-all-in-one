@@ -18,10 +18,6 @@ func enter(_msg: Dictionary = {}) -> void:
 	send_simple_event(EventNames.GAME_STATE_CHANGED, EventNames.STATE_GAME_OVER)
 
 
-func exit() -> void:
-	pass
-
-
 # --- 私有/辅助方法 ---
 
 func _get_rule_system() -> RuleSystem:

@@ -42,6 +42,64 @@ func test_sparse_board_summary_preserves_inactive_empty_and_tile_cells() -> void
 	)
 
 
+func test_summary_rejects_two_cell_huge_span_before_dense_materialization() -> void:
+	var topology: BoardTopology = BoardTopology.create_custom(
+		[Vector2i.ZERO, Vector2i(10000, 10000)],
+		&"board.test.accessibility_hostile_span"
+	)
+	var utility: GameAccessibilitySummaryUtility = (
+		GameAccessibilitySummaryUtility.new()
+	)
+
+	assert_true(topology.get_validation_report().is_ok())
+	assert_null(
+		utility.build_board_summary(_build_empty_snapshot(topology)),
+		"超宽领域拓扑必须在无障碍逐格物化前失败。"
+	)
+
+
+func test_summary_rejects_256_cell_diagonal_but_accepts_16_by_16() -> void:
+	var diagonal_cells: Array[Vector2i] = []
+	for coordinate: int in range(BoardTopology.MAX_PLAYABLE_CELL_COUNT):
+		diagonal_cells.append(Vector2i(coordinate, coordinate))
+	var diagonal: BoardTopology = BoardTopology.create_custom(
+		diagonal_cells,
+		&"board.test.accessibility_diagonal_256"
+	)
+	var normal: BoardTopology = BoardTopology.create_rectangle(
+		Vector2i(16, 16),
+		&"board.test.accessibility_16x16"
+	)
+	var utility: GameAccessibilitySummaryUtility = (
+		GameAccessibilitySummaryUtility.new()
+	)
+
+	assert_null(
+		utility.build_board_summary(_build_empty_snapshot(diagonal)),
+		"活跃格恰好 256 仍不得绕过包围盒面积预算。"
+	)
+	var summary: GameAccessibilitySummary = utility.build_board_summary(
+		_build_empty_snapshot(normal)
+	)
+	assert_not_null(summary, "正常 16×16 棋盘必须处于完整逐格摘要预算内。")
+	if not is_instance_valid(summary):
+		return
+	var rows: Array = GFVariantData.get_option_array(
+		summary.canonical_payload,
+		&"rows"
+	)
+	var materialized_cell_count: int = 0
+	for row_value: Variant in rows:
+		if row_value is Dictionary:
+			var row: Dictionary = row_value
+			materialized_cell_count += GFVariantData.get_option_array(
+				row,
+				&"cells"
+			).size()
+	assert_true(rows.size() == 16)
+	assert_true(materialized_cell_count == BoardTopology.MAX_PLAYABLE_BOUNDS_AREA)
+
+
 func test_session_context_exposes_goal_actions_and_end_reason() -> void:
 	var utility: GameAccessibilitySummaryUtility = (
 		GameAccessibilitySummaryUtility.new()
@@ -409,6 +467,14 @@ func _build_sparse_snapshot() -> Dictionary:
 		&"schema_version": GridModel.SNAPSHOT_SCHEMA_VERSION,
 		&"topology": topology.to_dict(),
 		&"tiles": [first_data, second_data],
+	}
+
+
+func _build_empty_snapshot(topology: BoardTopology) -> Dictionary:
+	return {
+		&"schema_version": GridModel.SNAPSHOT_SCHEMA_VERSION,
+		&"topology": topology.to_dict(),
+		&"tiles": [],
 	}
 
 

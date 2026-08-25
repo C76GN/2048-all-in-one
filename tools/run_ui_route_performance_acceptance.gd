@@ -118,33 +118,32 @@ func _run() -> void:
 	)
 	await _settle_frames(2)
 
-	var gf_node: Node = root.get_node_or_null("Gf")
-	if not is_instance_valid(gf_node):
+	var ui_router_value: Variant = GfToolArchitectureAccess.get_utility(
+		root,
+		GameUiRouterUtility
+	)
+	if ui_router_value == null:
 		push_error("[UiRoutePerformance] 缺少 Gf 根节点。")
 		quit(4)
 		return
-	var ui_router_value: Variant = gf_node.call(
-		"get_utility",
-		GameUiRouterUtility
-	)
-	var scene_utility_value: Variant = gf_node.call(
-		"get_utility",
+	var scene_utility_value: Variant = GfToolArchitectureAccess.get_utility(
+		root,
 		GFSceneUtility
 	)
-	var asset_utility_value: Variant = gf_node.call(
-		"get_utility",
+	var asset_utility_value: Variant = GfToolArchitectureAccess.get_utility(
+		root,
 		GFAssetUtility
 	)
-	var operation_diagnostics_value: Variant = gf_node.call(
-		"get_utility",
+	var operation_diagnostics_value: Variant = GfToolArchitectureAccess.get_utility(
+		root,
 		GFOperationDiagnosticsUtility
 	)
-	var screen_transition_value: Variant = gf_node.call(
-		"get_utility",
+	var screen_transition_value: Variant = GfToolArchitectureAccess.get_utility(
+		root,
 		GFScreenTransitionUtility
 	)
-	var scene_router_value: Variant = gf_node.call(
-		"get_system",
+	var scene_router_value: Variant = GfToolArchitectureAccess.get_system(
+		root,
 		SceneRouterSystem
 	)
 	if (
@@ -331,7 +330,6 @@ func _run() -> void:
 	screen_transition = null
 	scene_router = null
 	main_menu = null
-	gf_node = null
 	boot_scene = null
 	call_deferred(
 		&"_cleanup_and_quit",

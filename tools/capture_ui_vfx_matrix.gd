@@ -460,14 +460,13 @@ func _capture_reduced_motion_page_states(
 ) -> void:
 	if page_id == &"boot":
 		return
-	var gf_node: Node = root.get_node_or_null("Gf")
-	if not is_instance_valid(gf_node):
-		_record_error("%s reduced-motion 验收缺少 Gf 根节点。" % page_id)
-		return
-	var accessibility_value: Variant = gf_node.call(
-		"get_utility",
+	var accessibility_value: Variant = GfToolArchitectureAccess.get_utility(
+		root,
 		GameAccessibilityUtility
 	)
+	if accessibility_value == null:
+		_record_error("%s reduced-motion 验收缺少 Gf 根节点。" % page_id)
+		return
 	if not accessibility_value is GameAccessibilityUtility:
 		_record_error("%s reduced-motion 验收缺少无障碍 Utility。" % page_id)
 		return
@@ -2216,16 +2215,15 @@ func _capture_mode_selection_scroll_end(
 
 
 func _capture_celebration_variants() -> void:
-	var gf_node: Node = root.get_node_or_null("Gf")
-	if not is_instance_valid(gf_node):
-		_record_error("庆祝截图缺少 Gf 根节点。")
-		return
-	var vfx_value: Variant = gf_node.call(
-		"get_utility",
+	var vfx_value: Variant = GfToolArchitectureAccess.get_utility(
+		root,
 		GameCelebrationVfxUtility
 	)
-	var accessibility_value: Variant = gf_node.call(
-		"get_utility",
+	if vfx_value == null:
+		_record_error("庆祝截图缺少 Gf 根节点。")
+		return
+	var accessibility_value: Variant = GfToolArchitectureAccess.get_utility(
+		root,
 		GameAccessibilityUtility
 	)
 	if (
@@ -3002,14 +3000,13 @@ func _return_gameplay_to_main_menu(game_play: Node) -> Node:
 		and ui_router.get_current_route_id(GFUIUtility.Layer.POPUP) != &""
 	):
 		var _popup_closed: bool = ui_router.back(GFUIUtility.Layer.POPUP)
-	var gf_node: Node = root.get_node_or_null("Gf")
-	if not is_instance_valid(gf_node):
-		_record_error("GamePlay 返回主菜单时缺少 Gf 根节点。")
-		return null
-	var router_value: Variant = gf_node.call(
-		"get_system",
+	var router_value: Variant = GfToolArchitectureAccess.get_system(
+		root,
 		SceneRouterSystem
 	)
+	if router_value == null:
+		_record_error("GamePlay 返回主菜单时缺少 Gf 根节点。")
+		return null
 	if not router_value is SceneRouterSystem:
 		_record_error("GamePlay 返回主菜单时缺少 SceneRouterSystem。")
 		return null
@@ -3058,11 +3055,8 @@ func _validate_board_editor_cancel_translation(editor: Node) -> void:
 
 
 func _get_game_ui_router_utility() -> GameUiRouterUtility:
-	var gf_node: Node = root.get_node_or_null("Gf")
-	if not is_instance_valid(gf_node):
-		return null
-	var utility_value: Variant = gf_node.call(
-		"get_utility",
+	var utility_value: Variant = GfToolArchitectureAccess.get_utility(
+		root,
 		GameUiRouterUtility
 	)
 	if utility_value is GameUiRouterUtility:
@@ -3101,18 +3095,20 @@ func _get_runtime_game_flow_system() -> GameFlowSystem:
 
 
 func _get_gf_member(method: StringName, type_script: Script) -> Variant:
-	var gf_node: Node = root.get_node_or_null("Gf")
-	if not is_instance_valid(gf_node):
-		return null
-	return gf_node.call(method, type_script)
+	match method:
+		&"get_model":
+			return GfToolArchitectureAccess.get_model(root, type_script)
+		&"get_system":
+			return GfToolArchitectureAccess.get_system(root, type_script)
+		&"get_utility":
+			return GfToolArchitectureAccess.get_utility(root, type_script)
+		_:
+			return null
 
 
 func _get_game_pause_utility() -> GamePauseUtility:
-	var gf_node: Node = root.get_node_or_null("Gf")
-	if not is_instance_valid(gf_node):
-		return null
-	var utility_value: Variant = gf_node.call(
-		"get_utility",
+	var utility_value: Variant = GfToolArchitectureAccess.get_utility(
+		root,
 		GamePauseUtility
 	)
 	if utility_value is GamePauseUtility:
@@ -3126,21 +3122,19 @@ func _wait_for_scene_change_idle(timeout_seconds: float) -> bool:
 		timeout_seconds * 1000.0
 	)
 	while Time.get_ticks_msec() <= deadline_msec:
-		var gf_node: Node = root.get_node_or_null("Gf")
-		if is_instance_valid(gf_node):
-			var router_value: Variant = gf_node.call(
-				"get_system",
-				SceneRouterSystem
-			)
-			if router_value is SceneRouterSystem:
-				var router: SceneRouterSystem = router_value
-				var snapshot: Dictionary = router.get_debug_snapshot()
-				if not GFVariantData.get_option_bool(
-					snapshot,
-					"scene_change_active",
-					false
-				):
-					return true
+		var router_value: Variant = GfToolArchitectureAccess.get_system(
+			root,
+			SceneRouterSystem
+		)
+		if router_value is SceneRouterSystem:
+			var router: SceneRouterSystem = router_value
+			var snapshot: Dictionary = router.get_debug_snapshot()
+			if not GFVariantData.get_option_bool(
+				snapshot,
+				"scene_change_active",
+				false
+			):
+				return true
 		await create_timer(0.02, true, false, true).timeout
 	return false
 

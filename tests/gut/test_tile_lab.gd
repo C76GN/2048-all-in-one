@@ -431,8 +431,18 @@ func test_tile_lab_ui_has_touch_targets_confirmation_and_initial_focus() -> void
 		"保存操作在途时必须禁用蓝图切换。"
 	)
 	assert_false(dialog._name_input.editable, "保存操作在途时不得继续编辑名称。")
-	dialog._persistence_outcome_unknown = true
-	dialog._pending_persistence_transaction_id = 91
+	var unknown_result: GameSaveSectionResult = GameSaveSectionResult.new()
+	assert_true(unknown_result.configure_for_utility(
+		91,
+		&"test_profile",
+		PackedStringArray([&"tile_blueprints"]),
+		GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN,
+		ERR_TIMEOUT,
+		true,
+		false
+	))
+	assert_true(dialog._finish_persistence_operation(operation_token))
+	assert_true(dialog._persistence_state.begin_reconciliation(unknown_result))
 	await dialog._on_section_reconciliation_settled({
 		&"transaction_id": 91,
 		&"status": "late_failure_rolled_back",
@@ -440,10 +450,10 @@ func test_tile_lab_ui_has_touch_targets_confirmation_and_initial_focus() -> void
 		&"memory_rolled_back": true,
 	})
 	assert_false(
-		dialog._persistence_outcome_unknown,
+		dialog._persistence_state.is_reconciling(),
 		"晚到回滚终态必须解除试验台的持久化锁定。"
 	)
-	assert_false(dialog._persistence_operation_busy)
+	assert_false(dialog._persistence_state.is_busy())
 	assert_false(dialog._new_button.disabled, "对账收敛后必须恢复新建操作。")
 	assert_false(dialog._blueprint_option.disabled, "对账收敛后必须恢复蓝图切换。")
 	assert_true(dialog._name_input.editable, "对账收敛后必须恢复名称编辑。")

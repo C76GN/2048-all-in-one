@@ -754,23 +754,35 @@ func test_delete_busy_guard_and_late_rollback_unlock_once() -> void:
 	selected.resource_name = "retained"
 	menu._selected_resource = selected
 	menu._pending_delete_resource = selected
-	menu._delete_operation_busy = true
+	var blocked_token: int = menu._delete_state.begin()
 
 	await menu._on_delete_confirmed()
 	assert_true(menu.delete_call_count == 0, "在途删除期间的重复确认必须被忽略。")
 
-	menu._delete_operation_busy = false
-	menu._delete_outcome_unknown = true
-	menu._pending_delete_transaction_id = 41
-	menu._pending_delete_resource_identity = "retained"
-	menu._delete_operation_token = 7
+	assert_true(menu._delete_state.finish_request(blocked_token))
+	menu._delete_state.clear_context()
+	var operation_token: int = menu._delete_state.begin({
+		&"resource_identity": "retained",
+	})
+	assert_true(menu._delete_state.finish_request(operation_token))
+	var unknown_result: GameSaveSectionResult = GameSaveSectionResult.new()
+	assert_true(unknown_result.configure_for_utility(
+		41,
+		&"test_profile",
+		PackedStringArray([&"test"]),
+		GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN,
+		ERR_TIMEOUT,
+		true,
+		false
+	))
+	assert_true(menu._delete_state.begin_reconciliation(unknown_result))
 	await menu._on_section_reconciliation_settled({
 		&"transaction_id": 40,
 		&"status": "late_failure_rolled_back",
 		&"candidate_persisted": false,
 		&"memory_rolled_back": true,
 	})
-	assert_true(menu._delete_outcome_unknown, "其他事务的对账证据不得解锁当前删除。")
+	assert_true(menu._delete_state.is_reconciling(), "其他事务的对账证据不得解锁当前删除。")
 	assert_true(menu.populate_count == 0, "其他事务不得触发列表刷新。")
 
 	await menu._on_section_reconciliation_settled({
@@ -779,8 +791,8 @@ func test_delete_busy_guard_and_late_rollback_unlock_once() -> void:
 		&"candidate_persisted": false,
 		&"memory_rolled_back": true,
 	})
-	assert_false(menu._delete_outcome_unknown, "目标事务回滚收敛后必须解除页面锁定。")
-	assert_false(menu._delete_operation_busy, "对账刷新结束后必须解除忙碌态。")
+	assert_false(menu._delete_state.is_reconciling(), "目标事务回滚收敛后必须解除页面锁定。")
+	assert_false(menu._delete_state.is_busy(), "对账刷新结束后必须解除忙碌态。")
 	assert_same(menu._selected_resource, selected, "晚到回滚必须保留原选择。")
 	assert_true(menu.populate_count == 1, "目标事务收敛后列表只能刷新一次。")
 	menu.free()
@@ -909,7 +921,7 @@ class _DeleteProbeMenu extends BaseListMenu:
 		return data.resource_name if data != null else ""
 
 	func _is_current_delete_operation(token: int) -> bool:
-		return token == _delete_operation_token
+		return token == _delete_state.get_token()
 
 	func _do_delete_logic(_data: Resource) -> GameSaveSectionOperation:
 		delete_call_count += 1

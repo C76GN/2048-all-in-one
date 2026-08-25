@@ -7,7 +7,7 @@ extends Resource
 
 const MAX_DISPLAY_NAME_LENGTH: int = 64
 ## 自定义棋盘持久化上限；当前编辑器最大 8x8，向后预留到 16x16。
-const MAX_PERSISTED_CELL_COUNT: int = 256
+const MAX_PERSISTED_CELL_COUNT: int = BoardTopology.MAX_PLAYABLE_CELL_COUNT
 const TOPOLOGY_ID_PREFIX: String = "board.player."
 
 
@@ -54,7 +54,10 @@ static func from_dict(data: Dictionary) -> CustomBoardData:
 		return null
 	if result.created_at <= 0 or result.updated_at < result.created_at:
 		return null
-	if not is_instance_valid(result.topology):
+	if (
+		not is_instance_valid(result.topology)
+		or not result.topology.get_playable_validation_report().is_ok()
+	):
 		return null
 	if result.topology.topology_id != get_topology_id(result.custom_board_id):
 		return null
@@ -128,7 +131,11 @@ static func is_persisted_envelope_copy_boundary_valid(
 	for cell_value: Variant in active_cells:
 		if not cell_value is Vector2i:
 			return false
-	return true
+	var topology_value: BoardTopology = BoardTopology.from_dict(topology_data)
+	return (
+		topology_value != null
+		and topology_value.get_playable_validation_report().is_ok()
+	)
 
 
 ## @param board_id: 玩家棋盘 UUID v7。

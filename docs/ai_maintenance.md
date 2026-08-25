@@ -66,7 +66,7 @@
 
 `.gf/project_contract.json` 是人工所有的项目意图契约，记录平台目标、GF 包和能力、Module 所有权、Adapter、确定性、持久化、生命周期、异步规则、验证命令以及框架反馈策略。`gf_project_profile.json` 仍是目录结构真相来源，契约通过 `architecture.project_profile_path` 引用它，不复制布局校验实现。
 
-当前契约采用 schema v2。每项 `capability_requirements` 必须声明决策状态、能力 owner、GF 公布的 Recipe 以及项目自己的验收条件；`pending_review` 不能作为完成状态。vendor 升级提示契约 schema 过时时，先生成并完整审阅只读迁移计划，再由用户在人工操作的交互终端中执行带 `--expected-plan-sha256` 的 `contract-migrate`，并输入工具要求的精确确认短语。自动化、MCP 或非交互脚本不得绕过该确认，也不得直接仿写迁移结果。
+当前契约采用 schema v5。每项 `capability_requirements` 必须声明决策状态、能力 owner、GF 公布的 Recipe 以及项目自己的验收条件；`pending_review` 不能作为完成状态。vendor 升级提示契约 schema 过时时，先生成并完整审阅只读迁移计划，再由用户在人工操作的交互终端中执行带 `--expected-plan-sha256` 的 `contract-migrate`，并输入工具要求的精确确认短语。自动化、MCP 或非交互脚本不得绕过该确认，也不得直接仿写迁移结果。
 
 `.gf/ai/project_snapshot.json` 是 GF AI Developer 工具可生成的本地观察证据，不是项目契约、发布输入或必提交文件，也不得手工修改。修改项目契约、GF 包、扩展、Composition Root 或关键目录后必须运行 `validate`；仅在调查契约漂移或 GF 工具问题时，才按需运行 `agent-status` 与 `snapshot`：
 

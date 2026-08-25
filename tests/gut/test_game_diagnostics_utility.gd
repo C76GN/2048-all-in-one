@@ -81,6 +81,40 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 	assert_true(console.has_command("support_report"), "项目诊断应提供支持报告落盘命令。")
 	assert_true(console.has_command("screenshot"), "项目诊断应提供 GF Viewport 截图命令。")
 	assert_true(
+		console.has_command("acceptance.begin"),
+		"开发诊断应提供显式条件 JSON 驱动的性能验收开始命令。"
+	)
+	assert_true(
+		console.has_command("acceptance.end"),
+		"开发诊断应提供性能验收终结与评估命令。"
+	)
+	settings.set_value(
+		GamePerformanceTraceUtility.LOCAL_PERFORMANCE_TRACE_SETTING_KEY,
+		true,
+		false
+	)
+	assert_true(performance_trace.start_gameplay_trace(false))
+	var observed_json: String = JSON.stringify({
+		"platform": "steam_windows",
+		"input_modality": "keyboard_mouse",
+		"viewport_size": [1920, 1080],
+		"prefer_compact": false,
+		"board_bounds": [4, 4],
+		"active_cell_count": 16,
+		"shape": "rectangle",
+		"vfx_quality": "full",
+	})
+	var escaped_json: String = observed_json.replace("\"", "\\\"")
+	assert_true(console.execute_command(
+		"acceptance.begin steam_keyboard_standard \"%s\"" % escaped_json
+	))
+	assert_true(
+		performance_trace.is_acceptance_measurement_active(),
+		"Console 必须能把带引号的有界 JSON 还原为完整 Observation。"
+	)
+	assert_true(console.execute_command("acceptance.end"))
+	assert_false(performance_trace.is_acceptance_measurement_active())
+	assert_true(
 		diagnostics.has_diagnostic_provider(&"resource_catalog"),
 		"项目资源目录应通过 GF 惰性 Provider 按需采集。"
 	)
@@ -287,6 +321,8 @@ func test_project_diagnostics_registers_and_releases_gf_extensions() -> void:
 	await get_tree().process_frame
 	assert_false(console.has_command("support_report"), "销毁 Architecture 时应注销项目支持报告命令。")
 	assert_false(console.has_command("screenshot"), "销毁 Architecture 时应注销截图命令。")
+	assert_false(console.has_command("acceptance.begin"))
+	assert_false(console.has_command("acceptance.end"))
 	assert_false(
 		diagnostics.has_diagnostic_provider(&"project_diagnostics"),
 		"销毁 Architecture 时应注销项目惰性诊断 Provider。"

@@ -7,9 +7,9 @@
   "gf_source_commit": "740a09f11df3f9aad1831019b34e8acec967830f",
   "gf_vendor_tree_sha256": "8328ab56d754c219f83b0b06810e789c5c453ad257bd52ed371ddc59a8678ad7",
   "gf_global_script_class_count": 877,
-  "project_runtime_script_class_count": 281,
+  "project_runtime_script_class_count": 288,
   "scope": "Headless GUT shutdown after all project tests. Raw counts include Godot-held global script classes; they may only be recalibrated after an audited pinned GF vendor-tree or project runtime class-set change, and must not grow while both inputs remain unchanged.",
-  "calibration_reason": "The exact official GF 11.0.0-dev.0 development snapshot advances from f6d7b87a to 740a09f1 after the canonical full validation and merge gate succeeded. The audited vendor global-script class set increases from 853 to 877 for request-scoped scene operations, hardened storage-family reset authorization, expanded AI project analysis, the rebuilt projectile flight runtime, and its follow-up retirement-semantics fix. The audited project runtime class set remains 281. Godot remains pinned to 4.7.2. A complete project GUT run reported ObjectDB=34, Resources=5, and RID types=0, so the reviewed ObjectDB, Resource, RID, and PagedAllocator ceilings are intentionally retained without increase.",
+  "calibration_reason": "The exact official GF 11.0.0-dev.0 development snapshot is pinned at 740a09f1 after the canonical full validation and merge gate succeeded, with 877 audited GF global script classes. The audited project refactor adds eight explicit runtime contracts (bounded asset-entry policy, gameplay acceptance observation, shared chunk reader/writer, profile-cleanup saga, save-section UI operation state, typed local-account mutation result, and shared spatial-canvas input policy) while deleting the duplicate AssetBoundedJsonObjectReader, increasing the project runtime class set from 281 to 288. Godot remains pinned to 4.7.2. The reviewed ObjectDB, Resource, RID, and PagedAllocator ceilings are intentionally retained without increase.",
   "max_objectdb_instances": 319,
   "max_resources_in_use": 141,
   "max_rid_allocations_by_type": {

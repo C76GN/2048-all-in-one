@@ -65,8 +65,11 @@ func initialize(
 	p_interaction_rule: InteractionRule,
 	p_movement_rule: MovementRule
 ) -> bool:
-	if not is_instance_valid(p_topology) or not p_topology.get_validation_report().is_ok():
-		push_error("[GridModel] 无法使用无效 BoardTopology 初始化棋盘。")
+	if (
+		not is_instance_valid(p_topology)
+		or not p_topology.get_playable_validation_report().is_ok()
+	):
+		push_error("[GridModel] 无法使用超出可玩预算的 BoardTopology 初始化棋盘。")
 		return false
 
 	var topology_copy: BoardTopology = _duplicate_topology(p_topology)
@@ -210,7 +213,10 @@ func replace_tiles(next_tiles_by_cell: Dictionary) -> bool:
 ## 替换棋盘空间，保留仍位于新拓扑活跃单元中的全部方块。
 ## @param next_topology: 必须容纳全部现有方块的新拓扑。
 func replace_topology(next_topology: BoardTopology) -> bool:
-	if not is_instance_valid(next_topology) or not next_topology.get_validation_report().is_ok():
+	if (
+		not is_instance_valid(next_topology)
+		or not next_topology.get_playable_validation_report().is_ok()
+	):
 		return false
 	for cell_value: Variant in _tiles_by_cell.keys():
 		var cell: Vector2i = cell_value
@@ -310,7 +316,10 @@ static func is_snapshot_envelope_valid(snapshot: Dictionary) -> bool:
 	var topology_value: BoardTopology = BoardTopology.from_dict(
 		GFVariantData.as_dictionary(topology_data_value)
 	)
-	if topology_value == null:
+	if (
+		topology_value == null
+		or not topology_value.get_playable_validation_report().is_ok()
+	):
 		return false
 	var seen_cells: Dictionary = {}
 	var seen_tile_ids: Dictionary = {}

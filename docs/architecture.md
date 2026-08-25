@@ -82,7 +82,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 ## GF 模块约束
 
 - GF 初始化分四阶段：`init()` 只初始化模块自己的内部状态，`async_init()` 只执行该模块自己的异步准备，`ready()` 才解析已声明的跨模块依赖并建立 owner-bound 连接，`begin_activation(scope)` 才等待必须在架构开放前形成终态的外部工作。关闭时 `begin_quiesce(scope)` 先停止新工作准入并取消或排空已接纳操作，随后 `dispose()` 做幂等资源释放，`release_dependencies()` 再断开依赖引用；不得把异步启动塞回 `ready()`，也不得依赖 `dispose()` 轮询等待。
-- 只有 `app/scripts/boot.gd` 与其线程加载的 `app/scripts/boot_runtime.gd` 组成应用 Composition Root，可以直接访问全局 `Gf`；其他业务脚本必须使用 GF Module 注入、`GFController` 或项目的 `GameUiController`。
+- 只有 `app/scripts/boot.gd` 与其线程加载的 `app/scripts/boot_runtime.gd` 组成应用 Composition Root，可以直接访问全局 `Gf`；其他业务脚本必须使用 GF Module 注入、`GFController` 或项目的 `GameUiController`。`verification` Module 中只有 `tools/gf_tool_architecture_access.gd` 可以为真实运行态截图与性能验收解析 `Gf` AutoLoad，并且只暴露 Model/System/Utility 三个窄查询；其他工具不得按节点名查找 `Gf` 或动态转发任意成员。
 - Model 只表达可观察状态，不操作场景节点。
 - System 编排业务流程，通过明确的 GF 接口访问其他模块。
 - Utility 封装稳定的项目 Adapter；仅转发调用且没有增加约束的浅层 Utility 应删除。

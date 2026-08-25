@@ -3,6 +3,12 @@ class_name GameUiStyleUtility
 extends GFUtility
 
 
+# --- 信号 ---
+
+## 静态按钮样式已完整刷新；动效实现可据此同步自己的表现层。
+signal button_visual_style_applied(button: BaseButton)
+
+
 # --- 枚举 ---
 
 ## 文本在主题色板中的语义角色。
@@ -49,7 +55,6 @@ const _BUTTON_ROLE_META: StringName = &"_game_ui_style_button_role"
 const _SURFACE_ROLE_META: StringName = &"_game_ui_style_surface_role"
 const _BORDER_ROLE_META: StringName = &"_game_ui_style_border_role"
 const _BORDER_WIDTH_META: StringName = &"_game_ui_style_border_width"
-const _BUTTON_MOTION_PRESENTER_NODE_NAME: String = "ButtonMotionPresenter"
 const _BUTTON_FOCUS_RING_NODE_NAME: String = "ButtonFocusRing"
 const _BUTTON_FOCUS_RING_DRIVER_NODE_NAME: String = "ShaderAnimationDriver"
 const _BUTTON_FOCUS_RING_SHADER_ASSET_KEY: StringName = &"asset.shader.ui.button_focus_dash"
@@ -408,6 +413,8 @@ func style_separator(separator: HSeparator) -> void:
 
 
 ## 为按钮应用当前色板并确保焦点 Shader 节点存在。
+## 本方法只提交静态 StyleBox、文本与焦点表现；按钮动效层由
+## GameUiMotionUtility 在 button_visual_style_applied 后同步。
 ## @param button: 目标按钮。
 func prepare_button(button: BaseButton) -> void:
 	if not is_instance_valid(button):
@@ -416,11 +423,8 @@ func prepare_button(button: BaseButton) -> void:
 	if button is OptionButton:
 		var option_button: OptionButton = button
 		_style_option_button(option_button)
-	if _button_supports_motion_presenter(button):
-		var _presenter: GameButtonMotionPresenter = (
-			_ensure_button_motion_presenter(button)
-		)
 	var _focus_ring: ColorRect = _ensure_button_focus_ring(button)
+	button_visual_style_applied.emit(button)
 
 
 ## 为按钮保存任务层级角色并立即刷新样式。
@@ -487,79 +491,17 @@ func set_button_focus_visible(button: BaseButton, is_visible: bool) -> void:
 			is_visible
 			and not button.disabled
 			and not _static_visuals_enabled
-			and not _button_uses_embedded_focus_visual(button)
+			and not button_uses_embedded_focus_visual(button)
 		)
 
 
-## 返回按钮内部的纸片动效呈现层。
-## @param button: 需要查询的按钮。
-func get_button_motion_presenter(
-	button: BaseButton
-) -> GameButtonMotionPresenter:
+## 返回复合按钮是否已经用内部语义 Panel 表达静态选中和焦点。
+## 这类控件不再叠加通用 Shader 环；动效 Utility 也据此避免创建第二张纸片。
+## @param button: 需要检查的按钮。
+func button_uses_embedded_focus_visual(button: BaseButton) -> bool:
 	if not is_instance_valid(button):
-		return null
-	var node: Node = button.get_node_or_null(
-		_BUTTON_MOTION_PRESENTER_NODE_NAME
-	)
-	if node is GameButtonMotionPresenter:
-		var presenter: GameButtonMotionPresenter = node
-		return presenter
-	return null
-
-
-## 切换按钮纸片的语义状态；按钮布局根节点始终保持稳定。
-## @param button: 目标按钮。
-## @param state: 目标纸片语义状态。
-## @param animated: 是否播放状态过渡。
-## @param reduced_motion: 是否直接落到减少动态后的终态。
-func set_button_motion_state(
-	button: BaseButton,
-	state: GameButtonMotionPresenter.MotionState,
-	animated: bool = true,
-	reduced_motion: bool = false
-) -> void:
-	var presenter: GameButtonMotionPresenter = get_button_motion_presenter(
-		button
-	)
-	if not is_instance_valid(presenter):
-		return
-	presenter.set_motion_state(state, animated, reduced_motion)
-
-
-## 播放按钮纸片的方向性发牌入场。
-## @param button: 目标按钮。
-## @param offset: 纸片相对终点的起始偏移。
-## @param target_state: 入场完成后应保持的当前语义状态。
-## @param delay: 开始入场前的等待时间。
-## @param reduced_motion: 是否跳过位移、缩放和旋转。
-func play_button_deal_in(
-	button: BaseButton,
-	offset: Vector2,
-	target_state: GameButtonMotionPresenter.MotionState,
-	delay: float = 0.0,
-	reduced_motion: bool = false
-) -> void:
-	var presenter: GameButtonMotionPresenter = get_button_motion_presenter(
-		button
-	)
-	if not is_instance_valid(presenter):
-		return
-	presenter.play_deal_in(
-		offset,
-		target_state,
-		delay,
-		reduced_motion
-	)
-
-
-## 立即完成按钮纸片当前动效。
-## @param button: 目标按钮。
-func complete_button_motion(button: BaseButton) -> void:
-	var presenter: GameButtonMotionPresenter = get_button_motion_presenter(
-		button
-	)
-	if is_instance_valid(presenter):
-		presenter.complete_motion()
+		return false
+	return _node_contains_semantic_panel(button)
 
 
 # --- 私有/辅助方法 ---
@@ -1186,7 +1128,7 @@ func _create_button_focus_style(
 	button: BaseButton,
 	is_option_button: bool = false
 ) -> StyleBox:
-	if _button_uses_embedded_focus_visual(button):
+	if button_uses_embedded_focus_visual(button):
 		return StyleBoxEmpty.new()
 	var can_use_external_ring: bool = (
 		not _static_visuals_enabled
@@ -1198,88 +1140,6 @@ func _create_button_focus_style(
 	if is_option_button:
 		return _create_option_style(Color.TRANSPARENT, _button_focus_border_color, 3)
 	return _create_button_style(Color.TRANSPARENT, _button_focus_border_color, 3)
-
-
-func _ensure_button_motion_presenter(
-	button: BaseButton
-) -> GameButtonMotionPresenter:
-	var presenter: GameButtonMotionPresenter = get_button_motion_presenter(
-		button
-	)
-	if not is_instance_valid(presenter):
-		presenter = GameButtonMotionPresenter.new()
-		presenter.name = _BUTTON_MOTION_PRESENTER_NODE_NAME
-		presenter.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		presenter.focus_mode = Control.FOCUS_NONE
-		presenter.show_behind_parent = true
-		presenter.set_anchors_preset(Control.PRESET_FULL_RECT)
-		button.add_child(presenter, false, Node.INTERNAL_MODE_BACK)
-	var normal_style: StyleBox = button.get_theme_stylebox(&"normal")
-	var hover_style: StyleBox = button.get_theme_stylebox(&"hover")
-	var pressed_style: StyleBox = button.get_theme_stylebox(&"pressed")
-	var selected_style: StyleBox = button.get_theme_stylebox(&"hover_pressed")
-	var disabled_style: StyleBox = button.get_theme_stylebox(&"disabled")
-	presenter.configure(
-		button,
-		normal_style,
-		hover_style,
-		selected_style,
-		pressed_style,
-		disabled_style
-	)
-	button.add_theme_stylebox_override(
-		&"normal",
-		_create_button_content_style(normal_style)
-	)
-	button.add_theme_stylebox_override(
-		&"hover",
-		_create_button_content_style(hover_style)
-	)
-	button.add_theme_stylebox_override(
-		&"pressed",
-		_create_button_content_style(pressed_style, true)
-	)
-	button.add_theme_stylebox_override(
-		&"hover_pressed",
-		_create_button_content_style(selected_style, true)
-	)
-	button.add_theme_stylebox_override(
-		&"disabled",
-		_create_button_content_style(disabled_style)
-	)
-	return presenter
-
-
-func _create_button_content_style(
-	source: StyleBox,
-	pressed: bool = false
-) -> StyleBoxEmpty:
-	var style: StyleBoxEmpty = StyleBoxEmpty.new()
-	for side: Side in [
-		SIDE_LEFT,
-		SIDE_TOP,
-		SIDE_RIGHT,
-		SIDE_BOTTOM,
-	]:
-		var content_margin: float = 0.0
-		if is_instance_valid(source):
-			content_margin = source.get_content_margin(side)
-		if pressed and side == SIDE_TOP:
-			content_margin += 1.0
-		elif pressed and side == SIDE_BOTTOM:
-			content_margin = maxf(content_margin - 1.0, 0.0)
-		style.set_content_margin(side, content_margin)
-	return style
-
-
-func _button_supports_motion_presenter(button: BaseButton) -> bool:
-	if not is_instance_valid(button):
-		return false
-	if not button is Button:
-		return false
-	if button is OptionButton or button is CheckBox or button is CheckButton:
-		return false
-	return not _button_uses_embedded_focus_visual(button)
 
 
 func _create_option_style(
@@ -1443,7 +1303,7 @@ func _get_border_color(role: int) -> Color:
 func _ensure_button_focus_ring(button: BaseButton) -> ColorRect:
 	if not is_instance_valid(button):
 		return null
-	if _button_uses_embedded_focus_visual(button):
+	if button_uses_embedded_focus_visual(button):
 		var embedded_ring: ColorRect = _get_button_focus_ring(button)
 		if is_instance_valid(embedded_ring):
 			embedded_ring.visible = false
@@ -1521,7 +1381,7 @@ func _apply_button_focus_ring_style(button: BaseButton) -> void:
 	ring.visible = (
 		button.has_focus()
 		and not button.disabled
-		and not _button_uses_embedded_focus_visual(button)
+		and not button_uses_embedded_focus_visual(button)
 	)
 
 
@@ -1562,14 +1422,6 @@ func _get_button_focus_ring(button: BaseButton) -> ColorRect:
 		var ring: ColorRect = node
 		return ring
 	return null
-
-
-## 复合按钮可以用内部语义 Panel 同时表达选中和焦点。
-## 这类控件不再叠加通用 Shader 环，避免 ModeCard 等出现双重焦点。
-func _button_uses_embedded_focus_visual(button: BaseButton) -> bool:
-	if not is_instance_valid(button):
-		return false
-	return _node_contains_semantic_panel(button)
 
 
 func _node_contains_semantic_panel(node: Node) -> bool:

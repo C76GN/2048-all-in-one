@@ -16,6 +16,13 @@ const LOCAL_PERFORMANCE_TRACE_SETTING_KEY: StringName = (
 const _MAX_EVENTS: int = 96
 const _MAX_EVENT_BUFFER_BYTES: int = 96 * 1024
 const _MAX_EVENT_BYTES: int = 2048
+## 性能验收证据与 96 条事件轨迹使用独立预算；两条指标都必须能容纳
+## GameplayAcceptanceMatrix 要求的 120 个真实样本。
+const ACCEPTANCE_MAX_SAMPLES: int = 256
+const _ACCEPTANCE_FRAME_METRIC_ID: StringName = &"gameplay.frame_time_ms"
+const _ACCEPTANCE_INPUT_METRIC_ID: StringName = (
+	&"gameplay.input_to_primary_feedback_ms"
+)
 
 
 # --- 私有变量 ---
@@ -27,6 +34,7 @@ var _settings: GFSettingsUtility
 var _signal_utility: GFSignalUtility
 var _capture_enabled: bool = false
 var _game_session_available: bool = false
+var _gameplay_trace_active: bool = false
 var _current_is_replay_mode: bool = false
 var _next_attempt_id: int = 1
 var _active_attempt_id: int = 0
@@ -39,6 +47,14 @@ var _primary_feedback_started: bool = false
 var _presentation_settle_candidate_usec: int = 0
 var _presentation_settled_usec: int = 0
 var _command_completed: bool = false
+var _acceptance_observation: GamePerformanceAcceptanceObservation
+var _acceptance_frame_time_ms: GFMetricSeries
+var _acceptance_input_feedback_ms: GFMetricSeries
+var _acceptance_capture_active: bool = false
+var _acceptance_evidence_valid: bool = false
+var _acceptance_terminal_reason: StringName = &""
+var _acceptance_previous_frame_usec: int = 0
+var _acceptance_has_frame_baseline: bool = false
 
 
 # --- GF 生命周期方法 ---
@@ -96,6 +112,7 @@ func ready() -> void:
 
 func dispose() -> void:
 	var _summary: Dictionary = stop_gameplay_trace(&"disposed")
+	_clear_acceptance_measurement()
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
 	_trace = null
@@ -105,6 +122,7 @@ func dispose() -> void:
 	_signal_utility = null
 	_capture_enabled = false
 	_game_session_available = false
+	_gameplay_trace_active = false
 	_current_is_replay_mode = false
 	_reset_active_attempt()
 
@@ -120,22 +138,171 @@ func start_gameplay_trace(is_replay_mode: bool) -> bool:
 		or not is_instance_valid(_trace_recipe)
 	):
 		return false
+	# 一份验收证据只属于一局。新会话即使随后启动失败，也不得沿用旧样本。
+	_clear_acceptance_measurement()
 	_reset_active_attempt()
+	_current_is_replay_mode = is_replay_mode
 	var session_id: StringName = _trace.start_session(&"", {
 		"feature": "gameplay",
 		"is_replay_mode": is_replay_mode,
 		"retention": "memory_until_next_session_or_dispose",
 	})
-	return session_id != &""
+	_gameplay_trace_active = session_id != &""
+	return _gameplay_trace_active
 
 
 ## 停止当前轨迹并清空尚未终结的移动尝试。
 ## @param reason: 终止轨迹的规范原因。
 func stop_gameplay_trace(reason: StringName = &"completed") -> Dictionary:
 	_reset_active_attempt()
+	_gameplay_trace_active = false
+	if _acceptance_capture_active:
+		_stop_acceptance_measurement(&"gameplay_trace_stopped", true)
 	if not is_instance_valid(_trace):
 		return {}
 	return _trace.stop_session(reason)
+
+
+## 开始聚合一份已经由 diagnostics 矩阵验证的真实运行时证据。
+##
+## 本 Utility 不依赖 diagnostics Feature，也不自行解释 case 业务语义；它只
+## 持有脱敏 Observation、帧时/首反馈两条有界 GFMetricSeries 与清理生命周期。
+## @param observation: 已验证、只含公开分类事实的运行条件快照。
+func begin_acceptance_measurement(
+	observation: GamePerformanceAcceptanceObservation
+) -> Dictionary:
+	if not _capture_enabled:
+		return _make_acceptance_request_result(false, &"consent_required")
+	if not _gameplay_trace_active:
+		return _make_acceptance_request_result(false, &"gameplay_trace_inactive")
+	if _current_is_replay_mode:
+		return _make_acceptance_request_result(false, &"replay_mode_not_eligible")
+	if _acceptance_capture_active:
+		return _make_acceptance_request_result(false, &"capture_already_active")
+	if (
+		observation == null
+		or not observation.is_structurally_valid(ACCEPTANCE_MAX_SAMPLES)
+	):
+		return _make_acceptance_request_result(false, &"invalid_observation")
+
+	_clear_acceptance_measurement()
+	_acceptance_observation = GamePerformanceAcceptanceObservation.new().configure(
+		observation.case_id,
+		observation.to_dict(),
+		observation.minimum_samples
+	)
+	_acceptance_frame_time_ms = _create_acceptance_series(
+		_ACCEPTANCE_FRAME_METRIC_ID,
+		"Player-visible frame time"
+	)
+	_acceptance_input_feedback_ms = _create_acceptance_series(
+		_ACCEPTANCE_INPUT_METRIC_ID,
+		"Input to primary feedback"
+	)
+	_acceptance_capture_active = true
+	_acceptance_evidence_valid = true
+	_acceptance_terminal_reason = &"capture_active"
+	return _make_acceptance_request_result(true, &"capture_started")
+
+
+## 标记一次真实玩家可见帧边界。
+##
+## 调用方必须传入当前根视口尺寸；尺寸漂移会使整份证据失去 case 匹配资格，
+## 而不是把不同条件下的帧样本混在一起。帧时由共享 GFClock 的相邻单调
+## tick 计算；首帧只建立基线，不消费会受 Engine.time_scale 影响的 delta。
+## @param observed_viewport_size: 当前玩家可见帧的根视口像素尺寸。
+func record_player_visible_frame(
+	observed_viewport_size: Vector2i
+) -> void:
+	if not _acceptance_capture_active:
+		return
+	if (
+		_acceptance_observation == null
+		or not _acceptance_observation.matches_viewport(observed_viewport_size)
+	):
+		_stop_acceptance_measurement(&"viewport_changed", true)
+		return
+	var now_usec: int = _get_monotonic_usec()
+	if not _acceptance_has_frame_baseline:
+		_acceptance_previous_frame_usec = now_usec
+		_acceptance_has_frame_baseline = true
+		return
+	if now_usec <= _acceptance_previous_frame_usec:
+		_stop_acceptance_measurement(&"non_monotonic_frame_clock", true)
+		return
+	var frame_time_ms: float = (
+		float(now_usec - _acceptance_previous_frame_usec) / 1000.0
+	)
+	_acceptance_previous_frame_usec = now_usec
+	_acceptance_frame_time_ms.add_sample(
+		frame_time_ms,
+		_acceptance_timestamp_seconds()
+	)
+
+
+## 显式结束当前验收采样。只有终结后 diagnostics 才会生成通过/失败结论。
+func finish_acceptance_measurement() -> Dictionary:
+	if _acceptance_observation == null:
+		return _make_acceptance_request_result(false, &"not_measured")
+	if _acceptance_capture_active:
+		_stop_acceptance_measurement(&"capture_completed", false)
+	return get_acceptance_measurement_state()
+
+
+func is_acceptance_measurement_active() -> bool:
+	return _acceptance_capture_active
+
+
+## 获取不含原始样本值的有界状态，供普通诊断与 Support Report 使用。
+func get_acceptance_measurement_state() -> Dictionary:
+	if _acceptance_observation == null:
+		return {
+			&"configured": false,
+			&"active": false,
+			&"eligible_for_evaluation": false,
+			&"status": &"not_measured",
+			&"reason": (
+				&"not_measured" if _capture_enabled else &"consent_required"
+			),
+			&"max_samples": ACCEPTANCE_MAX_SAMPLES,
+			&"frame_sample_count": 0,
+			&"input_feedback_sample_count": 0,
+		}
+	return {
+		&"configured": true,
+		&"active": _acceptance_capture_active,
+		&"eligible_for_evaluation": (
+			not _acceptance_capture_active and _acceptance_evidence_valid
+		),
+		&"status": (
+			&"capturing" if _acceptance_capture_active else &"captured"
+		),
+		&"reason": _acceptance_terminal_reason,
+		&"max_samples": ACCEPTANCE_MAX_SAMPLES,
+		&"frame_sample_count": _acceptance_frame_time_ms.get_sample_count(),
+		&"input_feedback_sample_count": (
+			_acceptance_input_feedback_ms.get_sample_count()
+		),
+		&"observation": _acceptance_observation.to_dict(),
+	}
+
+
+## 返回 diagnostics 内部评估所需的复制隔离序列；Support Report 不直接
+## 序列化该对象字典，而是只接收 GameplayAcceptanceMatrix 的统计快照。
+func get_acceptance_measurement_bundle() -> Dictionary:
+	if (
+		_acceptance_observation == null
+		or _acceptance_frame_time_ms == null
+		or _acceptance_input_feedback_ms == null
+	):
+		return {}
+	return {
+		&"observation": _acceptance_observation.to_dict(),
+		&"frame_time_ms": _acceptance_frame_time_ms.duplicate_series(true),
+		&"input_feedback_ms": (
+			_acceptance_input_feedback_ms.duplicate_series(true)
+		),
+	}
 
 
 ## 标记输入已经通过玩法门控并即将进入命令管线。
@@ -233,18 +400,22 @@ func mark_primary_feedback_started(attempt_id: int) -> void:
 		return
 	_primary_feedback_usec = _get_monotonic_usec()
 	_primary_feedback_started = true
+	var input_to_primary_feedback_usec: int = maxi(
+		_primary_feedback_usec - _active_started_usec,
+		0
+	)
 	_record_event(&"move_primary_feedback_started", {
 		"attempt_id": attempt_id,
-		"input_to_primary_feedback_usec": maxi(
-			_primary_feedback_usec - _active_started_usec,
-			0
-		),
+		"input_to_primary_feedback_usec": input_to_primary_feedback_usec,
 		"enqueue_to_primary_feedback_usec": (
 			maxi(_primary_feedback_usec - _presentation_enqueued_usec, 0)
 			if _presentation_enqueued_usec > 0
 			else 0
 		),
 	})
+	_record_acceptance_input_feedback(
+		float(input_to_primary_feedback_usec) / 1000.0
+	)
 
 
 ## 标记当前移动关联的棋盘表现队列已排空。
@@ -287,9 +458,11 @@ func build_support_snapshot() -> Dictionary:
 		or not is_instance_valid(_trace_recipe)
 	):
 		return _make_unavailable_snapshot()
-	return _trace.build_recipe_snapshot(_trace_recipe, {
+	var snapshot: Dictionary = _trace.build_recipe_snapshot(_trace_recipe, {
 		"filters": {"channel_id": CHANNEL_MOVE_LATENCY},
 	})
+	snapshot[&"acceptance_measurement"] = get_acceptance_measurement_state()
+	return snapshot
 
 
 ## 获取不含完整事件载荷的运行状态。
@@ -301,14 +474,90 @@ func get_debug_snapshot() -> Dictionary:
 		"recipe_id": TRACE_RECIPE_ID,
 		"max_events": _MAX_EVENTS,
 		"max_event_buffer_bytes": _MAX_EVENT_BUFFER_BYTES,
+		"acceptance_max_samples": ACCEPTANCE_MAX_SAMPLES,
 		"active_attempt": _active_attempt_id > 0,
 		"presentation_pending": _presentation_pending,
 		"primary_feedback_started": _primary_feedback_started,
+		"acceptance_measurement": get_acceptance_measurement_state(),
 		"trace": _trace.get_debug_snapshot() if is_instance_valid(_trace) else {},
 	}
 
 
 # --- 私有/辅助方法 ---
+
+func _create_acceptance_series(
+	metric_id: StringName,
+	label: String
+) -> GFMetricSeries:
+	return GFMetricSeries.new().configure(metric_id, {
+		&"label": label,
+		&"group": "Gameplay acceptance",
+		&"visible": false,
+		&"max_samples": ACCEPTANCE_MAX_SAMPLES,
+		&"metadata": {
+			&"unit": "milliseconds",
+			&"retention": "latest_gameplay_session_memory_only",
+		},
+	})
+
+
+func _record_acceptance_input_feedback(input_feedback_ms: float) -> void:
+	if (
+		not _acceptance_capture_active
+		or _acceptance_input_feedback_ms == null
+	):
+		return
+	if not is_finite(input_feedback_ms) or input_feedback_ms < 0.0:
+		_stop_acceptance_measurement(&"invalid_input_feedback_sample", true)
+		return
+	_acceptance_input_feedback_ms.add_sample(
+		input_feedback_ms,
+		_acceptance_timestamp_seconds()
+	)
+
+
+func _acceptance_timestamp_seconds() -> float:
+	return float(_get_monotonic_usec()) / 1_000_000.0
+
+
+func _stop_acceptance_measurement(
+	reason: StringName,
+	invalidate_evidence: bool
+) -> void:
+	if _acceptance_observation == null:
+		return
+	_acceptance_capture_active = false
+	_acceptance_previous_frame_usec = 0
+	_acceptance_has_frame_baseline = false
+	if invalidate_evidence:
+		_acceptance_evidence_valid = false
+	_acceptance_terminal_reason = reason
+
+
+func _clear_acceptance_measurement() -> void:
+	if _acceptance_frame_time_ms != null:
+		_acceptance_frame_time_ms.clear()
+	if _acceptance_input_feedback_ms != null:
+		_acceptance_input_feedback_ms.clear()
+	_acceptance_observation = null
+	_acceptance_frame_time_ms = null
+	_acceptance_input_feedback_ms = null
+	_acceptance_capture_active = false
+	_acceptance_evidence_valid = false
+	_acceptance_terminal_reason = &""
+	_acceptance_previous_frame_usec = 0
+	_acceptance_has_frame_baseline = false
+
+
+func _make_acceptance_request_result(
+	accepted: bool,
+	reason: StringName
+) -> Dictionary:
+	return {
+		&"accepted": accepted,
+		&"reason": reason,
+		&"measurement": get_acceptance_measurement_state(),
+	}
 
 func _commit_presentation_settled(now_usec: int) -> void:
 	_presentation_settled_usec = now_usec
@@ -497,6 +746,7 @@ func _on_setting_changed(
 		var _summary: Dictionary = stop_gameplay_trace(&"consent_revoked")
 		if is_instance_valid(_trace):
 			_trace.clear()
+		_clear_acceptance_measurement()
 		return
 	if _game_session_available:
 		var _started: bool = start_gameplay_trace(_current_is_replay_mode)

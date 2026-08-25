@@ -9,12 +9,19 @@ const PROJECT_SOURCE_ROOTS: Array[String] = [
 	VerificationResourcePath.FEATURES_ROOT,
 	"res://shared",
 ]
+const GLOBAL_GF_ACCESS_SCAN_ROOTS: Array[String] = [
+	"res://app",
+	VerificationResourcePath.FEATURES_ROOT,
+	"res://shared",
+	"res://tools",
+]
 const SOURCE_EXCLUDED_ROOTS: Array[String] = [
 	"res://features/asset_library/resources/source_packs",
 ]
 const GLOBAL_GF_ACCESS_ALLOWLIST: Array[String] = [
 	"res://app/scripts/boot.gd",
 	"res://app/scripts/boot_runtime.gd",
+	"res://tools/gf_tool_architecture_access.gd",
 ]
 const DIRECT_TIME_AND_RANDOM_ALLOWLIST: Array[String] = [
 	"res://app/scripts/boot.gd",
@@ -170,7 +177,7 @@ var _platform_static_member_regex_cache: Dictionary = {}
 
 func test_global_gf_access_is_limited_to_composition_root() -> void:
 	var issues: Array[String] = []
-	for path: String in _collect_project_script_paths():
+	for path: String in _collect_script_paths(GLOBAL_GF_ACCESS_SCAN_ROOTS):
 		if GLOBAL_GF_ACCESS_ALLOWLIST.has(path):
 			continue
 		var source: String = _read_text(path)
@@ -182,7 +189,7 @@ func test_global_gf_access_is_limited_to_composition_root() -> void:
 
 	assert_true(
 		issues.is_empty(),
-		"全局 GF 架构访问只允许出现在应用启动组合根；其他节点和模块应使用 GF 注入或 Controller 上下文：\n%s"
+		"全局 GF 架构访问只允许出现在应用启动组合根和唯一 verification harness；其他节点和 Module 应使用 GF 注入或 Controller 上下文：\n%s"
 		% _join_lines(issues)
 	)
 
@@ -491,8 +498,12 @@ func test_shared_does_not_depend_on_features() -> void:
 # --- 私有/辅助方法 ---
 
 func _collect_project_script_paths() -> Array[String]:
+	return _collect_script_paths(PROJECT_SOURCE_ROOTS)
+
+
+func _collect_script_paths(roots: Array[String]) -> Array[String]:
 	var result: Array[String] = []
-	for root_path: String in PROJECT_SOURCE_ROOTS:
+	for root_path: String in roots:
 		var paths: PackedStringArray = GFScriptStructureTools.scan_script_paths(root_path, {
 			"recursive": true,
 			"include_addons": false,
@@ -831,6 +842,7 @@ func _contains_global_gf_access(code: String) -> bool:
 	return (
 		_regex_matches(code, "(?:^|[^A-Za-z0-9_])Gf\\s*\\.")
 		or _regex_matches(code, "(?:^|[^A-Za-z0-9_])GFAutoload\\s*\\.")
+		or code.contains("\"Gf\"")
 	)
 
 

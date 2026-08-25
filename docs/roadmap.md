@@ -12,16 +12,16 @@
 
 ### P0-01 在正式工具链复跑目标平台产物
 
-- **当前状态**：Web 临时导出与微信 `toolchain_smoke` 已锁定项目侧路径；微信开发者工具已能导入并绘制模板加载页，当前阻塞是模拟器单次读取大 PCK 时的 ArrayBuffer/Base64 桥接失败。工作站状态只以当次报告和 DevTools 终态日志为准。
-- **结果**：由 `tools/check_platform_readiness.ps1` 完成真实 Web release export；由 `tools/export_wechat_minigame_smoke.ps1` 生成带分块大文件读取兼容层的微信工程，并完成模拟器与真机 smoke。
+- **当前状态**：当前工作站已实际完成 Web release export，并由 `tools/export_wechat_minigame_release.ps1` 生成无 `platform_smoke` 的完整游戏候选；主包 83,341 bytes、引擎分包 25,152,639 bytes、总包 25,235,980 bytes，正式字体子集、精确资源清单、4 MiB 分块读取和隔离产物验证全部通过项目门禁。微信开发者工具已通过官方 skill 完成版本/登录检查、打开工程并触发 refresh，但小游戏 automator 未建立 runtime、console 缓冲为空且截图接口超时，因此当前不能签字模拟器启动或视觉正确；Android/iOS 真机矩阵也仍待执行。
+- **结果**：由 `tools/check_platform_readiness.ps1` 完成真实 Web release export；由同一事务核心分别生成 `toolchain_smoke` 与 `full_game_release_candidate`，正式候选必须通过字体闭包、包内无完整字体引用、精确文件白名单、分块读取、主包/总包预算及原子报告校验，随后再完成开发者工具与真机签字。
 - **边界**：静态配置扫描不得冒充成功产物；临时验证不得修改项目 release 输出或把生成物提交为规范。
-- **验收**：环境报告中的 `web_export.status` 为 `passed`、临时产物已清理，微信 smoke 保存明确的 CLI 版本与终态证据。
+- **验收**：环境报告中的 `web_export.status` 为 `passed`、临时产物已清理；微信候选保存明确的 build identity、CLI/skill 版本、包体与字体证据，并取得可复核的模拟器启动、console 与真机终态后才能关闭本项。
 
 ## P1：目标设备证据
 
 ### P1-01 补齐真机性能与表现预算
 
-- **当前状态**：项目已有 `GFMetricSeries` 驱动的 6 模式 × 3 拓扑 checkpoint 基准、生命周期 plateau、回放 `GFExecutionBudget` 和三档截图矩阵；共享开发机上的结果只用于阻止数量级回退。
+- **当前状态**：项目已有 `GFMetricSeries` 驱动的 6 模式 × 3 拓扑 checkpoint 基准、生命周期 plateau、回放 `GFExecutionBudget` 和三档截图矩阵；开发工具还提供显式同意后启动的真实玩法采样入口，以两条独立有界 `GFMetricSeries` 记录单调帧时与输入到首反馈，只有运行条件精确匹配且每项至少 120 个样本时才进入评估。当前仍没有目标 Windows、Web 或低端移动设备的合格实测结果，共享开发机结果只用于阻止数量级回退。
 - **结果**：在目标 Windows、Web 和低端移动设备采集输入到首反馈、帧时间、全屏背景 Shader、长回放定位与页面切换的 P50/P95/P99。
 - **边界**：平台、渲染档位、样本量和截断状态必须进入报告；目标表与实测值分开，不把 headless 耗时当成玩家帧预算。
 - **验收**：核心操作符合 `.gf/project_contract.json` 的 60 FPS 与 50 ms 首反馈目标；不合格项附带同 seed、同主题、同视口的前后证据。

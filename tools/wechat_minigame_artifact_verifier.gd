@@ -1,4 +1,4 @@
-## 微信小游戏冒烟产物的只读结构、预算、身份与字体边界验证器。
+## 微信小游戏冒烟与完整游戏候选产物的只读结构、预算、身份与字体边界验证器。
 extends RefCounted
 
 
@@ -10,12 +10,16 @@ const MAIN_PACKAGE_SOFT_LIMIT_BYTES: int = 3_600_000
 const TOTAL_PACKAGE_SOFT_LIMIT_BYTES: int = 27_000_000
 const EXPORT_REPORT_SCHEMA_VERSION: int = 2
 const ARTIFACT_MANIFEST_SCHEMA_VERSION: int = 1
-const BUILD_IDENTITY_SCHEMA_VERSION: int = 1
+const BUILD_IDENTITY_SCHEMA_VERSION: int = 2
 const INPUT_SNAPSHOT_SCHEMA_VERSION: int = 1
 const REQUIRED_GODOT_VERSION_PREFIX: String = "4.7.2.stable"
 const PACK_RELATIVE_PATH: String = "engine/2048-all-in-one.bin"
+const PROFILE_SCOPE_SMOKE: String = "toolchain_smoke"
+const PROFILE_SCOPE_RELEASE: String = "full_game_release_candidate"
 const PROJECT_NAME: String = "2048 Chunked Toolchain Smoke"
+const RELEASE_PROJECT_NAME: String = "2048 Full Game Release Candidate"
 const _EXPORT_PRESET: String = "Web Compatibility Smoke"
+const _RELEASE_EXPORT_PRESET: String = "Web Compatibility WeChat Release"
 const _TEMPLATE_RELEASE: String = "4.7"
 const _TEMPLATE_ASSET: String = "minigame4.7.tpz"
 const _TEMPLATE_EXPECTED_BYTES: int = 11_763_895
@@ -26,6 +30,8 @@ const _TOOL_IDENTITY_NAMES: PackedStringArray = [
 	"export_tool",
 	"artifact_verifier",
 	"artifact_check",
+	"bounded_json_reader",
+	"path_tools",
 	"chunk_loader",
 	"wxmemfs_patch",
 ]
@@ -33,6 +39,8 @@ const _TOOL_IDENTITY_PATHS: Dictionary = {
 	"export_tool": "tools/export_wechat_minigame_smoke.ps1",
 	"artifact_verifier": "tools/wechat_minigame_artifact_verifier.gd",
 	"artifact_check": "tools/wechat_minigame_artifact_check.gd",
+	"bounded_json_reader": "addons/gf/kernel/core/gf_bounded_json_object_reader.gd",
+	"path_tools": "addons/gf/kernel/core/gf_path_tools.gd",
 	"chunk_loader": "tools/wechat_minigame/chunked_file_loader.js",
 	"wxmemfs_patch": "tools/wechat_minigame/wxmemfs_rename_patch.ps1",
 }
@@ -98,11 +106,39 @@ const _CHUNK_RESOURCE_PATHS: PackedStringArray = [
 ]
 const _FULL_FONT_TOKEN: String = "noto_sans_sc_variable"
 const _SMOKE_FONT_TOKEN: String = "wechat_smoke_sans_subset"
-const _EXPORT_PLUGIN_CODE_TOKEN: String = "WeChatMiniGameSmokeExportPlugin"
+const _EXPORT_PLUGIN_CODE_TOKEN: String = "WeChatMiniGameProfileFontExportPlugin"
 const _SMOKE_FONT_SHA256: String = (
 	"38bdd2457e67c2c1721f5734fee67059bc1b961563afb4f3e0f8b8c8b8049c22"
 )
 const _SMOKE_FONT_PATH: String = "res://shared/assets/fonts/wechat_smoke_sans_subset.ttf"
+const _RELEASE_FONT_TOKEN: String = "wechat_release_sans_subset"
+const _RELEASE_FONT_SHA256: String = (
+	"e1db03e438be4c6c7c91fb372188675aab97015924c99a53b93e623ccafe3f43"
+)
+const _RELEASE_FONT_PATH: String = (
+	"res://shared/assets/fonts/wechat_release_sans_subset.ttf"
+)
+const _RELEASE_COVERAGE_PATH: String = (
+	"res://shared/assets/fonts/wechat_release_font_coverage.txt"
+)
+const _RELEASE_COVERAGE_MANIFEST_PATH: String = (
+	"res://shared/assets/fonts/wechat_release_font_coverage.json"
+)
+const _RELEASE_COVERAGE_SHA256: String = (
+	"8765a1f0f6f328241d7a0ab6177988ded74cdc359bc02302a2ec3681655e671e"
+)
+const _RELEASE_FONT_BYTES: int = 445_352
+const _RELEASE_CODEPOINT_COUNT: int = 811
+const _RELEASE_SOURCE_FONT_SHA256: String = (
+	"763146584cf0710223441356b4395e279021b0806c196614377a7a0174ae074a"
+)
+const _RELEASE_SOURCE_FONT_PATH: String = (
+	"shared/assets/fonts/noto_sans_sc_variable.ttf"
+)
+const _RELEASE_LICENSE_PATH: String = "shared/assets/fonts/noto_sans_sc_ofl.txt"
+const _RELEASE_LICENSE_SHA256: String = (
+	"6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2"
+)
 const _FONT_VARIATION_PATHS: PackedStringArray = [
 	"res://shared/assets/fonts/ui_sans_regular.tres",
 	"res://shared/assets/fonts/ui_sans_display.tres",
@@ -132,11 +168,17 @@ const _FORBIDDEN_SAMPLE_APP_IDS: PackedStringArray = [
 	"wxf40904ea6120ad08",
 ]
 const _REQUIRED_FONT_TEXT: String = "准备启动跨平台兼容性冒烟微信真机必须加入合法域名"
+const _CONFIG_JSON_MAX_BYTES: int = 64 * 1024
+const _CONFIG_JSON_MAX_DEPTH: int = 16
+const _REPORT_JSON_MAX_BYTES: int = 256 * 1024
+const _REPORT_JSON_MAX_DEPTH: int = 24
+const _FONT_MANIFEST_JSON_MAX_BYTES: int = 64 * 1024
+const _FONT_MANIFEST_JSON_MAX_DEPTH: int = 16
 
 
 # --- 公共方法 ---
 
-## 验证一个已组装的微信小游戏冒烟工程。
+## 验证一个已组装的微信小游戏冒烟或完整游戏候选工程。
 ## @param artifact_root: 微信开发者工具工程的绝对或 res:// 根目录。
 ## @param inspect_pack: 是否同时扫描并加载项目 .bin 资源包。
 ## @return: 含 ok、issues、files 与 package 字段的只读报告。
@@ -190,8 +232,19 @@ func compute_report_build_id(export_report: Dictionary) -> String:
 	var tool_identity: Dictionary = _dictionary_value(
 		export_report.get("tool_identity", {})
 	)
+	var font_policy: Dictionary = _dictionary_value(
+		export_report.get("font_policy", {})
+	)
 	var records: PackedStringArray = PackedStringArray([
 		"wechat-candidate-build-v%d" % BUILD_IDENTITY_SCHEMA_VERSION,
+		"scope=%s" % str(export_report.get("scope", "")),
+		"export_preset=%s" % str(export_report.get("export_preset", "")),
+		"release_font_manifest_sha256=%s" % str(
+			font_policy.get("coverage_manifest_sha256", "")
+		),
+		"release_font_subset_sha256=%s" % str(
+			font_policy.get("subset_font_sha256", "")
+		),
 		"godot=%s" % str(godot.get("version", "")),
 		"gf_framework_version=%s" % str(gf.get("framework_version", "")),
 		"gf_source_commit=%s" % str(gf.get("source_commit", "")),
@@ -221,7 +274,7 @@ func compute_report_build_id(export_report: Dictionary) -> String:
 	return ("\n".join(records) + "\n").sha256_text()
 
 
-## 读取当前验证宿主中五个固定工具输入的实际内容身份。
+## 读取当前验证宿主中固定组装、验证及其有界 JSON 依赖的实际内容身份。
 func build_tool_identity() -> Dictionary:
 	var identity: Dictionary = {}
 	for tool_name: String in _TOOL_IDENTITY_NAMES:
@@ -246,6 +299,7 @@ func _verify(
 	inspect_pack: bool
 ) -> Dictionary:
 	var issues: PackedStringArray = PackedStringArray()
+	var profile: Dictionary = _profile_from_report_path(report_path)
 	var normalized_root: String = _normalize_root(artifact_root)
 	var discovered_files: PackedStringArray = PackedStringArray()
 	if normalized_root.is_empty() or not DirAccess.dir_exists_absolute(normalized_root):
@@ -258,11 +312,11 @@ func _verify(
 	var files: PackedStringArray = _artifact_files_from(discovered_files)
 	var package: Dictionary = _measure_package(normalized_root, files, issues)
 	_validate_loader(normalized_root, issues)
-	_validate_project_config(normalized_root, issues)
+	_validate_project_config(normalized_root, profile, issues)
 	_validate_game_config(normalized_root, issues)
 	_validate_private_config(normalized_root, issues)
 	if inspect_pack:
-		_inspect_pack(normalized_root, issues)
+		_inspect_pack(normalized_root, profile, issues)
 	if not report_path.is_empty():
 		_validate_report_binding(
 			normalized_root,
@@ -279,6 +333,47 @@ func _normalize_root(path: String) -> String:
 	if normalized.begins_with("res://") or normalized.begins_with("user://"):
 		normalized = ProjectSettings.globalize_path(normalized)
 	return normalized.replace("\\", "/").trim_suffix("/")
+
+
+func _profile_from_report_path(report_path: String) -> Dictionary:
+	if report_path.is_empty():
+		return _profile_for_scope(PROFILE_SCOPE_SMOKE)
+	var normalized_report_path: String = _normalize_root(report_path)
+	var read_report: Dictionary = GFBoundedJsonObjectReader.read_object(
+		normalized_report_path,
+		_REPORT_JSON_MAX_BYTES,
+		_REPORT_JSON_MAX_DEPTH
+	)
+	if not _boolean_value(read_report.get("ok")):
+		return _profile_for_scope(PROFILE_SCOPE_SMOKE)
+	var report: Dictionary = _dictionary_value(read_report.get("data"))
+	var profile: Dictionary = _profile_for_scope(str(report.get("scope", "")))
+	if str(profile.get("scope", "")) == PROFILE_SCOPE_RELEASE:
+		var font_policy: Dictionary = _dictionary_value(report.get("font_policy", {}))
+		profile["coverage_manifest_sha256"] = str(
+			font_policy.get("coverage_manifest_sha256", "")
+		)
+	return profile
+
+
+func _profile_for_scope(scope: String) -> Dictionary:
+	if scope == PROFILE_SCOPE_RELEASE:
+		return {
+			"scope": PROFILE_SCOPE_RELEASE,
+			"project_name": RELEASE_PROJECT_NAME,
+			"export_preset": _RELEASE_EXPORT_PRESET,
+			"font_path": _RELEASE_FONT_PATH,
+			"font_token": _RELEASE_FONT_TOKEN,
+			"font_sha256": _RELEASE_FONT_SHA256,
+		}
+	return {
+		"scope": PROFILE_SCOPE_SMOKE,
+		"project_name": PROJECT_NAME,
+		"export_preset": _EXPORT_PRESET,
+		"font_path": _SMOKE_FONT_PATH,
+		"font_token": _SMOKE_FONT_TOKEN,
+		"font_sha256": _SMOKE_FONT_SHA256,
+	}
 
 
 func _collect_files(
@@ -485,7 +580,11 @@ func _read_chunk_loader_manifest(
 	return manifest
 
 
-func _validate_project_config(root: String, issues: PackedStringArray) -> void:
+func _validate_project_config(
+	root: String,
+	profile: Dictionary,
+	issues: PackedStringArray
+) -> void:
 	var config: Dictionary = _read_json_dictionary(
 		root.path_join("project.config.json"),
 		"project_config",
@@ -493,7 +592,10 @@ func _validate_project_config(root: String, issues: PackedStringArray) -> void:
 	)
 	if str(config.get("compileType", "")) != "minigame":
 		_add_issue(issues, "project_compile_type_not_minigame")
-	if str(config.get("projectname", "")).strip_edges() != PROJECT_NAME:
+	if (
+		str(config.get("projectname", "")).strip_edges()
+		!= str(profile.get("project_name", ""))
+	):
 		_add_issue(issues, "project_name_not_distinct")
 	var app_id: String = str(config.get("appid", "")).strip_edges()
 	if not _is_valid_app_id(app_id):
@@ -540,18 +642,19 @@ func _validate_private_config(root: String, issues: PackedStringArray) -> void:
 func _read_json_dictionary(
 	path: String,
 	label: String,
-	issues: PackedStringArray
+	issues: PackedStringArray,
+	max_bytes: int = _CONFIG_JSON_MAX_BYTES,
+	max_depth: int = _CONFIG_JSON_MAX_DEPTH
 ) -> Dictionary:
-	var parser: JSON = JSON.new()
-	var parse_error: Error = parser.parse(FileAccess.get_file_as_string(path))
-	if parse_error != OK:
-		_add_issue(issues, "%s_invalid_json" % label)
-		return {}
-	var parsed_value: Variant = parser.data
-	if parsed_value is Dictionary:
-		var dictionary: Dictionary = parsed_value
-		return dictionary
-	_add_issue(issues, "%s_invalid_json" % label)
+	var read_report: Dictionary = GFBoundedJsonObjectReader.read_object(
+		path,
+		max_bytes,
+		max_depth
+	)
+	if _boolean_value(read_report.get("ok")):
+		return _dictionary_value(read_report.get("data"))
+	var error_kind: String = str(read_report.get("error_kind", "invalid"))
+	_add_issue(issues, "%s_invalid_json:%s" % [label, error_kind])
 	return {}
 
 
@@ -587,11 +690,17 @@ func _validate_report_binding(
 	if not FileAccess.file_exists(report_path):
 		_add_issue(issues, "export_report_missing:%s" % report_path)
 		return
-	var parsed_value: Variant = JSON.parse_string(FileAccess.get_file_as_string(report_path))
-	if not parsed_value is Dictionary:
-		_add_issue(issues, "export_report_invalid_json")
+	var report_read: Dictionary = GFBoundedJsonObjectReader.read_object(
+		report_path,
+		_REPORT_JSON_MAX_BYTES,
+		_REPORT_JSON_MAX_DEPTH
+	)
+	if not _boolean_value(report_read.get("ok")):
+		_add_issue(issues, "export_report_invalid_json:%s" % (
+			str(report_read.get("error_kind", "invalid"))
+		))
 		return
-	var export_report: Dictionary = parsed_value
+	var export_report: Dictionary = _dictionary_value(report_read.get("data"))
 	_validate_report_identity(export_report, issues)
 	_validate_report_artifact(export_report, artifact_root, files, issues)
 	_validate_report_package(export_report, package, files, issues)
@@ -615,14 +724,28 @@ func _validate_report_identity(
 		var report_ok: bool = ok_value
 		if not report_ok:
 			_add_issue(issues, "export_report_not_ok")
-	if str(export_report.get("scope", "")) != "toolchain_smoke":
+	var scope: String = str(export_report.get("scope", ""))
+	if not PackedStringArray([
+		PROFILE_SCOPE_SMOKE,
+		PROFILE_SCOPE_RELEASE,
+	]).has(scope):
 		_add_issue(issues, "export_report_scope_invalid")
-	if str(export_report.get("export_preset", "")) != _EXPORT_PRESET:
+	var profile: Dictionary = _profile_for_scope(scope)
+	if (
+		str(export_report.get("export_preset", ""))
+		!= str(profile.get("export_preset", ""))
+	):
 		_add_issue(issues, "export_report_preset_invalid")
-	if str(export_report.get("project_name", "")) != PROJECT_NAME:
+	if (
+		str(export_report.get("project_name", ""))
+		!= str(profile.get("project_name", ""))
+	):
 		_add_issue(issues, "export_report_project_name_invalid")
 	if str(export_report.get("device_orientation", "")) != "landscape":
 		_add_issue(issues, "export_report_orientation_invalid")
+	if scope == PROFILE_SCOPE_RELEASE:
+		_validate_release_font_policy(export_report, issues)
+		_validate_release_limitations(export_report, issues)
 
 	var godot: Dictionary = _dictionary_value(export_report.get("godot", {}))
 	if godot.is_empty():
@@ -677,6 +800,64 @@ func _validate_report_identity(
 
 	_validate_report_tool_identity(export_report, issues)
 	_validate_report_template(export_report, issues)
+
+
+func _validate_release_font_policy(
+	export_report: Dictionary,
+	issues: PackedStringArray
+) -> void:
+	var declared: Dictionary = _dictionary_value(export_report.get("font_policy", {}))
+	var expected_strings: Dictionary = {
+		"policy_id": "wechat-release-shipped-literals-v1",
+		"coverage_manifest_path": _RELEASE_COVERAGE_MANIFEST_PATH.trim_prefix("res://"),
+		"coverage_path": _RELEASE_COVERAGE_PATH.trim_prefix("res://"),
+		"coverage_sha256": _RELEASE_COVERAGE_SHA256,
+		"subset_font_path": _RELEASE_FONT_PATH.trim_prefix("res://"),
+		"subset_font_sha256": _RELEASE_FONT_SHA256,
+		"source_font_path": _RELEASE_SOURCE_FONT_PATH,
+		"source_font_sha256": _RELEASE_SOURCE_FONT_SHA256,
+		"license_path": _RELEASE_LICENSE_PATH,
+		"license_spdx": "OFL-1.1",
+		"license_sha256": _RELEASE_LICENSE_SHA256,
+	}
+	for field_value: Variant in expected_strings.keys():
+		var field: String = str(field_value)
+		if str(declared.get(field, "")) != str(expected_strings[field]):
+			_add_issue(issues, "report_release_font_policy_mismatch:%s" % field)
+	if not _is_lower_hex(str(declared.get("coverage_manifest_sha256", "")), 64):
+		_add_issue(issues, "report_release_font_policy_mismatch:coverage_manifest_sha256")
+	if _integer_value(declared.get("codepoint_count")) != _RELEASE_CODEPOINT_COUNT:
+		_add_issue(issues, "report_release_font_policy_mismatch:codepoint_count")
+	if _integer_value(declared.get("subset_font_bytes")) != _RELEASE_FONT_BYTES:
+		_add_issue(issues, "report_release_font_policy_mismatch:subset_font_bytes")
+	if declared.size() != expected_strings.size() + 3:
+		_add_issue(issues, "report_release_font_policy_not_exact")
+
+
+func _validate_release_limitations(
+	export_report: Dictionary,
+	issues: PackedStringArray
+) -> void:
+	var limitations_value: Variant = export_report.get("limitations", [])
+	if not limitations_value is Array:
+		_add_issue(issues, "report_release_limitations_invalid")
+		return
+	var limitations: Array = limitations_value
+	var limitation_texts: PackedStringArray = PackedStringArray()
+	for value: Variant in limitations:
+		var _limitation_added: bool = limitation_texts.append(str(value))
+	var normalized: String = " ".join(limitation_texts).to_lower()
+	if not normalized.contains("not enabled"):
+		_add_issue(issues, "report_release_sdk_limitations_missing")
+	for capability: String in PackedStringArray([
+		"login",
+		"share",
+		"payment",
+		"cloud save",
+		"open-data",
+	]):
+		if not normalized.contains(capability):
+			_add_issue(issues, "report_release_sdk_limitation_missing:%s" % capability)
 
 
 func _validate_input_snapshot_rules(
@@ -999,7 +1180,11 @@ func _string_sequence_equals(value: Variant, expected: PackedStringArray) -> boo
 	return false
 
 
-func _inspect_pack(root: String, issues: PackedStringArray) -> void:
+func _inspect_pack(
+	root: String,
+	profile: Dictionary,
+	issues: PackedStringArray
+) -> void:
 	if not _pack_host_is_isolated():
 		_add_issue(issues, "pack_inspection_host_not_isolated")
 		return
@@ -1011,15 +1196,29 @@ func _inspect_pack(root: String, issues: PackedStringArray) -> void:
 	var pack_bytes: PackedByteArray = pack_file.get_buffer(pack_file.get_length())
 	if _bytes_contain_text(pack_bytes, _FULL_FONT_TOKEN):
 		_add_issue(issues, "pack_contains_full_font_token")
-	if not _bytes_contain_text(pack_bytes, _SMOKE_FONT_TOKEN):
-		_add_issue(issues, "pack_missing_smoke_font_token")
+	var expected_font_token: String = str(profile.get("font_token", ""))
+	if not _bytes_contain_text(pack_bytes, expected_font_token):
+		_add_issue(issues, "pack_expected_font_token_missing:%s" % expected_font_token)
+	var unexpected_font_token: String = (
+		_SMOKE_FONT_TOKEN
+		if expected_font_token == _RELEASE_FONT_TOKEN
+		else _RELEASE_FONT_TOKEN
+	)
+	if _bytes_contain_text(pack_bytes, unexpected_font_token):
+		_add_issue(issues, "pack_unexpected_font_token:%s" % unexpected_font_token)
 	if _bytes_contain_text(pack_bytes, _EXPORT_PLUGIN_CODE_TOKEN):
 		_add_issue(issues, "pack_contains_editor_export_plugin")
 	if not ProjectSettings.load_resource_pack(pack_path, true):
 		_add_issue(issues, "pack_mount_failed")
 		return
-	if not ResourceLoader.exists(_SMOKE_FONT_PATH):
-		_add_issue(issues, "pack_smoke_font_resource_missing")
+	var expected_font_path: String = str(profile.get("font_path", ""))
+	var expected_font_sha256: String = str(profile.get("font_sha256", ""))
+	if not ResourceLoader.exists(expected_font_path):
+		_add_issue(issues, "pack_expected_font_resource_missing:%s" % expected_font_path)
+	var required_codepoints: PackedInt32Array = _required_profile_codepoints(
+		profile,
+		issues
+	)
 	for variation_path: String in _FONT_VARIATION_PATHS:
 		var resource: Resource = load(variation_path)
 		if not resource is FontVariation:
@@ -1036,10 +1235,9 @@ func _inspect_pack(root: String, issues: PackedStringArray) -> void:
 		var font_file: FontFile = base_font
 		if font_file.allow_system_fallback:
 			_add_issue(issues, "pack_font_system_fallback_enabled:%s" % variation_path)
-		if _sha256_bytes(font_file.data) != _SMOKE_FONT_SHA256:
+		if _sha256_bytes(font_file.data) != expected_font_sha256:
 			_add_issue(issues, "pack_font_hash_mismatch:%s" % variation_path)
-		for index: int in range(_REQUIRED_FONT_TEXT.length()):
-			var codepoint: int = _REQUIRED_FONT_TEXT.unicode_at(index)
+		for codepoint: int in required_codepoints:
 			if not font_variation.has_char(codepoint):
 				_add_issue(
 					issues,
@@ -1047,8 +1245,104 @@ func _inspect_pack(root: String, issues: PackedStringArray) -> void:
 				)
 
 
+func _required_profile_codepoints(
+	profile: Dictionary,
+	issues: PackedStringArray
+) -> PackedInt32Array:
+	var codepoints: PackedInt32Array = PackedInt32Array()
+	var scope: String = str(profile.get("scope", ""))
+	if scope != PROFILE_SCOPE_RELEASE:
+		for index: int in range(_REQUIRED_FONT_TEXT.length()):
+			var _codepoint_added: bool = codepoints.append(
+				_REQUIRED_FONT_TEXT.unicode_at(index)
+			)
+		return codepoints
+	if not FileAccess.file_exists(_RELEASE_COVERAGE_PATH):
+		_add_issue(issues, "pack_release_font_coverage_missing")
+		return codepoints
+	if FileAccess.get_sha256(_RELEASE_COVERAGE_PATH).to_lower() != _RELEASE_COVERAGE_SHA256:
+		_add_issue(issues, "pack_release_font_coverage_hash_mismatch")
+	if not FileAccess.file_exists(_RELEASE_COVERAGE_MANIFEST_PATH):
+		_add_issue(issues, "pack_release_font_manifest_missing")
+	else:
+		var expected_manifest_hash: String = str(
+			profile.get("coverage_manifest_sha256", "")
+		)
+		if (
+			not _is_lower_hex(expected_manifest_hash, 64)
+			or FileAccess.get_sha256(_RELEASE_COVERAGE_MANIFEST_PATH).to_lower()
+			!= expected_manifest_hash
+		):
+			_add_issue(issues, "pack_release_font_manifest_hash_mismatch")
+		_validate_packed_release_font_manifest(issues)
+
+	var seen: Dictionary = {}
+	var coverage_text: String = FileAccess.get_file_as_string(_RELEASE_COVERAGE_PATH)
+	for token: String in coverage_text.strip_edges().split(",", false):
+		var codepoint_text: String = token.strip_edges()
+		if not codepoint_text.begins_with("U+"):
+			_add_issue(issues, "pack_release_font_coverage_token_invalid:%s" % token)
+			continue
+		var codepoint: int = codepoint_text.trim_prefix("U+").hex_to_int()
+		if codepoint <= 0 or codepoint > 0x10FFFF or seen.has(codepoint):
+			_add_issue(issues, "pack_release_font_coverage_token_invalid:%s" % token)
+			continue
+		seen[codepoint] = true
+		var _codepoint_added: bool = codepoints.append(codepoint)
+	if codepoints.size() != _RELEASE_CODEPOINT_COUNT:
+		_add_issue(issues, "pack_release_font_coverage_count_mismatch:%d" % codepoints.size())
+	return codepoints
+
+
+func _validate_packed_release_font_manifest(issues: PackedStringArray) -> void:
+	var read_report: Dictionary = GFBoundedJsonObjectReader.read_object(
+		_RELEASE_COVERAGE_MANIFEST_PATH,
+		_FONT_MANIFEST_JSON_MAX_BYTES,
+		_FONT_MANIFEST_JSON_MAX_DEPTH
+	)
+	if not _boolean_value(read_report.get("ok")):
+		_add_issue(issues, "pack_release_font_manifest_invalid:%s" % (
+			str(read_report.get("error_kind", "invalid"))
+		))
+		return
+	var manifest: Dictionary = _dictionary_value(read_report.get("data"))
+	var coverage: Dictionary = _dictionary_value(manifest.get("coverage", {}))
+	var source_font: Dictionary = _dictionary_value(manifest.get("source_font", {}))
+	var subset_font: Dictionary = _dictionary_value(manifest.get("subset_font", {}))
+	var license: Dictionary = _dictionary_value(manifest.get("license", {}))
+	if _integer_value(manifest.get("schema_version")) != 1:
+		_add_issue(issues, "pack_release_font_manifest_schema_invalid")
+	if str(manifest.get("policy_id", "")) != "wechat-release-shipped-literals-v1":
+		_add_issue(issues, "pack_release_font_manifest_policy_invalid")
+	if (
+		_integer_value(coverage.get("codepoint_count")) != _RELEASE_CODEPOINT_COUNT
+		or str(coverage.get("codepoints_sha256", "")) != _RELEASE_COVERAGE_SHA256
+	):
+		_add_issue(issues, "pack_release_font_manifest_coverage_invalid")
+	if (
+		str(source_font.get("path", "")) != _RELEASE_SOURCE_FONT_PATH
+		or str(source_font.get("sha256", "")) != _RELEASE_SOURCE_FONT_SHA256
+	):
+		_add_issue(issues, "pack_release_font_manifest_source_invalid")
+	if (
+		str(subset_font.get("path", "")) != _RELEASE_FONT_PATH.trim_prefix("res://")
+		or str(subset_font.get("sha256", "")) != _RELEASE_FONT_SHA256
+		or _integer_value(subset_font.get("bytes")) != _RELEASE_FONT_BYTES
+	):
+		_add_issue(issues, "pack_release_font_manifest_subset_invalid")
+	if (
+		str(license.get("path", "")) != _RELEASE_LICENSE_PATH
+		or str(license.get("spdx", "")) != "OFL-1.1"
+		or str(license.get("sha256", "")) != _RELEASE_LICENSE_SHA256
+	):
+		_add_issue(issues, "pack_release_font_manifest_license_invalid")
+
+
 func _pack_host_is_isolated() -> bool:
-	if ResourceLoader.exists(_SMOKE_FONT_PATH):
+	if (
+		ResourceLoader.exists(_SMOKE_FONT_PATH)
+		or ResourceLoader.exists(_RELEASE_FONT_PATH)
+	):
 		return false
 	for variation_path: String in _FONT_VARIATION_PATHS:
 		if ResourceLoader.exists(variation_path):

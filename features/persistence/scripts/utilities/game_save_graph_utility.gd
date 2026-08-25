@@ -107,9 +107,6 @@ var _profile_transition_lease: GFAsyncGateLease = null
 var _profile_transition_diagnostic_id: StringName = &""
 var _platform_backgrounded: bool = false
 var _profile_file_name: String = PROFILE_FILE_NAME
-var _profile_delete_operations: Dictionary = {}
-var _profile_delete_waiters: Dictionary = {}
-var _profile_delete_file_names: Dictionary = {}
 var _profile_cleanup_paths: Dictionary = {}
 var _profile_cleanup_sagas: Dictionary = {}
 var _last_profile_cleanup_evidence: Dictionary = {}
@@ -276,34 +273,22 @@ func dispose() -> void:
 	# 正常关闭已由 begin_quiesce() 等到物理删除终态。强制 dispose 只能结束
 	# caller 观察；GFStorage 仍继续持有已接纳的 worker 与同文件锁到物理收敛，
 	# 此处清理的是已销毁项目模块的诊断引用，不宣称磁盘工作已取消。
-	for operation_value: Variant in _profile_delete_operations.values():
-		if not (operation_value is GFStorageAsyncOperation):
+	for saga_value: Variant in _profile_cleanup_sagas.values():
+		if not saga_value is GameSaveProfileCleanupSaga:
 			continue
-		var operation: GFStorageAsyncOperation = operation_value
+		var saga: GameSaveProfileCleanupSaga = saga_value
+		var operation: GFStorageAsyncOperation = saga.get_main_operation()
 		if operation.is_caller_pending():
 			var _cancelled_observation: bool = operation.cancel_observation(
 				&"save_graph_disposed"
 			)
-	for saga_value: Variant in _profile_cleanup_sagas.values():
-		if not saga_value is ProfileCleanupSaga:
-			continue
-		var saga: ProfileCleanupSaga = saga_value
-		if (
-			saga.active_derived_operation != null
-			and saga.active_derived_operation.is_pending()
-		):
-			var _cancelled_cleanup: bool = (
-				saga.active_derived_operation.request_cancel(
-					&"save_graph_disposed"
-				)
-			)
+		var _cancelled_cleanup: bool = saga.request_active_derived_cancel(
+			&"save_graph_disposed"
+		)
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
 	_clear_async_tracking()
 	_disposed = true
-	_profile_delete_operations.clear()
-	_profile_delete_waiters.clear()
-	_profile_delete_file_names.clear()
 	_profile_cleanup_paths.clear()
 	_profile_cleanup_sagas.clear()
 	if not _registered_profiles.is_empty():
@@ -511,6 +496,7 @@ func request_save_profile(
 	if (
 		_quiescing
 		or _is_profile_transition_in_progress()
+		or is_section_reconciliation_pending()
 		or _profile_utility == null
 		or _active_profile_id == &""
 	):
@@ -530,6 +516,7 @@ func request_load_profile(
 	if (
 		_quiescing
 		or _is_profile_transition_in_progress()
+		or is_section_reconciliation_pending()
 		or _profile_utility == null
 		or _active_profile_id == &""
 	):
@@ -559,6 +546,7 @@ func request_flush_profile(
 	if (
 		_quiescing
 		or _is_profile_transition_in_progress()
+		or is_section_reconciliation_pending()
 		or _profile_utility == null
 		or _active_profile_id == &""
 	):
@@ -949,13 +937,16 @@ func get_debug_snapshot() -> Dictionary:
 		)
 	var main_pending_count: int = 0
 	var derived_pending_count: int = 0
+	var caller_waiter_count: int = 0
 	for saga_value: Variant in _profile_cleanup_sagas.values():
-		if not saga_value is ProfileCleanupSaga:
+		if not saga_value is GameSaveProfileCleanupSaga:
 			continue
-		var saga: ProfileCleanupSaga = saga_value
-		if saga.completed:
+		var saga: GameSaveProfileCleanupSaga = saga_value
+		if saga.has_caller_waiter():
+			caller_waiter_count += 1
+		if saga.is_completed():
 			continue
-		if saga.phase == &"main_delete":
+		if saga.is_waiting_for_main_delete():
 			main_pending_count += 1
 		else:
 			derived_pending_count += 1
@@ -976,7 +967,7 @@ func get_debug_snapshot() -> Dictionary:
 			&"pending_count": _profile_cleanup_paths.size(),
 			&"main_pending_count": main_pending_count,
 			&"derived_pending_count": derived_pending_count,
-			&"caller_waiter_count": _profile_delete_waiters.size(),
+			&"caller_waiter_count": caller_waiter_count,
 			&"last_terminal": _last_profile_cleanup_evidence.duplicate(true),
 		},
 	}
@@ -1117,7 +1108,7 @@ func _delete_inactive_profile_file_async(
 	)
 	if not options.is_valid():
 		return ERR_INVALID_PARAMETER
-	var saga: ProfileCleanupSaga = _begin_profile_cleanup_saga(
+	var saga: GameSaveProfileCleanupSaga = _begin_profile_cleanup_saga(
 		canonical_name,
 		options,
 		true,
@@ -1125,8 +1116,8 @@ func _delete_inactive_profile_file_async(
 	)
 	if saga == null:
 		return ERR_CANT_CREATE
-	var operation: GFStorageAsyncOperation = saga.main_operation
-	var request_id: int = saga.request_id
+	var operation: GFStorageAsyncOperation = saga.get_main_operation()
+	var request_id: int = saga.get_request_id()
 	# connect 前后的同步查询与逐帧 fallback 共同闭合终态竞态：即使一次性
 	# 信号连接失败或终态恰好已写入，caller 也不会永久等待。
 	_poll_profile_delete_operation_terminals()
@@ -1137,23 +1128,20 @@ func _delete_inactive_profile_file_async(
 		caller_result
 	)
 	if result_error == ERR_TIMEOUT:
-		saga.caller_outcome_unknown = true
-		var _timeout_waiter_erased: bool = _profile_delete_waiters.erase(
-			request_id
-		)
-		if saga.completed:
+		var _timeout_waiter_detached: bool = saga.detach_caller_waiter(true)
+		if saga.is_completed():
 			var _timeout_saga_erased: bool = _profile_cleanup_sagas.erase(
 				request_id
 			)
 		return ERR_TIMEOUT
 	# caller 在观察窗口内得到 main 的确定终态时，外层调用必须继续等待全部
 	# 派生 family 的物理终态，不能把 main success 提前暴露为清理完成。
-	while not saga.completed and not _disposing:
+	while not saga.is_completed() and not _disposing:
 		var _cleanup_request_id: int = await _profile_cleanup_progressed
 	var final_error: Error = (
-		saga.final_error if saga.completed else ERR_UNAVAILABLE
+		saga.get_final_error() if saga.is_completed() else ERR_UNAVAILABLE
 	)
-	var _waiter_erased: bool = _profile_delete_waiters.erase(request_id)
+	var _waiter_detached: bool = saga.detach_caller_waiter()
 	var _saga_erased: bool = _profile_cleanup_sagas.erase(request_id)
 	return final_error
 
@@ -1164,7 +1152,7 @@ func _begin_profile_cleanup_saga(
 	options: GFStorageAsyncRequestOptions,
 	observe_caller: bool,
 	cleanup_kind: StringName
-) -> ProfileCleanupSaga:
+) -> GameSaveProfileCleanupSaga:
 	if (
 		canonical_name.is_empty()
 		or cleanup_kind.is_empty()
@@ -1179,19 +1167,18 @@ func _begin_profile_cleanup_saga(
 	if operation == null:
 		return null
 	var request_id: int = operation.get_request_id()
-	if request_id <= 0 or _profile_delete_operations.has(request_id):
+	if request_id <= 0 or _profile_cleanup_sagas.has(request_id):
 		return null
-	var saga: ProfileCleanupSaga = ProfileCleanupSaga.new()
-	saga.request_id = request_id
-	saga.canonical_name = canonical_name
-	saga.cleanup_kind = cleanup_kind
-	saga.main_operation = operation
-	_profile_delete_operations[request_id] = operation
-	_profile_delete_file_names[request_id] = canonical_name
+	var saga: GameSaveProfileCleanupSaga = GameSaveProfileCleanupSaga.create(
+		canonical_name,
+		cleanup_kind,
+		operation,
+		observe_caller
+	)
+	if saga == null:
+		return null
 	_profile_cleanup_paths[canonical_name] = request_id
 	_profile_cleanup_sagas[request_id] = saga
-	if observe_caller:
-		_profile_delete_waiters[request_id] = true
 	_track_profile_cleanup_operation(operation)
 	if not operation.is_completed():
 		var physical_connection: GFSignalConnection = (
@@ -1230,30 +1217,35 @@ func _begin_profile_cleanup_saga(
 
 ## 只以主请求的物理终态决定是否允许删除派生 family。
 func _run_profile_cleanup_saga_async(request_id: int) -> void:
-	var saga: ProfileCleanupSaga = _get_profile_cleanup_saga(request_id)
+	var saga: GameSaveProfileCleanupSaga = _get_profile_cleanup_saga(request_id)
 	if saga == null:
 		return
-	while not saga.main_operation.is_completed() and not _disposing:
+	var main_operation: GFStorageAsyncOperation = saga.get_main_operation()
+	while not main_operation.is_completed() and not _disposing:
 		var _main_progress_request_id: int = await _profile_cleanup_progressed
 	if _disposing:
 		return
-	saga.main_error = _profile_delete_physical_result_to_error(
-		saga.main_operation.get_result()
+	var main_error: Error = _profile_delete_physical_result_to_error(
+		main_operation.get_result()
 	)
-	if saga.main_error == OK:
-		saga.phase = &"derived_cleanup"
-		saga.derived_error = await _cleanup_manifest_families_async(saga)
+	if not saga.settle_main_delete(main_error):
+		_log_error("Profile 清理主删除终态无法推进请求 %d。" % request_id)
+		return
+	if not saga.is_completed():
+		var derived_error: Error = await _cleanup_manifest_families_async(saga)
+		if _disposing:
+			return
+		if not saga.complete_derived_cleanup(derived_error):
+			_log_error("Profile 清理派生终态无法闭合请求 %d。" % request_id)
+			return
 	if _disposing:
 		return
-	saga.final_error = (
-		saga.main_error if saga.main_error != OK else saga.derived_error
-	)
-	_complete_profile_cleanup_saga(saga)
+	_publish_profile_cleanup_saga_terminal(saga)
 
 
 ## 动态遍历当前注册的 Manifest Provider；不硬编码 bookmarks/replays。
 func _cleanup_manifest_families_async(
-	saga: ProfileCleanupSaga
+	saga: GameSaveProfileCleanupSaga
 ) -> Error:
 	if saga == null or _chunk_profiles == null:
 		return ERR_UNCONFIGURED
@@ -1262,10 +1254,11 @@ func _cleanup_manifest_families_async(
 		if provider is ManifestBackedSaveSectionProvider:
 			var manifest_provider: ManifestBackedSaveSectionProvider = provider
 			manifest_providers.append(manifest_provider)
-	saga.derived_total_count = manifest_providers.size()
+	if not saga.begin_derived_cleanup(manifest_providers.size()):
+		return ERR_INVALID_DATA
 	var first_error: Error = OK
 	var main_profile_id: StringName = _make_runtime_profile_id(
-		saga.canonical_name
+		saga.get_canonical_name()
 	)
 	for manifest_provider: ManifestBackedSaveSectionProvider in manifest_providers:
 		var cleanup_error: Error = await _cleanup_manifest_family_async(
@@ -1275,9 +1268,7 @@ func _cleanup_manifest_families_async(
 		)
 		if _disposing:
 			return ERR_UNAVAILABLE
-		saga.derived_completed_count += 1
 		if cleanup_error != OK:
-			saga.derived_failed_count += 1
 			if first_error == OK:
 				first_error = cleanup_error
 	return first_error
@@ -1285,7 +1276,7 @@ func _cleanup_manifest_families_async(
 
 ## typed BUSY 只表示同 scope 已有 cleanup owner；等待其 settlement 后幂等重试。
 func _cleanup_manifest_family_async(
-	saga: ProfileCleanupSaga,
+	saga: GameSaveProfileCleanupSaga,
 	main_profile_id: StringName,
 	section_id: StringName
 ) -> Error:
@@ -1293,13 +1284,17 @@ func _cleanup_manifest_family_async(
 		var operation: ChunkProfileCleanupOperation = (
 			_chunk_profiles.cleanup_derived_family_async(
 				main_profile_id,
-				saga.canonical_name,
+				saga.get_canonical_name(),
 				section_id
 			)
 		)
 		if operation == null:
+			var _missing_operation_settled: bool = (
+				saga.settle_derived_without_result(ERR_CANT_CREATE)
+			)
 			return ERR_CANT_CREATE
-		saga.active_derived_operation = operation
+		if not saga.bind_active_derived_operation(operation):
+			return ERR_INVALID_DATA
 		if operation.is_pending():
 			var _tracking_id: int = _track_async_handle(
 				operation,
@@ -1315,20 +1310,22 @@ func _cleanup_manifest_family_async(
 				)
 			_untrack_async_handle(operation)
 		if _disposing:
-			saga.active_derived_operation = null
 			return ERR_UNAVAILABLE
 		var result: ChunkProfileCleanupResult = operation.get_result()
-		saga.active_derived_operation = null
 		if result == null:
+			var _missing_result_settled: bool = (
+				saga.settle_derived_without_result(ERR_UNAVAILABLE)
+			)
 			return ERR_UNAVAILABLE
 		if result.get_status() == ChunkProfileCleanupResult.STATUS_BUSY:
-			saga.busy_retry_count += 1
+			if not saga.release_busy_derived_operation():
+				return ERR_INVALID_DATA
 			# 同一主线程上，fence 查询与 await signal 建立之间不会运行 cleanup
 			# settlement；若 owner 已先结算，直接重试即可，避免丢信号。
 			while (
 				_chunk_profiles.is_save_scope_fenced(
 					main_profile_id,
-					saga.canonical_name,
+					saga.get_canonical_name(),
 					section_id
 				)
 				and not _disposing
@@ -1337,153 +1334,42 @@ func _cleanup_manifest_family_async(
 					await _profile_cleanup_progressed
 				)
 			continue
-		saga.derived_results.append(result.to_dict())
-		if result.is_successful():
-			return OK
-		var result_error: Error = result.get_error_code()
-		return result_error if result_error != OK else FAILED
+		return saga.settle_derived_operation()
 	return ERR_UNAVAILABLE
 
 
-func _get_profile_cleanup_saga(request_id: int) -> ProfileCleanupSaga:
+func _get_profile_cleanup_saga(
+	request_id: int
+) -> GameSaveProfileCleanupSaga:
 	var value: Variant = GFVariantData.get_option_value(
 		_profile_cleanup_sagas,
 		request_id
 	)
-	if value is ProfileCleanupSaga:
-		var saga: ProfileCleanupSaga = value
+	if value is GameSaveProfileCleanupSaga:
+		var saga: GameSaveProfileCleanupSaga = value
 		return saga
 	return null
 
 
-func _complete_profile_cleanup_saga(saga: ProfileCleanupSaga) -> void:
-	if saga == null or saga.completed:
+func _publish_profile_cleanup_saga_terminal(
+	saga: GameSaveProfileCleanupSaga
+) -> void:
+	if saga == null or not saga.is_completed():
 		return
-	saga.completed = true
-	saga.phase = &"completed"
-	_last_profile_cleanup_evidence = _make_profile_cleanup_terminal_evidence(
-		saga
-	)
-	_release_profile_cleanup_identity(saga.request_id)
+	_last_profile_cleanup_evidence = saga.make_terminal_evidence()
+	var request_id: int = saga.get_request_id()
+	_release_profile_cleanup_identity(request_id)
 	var work_id: StringName = StringName(
-		"profile-cleanup:%d" % saga.request_id
+		"profile-cleanup:%d" % request_id
 	)
 	# path 必须在 terminal 通知前已释放，供 LocalAccount 的 late gate 查询。
 	profile_cleanup_task_terminal.emit(work_id)
-	_profile_cleanup_progressed.emit(saga.request_id)
-	if not _profile_delete_waiters.has(saga.request_id):
+	_profile_cleanup_progressed.emit(request_id)
+	if not saga.has_caller_waiter():
 		var _saga_erased: bool = _profile_cleanup_sagas.erase(
-			saga.request_id
+			request_id
 		)
 	_try_advance_quiesce()
-
-
-func _make_profile_cleanup_terminal_evidence(
-	saga: ProfileCleanupSaga
-) -> Dictionary:
-	if saga == null:
-		return {}
-	var caller_result: GFStorageAsyncCallerResult = (
-		saga.main_operation.get_caller_result()
-		if saga.main_operation != null
-		else null
-	)
-	var physical_result: GFStorageAsyncResult = (
-		saga.main_operation.get_result()
-		if saga.main_operation != null
-		else null
-	)
-	var delete_result: GFStorageDeleteResult = (
-		physical_result.get_delete_result()
-		if physical_result != null
-		else null
-	)
-	var first_derived: Dictionary = (
-		saga.derived_results.front()
-		if not saga.derived_results.is_empty()
-		else {}
-	)
-	var failure_phase: StringName = &"none"
-	if saga.main_error != OK:
-		failure_phase = &"main_delete"
-	elif saga.derived_error != OK:
-		failure_phase = &"derived_cleanup"
-	var derived_status: StringName = &"cleaned"
-	if saga.main_error != OK:
-		derived_status = &"not_started"
-	elif saga.derived_error != OK:
-		derived_status = &"partial_failure"
-	return {
-		&"ok": saga.final_error == OK,
-		&"cleanup_kind": saga.cleanup_kind,
-		&"phase": saga.phase,
-		&"failure_phase": failure_phase,
-		&"status": (
-			&"cleaned"
-			if saga.final_error == OK
-			else (
-				&"main_failed"
-				if saga.main_error != OK
-				else &"derived_partial"
-			)
-		),
-		&"error_code": int(saga.final_error),
-		&"main_error_code": int(saga.main_error),
-		&"derived_error_code": int(saga.derived_error),
-		&"derived_total_count": saga.derived_total_count,
-		&"derived_completed_count": saga.derived_completed_count,
-		&"derived_failed_count": saga.derived_failed_count,
-		&"derived_status": derived_status,
-		&"derived_first_status": GFVariantData.get_option_string_name(
-			first_derived,
-			&"status"
-		),
-		&"derived_first_error_code": GFVariantData.get_option_int(
-			first_derived,
-			&"error_code",
-			OK
-		),
-		&"derived_first_delete_failure_kind": GFVariantData.get_option_int(
-			first_derived,
-			&"first_delete_failure_kind",
-			int(GFStorageDeleteResult.FailureKind.NONE)
-		),
-		&"busy_retry_count": saga.busy_retry_count,
-		&"derived_results": saga.derived_results.duplicate(true),
-		&"caller_outcome_unknown": saga.caller_outcome_unknown,
-		&"main_caller_completed": caller_result != null,
-		&"main_caller_status": (
-			int(caller_result.get_status()) if caller_result != null else -1
-		),
-		&"main_caller_end_kind": (
-			int(caller_result.get_end_kind()) if caller_result != null else -1
-		),
-		&"main_caller_reason": (
-			caller_result.get_reason() if caller_result != null else &""
-		),
-		&"main_caller_error_code": (
-			int(caller_result.get_error_code()) if caller_result != null else -1
-		),
-		&"main_physical_settled": physical_result != null,
-		&"main_physical_settlement_kind": (
-			int(physical_result.get_settlement_kind())
-			if physical_result != null
-			else -1
-		),
-		&"main_physical_cancelled": (
-			physical_result.is_cancelled() if physical_result != null else false
-		),
-		&"main_physical_error_code": (
-			int(physical_result.get_error_code())
-			if physical_result != null
-			else -1
-		),
-		&"main_delete_failure_kind": (
-			int(delete_result.get_failure_kind())
-			if delete_result != null
-			else int(GFStorageDeleteResult.FailureKind.NONE)
-		),
-	}
 
 
 func _compile_section_providers() -> void:
@@ -2706,7 +2592,7 @@ func _reset_profile_file_async(profile_file_name: String) -> Error:
 	var _forgotten: bool = _registered_profiles.erase(released_profile_id)
 	_active_profile = null
 	_active_profile_id = &""
-	var saga: ProfileCleanupSaga = _begin_profile_cleanup_saga(
+	var saga: GameSaveProfileCleanupSaga = _begin_profile_cleanup_saga(
 		canonical_name,
 		null,
 		false,
@@ -2714,13 +2600,13 @@ func _reset_profile_file_async(profile_file_name: String) -> Error:
 	)
 	var cleanup_error: Error = ERR_CANT_CREATE
 	if saga != null:
-		while not saga.completed and not _disposing:
+		while not saga.is_completed() and not _disposing:
 			var _cleanup_request_id: int = await _profile_cleanup_progressed
 		cleanup_error = (
-			saga.final_error if saga.completed else ERR_UNAVAILABLE
+			saga.get_final_error() if saga.is_completed() else ERR_UNAVAILABLE
 		)
 		var _saga_erased: bool = _profile_cleanup_sagas.erase(
-			saga.request_id
+			saga.get_request_id()
 		)
 	# active reset 无论 main/derived 结果如何都恢复注册；错误优先级固定为
 	# register > main delete > derived cleanup（后两者已由 saga.first-error 合并）。
@@ -3934,7 +3820,6 @@ func _try_advance_quiesce() -> void:
 		_is_profile_transition_in_progress()
 		or _has_pending_section_transaction()
 		or is_section_reconciliation_pending()
-		or not _profile_delete_operations.is_empty()
 		or not _profile_cleanup_paths.is_empty()
 	):
 		return
@@ -4588,7 +4473,7 @@ func _on_profile_delete_caller_completed(
 	if operation == null:
 		return
 	var request_id: int = operation.get_request_id()
-	if not _profile_delete_operations.has(request_id):
+	if not _profile_cleanup_sagas.has(request_id):
 		return
 	_profile_cleanup_progressed.emit(request_id)
 
@@ -4600,7 +4485,7 @@ func _on_profile_delete_physical_completed(
 	if operation == null:
 		return
 	var request_id: int = operation.get_request_id()
-	if not _profile_delete_operations.has(request_id):
+	if not _profile_cleanup_sagas.has(request_id):
 		return
 	_profile_cleanup_progressed.emit(request_id)
 
@@ -4615,55 +4500,37 @@ func _on_chunk_cleanup_operation_settled(
 
 
 func _poll_profile_delete_operation_terminals() -> void:
-	for request_id_value: Variant in _profile_delete_operations.keys():
-		var request_id: int = GFVariantData.to_int(request_id_value)
-		var operation_value: Variant = GFVariantData.get_option_value(
-			_profile_delete_operations,
-			request_id
-		)
-		if not (operation_value is GFStorageAsyncOperation):
+	for saga_value: Variant in _profile_cleanup_sagas.values():
+		if not saga_value is GameSaveProfileCleanupSaga:
 			continue
-		var operation: GFStorageAsyncOperation = operation_value
-		var saga: ProfileCleanupSaga = _get_profile_cleanup_saga(request_id)
+		var saga: GameSaveProfileCleanupSaga = saga_value
+		var operation: GFStorageAsyncOperation = saga.get_main_operation()
 		if (
-			saga != null
-			and saga.phase == &"main_delete"
+			saga.is_waiting_for_main_delete()
 			and (
 				operation.is_completed()
 				or (
 					operation.is_caller_completed()
-					and _profile_delete_waiters.has(request_id)
+					and saga.has_caller_waiter()
 				)
 			)
 		):
-			_profile_cleanup_progressed.emit(request_id)
-	# pending derived operation 的信号连接若异常，tick 只在可查询的真实终态
-	# 出现后兜底唤醒；typed BUSY 则严格等待 cleanup_operation_settled。
-	for saga_value: Variant in _profile_cleanup_sagas.values():
-		if saga_value is ProfileCleanupSaga:
-			var saga: ProfileCleanupSaga = saga_value
-			if (
-				not saga.completed
-				and saga.active_derived_operation != null
-				and saga.active_derived_operation.is_completed()
-			):
-				_profile_cleanup_progressed.emit(saga.request_id)
+			_profile_cleanup_progressed.emit(saga.get_request_id())
+		# pending derived operation 的信号连接若异常，tick 只在可查询的真实终态
+		# 出现后兜底唤醒；typed BUSY 则严格等待 cleanup_operation_settled。
+		var derived_operation: ChunkProfileCleanupOperation = (
+			saga.get_active_derived_operation()
+		)
+		if derived_operation != null and derived_operation.is_completed():
+			_profile_cleanup_progressed.emit(saga.get_request_id())
 
 
 func _release_profile_cleanup_identity(request_id: int) -> void:
-	var file_name: String = GFVariantData.get_option_string(
-		_profile_delete_file_names,
-		request_id
-	)
-	var operation_value: Variant = GFVariantData.get_option_value(
-		_profile_delete_operations,
-		request_id
-	)
-	if operation_value is GFStorageAsyncOperation:
-		var operation: GFStorageAsyncOperation = operation_value
-		_untrack_async_handle(operation)
-	var _operation_erased: bool = _profile_delete_operations.erase(request_id)
-	var _file_erased: bool = _profile_delete_file_names.erase(request_id)
+	var saga: GameSaveProfileCleanupSaga = _get_profile_cleanup_saga(request_id)
+	if saga == null:
+		return
+	var file_name: String = saga.get_canonical_name()
+	_untrack_async_handle(saga.get_main_operation())
 	if (
 		not file_name.is_empty()
 		and GFVariantData.get_option_int(
@@ -4875,27 +4742,3 @@ func _resolve_optional_async_tracker() -> GFAsyncTrackerUtility:
 		_async_tracker = value
 		return _async_tracker
 	return null
-
-
-# --- 内部类 ---
-
-## 一次主 Profile delete/reset 与其全部派生 chunk family 的复合所有权。
-##
-## canonical_name 只在私有状态中保留；公开 evidence/debug 只输出计数和错误码。
-class ProfileCleanupSaga extends RefCounted:
-	var request_id: int = 0
-	var canonical_name: String = ""
-	var cleanup_kind: StringName = &""
-	var main_operation: GFStorageAsyncOperation = null
-	var active_derived_operation: ChunkProfileCleanupOperation = null
-	var phase: StringName = &"main_delete"
-	var caller_outcome_unknown: bool = false
-	var main_error: Error = OK
-	var derived_error: Error = OK
-	var final_error: Error = OK
-	var derived_total_count: int = 0
-	var derived_completed_count: int = 0
-	var derived_failed_count: int = 0
-	var busy_retry_count: int = 0
-	var derived_results: Array[Dictionary] = []
-	var completed: bool = false

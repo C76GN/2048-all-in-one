@@ -81,7 +81,7 @@
           "composition-root"
         ],
         "acceptance": [
-          "仅 app/scripts/boot.gd 与 boot_runtime.gd 可访问全局 Gf；test_gf_project_conformance.gd 的越界访问扫描为零。",
+          "仅 app/scripts/boot.gd、boot_runtime.gd 与 verification Module 的唯一 GfToolArchitectureAccess harness 可访问全局 Gf；运行时和其他工具的越界访问扫描为零。",
           "GameArchitectureInstaller 在 strict dependency lookup 下完成 init/ready/dispose；缺失已声明依赖时验证必须失败并报告依赖名。"
         ],
         "notes": ""
@@ -128,7 +128,7 @@
           "全局设置通过精确 GFSettingsStoreUtility alias 访问 GFStorage；GFSettingsUtility 拥有 activation、mutation admission、冻结保存、多目标 quiesce drain 与 dispose，项目只保留恢复、未来版本阻断和健康策略。payload 损坏可经同一 Store 覆写；GF 已提供绑定同一 Utility 原始 CORRUPT 读取的一次性 family-reset 授权，但项目尚未接入，私有结构损坏当前仍失败关闭：激活前阻止 READY，显式重载只恢复内存默认值并标记持久化失败、保留证据。后续只能消费 source-bound 授权和类型化 reset 终态，不得修改私有成员。",
           "项目只持有 GFStorage logical identity，不解析或管理 .gf-storage/v1 的私有 family 成员；Profile 删除必须使用 delete_file_request_async() 的 caller/physical 双终态，caller outcome-unknown 时继续持有账号协调锁与 logical identity，直到物理 completed 终态完成对账。",
           "大型 Section 采用 manifest-backed chunk Profiles：主 Profile 只保存严格 ChunkManifest，载荷按可信主身份派生到 A/B bank；单块不超过 128 KiB、单 Section 不超过 64 块或 8 MiB。inactive bank 不产生可见性，只有绑定的主 generation 已知持久化后才提交 Manifest；stage/main outcome-unknown 分别保留 exact Profile/scope fence 并通过 GF public snapshot 对账。",
-          "生产 tracers 为 bookmarks（业务 schema 9、Manifest schema 10、流 schema 2）与 replays（业务 schema 6、Manifest schema 8、流 schema 2）；书签的状态根、棋盘、2 MiB 历史和 8192-step trace，以及回放的大拓扑、终局方块和步骤都必须有界分帧，加载通过异步增量物化为一次性 PreparedState。",
+          "生产 tracers 为 bookmarks（业务 schema 9、Manifest schema 10、流 schema 2）与 replays（业务 schema 6、Manifest schema 8、流 schema 2）；书签的状态根、棋盘、2 MiB 历史和 8192-step trace，以及回放的可玩拓扑、终局方块和步骤都必须有界分帧，加载通过异步增量物化为一次性 PreparedState。Bookmark/Replay 统一消费 BoardTopology 的可玩性报告：宽、高、边界面积和有效格数量均不得超过 256。",
           "后期 provider 应用失败必须回滚先前 provider；创建、切换、重命名和删除账号只保留 request_* 类型化异步事务，不保留同步 CRUD 包装或重复 saga；账号切换和退出前的 GFSaveProfileOperation flush barrier 必须覆盖调用时最新 generation。Profile、目录或清理进入 STATUS_OUTCOME_UNKNOWN 时继续持有账号协调锁以及 profile/path 所有权，直到迟到终态、轮询证据或显式对账收敛；目录删除迟到成功还必须等待目标 Profile 清理成功，禁止伪装回滚成功、提前解锁、删除或复用路径；test_game_save_graph_utility.gd 与本地账号测试通过。",
           "跨账号统计的调用方 player_profiles 通过 LocalAccountSystem 冻结 progress-owned DeviceProgressAccountCatalogSnapshot；值对象只含 active_account_id 与规范 account_id/display_name/last_active_at/profile_file_name，构造和读取复制隔离。ProgressStatsSystem 不依赖 LocalAccountCatalogUtility 或 LocalPlayerAccount。",
           "设备快照请求先核对输入活动账号的 Profile 路径与 GameSaveGraphUtility 当前路径；不一致返回带 reconciliation 证据的 ERR_BUSY。一致时当前账号使用内存 section，N 个账号只提交 N-1 个 GFStorage 异步读取并由 GFAsyncBatch 汇总。UI 投影不重复读盘；无 caller token 也在 5 秒内返回 typed partial timeout，取消、dispose、迟到终态由 token 与 owner-bound GFSignalUtility 收敛。",
@@ -234,7 +234,8 @@
         "acceptance": [
           "普通玩家构建只保留无 UI、32 个完成操作与 16 个活动操作硬上限的运行诊断；Console、Overlay、Inspector 与 Screenshot 仅在 with_dev_tools 下安装。",
           "动态目录、场景与运行状态只通过 GFDiagnosticSnapshotProvider 在显式支持请求时惰性采集；普通快照不得隐式扫描场景树。",
-          "支持报告只导出有界、脱敏快照和 GFSessionTraceRecipe 约束的移动阶段耗时，不包含账号、棋盘、绝对路径、凭据或原始日志；诊断 GUT 通过。"
+          "支持报告只导出有界、脱敏快照和 GFSessionTraceRecipe 约束的移动阶段耗时，不包含账号、棋盘、绝对路径、凭据或原始日志；诊断 GUT 通过。",
+          "性能验收只在玩家显式同意且观测平台、输入、视口、布局、棋盘与渲染档精确匹配已声明用例时采集；帧时和输入到首反馈分别使用最多 256 个样本的 GFMetricSeries，并以 GFClock 单调时间计量。两项各少于 120 个样本或中途失配时只能报告 not_measured/partial，不得产出通过结论。"
         ],
         "notes": "移动轨迹设置默认关闭，只有玩家显式开启后才保留最近一局的内存事件，关闭时立即清空；轨迹使用项目共享 GFClock 读取单调时间，不得把性能观测写入 canonical gameplay state。"
       },
@@ -872,7 +873,7 @@
       "项目业务代码必须位于严格 Feature-Cohesive 目录，目录真相来源是 gf_project_profile.json。",
       "项目代码不得直接修改 res://addons/gf；通用缺陷先进入 gf-framework GitHub issue，issue 是唯一协作与验收记录，不转为 PR；授权实现只在独立 gf-pr 工作区的非 main 分支完成并通过 GF 测试，gf-pr 仅表示隔离工作区；稳定线按正式发布更新，开发兼容线只同步 GF 官方 main 上游门禁通过的精确 source commit；两条线都必须完整更新 vendor lock 且不得携带项目补丁。",
       "用户自有 gf 工作区只对本项目自动化与协作者只读，不限制用户本人继续维护；授权框架实现仅在独立 gf-pr 工作区的非 main 分支进行，gf-pr 不代表授权创建 GitHub PR。",
-      "R1A 将 res://app 限定为唯一 Composition Root，每个非平台 Feature 是独立 architecture Module；Feature 不得依赖 Composition Root，跨 Module 依赖只能沿 allowed_dependencies 的无环方向并由 GF Composition Root 声明与注入，只有 app 启动链可以访问全局 Gf。",
+      "R1A 将 res://app 限定为唯一 Composition Root，每个非平台 Feature 是独立 architecture Module；Feature 不得依赖 Composition Root，跨 Module 依赖只能沿 allowed_dependencies 的无环方向并由 GF Composition Root 声明与注入。玩家运行时只有 app 启动链可以访问全局 Gf；verification Module 仅允许 GfToolArchitectureAccess 作为真实运行态验收 harness，其他工具不得直接解析 Gf 节点或动态转发任意成员。",
       "业务随机数使用 GFSeedUtility，共享时间使用 GFClock；回放、撤销和书签必须保持确定性。",
       "UI 导航使用 GFUIRouterUtility，跨生命周期信号使用 GFSignalUtility，玩家输入使用 GFInputMappingUtility；动画门控期的短时最新移动意图使用 GFInputAssistUtility。",
       "资源身份由 ProjectContentCatalogUtility 和 ProjectResourceCatalogUtility 统一管理；业务代码不保留路径后备。",
@@ -1332,7 +1333,7 @@
     },
     {
       "id": "wechat_export_toolchain",
-      "question": "本地 toolchain_smoke 已锁定 godothub/godot-minigame 4.7 模板、项目自有确定性导出器和 4 MiB 异步分块大文件读取层；离线 JS、产物与包内门禁已通过，开发者工具模拟器复验、真机、平台 SDK capability 范围、完整游戏资源交付和 CI 发布环境仍未锁定。",
+      "question": "本地 toolchain_smoke 与无 platform_smoke 的 full_game_release_candidate 已锁定 godothub/godot-minigame 4.7 模板、项目自有确定性导出器、正式字体闭包和 4 MiB 异步分块大文件读取层；首次完整候选的离线 JS、隔离产物、包内字体与 25,235,980-byte 总包门禁已通过。开发者工具已经打开候选并触发 refresh，但 automator/runtime/截图取证尚未成功，Android/iOS 真机、平台 SDK capability 范围和 CI 发布环境仍未锁定。",
       "blocking": false
     }
   ]

@@ -52,6 +52,14 @@ func get_result() -> GameSaveSectionResult:
 	return _result.duplicate_result() if _result != null else null
 
 
+## 等待并返回唯一业务终态；已完成句柄直接返回隔离副本。
+func await_result() -> GameSaveSectionResult:
+	var result: GameSaveSectionResult = get_result()
+	if result == null:
+		result = await completed
+	return result
+
+
 # --- 公共方法（GameSaveGraphUtility 协议） ---
 
 ## 由 GameSaveGraphUtility 初始化一次性句柄。

@@ -278,27 +278,7 @@ func _update_zoom_label() -> void:
 
 
 func _create_spatial_input_policy() -> GFSpatialCanvasInputPolicy:
-	var policy: GFSpatialCanvasInputPolicy = GFSpatialCanvasInputPolicy.new()
-	policy.pan_mouse_button = MOUSE_BUTTON_MIDDLE
-	policy.pan_action = &""
-	policy.pan_modifier_mask = GFSpatialCanvasInputPolicy.ModifierMask.NONE
-	policy.selection_mouse_button = MOUSE_BUTTON_NONE
-	policy.selection_action = &""
-	policy.selection_modifier_bindings.clear()
-	policy.wheel_axis = GFSpatialCanvasInputPolicy.WheelAxis.VERTICAL
-	policy.wheel_routing = GFSpatialCanvasInputPolicy.WheelRouting.CANVAS
-	policy.wheel_modifier_mask = GFSpatialCanvasInputPolicy.ModifierMask.NONE
-	policy.wheel_zoom_factor = _ZOOM_STEP
-	policy.touch_enabled = true
-	policy.touch_primary_behavior = GFSpatialCanvasInputPolicy.TouchPrimaryBehavior.NONE
-	policy.touch_multi_pan_enabled = true
-	policy.touch_multi_zoom_enabled = true
-	policy.system_pan_gesture_enabled = true
-	policy.system_magnify_gesture_enabled = true
-	policy.placement_cancel_action = &""
-	policy.consume_handled_events = true
-	policy.consume_wheel_events = true
-	return policy
+	return GameSpatialCanvasInputPolicy.create_navigation_policy(_ZOOM_STEP)
 
 
 func _handle_mouse_event(event: InputEvent) -> bool:

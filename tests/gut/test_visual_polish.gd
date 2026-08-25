@@ -26,6 +26,7 @@ const _BOOT_RUNTIME_SCRIPT_PATH: String = "res://app/scripts/boot_runtime.gd"
 const _BOOT_MARK_TEXTURE_PATH: String = "res://features/asset_library/resources/textures/branding/printworks_boot_mark.png"
 const _BOOT_SPLASH_TEXTURE_PATH: String = "res://features/asset_library/resources/textures/branding/printworks_boot_splash.png"
 const _UI_STYLE_UTILITY_PATH: String = "res://features/themes/scripts/utilities/game_ui_style_utility.gd"
+const _UI_MOTION_UTILITY_PATH: String = "res://features/themes/scripts/utilities/game_ui_motion_utility.gd"
 const _HUD_SCRIPT_PATH: String = "res://features/game_session/scripts/ui/hud.gd"
 const _MAIN_MENU_BOARD_MOTIF_PATH: String = "res://features/navigation/scripts/ui/main_menu_board_motif.gd"
 const _SETTINGS_CALIBRATION_PREVIEW_SCRIPT: GDScript = preload(
@@ -413,6 +414,37 @@ func test_hud_action_icons_resolve_through_asset_library_keys() -> void:
 		"asset.texture.icon.bookmark_plus",
 	]:
 		assert_true(hud_source.contains(asset_key), "HUD 应使用素材键而不是缺字风险较高的 Unicode 符号：%s" % asset_key)
+
+
+func test_ui_style_and_motion_keep_button_presenter_ownership_separate() -> void:
+	var style_source: String = _read_text(_UI_STYLE_UTILITY_PATH)
+	var motion_source: String = _read_text(_UI_MOTION_UTILITY_PATH)
+	assert_false(
+		style_source.contains("GameButtonMotionPresenter"),
+		"Style Utility 不得创建、查询或驱动按钮动效 Presenter。"
+	)
+	for removed_method: String in [
+		"get_button_motion_presenter",
+		"set_button_motion_state",
+		"play_button_deal_in",
+		"complete_button_motion",
+	]:
+		assert_false(
+			style_source.contains("func %s" % removed_method),
+			"Style Utility 不得保留动效转发入口：%s。" % removed_method
+		)
+	assert_true(
+		style_source.contains("signal button_visual_style_applied"),
+		"Style Utility 应只发布静态按钮样式已经提交的事实。"
+	)
+	assert_true(
+		motion_source.contains("func _synchronize_button_motion_presenter"),
+		"Motion Utility 应完整拥有 Presenter 创建与静态样式同步。"
+	)
+	assert_true(
+		motion_source.contains("func complete_button_motion"),
+		"Motion Utility 应拥有按钮动效静态完成入口。"
+	)
 
 
 func test_gameplay_visual_warmup_primes_tiles_and_feedback_without_runtime_assets() -> void:
@@ -993,7 +1025,7 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 	assert_true(motion_utility.bind_interactive_controls(root) == 0, "重复绑定不应重复连接同一按钮。")
 	button.mouse_entered.emit()
 	var presenter: GameButtonMotionPresenter = (
-		style_utility.get_button_motion_presenter(button)
+		motion_utility.get_button_motion_presenter(button)
 	)
 	assert_not_null(presenter, "普通 Button 应挂载稳定布局内的纸片动效 Presenter。")
 	var active_face_size: Vector2 = Vector2.ZERO
@@ -1114,6 +1146,97 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 	architecture.dispose()
 
 
+func test_ui_motion_utility_dispose_releases_button_for_new_owner() -> void:
+	var root: Control = Control.new()
+	var button: Button = Button.new()
+	button.custom_minimum_size = Vector2(180.0, 56.0)
+	root.add_child(button)
+	add_child_autoqfree(root)
+	await get_tree().process_frame
+
+	var first_architecture: GFArchitecture = GFArchitecture.new()
+	var first_style: GameUiStyleUtility = GameUiStyleUtility.new()
+	var first_motion: GameUiMotionUtility = GameUiMotionUtility.new()
+	var first_accessibility: GameAccessibilityUtility = (
+		await _register_accessibility_stack(first_architecture)
+	)
+	await _register_asset_library_stack(first_architecture)
+	await first_architecture.register_utility(
+		GFShaderParameterUtility,
+		GFShaderParameterUtility.new()
+	)
+	await first_architecture.register_utility(GameUiStyleUtility, first_style)
+	await first_architecture.register_utility(
+		GameAccessibilityUtility,
+		first_accessibility
+	)
+	await first_architecture.register_utility(GameUiMotionUtility, first_motion)
+	await first_architecture.init()
+	first_style.apply_palette(_HALFTONE_UI_PALETTE)
+	var first_selected_count: Array[int] = [0]
+	var _first_selected_connection: int = first_motion.interactive_control_selected.connect(func(_control: Control) -> void:
+		first_selected_count[0] += 1
+	)
+	assert_true(first_motion.bind_button(button), "首个 Motion owner 应成功绑定按钮。")
+	var first_presenter: GameButtonMotionPresenter = (
+		first_motion.get_button_motion_presenter(button)
+	)
+	assert_not_null(first_presenter, "首个 Motion owner 应创建自己的 Presenter。")
+
+	first_architecture.dispose()
+	assert_null(
+		first_motion.get_button_motion_presenter(button),
+		"Motion owner dispose 后必须从按钮移除其 Presenter。"
+	)
+
+	var second_architecture: GFArchitecture = GFArchitecture.new()
+	var second_style: GameUiStyleUtility = GameUiStyleUtility.new()
+	var second_motion: GameUiMotionUtility = GameUiMotionUtility.new()
+	var second_accessibility: GameAccessibilityUtility = (
+		await _register_accessibility_stack(second_architecture)
+	)
+	await _register_asset_library_stack(second_architecture)
+	await second_architecture.register_utility(
+		GFShaderParameterUtility,
+		GFShaderParameterUtility.new()
+	)
+	await second_architecture.register_utility(GameUiStyleUtility, second_style)
+	await second_architecture.register_utility(
+		GameAccessibilityUtility,
+		second_accessibility
+	)
+	await second_architecture.register_utility(GameUiMotionUtility, second_motion)
+	await second_architecture.init()
+	second_style.apply_palette(_HALFTONE_UI_PALETTE)
+	var second_selected_count: Array[int] = [0]
+	var _second_selected_connection: int = second_motion.interactive_control_selected.connect(func(_control: Control) -> void:
+		second_selected_count[0] += 1
+	)
+	assert_true(
+		second_motion.bind_button(button),
+		"首个 owner dispose 后，新 Motion owner 应重新绑定同一按钮。"
+	)
+	var second_presenter: GameButtonMotionPresenter = (
+		second_motion.get_button_motion_presenter(button)
+	)
+	assert_not_null(second_presenter, "新 Motion owner 应创建自己的 Presenter。")
+	assert_true(
+		second_presenter != first_presenter,
+		"新 Motion owner 不得复用已经释放的 Presenter。"
+	)
+
+	button.mouse_entered.emit()
+	assert_true(
+		first_selected_count[0] == 0,
+		"已 dispose 的 Motion owner 不得继续接收按钮信号。"
+	)
+	assert_true(
+		second_selected_count[0] == 1,
+		"重新绑定后只有新 Motion owner 应接收按钮信号。"
+	)
+	second_architecture.dispose()
+
+
 func test_button_deal_in_preserves_focus_and_interaction_restores_text() -> void:
 	var root: Control = Control.new()
 	var button: Button = Button.new()
@@ -1157,7 +1280,7 @@ func test_button_deal_in_preserves_focus_and_interaction_restores_text() -> void
 
 	button.grab_focus()
 	var presenter: GameButtonMotionPresenter = (
-		style_utility.get_button_motion_presenter(button)
+		motion_utility.get_button_motion_presenter(button)
 	)
 	assert_not_null(presenter, "发牌按钮应挂载纸片 Presenter。")
 	var buttons: Array[BaseButton] = [button]
@@ -1234,13 +1357,13 @@ func test_button_motion_tracks_disabled_and_static_visual_policy() -> void:
 		"禁用态回归夹具应绑定一个按钮。"
 	)
 	var presenter: GameButtonMotionPresenter = (
-		style_utility.get_button_motion_presenter(button)
+		motion_utility.get_button_motion_presenter(button)
 	)
 	assert_not_null(presenter, "运行时策略切换前应存在纸片 Presenter。")
 
 	style_utility.set_static_visuals_enabled(true, root)
 	assert_true(
-		style_utility.get_button_motion_presenter(button) == presenter,
+		motion_utility.get_button_motion_presenter(button) == presenter,
 		"降低持续 VFX 时不得替换或丢失纸片 Presenter。"
 	)
 	assert_true(
@@ -1249,7 +1372,7 @@ func test_button_motion_tracks_disabled_and_static_visual_policy() -> void:
 	)
 	style_utility.set_static_visuals_enabled(false, root)
 	assert_true(
-		style_utility.get_button_motion_presenter(button) == presenter,
+		motion_utility.get_button_motion_presenter(button) == presenter,
 		"恢复完整 VFX 时应继续复用原 Presenter。"
 	)
 	assert_true(
@@ -1362,7 +1485,7 @@ func test_primary_button_hover_and_focus_stay_inside_layout_footprint() -> void:
 		"主操作 focus 不得缩放布局根节点，键盘/手柄路径必须与鼠标路径同样防裁切。"
 	)
 	var presenter: GameButtonMotionPresenter = (
-		style_utility.get_button_motion_presenter(button)
+		motion_utility.get_button_motion_presenter(button)
 	)
 	assert_not_null(presenter, "主操作应通过内部 Presenter 获得强反馈。")
 	if presenter != null:
@@ -1834,26 +1957,19 @@ func test_ui_style_utility_uses_hard_offset_depth_for_primary_actions_and_shells
 		2
 	)
 
-	var presenter: GameButtonMotionPresenter = (
-		style_utility.get_button_motion_presenter(primary_button)
+	var normal_style: StyleBoxFlat = _get_stylebox_flat(
+		primary_button,
+		&"normal"
 	)
-	var normal_style: StyleBoxFlat = null
-	var pressed_style: StyleBoxFlat = null
-	if presenter != null:
-		presenter.set_motion_state(
-			GameButtonMotionPresenter.MotionState.REST,
-			false,
-			false
-		)
-		normal_style = _get_stylebox_flat(presenter.get_face(), &"panel")
-		presenter.set_motion_state(
-			GameButtonMotionPresenter.MotionState.PRESSED,
-			false,
-			false
-		)
-		pressed_style = _get_stylebox_flat(presenter.get_face(), &"panel")
+	var pressed_style: StyleBoxFlat = _get_stylebox_flat(
+		primary_button,
+		&"pressed"
+	)
 	var shell_style: StyleBoxFlat = _get_stylebox_flat(shell, &"panel")
-	assert_not_null(presenter, "主操作必须使用不改变布局根节点的纸片 Presenter。")
+	assert_null(
+		primary_button.get_node_or_null("ButtonMotionPresenter"),
+		"Style Utility 只应提交静态 StyleBox，不得创建动效 Presenter。"
+	)
 	assert_not_null(normal_style, "主操作必须获得主题化常态样式。")
 	assert_not_null(pressed_style, "主操作必须获得主题化按下样式。")
 	assert_not_null(shell_style, "顶层任务表面必须获得 SHELL 样式。")

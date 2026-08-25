@@ -33,8 +33,8 @@ const ASSET_SLOT_MAP_SCRIPT = preload("res://features/asset_library/scripts/data
 const SOURCE_EXCLUSION_INDEX_SCRIPT = preload(
 	"res://features/asset_library/scripts/data/asset_source_exclusion_index.gd"
 )
-const BOUNDED_JSON_READER_SCRIPT = preload(
-	"res://features/asset_library/scripts/data/asset_bounded_json_object_reader.gd"
+const JSON_ENTRY_BUDGET_SCRIPT = preload(
+	"res://features/asset_library/scripts/data/asset_json_entry_budget.gd"
 )
 
 const AUDIO_EXTENSIONS: Array[String] = ["wav", "ogg", "mp3", "opus", "m4a"]
@@ -1139,13 +1139,14 @@ func _read_json_report(path: String, allow_missing: bool = false) -> Dictionary:
 			"observed_depth": 0,
 			"entry_count": 0,
 		}
-	var read_report: Dictionary = BOUNDED_JSON_READER_SCRIPT.read_object_report(
+	var read_report: Dictionary = GFBoundedJsonObjectReader.read_object(
 		path,
-		{
-			"max_file_bytes": MAX_CONFIG_FILE_BYTES,
-			"max_depth": MAX_CONFIG_DEPTH,
-			"max_entries": MAX_CONFIG_ENTRIES,
-		}
+		MAX_CONFIG_FILE_BYTES,
+		MAX_CONFIG_DEPTH
+	)
+	read_report = JSON_ENTRY_BUDGET_SCRIPT.apply_to_read_report(
+		read_report,
+		MAX_CONFIG_ENTRIES
 	)
 	read_report["exists"] = FileAccess.file_exists(path)
 	return read_report

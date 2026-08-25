@@ -54,6 +54,31 @@ func test_codec_v2_roundtrip_splits_large_trace_into_bounded_frames() -> void:
 		assert_true(prepared.get_item_count() == 1)
 
 
+func test_bookmark_takeover_rejects_wide_sparse_topology_below_cell_limit() -> void:
+	var bookmark: BookmarkData = _make_bookmark(109, 2048)
+	var topology: BoardTopology = BoardTopology.create_custom(
+		[Vector2i.ZERO, Vector2i(10000, 10000)],
+		&"board.test.bookmark_hostile_span"
+	)
+	bookmark.board_snapshot = {
+		&"schema_version": GridModel.SNAPSHOT_SCHEMA_VERSION,
+		&"topology": topology.to_dict(),
+		&"tiles": [],
+	}
+	var record: Dictionary = bookmark.to_dict()
+
+	assert_true(topology.get_validation_report().is_ok())
+	assert_true(topology.get_cell_count() < BookmarkData.PERSISTED_BOARD_CELL_LIMIT)
+	assert_null(
+		BookmarkData.from_dict(record),
+		"书签接管不能只检查 active cell 数量。"
+	)
+	assert_null(
+		BookmarkChunkSourceSnapshot.take_ownership_of_immutable_items([record]),
+		"分块编码源必须在逐格物化前拒绝超宽书签拓扑。"
+	)
+
+
 func test_codec_rejects_truncation_trailing_and_noncanonical_header() -> void:
 	var valid_chunks: Array[PackedByteArray] = _encode_records([
 		_make_bookmark(102, 1024).to_dict(),

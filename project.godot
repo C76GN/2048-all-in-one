@@ -65,6 +65,7 @@ extensions/export_fail_on_disabled_references=true
 
 theme/custom_font="res://shared/assets/fonts/ui_sans_regular.tres"
 theme/custom_font.wechat_minigame_smoke="res://shared/assets/fonts/ui_sans_wechat_smoke.tres"
+theme/custom_font.wechat_minigame_release="res://shared/assets/fonts/ui_sans_wechat_release.tres"
 
 [input]
 

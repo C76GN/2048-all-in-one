@@ -7,6 +7,8 @@ extends GFUtility
 
 const _CMD_SUPPORT_REPORT: String = "support_report"
 const _CMD_SCREENSHOT: String = "screenshot"
+const _CMD_ACCEPTANCE_BEGIN: String = "acceptance.begin"
+const _CMD_ACCEPTANCE_END: String = "acceptance.end"
 const _LOG_TAG: String = "GameDiagnosticsUtility"
 const _REPORT_DIRECTORY: String = "user://diagnostics"
 const _SCREENSHOT_DIRECTORY: String = "user://diagnostics/screenshots"
@@ -17,6 +19,8 @@ const _MAX_SCENE_METADATA_NODES: int = 256
 const _RUNTIME_LOADING_PROVIDER_ID: StringName = &"runtime_loading"
 const _MAX_RUNTIME_LOADING_PATHS: int = 32
 const _RUNTIME_LOADING_MAX_DURATION_USEC: int = 50_000
+const _MAX_ACCEPTANCE_COMMAND_JSON_BYTES: int = 2048
+const _MAX_ACCEPTANCE_COMMAND_JSON_DEPTH: int = 4
 
 
 # --- 私有变量 ---
@@ -165,6 +169,12 @@ func get_debug_snapshot() -> Dictionary:
 		"registered_command_count": _command_subscriptions.size(),
 		"support_report_command_registered": _console_has_command(_CMD_SUPPORT_REPORT),
 		"screenshot_command_registered": _console_has_command(_CMD_SCREENSHOT),
+		"acceptance_begin_command_registered": _console_has_command(
+			_CMD_ACCEPTANCE_BEGIN
+		),
+		"acceptance_end_command_registered": _console_has_command(
+			_CMD_ACCEPTANCE_END
+		),
 		"overlay_panel_registered": (
 			_debug_overlay_utility != null
 			and _debug_overlay_utility.has_panel(_PROJECT_OVERLAY_PANEL_ID)
@@ -222,6 +232,76 @@ func collect_diagnostic_snapshot(provider_id: StringName) -> Dictionary:
 			return _collect_runtime_loading_snapshot()
 		_:
 			return {}
+
+
+## 显式开始一个与 GameplayAcceptanceMatrix 完整匹配的真实采样窗口。
+##
+## observed_contract 会先经过矩阵白名单与精确条件核对；匹配失败时不会创建
+## GFMetricSeries，也不会把调用方附带的额外字段保留到诊断状态。
+## @param case_id: GameplayAcceptanceMatrix 中待观测的验收 case 标识。
+## @param observed_contract: 本次真实采样环境的受支持条件字典。
+func begin_gameplay_acceptance_case(
+	case_id: StringName,
+	observed_contract: Dictionary
+) -> Dictionary:
+	var match_report: Dictionary = GameplayAcceptanceMatrix.match_observed_contract(
+		case_id,
+		observed_contract
+	)
+	if not GFVariantData.get_option_bool(match_report, &"ok"):
+		return {
+			&"accepted": false,
+			&"reason": GFVariantData.get_option_string_name(
+				match_report,
+				&"reason",
+				&"observed_contract_mismatch"
+			),
+			&"contract_match": match_report,
+		}
+	if not is_instance_valid(_performance_trace_utility):
+		return {
+			&"accepted": false,
+			&"reason": &"performance_trace_unavailable",
+			&"contract_match": match_report,
+		}
+
+	var acceptance_case: Dictionary = GameplayAcceptanceMatrix.get_case(case_id)
+	var observation: GamePerformanceAcceptanceObservation = (
+		GamePerformanceAcceptanceObservation.new().configure(
+			case_id,
+			GFVariantData.get_option_dictionary(
+				match_report,
+				&"observed_contract"
+			),
+			GFVariantData.get_option_int(
+				acceptance_case,
+				&"minimum_samples"
+			)
+		)
+	)
+	var result: Dictionary = (
+		_performance_trace_utility.begin_acceptance_measurement(observation)
+	)
+	result[&"contract_match"] = match_report
+	_refresh_gameplay_acceptance_tool_snapshot()
+	return result
+
+
+## 终结当前采样窗口并刷新 GF Diagnostics 缓存中的评估快照。
+func finish_gameplay_acceptance_case() -> Dictionary:
+	if not is_instance_valid(_performance_trace_utility):
+		return {
+			&"ok": false,
+			&"measurement_status": &"not_measured",
+			&"measurement_reason": &"performance_trace_unavailable",
+		}
+	var _finished: Dictionary = (
+		_performance_trace_utility.finish_acceptance_measurement()
+	)
+	var snapshot: Dictionary = _collect_gameplay_acceptance_matrix_snapshot()
+	if _diagnostics_utility != null:
+		_publish_tool_snapshot(&"gameplay_acceptance_matrix", snapshot)
+	return snapshot
 
 
 # --- 私有/辅助方法 ---
@@ -291,12 +371,18 @@ func _refresh_project_tool_snapshots() -> void:
 	)
 
 	# 仅发布架构就绪后不再变化、且采集成本固定的缓存事实。
+	_refresh_gameplay_acceptance_tool_snapshot()
+	_publish_tool_snapshot(&"architecture_dependencies", _collect_architecture_dependency_snapshot())
+	_refresh_project_overlay_panel()
+
+
+func _refresh_gameplay_acceptance_tool_snapshot() -> void:
+	if _diagnostics_utility == null:
+		return
 	_publish_tool_snapshot(
 		&"gameplay_acceptance_matrix",
 		_collect_gameplay_acceptance_matrix_snapshot()
 	)
-	_publish_tool_snapshot(&"architecture_dependencies", _collect_architecture_dependency_snapshot())
-	_refresh_project_overlay_panel()
 
 
 func _register_console_commands() -> void:
@@ -311,6 +397,19 @@ func _register_console_commands() -> void:
 		_CMD_SCREENSHOT,
 		Callable(self, &"_on_screenshot_command"),
 		"Capture the current viewport. The first optional argument sets the filename prefix."
+	)
+	_register_console_command(
+		_CMD_ACCEPTANCE_BEGIN,
+		Callable(self, &"_on_acceptance_begin_command"),
+		(
+			"Begin an explicitly observed gameplay acceptance case. "
+			+ "Arguments: <case_id> <bounded JSON object>."
+		)
+	)
+	_register_console_command(
+		_CMD_ACCEPTANCE_END,
+		Callable(self, &"_on_acceptance_end_command"),
+		"Finish the active gameplay acceptance capture and evaluate its evidence."
 	)
 
 
@@ -576,13 +675,91 @@ func _collect_ui_routes_snapshot() -> Dictionary:
 
 func _collect_gameplay_acceptance_matrix_snapshot() -> Dictionary:
 	var validation_report: GFValidationReport = GameplayAcceptanceMatrix.get_validation_report()
-	return {
+	var snapshot: Dictionary = {
 		&"ok": validation_report.is_ok(),
 		&"validation": validation_report.to_dict(),
 		&"cases": GameplayAcceptanceMatrix.get_cases(),
 		&"measured_results": [],
 		&"measurement_status": &"not_measured",
+		&"measurement_reason": &"not_measured",
 	}
+	if not is_instance_valid(_performance_trace_utility):
+		snapshot[&"measurement_reason"] = &"performance_trace_unavailable"
+		return snapshot
+
+	var state: Dictionary = (
+		_performance_trace_utility.get_acceptance_measurement_state()
+	)
+	snapshot[&"measurement"] = state
+	if not GFVariantData.get_option_bool(state, &"configured"):
+		snapshot[&"measurement_reason"] = GFVariantData.get_option_string_name(
+			state,
+			&"reason",
+			&"not_measured"
+		)
+		return snapshot
+	if GFVariantData.get_option_bool(state, &"active"):
+		snapshot[&"measurement_status"] = &"partial"
+		snapshot[&"measurement_reason"] = &"capture_active"
+		return snapshot
+	if not GFVariantData.get_option_bool(state, &"eligible_for_evaluation"):
+		snapshot[&"measurement_status"] = &"partial"
+		snapshot[&"measurement_reason"] = GFVariantData.get_option_string_name(
+			state,
+			&"reason",
+			&"evidence_invalidated"
+		)
+		return snapshot
+
+	var bundle: Dictionary = (
+		_performance_trace_utility.get_acceptance_measurement_bundle()
+	)
+	var observed_contract: Dictionary = GFVariantData.get_option_dictionary(
+		bundle,
+		&"observation"
+	)
+	var case_id: StringName = GFVariantData.get_option_string_name(
+		observed_contract,
+		&"case_id"
+	)
+	var match_report: Dictionary = GameplayAcceptanceMatrix.match_observed_contract(
+		case_id,
+		observed_contract
+	)
+	snapshot[&"contract_match"] = match_report
+	if not GFVariantData.get_option_bool(match_report, &"ok"):
+		snapshot[&"measurement_status"] = &"partial"
+		snapshot[&"measurement_reason"] = &"observed_contract_mismatch"
+		return snapshot
+
+	var frame_series_value: Variant = bundle.get(&"frame_time_ms")
+	var input_series_value: Variant = bundle.get(&"input_feedback_ms")
+	if (
+		not frame_series_value is GFMetricSeries
+		or not input_series_value is GFMetricSeries
+	):
+		snapshot[&"measurement_status"] = &"partial"
+		snapshot[&"measurement_reason"] = &"missing_metric_series"
+		return snapshot
+	var frame_series: GFMetricSeries = frame_series_value
+	var input_series: GFMetricSeries = input_series_value
+	var measured_result: Dictionary = GameplayAcceptanceMatrix.evaluate_case(
+		case_id,
+		frame_series,
+		input_series
+	)
+	snapshot[&"measured_results"] = [measured_result]
+	var evaluation_reason: StringName = GFVariantData.get_option_string_name(
+		measured_result,
+		&"reason"
+	)
+	if evaluation_reason != &"evaluated":
+		snapshot[&"measurement_status"] = &"partial"
+		snapshot[&"measurement_reason"] = evaluation_reason
+		return snapshot
+	snapshot[&"measurement_status"] = &"evaluated"
+	snapshot[&"measurement_reason"] = &"evaluated"
+	return snapshot
 
 
 func _collect_scene_asset_metadata_snapshot() -> Dictionary:
@@ -1038,6 +1215,66 @@ func _on_screenshot_command(args: PackedStringArray) -> void:
 		prefix = args[0].strip_edges()
 	_capture_screenshot(prefix)
 	_refresh_project_tool_snapshots()
+
+
+func _on_acceptance_begin_command(args: PackedStringArray) -> void:
+	if args.size() < 2:
+		_log_acceptance_command_result(false, &"missing_case_or_observation")
+		return
+	var json_parts: PackedStringArray = PackedStringArray()
+	for index: int in range(1, args.size()):
+		var _part_appended: bool = json_parts.append(args[index])
+	var read_report: Dictionary = GFBoundedJsonObjectReader.parse_object(
+		" ".join(json_parts),
+		_MAX_ACCEPTANCE_COMMAND_JSON_BYTES,
+		_MAX_ACCEPTANCE_COMMAND_JSON_DEPTH
+	)
+	if not GFVariantData.get_option_bool(read_report, &"ok"):
+		_log_acceptance_command_result(
+			false,
+			StringName(GFVariantData.get_option_string(
+				read_report,
+				&"error_kind",
+				"invalid_observation_json"
+			))
+		)
+		return
+	var result: Dictionary = begin_gameplay_acceptance_case(
+		StringName(args[0]),
+		GFVariantData.get_option_dictionary(read_report, &"data")
+	)
+	_log_acceptance_command_result(
+		GFVariantData.get_option_bool(result, &"accepted"),
+		GFVariantData.get_option_string_name(result, &"reason", &"unknown")
+	)
+
+
+func _on_acceptance_end_command(_args: PackedStringArray) -> void:
+	var snapshot: Dictionary = finish_gameplay_acceptance_case()
+	_log_acceptance_command_result(
+		GFVariantData.get_option_string_name(
+			snapshot,
+			&"measurement_status"
+		) == &"evaluated",
+		GFVariantData.get_option_string_name(
+			snapshot,
+			&"measurement_reason",
+			&"unknown"
+		)
+	)
+
+
+func _log_acceptance_command_result(
+	succeeded: bool,
+	reason: StringName
+) -> void:
+	if _log_utility == null:
+		return
+	var message: String = "Gameplay acceptance: %s." % String(reason)
+	if succeeded:
+		_log_utility.info(_LOG_TAG, message)
+	else:
+		_log_utility.warn(_LOG_TAG, message)
 
 
 func _capture_screenshot(prefix: String) -> void:

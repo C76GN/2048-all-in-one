@@ -153,13 +153,13 @@ Bookmarks 是首个分块持久化生产 tracer。业务 `BookmarkCatalogSaveDat
 
 目录 section、单条 `BookmarkData`、命令历史、状态 envelope 和 `GameSessionMetadata` 各自拥有独立 schema 常量，不得混淆。书签冻结 `ruleset_id`、`ruleset_version`、64 字符十六进制 `ruleset_fingerprint` 和资格上下文，恢复前必须与当前模式严格匹配；书签恢复会保留并增加 `bookmark` 失格原因。`rules_states` 是按稳定规则状态键保存的 `Dictionary`；`ratio_resolutions` 只表示规则执行次数，不携带阵营或击杀语义。
 
-棋盘快照的根字段严格为 `schema_version`、`topology` 和 `tiles`，精确版本分别由 `GridModel.SNAPSHOT_SCHEMA_VERSION`、`BoardTopology.SERIALIZATION_SCHEMA_VERSION` 和 `TileState.SERIALIZATION_SCHEMA_VERSION` 拥有。单书签棋盘及其每条命令快照最多 256 个活跃格和 256 个方块，typed replay actions/checkpoints 最多 8192 对且必须一一对应；v6 命令历史的 undo/redo 合计最多 64 条，二进制 envelope 不得超过 2 MiB，v5 迁移输入在完整验证后裁为最近 64 条再生成 v6。拓扑保存规范化活跃坐标；方块只能位于活跃单元，空洞不得以空方块伪装。每个方块显式保存 UUID v7、`definition_id`、当前实际 `capability_recipe_ids` 以及按 Recipe ID 隔离的 `capability_state`；该状态必须可由 GF deterministic Variant serializer 规范编码，Object、循环引用、unsupported Variant 与 NaN/Inf 在 gameplay 领域层直接拒绝。恢复时由 `TileCompositionUtility` 通过 GF Recipe 重建能力实例；不得仅按定义的初始 Recipe 猜测运行时组合。
+棋盘快照的根字段严格为 `schema_version`、`topology` 和 `tiles`，精确版本分别由 `GridModel.SNAPSHOT_SCHEMA_VERSION`、`BoardTopology.SERIALIZATION_SCHEMA_VERSION` 和 `TileState.SERIALIZATION_SCHEMA_VERSION` 拥有。单书签棋盘及其每条命令快照必须通过 `BoardTopology.get_playable_validation_report()`：最多 256 个活跃格和 256 个方块，包围盒宽高分别最多 256、面积最多 256；两格超宽之类的稀疏领域拓扑不得进入可恢复快照。typed replay actions/checkpoints 最多 8192 对且必须一一对应；v6 命令历史的 undo/redo 合计最多 64 条，二进制 envelope 不得超过 2 MiB，v5 迁移输入在完整验证后裁为最近 64 条再生成 v6。拓扑保存规范化活跃坐标；方块只能位于活跃单元，空洞不得以空方块伪装。每个方块显式保存 UUID v7、`definition_id`、当前实际 `capability_recipe_ids` 以及按 Recipe ID 隔离的 `capability_state`；该状态必须可由 GF deterministic Variant serializer 规范编码，Object、循环引用、unsupported Variant 与 NaN/Inf 在 gameplay 领域层直接拒绝。恢复时由 `TileCompositionUtility` 通过 GF Recipe 重建能力实例；不得仅按定义的初始 Recipe 猜测运行时组合。
 
 `target_tile_value` 与 `target_reached` 是当前 schema 的显式契约。恢复时不允许从最高方块猜测缺失状态；目标值必须与当前模式一致。若当前最高方块已达到目标却声明 `target_reached=false`，载荷无效；`target_reached=true` 且当前最高方块较低仍可表示本局曾经达成过目标。
 
 ### Custom Boards
 
-`CustomBoardCatalogSaveData` 的业务根只有 `items`。每个 `CustomBoardData` 使用 UUID v7 稳定身份，保存规范化显示名、创建时间、更新时间和严格 `BoardTopology`。产品目录最多保留最新 32 个棋盘；Provider 在复制或解析条目前以 50,000 条作为 GFStorage 一百万 Variant 总预算下的绝对兼容性防线，任何超过产品上限但未越过该防线的当前 schema 历史目录都会先完整校验，再按 `updated_at + UUID` 稳定降序收敛为最新 32 条，满额新增自动淘汰最旧棋盘；单个持久化拓扑最多 256 格。
+`CustomBoardCatalogSaveData` 的业务根只有 `items`。每个 `CustomBoardData` 使用 UUID v7 稳定身份，保存规范化显示名、创建时间、更新时间和严格 `BoardTopology`。产品目录最多保留最新 32 个棋盘；Provider 在复制或解析条目前以 50,000 条作为 GFStorage 一百万 Variant 总预算下的绝对兼容性防线，任何超过产品上限但未越过该防线的当前 schema 历史目录都会先完整校验，再按 `updated_at + UUID` 稳定降序收敛为最新 32 条，满额新增自动淘汰最旧棋盘；单个持久化拓扑必须通过共享可玩报告，不能只检查活跃格数量。
 
 拓扑语义 ID 必须为 `board.player.<uuid>`，不得使用显示名、数组索引或时间戳作为身份。断开的活跃区域是允许的空间语义；是否接受具体尺寸和形状由使用时的 `BoardTopologyTemplate` 复核。编辑器草稿的撤销历史是局部瞬时状态，不进入玩家 Profile section。
 
@@ -187,7 +187,7 @@ Bookmarks 是首个分块持久化生产 tracer。业务 `BookmarkCatalogSaveDat
 
 Replays 是第二个分块持久化生产 tracer。业务 `ReplayCatalogSaveData` schema 为 6；主 Profile 中 `replays` typed section 由 `ReplayManifestSaveSectionProvider` 以物理 schema 8 保存 Manifest，结构化记录流 schema 为 2。`ReplayChunkCodec` 不复制或序列化完整回放根：标量 metadata、初始拓扑坐标批次、单方块终局 frame 和逐步 action/checkpoint 分别形成不超过 128 KiB 的 length-prefixed frame，每次 `advance()` 只产生一个有界 work unit；任意深复制和 `var_to_bytes()` 之前先执行深度、节点、集合、文本、PackedArray、对象/环和非有限数预算，单条仍超限时显式失败。加载由 `ReplayChunkDecoder` 跨 chunk 增量读取并严格验证 phase、计数、批次连续性、业务 schema、frame 规范性和尾随字节，直接构造一次性 `ReplayCatalogPreparedState`；生产 Profile preflight 按帧预算跨进程帧推进，业务 Provider 的 apply 只执行有界根交换，不再同步二次 `ReplayData.from_dict()`。
 
-回放保存“初始条件 + 有效玩家操作序列 + 逐回合确定性 checkpoint + 结束预览”，不是逐帧录像。section、单条 `ReplayData` 和嵌套资格上下文各自拥有独立 schema 常量。从回放继续普通对局会增加 `replay_continuation` 失格原因。`initial_board_topology` 是初始空间契约，`final_board_snapshot` 是结束预览，两者都必须通过当前严格校验。`actions` 使用 `Array[Vector2i]`，必须与 `MoveCommand` 和 `GFCommandHistoryUtility` 的方向语义一致，并受目录、命令数和 checkpoint 的有界容量约束。
+回放保存“初始条件 + 有效玩家操作序列 + 逐回合确定性 checkpoint + 结束预览”，不是逐帧录像。section、单条 `ReplayData` 和嵌套资格上下文各自拥有独立 schema 常量。从回放继续普通对局会增加 `replay_continuation` 失格原因。`initial_board_topology` 是初始空间契约，`final_board_snapshot` 是结束预览，两者都必须通过当前严格校验和共享可玩拓扑报告；流式 decoder 在构造 PreparedState 前执行同一门禁，不能因 frame 分批而绕过。`actions` 使用 `Array[Vector2i]`，必须与 `MoveCommand` 和 `GFCommandHistoryUtility` 的方向语义一致，并受目录、命令数和 checkpoint 的有界容量约束。
 
 每个 `ReplayData` 必须保存 `ruleset_id`、`ruleset_version`、`ruleset_fingerprint` 和与有效命令一一对应的 `ReplayCheckpoint`。Checkpoint 分别保存 board、gameplay RNG、规则集和完整 state checksum；运行时 UUID 与表现状态不得进入摘要。回放发现首个 OOS 后必须停止步进，并禁止从该回合继续普通对局，不得用结束预览掩盖中途偏离。
 

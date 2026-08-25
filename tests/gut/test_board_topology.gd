@@ -131,6 +131,76 @@ func test_sparse_topology_queries_only_cells_inside_visible_rect() -> void:
 	)
 
 
+func test_playable_budget_rejects_two_cells_with_unbounded_span() -> void:
+	var topology: BoardTopology = BoardTopology.create_custom(
+		[Vector2i.ZERO, Vector2i(10000, 10000)],
+		&"board.test.hostile_span"
+	)
+	var report: GFValidationReport = topology.get_playable_validation_report()
+	var issue_counts: Dictionary = report.get_issue_counts_by_kind()
+
+	assert_true(
+		topology.get_validation_report().is_ok(),
+		"大型稀疏拓扑仍应是合法领域表示。"
+	)
+	assert_false(report.is_ok(), "超宽稀疏拓扑不得进入逐格玩法。")
+	assert_true(issue_counts.has("playable_coordinate_capacity_exceeded"))
+	assert_true(issue_counts.has("playable_bounds_width_exceeded"))
+	assert_true(issue_counts.has("playable_bounds_height_exceeded"))
+	assert_true(issue_counts.has("playable_bounds_area_exceeded"))
+	assert_false(
+		GridModel.is_snapshot_envelope_valid(_make_empty_snapshot(topology)),
+		"超预算拓扑必须在 GridModel 接管前失败。"
+	)
+
+
+func test_playable_budget_rejects_256_cell_diagonal_before_dense_projection() -> void:
+	var diagonal_cells: Array[Vector2i] = []
+	for coordinate: int in range(BoardTopology.MAX_PLAYABLE_CELL_COUNT):
+		diagonal_cells.append(Vector2i(coordinate, coordinate))
+	var topology: BoardTopology = BoardTopology.create_custom(
+		diagonal_cells,
+		&"board.test.diagonal_256"
+	)
+	var report: GFValidationReport = topology.get_playable_validation_report()
+
+	assert_true(topology.get_validation_report().is_ok())
+	assert_true(
+		topology.get_cell_count() == BoardTopology.MAX_PLAYABLE_CELL_COUNT,
+		"hostile fixture 必须证明仅限制活跃格数量不够。"
+	)
+	assert_false(report.is_ok())
+	assert_true(
+		report.get_issue_counts_by_kind().has("playable_bounds_area_exceeded"),
+		"256 个对角格必须因包围盒面积而非活跃格数量被拒绝。"
+	)
+
+
+func test_playable_budget_accepts_normal_16_by_16_board() -> void:
+	var topology: BoardTopology = BoardTopology.create_rectangle(Vector2i(16, 16))
+	var report: GFValidationReport = topology.get_playable_validation_report()
+
+	assert_true(report.is_ok(), report.make_summary())
+	assert_true(topology.get_cell_count() == 256)
+	assert_true(topology.get_bounds_size() == Vector2i(16, 16))
+	assert_true(GridModel.is_snapshot_envelope_valid(_make_empty_snapshot(topology)))
+
+
+func test_serialized_coordinate_budget_rejects_integer_edge_before_bounds_math() -> void:
+	var payload: Dictionary = {
+		&"schema_version": BoardTopology.SERIALIZATION_SCHEMA_VERSION,
+		&"topology_id": "board.test.coordinate_edge",
+		&"active_cells": [
+			Vector2i.ZERO,
+			Vector2i(BoardTopology.MAX_SERIALIZED_COORDINATE + 1, 0),
+		],
+	}
+	assert_null(
+		BoardTopology.from_dict(payload),
+		"序列化坐标预算必须在构造包围盒前失败关闭。"
+	)
+
+
 func test_topology_template_applies_bounds_to_custom_shapes() -> void:
 	var template: BoardTopologyTemplate = BoardTopologyTemplate.new()
 	template.template_id = &"board_template.test"
@@ -149,11 +219,16 @@ func test_topology_template_applies_bounds_to_custom_shapes() -> void:
 		"任意形状都不得绕过模板最大包围盒。"
 	)
 	assert_true(
-		BoardTopology.create_rectangle(Vector2i(BoardTopology.MAX_CELL_COUNT, 2)).get_cell_count() == 0,
+		BoardTopology.create_rectangle(
+			Vector2i(BoardTopology.MAX_SERIALIZED_CELL_COUNT, 2)
+		).get_cell_count() == 0,
 		"矩形构造器必须在分配前拒绝超过安全上限的尺寸。"
 	)
 	var oversized_template: BoardTopologyTemplate = BoardTopologyTemplate.new()
-	oversized_template.max_size = Vector2i(BoardTopology.MAX_CELL_COUNT, 2)
+	oversized_template.max_size = Vector2i(
+		BoardTopology.MAX_SERIALIZED_CELL_COUNT,
+		2
+	)
 	assert_false(oversized_template.get_validation_report().is_ok(), "模板不得声明超出安全容量的矩形范围。")
 
 
@@ -289,6 +364,14 @@ func test_merge_animation_instruction_preserves_rule_score_delta() -> void:
 
 
 # --- 私有/辅助方法 ---
+
+func _make_empty_snapshot(topology: BoardTopology) -> Dictionary:
+	return {
+		&"schema_version": GridModel.SNAPSHOT_SCHEMA_VERSION,
+		&"topology": topology.to_dict(),
+		&"tiles": [],
+	}
+
 
 func _load_classic_definition() -> TileDefinition:
 	var value: Resource = load(_CLASSIC_DEFINITION_PATH)

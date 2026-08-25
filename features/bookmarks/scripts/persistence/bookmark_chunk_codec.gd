@@ -18,7 +18,6 @@ const MAX_FRAME_PAYLOAD_BYTES: int = (
 	BookmarkChunkDecoder.MAX_FRAME_PAYLOAD_BYTES
 )
 
-const _LENGTH_PREFIX_BYTES: int = 4
 const _PHASE_HEADER: int = 0
 const _PHASE_METADATA: int = 1
 const _PHASE_STATES: int = 2
@@ -43,10 +42,7 @@ var _current_tile_count: int = -1
 var _current_history_byte_count: int = -1
 var _current_step_count: int = -1
 var _complete: bool = false
-var _chunks_claimed: bool = false
-var _chunks: Array[PackedByteArray] = []
-var _current_chunk: PackedByteArray = PackedByteArray()
-var _total_bytes: int = 0
+var _frame_writer: ChunkFrameStreamWriter = null
 var _error_code: Error = OK
 var _error: String = ""
 
@@ -62,6 +58,7 @@ static func begin_encode(
 		return null
 	var codec: BookmarkChunkCodec = BookmarkChunkCodec.new()
 	codec._source = source
+	codec._frame_writer = ChunkFrameStreamWriter.new()
 	return codec
 
 
@@ -117,12 +114,9 @@ func get_encoded_record_count() -> int:
 
 
 func take_chunks_taking_ownership() -> Array[PackedByteArray]:
-	if not is_complete() or _chunks_claimed:
+	if not is_complete() or _frame_writer == null:
 		return []
-	_chunks_claimed = true
-	var owned_chunks: Array[PackedByteArray] = _chunks
-	_chunks = []
-	return owned_chunks
+	return _frame_writer.take_chunks_taking_ownership()
 
 
 ## 测试/兼容用同步入口；生产 Profile 加载不得调用。
@@ -412,56 +406,25 @@ func _finish_current_record() -> void:
 
 
 func _append_variant_frame(value: Variant, label: String) -> bool:
-	if not BookmarkChunkSourceSnapshot.is_variant_within_frame_budget(value):
-		_fail(ERR_OUT_OF_MEMORY, "%s violates its structural budget." % label)
+	if _frame_writer == null:
+		_fail(ERR_UNCONFIGURED, "Bookmark frame writer is unavailable.")
 		return false
-	var payload: PackedByteArray = var_to_bytes(value)
-	if payload.is_empty():
-		_fail(ERR_INVALID_DATA, "%s could not be encoded." % label)
-		return false
-	if payload.size() > MAX_FRAME_PAYLOAD_BYTES:
-		_fail(
-			ERR_OUT_OF_MEMORY,
-			"%s exceeds the 128 KiB framed-record limit." % label
-		)
-		return false
-	if _total_bytes + _LENGTH_PREFIX_BYTES + payload.size() > MAX_TOTAL_BYTES:
-		_fail(ERR_OUT_OF_MEMORY, "Bookmark chunk stream exceeds 8 MiB.")
-		return false
-	_append_raw(_encode_u32(payload.size()))
-	_append_raw(payload)
-	return true
-
-
-func _append_raw(payload: PackedByteArray) -> void:
-	var source_offset: int = 0
-	while source_offset < payload.size():
-		var available_bytes: int = CHUNK_BYTES - _current_chunk.size()
-		var copy_count: int = mini(
-			available_bytes,
-			payload.size() - source_offset
-		)
-		_current_chunk.append_array(
-			payload.slice(source_offset, source_offset + copy_count)
-		)
-		_total_bytes += copy_count
-		source_offset += copy_count
-		if _current_chunk.size() == CHUNK_BYTES:
-			_chunks.append(_current_chunk)
-			_current_chunk = PackedByteArray()
+	if _frame_writer.append_variant_frame(value, label):
+		return true
+	var writer_error_code: Error = _frame_writer.get_error_code()
+	var writer_error: String = _frame_writer.get_error()
+	_fail(writer_error_code, writer_error)
+	return false
 
 
 func _finish_encoding() -> void:
-	if not _current_chunk.is_empty():
-		_chunks.append(_current_chunk)
-		_current_chunk = PackedByteArray()
-	if (
-		_chunks.is_empty()
-		or _chunks.size() > ChunkManifest.MAX_CHUNK_COUNT
-		or _total_bytes <= 0
-		or _total_bytes > MAX_TOTAL_BYTES
-	):
-		_fail(ERR_INVALID_DATA, "Bookmark chunks violate manifest budgets.")
+	if _frame_writer == null:
+		_fail(ERR_UNCONFIGURED, "Bookmark frame writer is unavailable.")
+		return
+	if not _frame_writer.finish():
+		var writer_error_code: Error = _frame_writer.get_error_code()
+		var writer_error: String = _frame_writer.get_error()
+		_fail(writer_error_code, writer_error)
 		return
 	_complete = true
 	if _source != null:
@@ -472,17 +435,8 @@ func _finish_encoding() -> void:
 func _fail(error_code: Error, error: String) -> void:
 	_error_code = error_code if error_code != OK else FAILED
 	_error = error
-	_chunks.clear()
-	_current_chunk = PackedByteArray()
+	if _frame_writer != null:
+		_frame_writer.release()
 	if _source != null:
 		_source.release()
 	_source = null
-
-
-static func _encode_u32(value: int) -> PackedByteArray:
-	return PackedByteArray([
-		(value >> 24) & 0xff,
-		(value >> 16) & 0xff,
-		(value >> 8) & 0xff,
-		value & 0xff,
-	])

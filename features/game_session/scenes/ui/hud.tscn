@@ -491,14 +491,14 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(54, 44)
 layout_mode = 2
 tooltip_text = "撤销"
-text = "↶"
+text = "←"
 
 [node name="RedoButton" type="Button" parent="SafeArea/ActionPanel/Margin/Buttons"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(54, 44)
 layout_mode = 2
 tooltip_text = "重做"
-text = "↷"
+text = "→"
 
 [node name="BookmarkButton" type="Button" parent="SafeArea/ActionPanel/Margin/Buttons"]
 unique_name_in_owner = true

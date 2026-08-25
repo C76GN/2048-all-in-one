@@ -30,6 +30,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/export_wechat_minigame
   -GodotExecutable godot
 ```
 
+完整游戏正式候选导出（不包含 `platform_smoke`）：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/export_wechat_minigame_release.ps1 `
+  -GodotExecutable godot
+```
+
+正式入口是零策略薄包装；模板、身份冻结、AppID 清洗、4 MiB 分块读取、精确白名单、包体预算、隔离验证和原子发布仍由同一导出核心拥有。二者不得复制或分叉组装事务。
+
 脚本只接受版本字符串为 `4.7.2.stable` 或以 `4.7.2.stable.` 开头的 Godot，可执行文件版本、项目当前合约与 4.7 模板必须一致。它把已校验的社区 `godothub/godot-minigame` 4.7 模板与 Godot
 `--export-pack` 产物组装为 `build/wechat_minigame_smoke/wxgame`。模板必须精确为
 11,763,895 bytes、SHA-256
@@ -37,7 +46,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/export_wechat_minigame
 示例 PCK、示例分包、示例 AppID 和 private config，将项目 PCK 改为微信允许的 `.bin`，
 并把 loader 绑定到同一路径。模板默认缓存在 `build/wechat_toolchain/4.7/`，也可通过
 `-TemplateArchivePath` 传入同一份已校验归档。模板是社区工具链，不是 Godot 或微信官方支持的导出器。
-导出开始前会冻结当前内容而不是 Git HEAD：精确纳入 `project.godot`、`export_presets.cfg`、默认音频总线、图标及其 import 描述，并递归纳入 `addons/`、`app/`、`features/`、`shared/`；排除项与 `Web Compatibility Smoke` 预设保持一致，`.git/`、`.godot/`、`build/`、`tests/`、非导出文档及普通 `tools/` 不进入内容快照。五个真正参与组装/验证的工具文件单独记录 SHA-256。GF 的 `.gf/vendor.lock.json`、`source_commit`、`source_git_tree`、锁文件 hash 与 `addons/gf` 实际全树 hash/文件数会在导出前后重算；其中任一项、导出内容快照或工具内容在组装期间漂移都会终止。
+导出开始前会冻结当前内容而不是 Git HEAD：精确纳入 `project.godot`、`export_presets.cfg`、默认音频总线、图标及其 import 描述，并递归纳入 `addons/`、`app/`、`features/`、`shared/`；`.git/`、`.godot/`、`build/`、`tests/`、非导出文档及普通 `tools/` 不进入内容快照。七个真正参与组装、验证或隔离验证依赖的文件单独记录 SHA-256。GF 的 `.gf/vendor.lock.json`、`source_commit`、`source_git_tree`、锁文件 hash 与 `addons/gf` 实际全树 hash/文件数会在导出前后重算；其中任一项、导出内容快照或工具内容在组装期间漂移都会终止。正式候选还会在冻结前验证字体 coverage manifest、子集、OFL 和对应 hash；任一证据漂移都失败关闭。
 
 发布 stage 固定为同一候选根下的 `{wxgame/, export-report.json}`。报告位于 `wxgame` 外，因此产物清单不会自引用；它包含除 `project.private.config.json` 本机 sidecar 外，按 ordinal path 排序的每个可发布文件 `path/bytes/sha256`、canonical manifest hash、输入快照 hash、build ID，以及 Godot、GF、模板和工具身份。替换时整候选根先备份再一次发布，任一注入或 I/O 失败都恢复旧报告和旧 `wxgame` 的同一 build ID，不会留下新报告配旧产物。
 
@@ -75,6 +84,7 @@ Godot 平台冒烟场景；缺少任一终态都不能签字。若当前输出�
 - `build/platform_readiness_report.json`：GFCompatibilityPreflight 项目契约；
 - `build/platform_environment_report.json`：编辑器、匹配导出模板和微信开发者工具环境。
 - `build/wechat_minigame_smoke/export-report.json`：与同根 `wxgame/` 原子发布的完整可发布产物 manifest（不含本机 private sidecar）、输入/GF/Godot/工具身份、build ID、主包/引擎分包字节数和预算结论。
+- `build/wechat_minigame_release_candidate/export-report.json`：完整游戏候选的同等证据，并额外记录正式字体 coverage、子集与 OFL 身份。
 
 CI 或正式导出不得传 `-AllowEnvironmentBlockers`。本地仅审查项目配置时才允许该开关。
 
@@ -86,14 +96,25 @@ Web 冒烟预设名为 `Web Compatibility Smoke`，并固定：
 - 关闭 Web extension support；
 - 启用移动纹理压缩；
 - 启用虚拟键盘输入。
-- `addons/wechat_minigame_smoke_export` 仅在 `wechat_minigame_smoke` feature 下通过 Godot 资源定制接口把完整 Noto Sans SC 重映射为诊断字形子集；子集禁用系统字体 fallback，并由 GUT 从 Boot、BootRuntime、Boot 场景和平台冒烟控制器的字符串字面量逐码点验证。正式桌面、Web 和游戏构建不启用该定制，继续使用完整字体。
+- `addons/wechat_minigame_smoke_export` 是为兼容既有 Godot 插件路径而保留的历史目录名；其中实现是共享的 profile-specific font export customizer，并非只服务冒烟。它在 `wechat_minigame_smoke` 下映射诊断子集，在 `wechat_minigame_release` 下映射正式字形闭包子集；两个 feature 同时出现会失败关闭，未出现二者时不定制字体。正式桌面及普通 Web 构建不启用该插件行为，继续使用完整字体，也不复制第二套导出插件。
 
 该预设会由 Boot 路由到 `platform_smoke_test.tscn`，验证安全区、生命周期、手势、本地存储、HTTPS、音频用户手势和代表性 Shader。
+
+完整游戏预设名为 `Web Compatibility WeChat Release`，固定 custom feature `wechat_minigame_release`，明确不包含 `platform_smoke`，因此 Boot 走正式入口场景。它复用相同 Web Compatibility、单线程、关闭 extension support、移动纹理压缩和虚拟键盘选项。资源定制插件会把常规/展示字体变体映射到 `wechat_release_sans_subset.ttf`；该确定性子集覆盖 `translations.csv`、`app/`、`features/`、`shared/` 中实际导出运行时字符串字面量及基础 ASCII，禁用系统 fallback。`release_font_coverage.py --check`、GUT 和 Node 测试共同验证源 Noto Sans SC、OFL-1.1、coverage、子集 hash 与所有声明码点。任意新增运行时文案都必须先重新生成并审查字体证据：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File tools/generate_wechat_release_font_subset.ps1 `
+  -PythonExecutable <安装了精确 FontTools 4.59.1 的 python>
+node --test tests/tooling/wechat_release_font_coverage.test.cjs
+```
+
+该子集只保证项目随包文案和可打印 ASCII；任意用户自定义 Unicode 文本不在保证范围内。生成器会在子集前后逐码点验证 Noto Sans SC 的 cmap，源字体或生成子集缺少任一声明字形都会失败关闭。当前源字体不包含曲线撤销箭头、Unicode 下标数字或 U+FFFD，因此随包文案已确定性使用 `←` / `→` 与 ASCII `F2` / `F3` / `F4` / `F5` / `L3`，且不虚假声明 U+FFFD coverage；若要恢复原符号，必须先引入可审计、随包且有许可证证据的字体资源。coverage 清单和 manifest 是导出前的构建证据，其 hash 会进入候选报告，但文件本身不随运行时打包，避免把源字体路径元数据误带入产品包。
 
 微信冒烟工程固定横屏，把 `engine/` 声明为普通分包，并使用保守的十进制预算：主包硬上限
 4,000,000 bytes、总包硬上限 30,000,000 bytes；软预算分别为 3,600,000 与
 27,000,000 bytes。任何 `.pck`、`.html`、未压缩 `.wasm`、未知模板文件或上游示例 AppID
-都会使导出失败。该结果只表示 `toolchain_smoke`，不得冒充全游戏可发布。
+都会使导出失败。冒烟结果只表示 `toolchain_smoke`；完整游戏结果表示 `full_game_release_candidate`，仍不等于已签名、已上传或真机验收的生产发布，也不宣称微信登录、分享、支付、云存档或开放数据域能力已经实现。
 
 ## 环境状态与签字边界
 
@@ -123,8 +144,8 @@ Web 冒烟预设名为 `Web Compatibility Smoke`，并固定：
 
 ## 后续实施顺序
 
-1. 用固定 4.7 模板完成 `toolchain_smoke` 的开发者工具编译、模拟器启动和 Android/iOS 真机签字；当前本机 CLI 仍需用户开启服务端口或授权 clientName。
-2. 为完整游戏设计字体、资源分包或远程资产策略，使正式 PCK 与引擎壳持续低于总包预算，再新增无 `platform_smoke` 的发布产物。
+1. 当前工作站已使用固定 4.7 模板完成首次 `full_game_release_candidate`：主包 83,341 bytes、引擎分包 25,152,639 bytes、总包 25,235,980 bytes，字体闭包和全部隔离产物门禁通过。包体数字属于本次本机证据，后续源码、模板、AppID 或工具变化后必须重测。
+2. 官方 wechatide skill 0.3.5 已完成等版本/有效登录检查、打开正式候选窗口并触发 refresh；本次小游戏 automator 持续 `waitForAutomatorReady timeout`、console 缓冲为空，无法取得 runtime 或截图证据。下一步先在开发者工具可见模拟器确认编译终态并恢复 automator 取证，再完成完整游戏的 Android/iOS 真机矩阵；触发 refresh 本身不得记为编译通过。
 3. 根据产品范围先定义登录、存储、分享、支付和开放数据域中真正需要的 capability / bridge contract，再实现并注册 `WeChatMinigamePlatformAdapter`；未选择的能力不得被 UI 假定存在。
 4. 将现有本地成就、图鉴与本地排行榜分别接到平台 bridge；线上排行榜和平台成就同步由平台或服务端裁决，本地 Profile 只保留离线状态与待同步事实。
 5. 在每次 Godot、GF、微信模板、平台 Adapter 或关键 Shader 更新后重跑项目预检、环境检查、包体门禁和真机矩阵，不沿用历史 Web 报告代替新签字。

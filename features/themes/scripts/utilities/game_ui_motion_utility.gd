@@ -41,6 +41,10 @@ const _SCROLL_BASE_SCALE_META: StringName = &"_game_ui_motion_scroll_base_scale"
 const _SCROLL_BASE_MODULATE_META: StringName = &"_game_ui_motion_scroll_base_modulate"
 const _TAB_BOUND_META: StringName = &"_game_ui_motion_tab_bound"
 const _TAB_INDEX_META: StringName = &"_game_ui_motion_tab_index"
+const _BUTTON_MOTION_PRESENTER_NODE_NAME: String = "ButtonMotionPresenter"
+const _BUTTON_MOTION_PRESENTER_OWNER_META: StringName = (
+	&"_game_ui_motion_presenter_owner"
+)
 ## BaseButton 根控件始终保持布局几何稳定；可见变换由内部 Presenter 承担。
 ## 这避免 ScrollContainer 与密集按钮组裁切放大后的控件。
 const _PROFILE_VECTOR_SENTINEL: Vector2 = Vector2(1.0e20, 1.0e20)
@@ -65,7 +69,7 @@ func get_required_utilities() -> Array[Script]:
 
 
 func ready() -> void:
-	_style = _get_style_utility()
+	_set_style_dependency(_get_style_utility())
 	_accessibility = _get_accessibility_utility()
 	if not is_instance_valid(_style):
 		push_error("[GameUiMotionUtility] 缺少 GameUiStyleUtility。")
@@ -96,14 +100,15 @@ func tick(_delta: float) -> void:
 
 
 func dispose() -> void:
-	_tracked_buttons.clear()
-	_style = null
+	_release_tracked_button_bindings()
+	_set_style_dependency(null)
 	_accessibility = null
 	_motion_profile = null
 
 
 func release_dependencies() -> void:
-	_style = null
+	_release_tracked_button_bindings()
+	_set_style_dependency(null)
 	_accessibility = null
 	_motion_profile = null
 	super.release_dependencies()
@@ -129,6 +134,27 @@ func apply_profile(profile: GameUiMotionProfile) -> bool:
 ## 返回当前生效的 Profile；架构尚未激活主题时使用等价默认值。
 func get_profile() -> GameUiMotionProfile:
 	return _get_motion_profile()
+
+
+## 返回由本 Utility 管理的按钮纸片 Presenter。
+## @param button: 需要查询的按钮。
+func get_button_motion_presenter(
+	button: BaseButton
+) -> GameButtonMotionPresenter:
+	if not is_instance_valid(button):
+		return null
+	var node: Node = button.get_node_or_null(
+		_BUTTON_MOTION_PRESENTER_NODE_NAME
+	)
+	if node is GameButtonMotionPresenter:
+		var presenter: GameButtonMotionPresenter = node
+		if (
+			presenter.has_meta(_BUTTON_MOTION_PRESENTER_OWNER_META)
+			and presenter.get_meta(_BUTTON_MOTION_PRESENTER_OWNER_META)
+				== get_instance_id()
+		):
+			return presenter
+	return null
 
 ## 递归绑定根节点下所有 BaseButton 控件。
 ## @param root: 要扫描的 UI 根节点。
@@ -784,7 +810,7 @@ func play_button_deal_sequence(
 		if not is_instance_valid(button) or not button.visible:
 			continue
 		var direction: float = -1.0 if animated_count % 2 == 0 else 1.0
-		_style.play_button_deal_in(
+		_play_button_deal_in(
 			button,
 			Vector2(absf(resolved_offset.x) * direction, resolved_offset.y),
 			_resolve_button_motion_state(button),
@@ -808,8 +834,9 @@ func complete_button_motion(button: BaseButton) -> void:
 		return
 	_kill_button_text_tween(button)
 	button.self_modulate = _get_button_base_self_modulate(button)
-	if is_instance_valid(_style):
-		_style.complete_button_motion(button)
+	var presenter: GameButtonMotionPresenter = get_button_motion_presenter(button)
+	if is_instance_valid(presenter):
+		presenter.complete_motion()
 
 
 ## 播放同一页面内的内容切换反馈。
@@ -1048,10 +1075,10 @@ func _bind_supporting_control_motion(control: Control) -> void:
 func _bind_button(button: BaseButton) -> bool:
 	if not is_instance_valid(button):
 		return false
-	if GFVariantData.to_bool(_get_button_meta(button, _BOUND_META, false)):
+	if button.has_meta(_BOUND_META):
 		return false
 
-	button.set_meta(_BOUND_META, true)
+	button.set_meta(_BOUND_META, get_instance_id())
 	button.set_meta(_HOVERED_META, false)
 	button.set_meta(_FOCUSED_META, button.has_focus())
 	button.set_meta(_PRESSED_META, false)
@@ -1067,6 +1094,10 @@ func _bind_button(button: BaseButton) -> bool:
 	button.call_deferred("set", "pivot_offset", button.size * 0.5)
 	if is_instance_valid(_style):
 		_style.prepare_button(button)
+		if not is_instance_valid(get_button_motion_presenter(button)):
+			var _presenter: GameButtonMotionPresenter = (
+				_synchronize_button_motion_presenter(button)
+			)
 		_apply_profile_to_button(button)
 		_update_button_focus_ring_visibility(button)
 		_refresh_button_motion_state(button, false)
@@ -1400,7 +1431,7 @@ func _play_control_reveal(
 		_kill_control_tween(button)
 		_restore_control_base_state(button, true)
 		_apply_profile_to_button(button)
-		_style.play_button_deal_in(
+		_play_button_deal_in(
 			button,
 			offset if animate_position else Vector2.ZERO,
 			_resolve_button_motion_state(button),
@@ -1553,9 +1584,7 @@ func _refresh_button_motion_state(
 	button.scale = _get_button_base_scale(button)
 	button.modulate = _get_button_base_modulate(button)
 	button.self_modulate = _get_button_base_self_modulate(button)
-	if not is_instance_valid(_style):
-		return
-	_style.set_button_motion_state(
+	_set_button_motion_state(
 		button,
 		_resolve_button_motion_state(button),
 		animated,
@@ -1875,6 +1904,24 @@ func _get_style_utility() -> GameUiStyleUtility:
 	return null
 
 
+func _set_style_dependency(style: GameUiStyleUtility) -> void:
+	var refresh_callback: Callable = Callable(
+		self,
+		&"_on_button_visual_style_applied"
+	)
+	if (
+		is_instance_valid(_style)
+		and _style.button_visual_style_applied.is_connected(refresh_callback)
+	):
+		_style.button_visual_style_applied.disconnect(refresh_callback)
+	_style = style
+	if (
+		is_instance_valid(_style)
+		and not _style.button_visual_style_applied.is_connected(refresh_callback)
+	):
+		var _refresh_connection: int = _style.button_visual_style_applied.connect(refresh_callback)
+
+
 func _get_accessibility_utility() -> GameAccessibilityUtility:
 	var utility_value: Object = get_utility(GameAccessibilityUtility)
 	if utility_value is GameAccessibilityUtility:
@@ -1883,12 +1930,214 @@ func _get_accessibility_utility() -> GameAccessibilityUtility:
 	return null
 
 
-func _apply_profile_to_button(button: BaseButton) -> void:
-	if not is_instance_valid(_style) or not is_instance_valid(button):
-		return
-	var presenter: GameButtonMotionPresenter = (
-		_style.get_button_motion_presenter(button)
+func _synchronize_button_motion_presenter(
+	button: BaseButton
+) -> GameButtonMotionPresenter:
+	if not _button_supports_motion_presenter(button):
+		return null
+	var presenter: GameButtonMotionPresenter = get_button_motion_presenter(button)
+	if not is_instance_valid(presenter):
+		var existing_node: Node = button.get_node_or_null(
+			_BUTTON_MOTION_PRESENTER_NODE_NAME
+		)
+		if is_instance_valid(existing_node):
+			return null
+		presenter = GameButtonMotionPresenter.new()
+		presenter.name = _BUTTON_MOTION_PRESENTER_NODE_NAME
+		presenter.set_meta(
+			_BUTTON_MOTION_PRESENTER_OWNER_META,
+			get_instance_id()
+		)
+		presenter.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		presenter.focus_mode = Control.FOCUS_NONE
+		presenter.show_behind_parent = true
+		presenter.set_anchors_preset(Control.PRESET_FULL_RECT)
+		button.add_child(presenter, false, Node.INTERNAL_MODE_BACK)
+	var normal_style: StyleBox = button.get_theme_stylebox(&"normal")
+	var hover_style: StyleBox = button.get_theme_stylebox(&"hover")
+	var pressed_style: StyleBox = button.get_theme_stylebox(&"pressed")
+	var selected_style: StyleBox = button.get_theme_stylebox(&"hover_pressed")
+	var disabled_style: StyleBox = button.get_theme_stylebox(&"disabled")
+	presenter.configure(
+		button,
+		normal_style,
+		hover_style,
+		selected_style,
+		pressed_style,
+		disabled_style
 	)
+	presenter.apply_motion_profile(_get_motion_profile())
+	button.add_theme_stylebox_override(
+		&"normal",
+		_create_button_content_style(normal_style)
+	)
+	button.add_theme_stylebox_override(
+		&"hover",
+		_create_button_content_style(hover_style)
+	)
+	button.add_theme_stylebox_override(
+		&"pressed",
+		_create_button_content_style(pressed_style, true)
+	)
+	button.add_theme_stylebox_override(
+		&"hover_pressed",
+		_create_button_content_style(selected_style, true)
+	)
+	button.add_theme_stylebox_override(
+		&"disabled",
+		_create_button_content_style(disabled_style)
+	)
+	return presenter
+
+
+func _button_supports_motion_presenter(button: BaseButton) -> bool:
+	if not is_instance_valid(button) or not is_instance_valid(_style):
+		return false
+	if not button is Button:
+		return false
+	if button is OptionButton or button is CheckBox or button is CheckButton:
+		return false
+	return not _style.button_uses_embedded_focus_visual(button)
+
+
+func _create_button_content_style(
+	source: StyleBox,
+	pressed: bool = false
+) -> StyleBoxEmpty:
+	var style: StyleBoxEmpty = StyleBoxEmpty.new()
+	for side: Side in [
+		SIDE_LEFT,
+		SIDE_TOP,
+		SIDE_RIGHT,
+		SIDE_BOTTOM,
+	]:
+		var content_margin: float = 0.0
+		if is_instance_valid(source):
+			content_margin = source.get_content_margin(side)
+		if pressed and side == SIDE_TOP:
+			content_margin += 1.0
+		elif pressed and side == SIDE_BOTTOM:
+			content_margin = maxf(content_margin - 1.0, 0.0)
+		style.set_content_margin(side, content_margin)
+	return style
+
+
+func _set_button_motion_state(
+	button: BaseButton,
+	state: GameButtonMotionPresenter.MotionState,
+	animated: bool,
+	reduced_motion: bool
+) -> void:
+	var presenter: GameButtonMotionPresenter = get_button_motion_presenter(button)
+	if not is_instance_valid(presenter):
+		return
+	presenter.set_motion_state(state, animated, reduced_motion)
+
+
+func _play_button_deal_in(
+	button: BaseButton,
+	offset: Vector2,
+	target_state: GameButtonMotionPresenter.MotionState,
+	delay: float,
+	reduced_motion: bool
+) -> void:
+	var presenter: GameButtonMotionPresenter = get_button_motion_presenter(button)
+	if not is_instance_valid(presenter):
+		return
+	presenter.play_deal_in(
+		offset,
+		target_state,
+		delay,
+		reduced_motion
+	)
+
+
+func _release_tracked_button_bindings() -> void:
+	for weak_reference: WeakRef in _tracked_buttons:
+		var referenced_object: Variant = weak_reference.get_ref()
+		if not referenced_object is BaseButton:
+			continue
+		var button: BaseButton = referenced_object
+		_release_button_binding(button)
+	_tracked_buttons.clear()
+
+
+func _release_button_binding(button: BaseButton) -> void:
+	if not is_instance_valid(button):
+		return
+	_disconnect_button_signal(
+		button.mouse_entered,
+		_on_button_mouse_entered.bind(button)
+	)
+	_disconnect_button_signal(
+		button.mouse_exited,
+		_on_button_mouse_exited.bind(button)
+	)
+	_disconnect_button_signal(
+		button.focus_entered,
+		_on_button_focus_entered.bind(button)
+	)
+	_disconnect_button_signal(
+		button.focus_exited,
+		_on_button_focus_exited.bind(button)
+	)
+	_disconnect_button_signal(button.button_down, _on_button_down.bind(button))
+	_disconnect_button_signal(button.button_up, _on_button_up.bind(button))
+	_disconnect_button_signal(button.resized, _on_button_resized.bind(button))
+	_disconnect_button_signal(
+		button.tree_exited,
+		_on_button_tree_exited.bind(button)
+	)
+	_disconnect_button_signal(button.toggled, _on_button_toggled.bind(button))
+
+	var presenter: GameButtonMotionPresenter = get_button_motion_presenter(button)
+	if _owns_button_binding(button):
+		_kill_button_tween(button)
+		complete_button_motion(button)
+		button.scale = _get_button_base_scale(button)
+		button.modulate = _get_button_base_modulate(button)
+		button.self_modulate = _get_button_base_self_modulate(button)
+		for meta_key: StringName in [
+			_BOUND_META,
+			_HOVERED_META,
+			_FOCUSED_META,
+			_PRESSED_META,
+			_BASE_SCALE_META,
+			_BASE_MODULATE_META,
+			_TWEEN_META,
+			_BUTTON_BASE_SELF_MODULATE_META,
+			_BUTTON_TEXT_TWEEN_META,
+			_TOGGLE_STATE_META,
+			_DISABLED_STATE_META,
+		]:
+			button.remove_meta(meta_key)
+		if is_instance_valid(_style):
+			_style.prepare_button(button)
+	if is_instance_valid(presenter) and presenter.get_parent() == button:
+		button.remove_child(presenter)
+		presenter.queue_free()
+
+
+func _owns_button_binding(button: BaseButton) -> bool:
+	return (
+		is_instance_valid(button)
+		and button.has_meta(_BOUND_META)
+		and button.get_meta(_BOUND_META) == get_instance_id()
+	)
+
+
+func _disconnect_button_signal(
+	signal_value: Signal,
+	callback: Callable
+) -> void:
+	if signal_value.is_connected(callback):
+		signal_value.disconnect(callback)
+
+
+func _apply_profile_to_button(button: BaseButton) -> void:
+	if not is_instance_valid(button):
+		return
+	var presenter: GameButtonMotionPresenter = get_button_motion_presenter(button)
 	if is_instance_valid(presenter):
 		presenter.apply_motion_profile(_get_motion_profile())
 
@@ -1945,15 +2194,20 @@ func _on_button_mouse_entered(button: BaseButton) -> void:
 	if not is_instance_valid(button) or button.disabled:
 		return
 	button.set_meta(_HOVERED_META, true)
-	if is_instance_valid(_style):
-		var presenter: GameButtonMotionPresenter = (
-			_style.get_button_motion_presenter(button)
-		)
-		if is_instance_valid(presenter):
-			presenter.set_contact_position(button.get_local_mouse_position())
+	var presenter: GameButtonMotionPresenter = get_button_motion_presenter(button)
+	if is_instance_valid(presenter):
+		presenter.set_contact_position(button.get_local_mouse_position())
 	_update_button_focus_ring_visibility(button)
 	interactive_control_selected.emit(button)
 	_refresh_button_motion_state(button)
+
+
+func _on_button_visual_style_applied(button: BaseButton) -> void:
+	if not _owns_button_binding(button):
+		return
+	var _presenter: GameButtonMotionPresenter = (
+		_synchronize_button_motion_presenter(button)
+	)
 
 
 func _on_button_mouse_exited(button: BaseButton) -> void:
@@ -2010,8 +2264,7 @@ func _on_button_toggle_settle(button: BaseButton = null) -> void:
 	if not is_instance_valid(button):
 		return
 	var presenter: GameButtonMotionPresenter = null
-	if is_instance_valid(_style):
-		presenter = _style.get_button_motion_presenter(button)
+	presenter = get_button_motion_presenter(button)
 	if is_instance_valid(presenter):
 		_refresh_button_motion_state(button)
 		return

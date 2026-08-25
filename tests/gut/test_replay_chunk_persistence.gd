@@ -157,11 +157,11 @@ func test_codec_accepts_empty_and_128_catalog_but_rejects_129_source() -> void:
 
 func test_topology_metadata_stays_scalar_and_cells_decode_in_fixed_batches() -> void:
 	var topology: BoardTopology = BoardTopology.create_rectangle(
-		Vector2i(65, 33)
+		Vector2i(16, 16)
 	)
 	assert_true(
 		topology.get_cell_count()
-		> ReplayChunkSourceSnapshot.TOPOLOGY_CELL_BATCH_SIZE * 2
+		== BoardTopology.MAX_PLAYABLE_CELL_COUNT
 	)
 	var replay: ReplayData = _make_replay(107, 0, 0)
 	replay.initial_board_topology = topology.to_dict()
@@ -176,8 +176,8 @@ func test_topology_metadata_stays_scalar_and_cells_decode_in_fixed_batches() -> 
 		assert_true(decoder.advance(1) == 1)
 		unit_count += 1
 	assert_false(decoder.is_failed(), decoder.get_error())
-	# header + metadata + ceil(2145 / 1024) topology batches
-	assert_true(unit_count == 5)
+	# header + metadata + 当前 256 格可玩上限的一批 topology cells。
+	assert_true(unit_count == 3)
 	var prepared_state: ReplayCatalogPreparedState = (
 		decoder.take_prepared_state_taking_ownership()
 	)
@@ -197,6 +197,44 @@ func test_topology_metadata_stays_scalar_and_cells_decode_in_fixed_batches() -> 
 				restored.get_initial_topology().get_cell_count()
 				== topology.get_cell_count()
 			)
+
+
+func test_decoder_rejects_wide_sparse_topology_at_takeover_boundary() -> void:
+	var replay: ReplayData = _make_replay(108, 0, 0)
+	var topology: BoardTopology = BoardTopology.create_custom(
+		[Vector2i.ZERO, Vector2i(10000, 10000)],
+		&"board.test.replay_hostile_span"
+	)
+	replay.initial_board_topology = topology.to_dict()
+	replay.final_board_snapshot = _make_empty_board_snapshot(topology)
+
+	assert_true(topology.get_validation_report().is_ok())
+	assert_null(
+		ReplayData.from_dict(replay.to_dict()),
+		"ReplayData 接管不能只检查 active cell 数量。"
+	)
+	assert_null(
+		ReplayChunkSourceSnapshot.take_ownership_of_immutable_items([replay]),
+		"编码源必须拒绝不可玩拓扑。"
+	)
+
+	var chunks: Array[PackedByteArray] = _make_test_stream(
+		_make_stream_header(1),
+		[
+			_make_replay_metadata(replay, 0),
+			_make_topology_cell_frame(replay),
+		]
+	)
+	var decoder: ReplayChunkDecoder = ReplayChunkDecoder.begin_decode(chunks)
+	assert_not_null(decoder)
+	if decoder == null:
+		return
+	while not decoder.is_complete() and not decoder.is_failed():
+		assert_true(decoder.advance(1) == 1)
+	assert_true(
+		decoder.is_failed(),
+		"分块解码必须在构造 PreparedState 前拒绝超宽拓扑。"
+	)
 
 
 func test_codec_rejects_truncation_tail_bad_counts_and_step_types() -> void:
@@ -428,6 +466,29 @@ func test_decoder_never_deserializes_object_frames() -> void:
 	assert_true(decoder.advance(1) == 0)
 	assert_true(decoder.is_failed())
 	assert_engine_error("!p_allow_objects")
+
+
+func test_writer_and_reader_reject_depth_nine_frame_before_reencode() -> void:
+	var hostile_value: Variant = _make_depth_hostile_variant()
+	assert_false(
+		ChunkFrameVariantBudget.is_value_within_default_budget(hostile_value)
+	)
+	_assert_replay_writer_rejects_hostile_metadata(hostile_value)
+	_assert_replay_reader_rejects_hostile_frame(hostile_value)
+
+
+func test_writer_and_reader_reject_more_than_4096_nodes() -> void:
+	var hostile_nodes: Array = []
+	assert_true(
+		hostile_nodes.resize(
+			ChunkFrameVariantBudget.MAX_VARIANT_NODES + 1
+		) == OK
+	)
+	assert_false(
+		ChunkFrameVariantBudget.is_value_within_default_budget(hostile_nodes)
+	)
+	_assert_replay_writer_rejects_hostile_metadata(hostile_nodes)
+	_assert_replay_reader_rejects_hostile_frame(hostile_nodes)
 
 
 func test_codec_rejects_single_tile_frame_above_128_kib() -> void:
@@ -1006,6 +1067,51 @@ func _make_raw_frame_stream(
 	return _split_test_stream(stream)
 
 
+func _make_depth_hostile_variant() -> Variant:
+	var value: Variant = 0
+	for _depth: int in range(
+		ChunkFrameVariantBudget.MAX_VARIANT_DEPTH + 1
+	):
+		value = {&"child": value}
+	return value
+
+
+func _assert_replay_writer_rejects_hostile_metadata(
+	hostile_value: Variant
+) -> void:
+	var source: HostileReplayChunkSourceSnapshot = (
+		HostileReplayChunkSourceSnapshot.new()
+	)
+	source.hostile_session_metadata = hostile_value
+	var codec: ReplayChunkCodec = ReplayChunkCodec.begin_encode(source)
+	assert_not_null(codec)
+	if codec == null:
+		return
+	assert_true(codec.advance(1) == 1, "header frame 应保持合法。")
+	assert_true(codec.advance(1) == 0, "hostile metadata 不得完成序列化。")
+	assert_true(codec.is_failed())
+	assert_true(codec.get_error_code() == ERR_OUT_OF_MEMORY)
+	assert_true(codec.get_error().contains("structural budget"))
+	assert_true(codec.take_chunks_taking_ownership().is_empty())
+
+
+func _assert_replay_reader_rejects_hostile_frame(
+	hostile_value: Variant
+) -> void:
+	var payload: PackedByteArray = var_to_bytes(hostile_value)
+	assert_false(payload.is_empty())
+	assert_true(payload.size() <= ReplayChunkDecoder.MAX_FRAME_PAYLOAD_BYTES)
+	var decoder: ReplayChunkDecoder = ReplayChunkDecoder.begin_decode(
+		_make_raw_frame_stream(payload)
+	)
+	assert_not_null(decoder)
+	if decoder == null:
+		return
+	assert_true(decoder.advance(1) == 0)
+	assert_true(decoder.is_failed())
+	assert_true(decoder.get_error_code() == ERR_FILE_CORRUPT)
+
+
 func _duplicate_chunks(
 	chunks: Array[PackedByteArray]
 ) -> Array[PackedByteArray]:
@@ -1123,3 +1229,48 @@ class RecordingReplayCatalog extends ReplayCatalogSaveData:
 	func _replace_section_data(data: Dictionary) -> Error:
 		dictionary_replace_call_count += 1
 		return super._replace_section_data(data)
+
+
+class HostileReplayChunkSourceSnapshot extends ReplayChunkSourceSnapshot:
+	var hostile_session_metadata: Variant = null
+
+	func get_replay_count() -> int:
+		return 1
+
+	## @param _replay_index: 测试源中唯一 Replay 的序号；故意不参与 hostile 返回值。
+	func get_topology_cell_count(_replay_index: int) -> int:
+		return 1
+
+	## @param _replay_index: 测试源中唯一 Replay 的序号；故意不参与 hostile 返回值。
+	func get_final_tile_count(_replay_index: int) -> int:
+		return 0
+
+	## @param _replay_index: 测试源中唯一 Replay 的序号；故意不参与 hostile 返回值。
+	func get_step_count(_replay_index: int) -> int:
+		return 0
+
+	## @param _replay_index: 测试源中唯一 Replay 的序号；故意不参与 hostile 返回值。
+	func duplicate_replay_metadata(_replay_index: int) -> Variant:
+		return {
+			&"schema_version": ReplayData.SCHEMA_VERSION,
+			&"replay_id": GFUuid.generate_v7(1),
+			&"timestamp": 1,
+			&"mode_config_path": "res://test.tres",
+			&"ruleset_id": &"test.ruleset",
+			&"ruleset_version": 1,
+			&"ruleset_fingerprint": "a".repeat(64),
+			&"initial_seed": 1,
+			&"session_metadata": hostile_session_metadata,
+			&"final_score": 0,
+			&"topology_schema_version": (
+				BoardTopology.SERIALIZATION_SCHEMA_VERSION
+			),
+			&"topology_id": "test",
+			&"active_cell_count": 1,
+			&"snapshot_schema_version": GridModel.SNAPSHOT_SCHEMA_VERSION,
+			&"tile_count": 0,
+			&"step_count": 0,
+		}
+
+	func release() -> void:
+		hostile_session_metadata = null

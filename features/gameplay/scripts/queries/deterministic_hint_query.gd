@@ -111,12 +111,15 @@ func _prepare_snapshot(
 	var active_cells: Array = GFVariantData.get_option_array(topology, &"active_cells")
 	if (
 		active_cells.is_empty()
-		or active_cells.size() > BoardTopology.MAX_CELL_COUNT
+		or active_cells.size() > BoardTopology.MAX_SERIALIZED_CELL_COUNT
 	):
 		return {}
 
 	var cell_lookup: Dictionary = {}
-	var minimum: Vector2i = Vector2i(BoardTopology.MAX_CELL_COUNT, BoardTopology.MAX_CELL_COUNT)
+	var minimum: Vector2i = Vector2i(
+		BoardTopology.MAX_SERIALIZED_CELL_COUNT,
+		BoardTopology.MAX_SERIALIZED_CELL_COUNT
+	)
 	var previous: Vector2i = Vector2i(-1, -1)
 	for index: int in range(active_cells.size()):
 		if not budget.consume_steps():

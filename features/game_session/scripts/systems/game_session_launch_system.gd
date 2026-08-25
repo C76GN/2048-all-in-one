@@ -92,9 +92,7 @@ func launch_new_game(
 	var topology: BoardTopology = BoardTopology.from_dict(topology_snapshot_copy)
 	topology_snapshot_copy = {}
 	if (
-		not is_instance_valid(topology)
-		or not is_instance_valid(mode_config.board_topology_template)
-		or not mode_config.board_topology_template.accepts_topology(topology)
+		not _is_topology_playable_for_mode(topology, mode_config)
 	):
 		push_error("[GameSessionLaunchSystem] 棋盘拓扑不满足当前模式契约，拒绝启动。")
 		return false
@@ -229,11 +227,7 @@ func _is_bookmark_valid_for_launch(bookmark: BookmarkData) -> bool:
 	var topology: BoardTopology = BoardTopology.from_dict(
 		GFVariantData.get_option_dictionary(bookmark.board_snapshot, &"topology").duplicate(true)
 	)
-	return (
-		is_instance_valid(topology)
-		and is_instance_valid(mode_config.board_topology_template)
-		and mode_config.board_topology_template.accepts_topology(topology)
-	)
+	return _is_topology_playable_for_mode(topology, mode_config)
 
 
 func _is_replay_valid_for_launch(replay: ReplayData) -> bool:
@@ -246,8 +240,17 @@ func _is_replay_valid_for_launch(replay: ReplayData) -> bool:
 	):
 		return false
 	var topology: BoardTopology = replay.get_initial_topology()
+	return _is_topology_playable_for_mode(topology, mode_config)
+
+
+func _is_topology_playable_for_mode(
+	topology: BoardTopology,
+	mode_config: GameModeConfig
+) -> bool:
 	return (
 		is_instance_valid(topology)
+		and topology.get_playable_validation_report().is_ok()
+		and is_instance_valid(mode_config)
 		and is_instance_valid(mode_config.board_topology_template)
 		and mode_config.board_topology_template.accepts_topology(topology)
 	)

@@ -251,9 +251,9 @@ func get_static_preview_targets() -> Array[Control]:
 
 
 func get_sample_button_presenter() -> GameButtonMotionPresenter:
-	if not is_instance_valid(_style_utility):
+	if not is_instance_valid(_motion_utility):
 		return null
-	return _style_utility.get_button_motion_presenter(_sample_button)
+	return _motion_utility.get_button_motion_presenter(_sample_button)
 
 
 # --- 私有/辅助方法 ---
@@ -450,7 +450,7 @@ class _PreviewMotionRuntime extends GameUiMotionUtility:
 			or is_ready_in_architecture()
 		):
 			return false
-		_style = style
+		_set_style_dependency(style)
 		_accessibility = accessibility
 		return true
 

@@ -100,6 +100,7 @@ var _input_mapping: GFInputMappingUtility
 var _signal_utility: GFSignalUtility
 var _clock_utility: GameClockUtility
 var _realtime_timer: GameRealtimeTimerUtility
+var _performance_trace_utility: GamePerformanceTraceUtility
 var _touch_input_source: GFVirtualInputSource
 var _touch_action_pulse: GameVirtualActionPulseUtility
 
@@ -152,7 +153,10 @@ func _exit_tree() -> void:
 
 
 func _process(_delta: float) -> void:
-	if not _is_initialized or not is_instance_valid(_input_mapping):
+	if not _is_initialized:
+		return
+	_record_acceptance_frame()
+	if not is_instance_valid(_input_mapping):
 		return
 	if _input_mapping.consume_action(GameplayInputActions.VIEW_FIT):
 		fit_to_content()
@@ -441,11 +445,26 @@ func _get_content_position() -> Vector2:
 	return Vector2.ZERO
 
 
+func _record_acceptance_frame() -> void:
+	if (
+		not is_instance_valid(_performance_trace_utility)
+		or not _performance_trace_utility.is_acceptance_measurement_active()
+	):
+		return
+	var viewport: Viewport = get_viewport()
+	if not is_instance_valid(viewport):
+		return
+	_performance_trace_utility.record_player_visible_frame(
+		Vector2i(viewport.get_visible_rect().size.round())
+	)
+
+
 func _resolve_utilities() -> void:
 	_input_mapping = _get_input_mapping_utility()
 	_signal_utility = _get_signal_utility()
 	_clock_utility = _get_clock_utility()
 	_realtime_timer = _get_realtime_timer_utility()
+	_performance_trace_utility = _get_performance_trace_utility()
 
 
 func _has_required_dependencies() -> bool:
@@ -642,27 +661,7 @@ func _normalize_fit_insets(insets: Dictionary) -> Dictionary:
 
 
 func _create_spatial_input_policy() -> GFSpatialCanvasInputPolicy:
-	var policy: GFSpatialCanvasInputPolicy = GFSpatialCanvasInputPolicy.new()
-	policy.pan_mouse_button = MOUSE_BUTTON_MIDDLE
-	policy.pan_action = &""
-	policy.pan_modifier_mask = GFSpatialCanvasInputPolicy.ModifierMask.NONE
-	policy.selection_mouse_button = MOUSE_BUTTON_NONE
-	policy.selection_action = &""
-	policy.selection_modifier_bindings.clear()
-	policy.wheel_axis = GFSpatialCanvasInputPolicy.WheelAxis.VERTICAL
-	policy.wheel_routing = GFSpatialCanvasInputPolicy.WheelRouting.CANVAS
-	policy.wheel_modifier_mask = GFSpatialCanvasInputPolicy.ModifierMask.NONE
-	policy.wheel_zoom_factor = _ZOOM_STEP
-	policy.touch_enabled = true
-	policy.touch_primary_behavior = GFSpatialCanvasInputPolicy.TouchPrimaryBehavior.NONE
-	policy.touch_multi_pan_enabled = true
-	policy.touch_multi_zoom_enabled = true
-	policy.system_pan_gesture_enabled = true
-	policy.system_magnify_gesture_enabled = true
-	policy.placement_cancel_action = &""
-	policy.consume_handled_events = true
-	policy.consume_wheel_events = true
-	return policy
+	return GameSpatialCanvasInputPolicy.create_navigation_policy(_ZOOM_STEP)
 
 
 func _get_host_control() -> Control:
@@ -742,6 +741,14 @@ func _get_realtime_timer_utility() -> GameRealtimeTimerUtility:
 	if utility_value is GameRealtimeTimerUtility:
 		var timer_utility: GameRealtimeTimerUtility = utility_value
 		return timer_utility
+	return null
+
+
+func _get_performance_trace_utility() -> GamePerformanceTraceUtility:
+	var utility_value: Object = get_utility(GamePerformanceTraceUtility, true)
+	if utility_value is GamePerformanceTraceUtility:
+		var performance_trace: GamePerformanceTraceUtility = utility_value
+		return performance_trace
 	return null
 
 

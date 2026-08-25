@@ -228,7 +228,10 @@ func _build_board_payload(
 	var topology: BoardTopology = BoardTopology.from_dict(
 		GFVariantData.get_option_dictionary(board_snapshot, &"topology")
 	)
-	if not is_instance_valid(topology):
+	if (
+		not is_instance_valid(topology)
+		or not topology.get_playable_validation_report().is_ok()
+	):
 		return {}
 	var tiles_by_cell: Dictionary = {}
 	var highest_tile: int = 0
@@ -264,7 +267,7 @@ func _build_board_payload(
 				cell_payload = GFVariantData.get_option_dictionary(
 					tiles_by_cell,
 					cell
-				).duplicate(true)
+				)
 			else:
 				cell_payload = {&"state": &"empty"}
 			cell_payload[&"x"] = x
@@ -374,10 +377,10 @@ func _compose_summary(
 		&"board_checksum"
 	)
 	summary.board_text = board_text
-	summary.canonical_payload = board_payload.duplicate(true)
+	summary.canonical_payload = board_payload
 	if kind == GameAccessibilitySummary.KIND_TURN:
 		summary.canonical_payload[&"kind"] = kind
-		summary.canonical_payload[&"turn"] = turn_payload.duplicate(true)
+		summary.canonical_payload[&"turn"] = turn_payload
 		summary.subtitle_text = _format_turn_text(turn_payload)
 		summary.announcement_text = "%s %s" % [
 			summary.subtitle_text,
@@ -398,7 +401,7 @@ func _publish(
 	summary.sequence = _sequence
 	if not summary.is_valid_summary():
 		return null
-	_latest_summary = summary.duplicate_summary()
+	_latest_summary = summary
 	summary_published.emit(_latest_summary.duplicate_summary())
 	return _latest_summary.duplicate_summary()
 

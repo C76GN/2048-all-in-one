@@ -795,9 +795,9 @@ func test_visual_review_injects_history_items_through_the_active_list_backend() 
 		"视觉验收退出前必须排队释放根节点子树。"
 	)
 	assert_true(
-		source.contains('root.get_node_or_null("Gf")')
+		source.contains("GfToolArchitectureAccess.get_autoload(root)")
 		and source.contains("if child == gf_node or child is CanvasLayer:"),
-		"视觉验收必须先释放玩法场景，并把架构拥有的 CanvasLayer 留给 GF 释放。"
+		"视觉验收必须经唯一工具架构边界解析 GF，先释放玩法场景，并把架构拥有的 CanvasLayer 留给 GF 释放。"
 	)
 	for required_state_fragment: String in [
 		'_capture_history_delete_states(bookmark_list, "bookmark")',

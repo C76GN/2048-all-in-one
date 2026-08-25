@@ -78,6 +78,14 @@ func test_exclusion_index_rejects_invalid_identity() -> void:
 	assert_true(index.size() == 0, "无效身份不得写入索引。")
 
 
+func test_exclusion_index_uses_gf_one_mib_file_budget() -> void:
+	assert_true(
+		AssetSourceExclusionIndex.MAX_INDEX_FILE_BYTES
+		== GFBoundedJsonObjectReader.ABSOLUTE_MAX_BYTES,
+		"源素材排除索引必须收敛到 GF 的 1 MiB JSON 信任边界。"
+	)
+
+
 func test_exclusion_index_reports_invalid_persisted_entry_and_clears_partial_state() -> void:
 	var fixture_path: String = "user://asset_source_exclusions_invalid_%d.json" % Time.get_ticks_usec()
 	var index: AssetSourceExclusionIndex = EXCLUSION_INDEX_SCRIPT.new()

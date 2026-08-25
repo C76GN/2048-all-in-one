@@ -82,7 +82,7 @@ func get_topology_cell_count(replay_index: int) -> int:
 	if not cells_value is Array:
 		return -1
 	var cells: Array = cells_value
-	if cells.is_empty() or cells.size() > BoardTopology.MAX_CELL_COUNT:
+	if cells.is_empty() or cells.size() > BoardTopology.MAX_PLAYABLE_CELL_COUNT:
 		return -1
 	return cells.size()
 
@@ -275,10 +275,16 @@ static func _has_bounded_roots(item: ReplayData) -> bool:
 		return false
 	var cells: Array = cells_value
 	var tiles: Array = tiles_value
+	var topology: BoardTopology = BoardTopology.from_dict(
+		item.initial_board_topology
+	)
 	return (
 		not cells.is_empty()
-		and cells.size() <= BoardTopology.MAX_CELL_COUNT
+		and cells.size() <= BoardTopology.MAX_PLAYABLE_CELL_COUNT
 		and tiles.size() <= cells.size()
+		and topology != null
+		and topology.get_playable_validation_report().is_ok()
+		and GridModel.is_snapshot_envelope_valid(item.final_board_snapshot)
 	)
 
 

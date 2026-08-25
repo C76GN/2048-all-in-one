@@ -79,6 +79,35 @@ func test_invalid_stable_identity_fails_without_mutating_launch_state() -> void:
 	assert_true(router.paths.is_empty())
 
 
+func test_new_game_rejects_domain_valid_but_unplayable_topology() -> void:
+	var fixture: Dictionary = _make_fixture()
+	var launch_system: GameSessionLaunchSystem = fixture[&"launch_system"]
+	var app_config: AppConfigModel = fixture[&"app_config"]
+	var router: _RouterSpy = fixture[&"router"]
+	var topology: BoardTopology = BoardTopology.create_custom(
+		[Vector2i.ZERO, Vector2i(10000, 10000)],
+		&"board.test.launch_hostile_span"
+	)
+	app_config.selected_mode_config_path.set_value("sentinel")
+
+	assert_true(topology.get_validation_report().is_ok())
+	assert_false(launch_system.launch_new_game(
+		_CLASSIC_MODE_PATH,
+		topology.to_dict(),
+		2048,
+		GameSessionMetadata.SEED_SOURCE_MANUAL,
+		true
+	))
+	assert_push_error("棋盘拓扑不满足当前模式契约")
+	assert_true(
+		GFVariantData.to_text(
+			app_config.selected_mode_config_path.get_value(),
+			""
+		) == "sentinel"
+	)
+	assert_true(router.paths.is_empty())
+
+
 func test_bookmark_and_replay_are_reresolved_by_id_and_copy_isolated() -> void:
 	var fixture: Dictionary = _make_fixture()
 	var launch_system: GameSessionLaunchSystem = fixture[&"launch_system"]

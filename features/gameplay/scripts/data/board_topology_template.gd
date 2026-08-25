@@ -63,7 +63,10 @@ func supports_size(size: Vector2i) -> bool:
 
 ## @param topology: 待检查的完整棋盘拓扑。
 func accepts_topology(topology: BoardTopology) -> bool:
-	if not is_instance_valid(topology) or not topology.get_validation_report().is_ok():
+	if (
+		not is_instance_valid(topology)
+		or not topology.get_playable_validation_report().is_ok()
+	):
 		return false
 	if kind == Kind.FIXED:
 		return (
@@ -119,7 +122,10 @@ func get_validation_report() -> GFValidationReport:
 				resource_path
 			)
 		else:
-			var _merged_report: RefCounted = report.merge(fixed_topology.get_validation_report(), false)
+			var _merged_report: RefCounted = report.merge(
+				fixed_topology.get_playable_validation_report(),
+				false
+			)
 		return report
 
 	if min_size.x <= 0 or min_size.y <= 0:
@@ -159,7 +165,8 @@ static func _is_size_within_capacity(size: Vector2i) -> bool:
 	return (
 		size.x > 0
 		and size.y > 0
-		and size.x <= BoardTopology.MAX_CELL_COUNT
-		and size.y <= BoardTopology.MAX_CELL_COUNT
-		and size.x * size.y <= BoardTopology.MAX_CELL_COUNT
+		and size.x <= BoardTopology.MAX_PLAYABLE_BOUNDS_WIDTH
+		and size.y <= BoardTopology.MAX_PLAYABLE_BOUNDS_HEIGHT
+		and size.x * size.y <= BoardTopology.MAX_PLAYABLE_BOUNDS_AREA
+		and size.x * size.y <= BoardTopology.MAX_PLAYABLE_CELL_COUNT
 	)

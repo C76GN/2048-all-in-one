@@ -1393,6 +1393,131 @@ func test_known_section_save_failure_rolls_back_and_compensates() -> void:
 	_dispose_setup(setup)
 
 
+func test_rollback_failure_keeps_reconciliation_and_all_mutation_gates_closed() -> void:
+	var storage: _RetryStorage = _RetryStorage.new()
+	var progress_provider: _RollbackFailingProgressSaveData = (
+		_RollbackFailingProgressSaveData.new()
+	)
+	var setup: Dictionary = await _create_persistence_architecture(
+		"",
+		false,
+		PackedByteArray(),
+		storage,
+		null,
+		false,
+		false,
+		null,
+		progress_provider
+	)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var original_profile_file_name: String = save_graph.get_profile_file_name()
+	var candidate: Dictionary = _make_empty_progress_data()
+	candidate["stats"] = {"classic": {"rollback_must_fail_closed": true}}
+	progress_provider.reject_next_rollback()
+	storage.profile_save_errors = [ERR_INVALID_DATA]
+
+	var failed_operation: GameSaveSectionOperation = (
+		save_graph.request_replace_section_data(
+			GameSaveGraphUtility.PROGRESS_SECTION_ID,
+			candidate
+		)
+	)
+	var failed_result: GameSaveSectionResult = await _await_section_operation(
+		failed_operation,
+		setup
+	)
+	assert_push_error("section 回滚失败")
+	var transaction_id: int = failed_operation.get_transaction_id()
+	assert_true(
+		failed_result != null
+		and failed_result.get_status()
+		== GameSaveSectionResult.STATUS_ROLLBACK_FAILED
+		and save_graph.is_section_reconciliation_pending()
+		and save_graph.get_pending_section_reconciliation_transaction_id()
+		== transaction_id,
+		"rollback_failed 必须永久保留原事务 reconciliation 身份。"
+	)
+
+	var architecture: GFArchitecture = _get_architecture(setup)
+	for _frame: int in range(12):
+		architecture.tick(1.0 / 60.0)
+		await get_tree().process_frame
+	assert_true(
+		save_graph.is_section_reconciliation_pending()
+		and save_graph.get_pending_section_reconciliation_transaction_id()
+		== transaction_id,
+		"没有可信恢复证据时，tick 不得自动释放 rollback_failed reconciliation。"
+	)
+
+	var blocked_section: GameSaveSectionOperation = (
+		save_graph.request_replace_section_data(
+			GameSaveGraphUtility.PROGRESS_SECTION_ID,
+			_make_empty_progress_data()
+		)
+	)
+	var blocked_section_result: GameSaveSectionResult = (
+		blocked_section.get_result()
+	)
+	assert_true(
+		blocked_section_result != null
+		and blocked_section_result.get_status()
+		== GameSaveSectionResult.STATUS_BUSY
+		and save_graph.queue_section_data(
+			GameSaveGraphUtility.PROGRESS_SECTION_ID,
+			_make_empty_progress_data()
+		) == ERR_BUSY,
+		"rollback_failed 期间 immediate 与 debounced section 写都必须 fail-closed。"
+	)
+
+	var rejected_save: GFSaveProfileResult = await _await_profile_operation(
+		save_graph.request_save_profile({&"test": "rollback_failed_gate"}),
+		setup
+	)
+	var rejected_load: GFSaveProfileResult = await _await_profile_operation(
+		save_graph.request_load_profile({}, {&"test": "rollback_failed_gate"}),
+		setup
+	)
+	var rejected_flush: GFSaveProfileResult = await _await_profile_operation(
+		save_graph.request_flush_profile({&"test": "rollback_failed_gate"}),
+		setup
+	)
+	assert_true(
+		rejected_save != null
+		and rejected_save.get_status() == GFSaveProfileResult.STATUS_INVALID_PROFILE
+		and rejected_load != null
+		and rejected_load.get_status() == GFSaveProfileResult.STATUS_INVALID_PROFILE
+		and rejected_flush != null
+		and rejected_flush.get_status() == GFSaveProfileResult.STATUS_INVALID_PROFILE,
+		"未对账的 rollback_failed 状态不得再接纳 Profile save/load/flush。"
+	)
+
+	var switch_error: Error = await save_graph.activate_profile_async(
+		_make_inactive_profile_file_name(2_048_777),
+		true
+	)
+	assert_true(
+		switch_error == ERR_BUSY
+		and save_graph.get_profile_file_name() == original_profile_file_name,
+		"rollback_failed reconciliation 未解除前不得切换或改写 Profile 身份。"
+	)
+
+	var quiesce: GFAsyncCompletion = save_graph.begin_quiesce(
+		GFAsyncScope.new()
+	)
+	for _frame: int in range(12):
+		architecture.tick(1.0 / 60.0)
+		await get_tree().process_frame
+	assert_true(
+		quiesce != null
+		and quiesce.is_pending()
+		and save_graph.is_section_reconciliation_pending()
+		and save_graph.get_pending_section_reconciliation_transaction_id()
+		== transaction_id,
+		"quiesce 必须持续等待 rollback_failed，不能伪造 flush 成功后释放所有权。"
+	)
+	_dispose_setup(setup)
+
+
 func test_section_outcome_unknown_late_success_emits_reconciliation_evidence() -> void:
 	var storage: _HangingProfileStorage = _HangingProfileStorage.new()
 	var clock: GFManualClock = GFManualClock.new(0, 1_000_000)
@@ -3787,7 +3912,8 @@ func _create_persistence_architecture(
 	clock_override: GFManualClock = null,
 	use_chunked_bookmarks: bool = false,
 	use_chunked_replays: bool = false,
-	chunk_utility_override: ChunkProfileUtility = null
+	chunk_utility_override: ChunkProfileUtility = null,
+	progress_provider_override: GameSaveSectionData = null
 ) -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var storage: GFStorageUtility = (
@@ -3797,7 +3923,8 @@ func _create_persistence_architecture(
 	)
 	var save_graph: GameSaveGraphUtility = _make_game_save_graph(
 		use_chunked_bookmarks,
-		use_chunked_replays
+		use_chunked_replays,
+		progress_provider_override
 	)
 	var platform: GamePlatformUtility = _TEST_PLATFORM_STUB_SCRIPT.new()
 	var account_catalog: LocalAccountCatalogUtility = (
@@ -3922,9 +4049,13 @@ func _create_persistence_architecture(
 
 func _make_game_save_graph(
 	use_chunked_bookmarks: bool = false,
-	use_chunked_replays: bool = false
+	use_chunked_replays: bool = false,
+	progress_provider_override: GameSaveSectionData = null
 ) -> GameSaveGraphUtility:
 	var save_graph: GameSaveGraphUtility = GameSaveGraphUtility.new()
+	var progress_provider: GameSaveSectionData = progress_provider_override
+	if progress_provider == null:
+		progress_provider = GameStatsSaveData.new()
 	var bookmark_data: BookmarkCatalogSaveData = BookmarkCatalogSaveData.new()
 	var bookmark_profile_provider: GFSaveSectionProvider = null
 	if use_chunked_bookmarks:
@@ -3939,7 +4070,7 @@ func _make_game_save_graph(
 		)
 	var progress_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.PROGRESS_SECTION_ID,
-		GameStatsSaveData.new(),
+		progress_provider,
 		GameSaveGraphUtility.SectionOrder.EARLY
 	)
 	var bookmarks_registered: bool = save_graph.register_section(
@@ -4303,6 +4434,22 @@ class _RawFixtureStorage extends GFStorageUtility:
 			return ""
 		var descriptor: Dictionary = _make_family_descriptor(file_name)
 		return GFVariantData.get_option_string(descriptor, "payload_path")
+
+
+class _RollbackFailingProgressSaveData extends GameStatsSaveData:
+	var _reject_rollback_once: bool = false
+
+
+	func reject_next_rollback() -> void:
+		_reject_rollback_once = true
+
+
+	## @param payload: 要应用到测试存档 Section 的完整 envelope。
+	func replace_from_dict(payload: Dictionary) -> Error:
+		if _reject_rollback_once:
+			_reject_rollback_once = false
+			return ERR_CANT_CREATE
+		return super.replace_from_dict(payload)
 
 
 class _ControllableChunkProfileUtility extends ChunkProfileUtility:

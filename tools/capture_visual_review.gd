@@ -261,7 +261,7 @@ func _request_exit(exit_code: int = 0) -> void:
 
 
 func _finish_capture(exit_code: int) -> void:
-	var gf_node: Node = root.get_node_or_null("Gf")
+	var gf_node: Node = GfToolArchitectureAccess.get_autoload(root)
 	for child: Node in root.get_children():
 		if child == gf_node or child is CanvasLayer:
 			continue
@@ -326,14 +326,15 @@ func _open_route(source: Node, button_name: StringName, target_name: StringName)
 func _wait_for_scene_change_idle(timeout_seconds: float) -> bool:
 	var deadline_msec: int = Time.get_ticks_msec() + ceili(timeout_seconds * 1000.0)
 	while Time.get_ticks_msec() <= deadline_msec:
-		var gf_node: Node = root.get_node_or_null("Gf")
-		if is_instance_valid(gf_node):
-			var system_value: Variant = gf_node.call("get_system", SceneRouterSystem)
-			if system_value is SceneRouterSystem:
-				var router: SceneRouterSystem = system_value
-				var snapshot: Dictionary = router.get_debug_snapshot()
-				if not GFVariantData.get_option_bool(snapshot, "scene_change_active", false):
-					return true
+		var system_value: Variant = GfToolArchitectureAccess.get_system(
+			root,
+			SceneRouterSystem
+		)
+		if system_value is SceneRouterSystem:
+			var router: SceneRouterSystem = system_value
+			var snapshot: Dictionary = router.get_debug_snapshot()
+			if not GFVariantData.get_option_bool(snapshot, "scene_change_active", false):
+				return true
 		await create_timer(0.02, true, false, true).timeout
 	return false
 
@@ -794,17 +795,19 @@ func _make_preview_tile(
 
 
 func _get_gf_member(method: StringName, type_script: Script) -> Variant:
-	var gf_node: Node = root.get_node_or_null("Gf")
-	if not is_instance_valid(gf_node):
-		return null
-	return gf_node.call(method, type_script)
+	match method:
+		&"get_model":
+			return GfToolArchitectureAccess.get_model(root, type_script)
+		&"get_system":
+			return GfToolArchitectureAccess.get_system(root, type_script)
+		&"get_utility":
+			return GfToolArchitectureAccess.get_utility(root, type_script)
+		_:
+			return null
 
 
 func _find_available_move_direction() -> Vector2i:
-	var gf_node: Node = root.get_node_or_null("Gf")
-	if not is_instance_valid(gf_node):
-		return Vector2i.ZERO
-	var model_value: Variant = gf_node.call("get_model", GridModel)
+	var model_value: Variant = GfToolArchitectureAccess.get_model(root, GridModel)
 	if not model_value is GridModel:
 		return Vector2i.ZERO
 	var grid: GridModel = model_value
@@ -823,13 +826,14 @@ func _find_available_move_direction() -> Vector2i:
 func _wait_for_replay_step(minimum_step: int, timeout_seconds: float) -> bool:
 	var deadline_msec: int = Time.get_ticks_msec() + ceili(timeout_seconds * 1000.0)
 	while Time.get_ticks_msec() <= deadline_msec:
-		var gf_node: Node = root.get_node_or_null("Gf")
-		if is_instance_valid(gf_node):
-			var system_value: Variant = gf_node.call("get_system", ReplaySystem)
-			if system_value is ReplaySystem:
-				var replay_system: ReplaySystem = system_value
-				if replay_system.get_current_step() >= minimum_step:
-					return true
+		var system_value: Variant = GfToolArchitectureAccess.get_system(
+			root,
+			ReplaySystem
+		)
+		if system_value is ReplaySystem:
+			var replay_system: ReplaySystem = system_value
+			if replay_system.get_current_step() >= minimum_step:
+				return true
 		await create_timer(0.02, true, false, true).timeout
 	return false
 
@@ -878,15 +882,17 @@ func _save_viewport(file_name: String) -> bool:
 
 
 func _capture_first_merge_feedback(_game_play: Node) -> bool:
-	var gf_node: Node = root.get_node_or_null("Gf")
-	if not is_instance_valid(gf_node):
+	var history_value: Variant = GfToolArchitectureAccess.get_utility(
+		root,
+		GFCommandHistoryUtility
+	)
+	if history_value == null:
 		push_error("[VisualReview] GF root is unavailable for merge capture.")
 		return false
-	var history_value: Variant = gf_node.call("get_utility", GFCommandHistoryUtility)
 	if not history_value is GFCommandHistoryUtility:
 		push_error("[VisualReview] Command history is unavailable for merge capture.")
 		return false
-	var status_value: Variant = gf_node.call("get_model", GameStatusModel)
+	var status_value: Variant = GfToolArchitectureAccess.get_model(root, GameStatusModel)
 	if not status_value is GameStatusModel:
 		push_error("[VisualReview] Game status is unavailable for merge capture.")
 		return false

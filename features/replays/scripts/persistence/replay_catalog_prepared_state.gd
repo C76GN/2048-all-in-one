@@ -87,8 +87,14 @@ static func _has_valid_bounded_root(item: ReplayData) -> bool:
 		return false
 	var cells: Array = cells_value
 	var tiles: Array = tiles_value
+	var topology: BoardTopology = BoardTopology.from_dict(
+		item.initial_board_topology
+	)
 	return (
 		not cells.is_empty()
-		and cells.size() <= BoardTopology.MAX_CELL_COUNT
+		and cells.size() <= BoardTopology.MAX_PLAYABLE_CELL_COUNT
 		and tiles.size() <= cells.size()
+		and topology != null
+		and topology.get_playable_validation_report().is_ok()
+		and GridModel.is_snapshot_envelope_valid(item.final_board_snapshot)
 	)

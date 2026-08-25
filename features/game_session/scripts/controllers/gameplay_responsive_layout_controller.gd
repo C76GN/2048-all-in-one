@@ -17,9 +17,6 @@ enum LayoutMode {
 
 # --- 常量 ---
 
-const _DESKTOP_MINIMUM_WIDTH: float = 1180.0
-const _DESKTOP_MINIMUM_HEIGHT: float = 620.0
-const _PORTRAIT_HEIGHT_RATIO: float = 1.08
 const _DESKTOP_GUTTER: float = 16.0
 const _COMPACT_GUTTER: float = 10.0
 const _PORTRAIT_GUTTER: float = 8.0
@@ -133,17 +130,20 @@ static func classify_layout(
 	viewport_size: Vector2,
 	prefer_compact: bool = false
 ) -> LayoutMode:
-	if viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
-		return LayoutMode.DESKTOP
-	if viewport_size.y >= viewport_size.x * _PORTRAIT_HEIGHT_RATIO:
-		return LayoutMode.PORTRAIT
-	if (
-		prefer_compact
-		or viewport_size.x < _DESKTOP_MINIMUM_WIDTH
-		or viewport_size.y < _DESKTOP_MINIMUM_HEIGHT
-	):
-		return LayoutMode.COMPACT_LANDSCAPE
-	return LayoutMode.DESKTOP
+	var shared_mode: int = (
+		GameTaskPageLayoutUtility.classify_layout(viewport_size)
+	)
+	match shared_mode:
+		GameTaskPageLayoutUtility.LayoutMode.PORTRAIT:
+			return LayoutMode.PORTRAIT
+		GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE:
+			return LayoutMode.COMPACT_LANDSCAPE
+		_:
+			return (
+				LayoutMode.COMPACT_LANDSCAPE
+				if prefer_compact
+				else LayoutMode.DESKTOP
+			)
 
 
 func get_layout_mode() -> LayoutMode:

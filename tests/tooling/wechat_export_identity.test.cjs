@@ -14,6 +14,8 @@ const toolPaths = [
 	"tools/export_wechat_minigame_smoke.ps1",
 	"tools/wechat_minigame_artifact_verifier.gd",
 	"tools/wechat_minigame_artifact_check.gd",
+	"addons/gf/kernel/core/gf_bounded_json_object_reader.gd",
+	"addons/gf/kernel/core/gf_path_tools.gd",
 	"tools/wechat_minigame/chunked_file_loader.js",
 	"tools/wechat_minigame/wxmemfs_rename_patch.ps1",
 ];
@@ -113,14 +115,25 @@ function makeSourceFixture() {
 	for (const toolPath of toolPaths) {
 		writeFile(fixtureRoot, toolPath, `tool:${toolPath}\n`);
 	}
-	const vendorRecord = `core.gd\t${sha256(vendorContents)}\n`;
+	const vendorEntries = [
+		["core.gd", vendorContents],
+		...toolPaths
+			.filter((toolPath) => toolPath.startsWith("addons/gf/"))
+			.map((toolPath) => [
+				toolPath.slice("addons/gf/".length),
+				`tool:${toolPath}\n`,
+			]),
+	].sort(([left], [right]) => left.localeCompare(right, "en", {sensitivity: "variant"}));
+	const vendorRecord = vendorEntries
+		.map(([relativePath, contents]) => `${relativePath}\t${sha256(contents)}\n`)
+		.join("");
 	const lock = {
 		schema_version: 2,
 		framework_version: "11.0.0-dev.0",
 		source_commit: "a".repeat(40),
 		source_git_tree: "b".repeat(40),
 		vendor_tree_sha256: sha256(vendorRecord),
-		vendor_file_count: 1,
+		vendor_file_count: vendorEntries.length,
 	};
 	writeFile(fixtureRoot, ".gf/vendor.lock.json", `${JSON.stringify(lock)}\n`);
 	return {fixtureRoot, lock};
@@ -217,13 +230,13 @@ test("candidate build identity uses the documented canonical UTF-8 framing", () 
 		const body = [
 			"$godotIdentity = [ordered]@{ version = '4.7.2.stable.official.abcdef123' }",
 			"$gfIdentity = [ordered]@{ framework_version = '11.0.0-dev.0'; source_commit = ('a' * 40); source_git_tree = ('b' * 40); vendor_tree_sha256 = ('c' * 64); vendor_file_count = 1967; lock_sha256 = ('d' * 64) }",
-			"$toolIdentity = [ordered]@{ export_tool = [ordered]@{ sha256 = ('0' * 64) }; artifact_verifier = [ordered]@{ sha256 = ('1' * 64) }; artifact_check = [ordered]@{ sha256 = ('2' * 64) }; chunk_loader = [ordered]@{ sha256 = ('3' * 64) }; wxmemfs_patch = [ordered]@{ sha256 = ('4' * 64) } }",
+			"$toolIdentity = [ordered]@{ export_tool = [ordered]@{ sha256 = ('0' * 64) }; artifact_verifier = [ordered]@{ sha256 = ('1' * 64) }; artifact_check = [ordered]@{ sha256 = ('2' * 64) }; bounded_json_reader = [ordered]@{ sha256 = ('3' * 64) }; path_tools = [ordered]@{ sha256 = ('4' * 64) }; chunk_loader = [ordered]@{ sha256 = ('5' * 64) }; wxmemfs_patch = [ordered]@{ sha256 = ('6' * 64) } }",
 			"Get-CandidateBuildId -GodotIdentity $godotIdentity -GfIdentity $gfIdentity -InputSnapshotSha256 ('e' * 64) -InputSnapshotFileCount 1234 -ArtifactManifestSha256 ('f' * 64) -ToolIdentity $toolIdentity",
 		].join("\n");
 		const result = runPowerShell(fixtureRoot, body);
 		assert.equal(
 			result.stdout.trim(),
-			"a6545b8210195a47b91de64eb4da6842fba67005c10fb89c1e0c152dd5d1edc0",
+			"274bffc55db1555d7607d5dd297d99613139b80b9e76a5882ea432caea2521e7",
 		);
 	} finally {
 		fs.rmSync(fixtureRoot, {recursive: true, force: true});

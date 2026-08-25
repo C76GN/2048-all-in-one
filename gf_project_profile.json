@@ -48,8 +48,8 @@
     },
     {
       "id": "generated",
-      "description": "Generated source and reproducible intermediate output.",
-      "roots": ["generated"],
+      "description": "Rebuildable reports, exports, and other generated output.",
+      "roots": ["build"],
       "severity": "error"
     }
   ],
@@ -84,7 +84,7 @@
       "id": "project_paths_are_snake_case",
       "description": "Hand-authored project paths use stable lowercase snake_case names.",
       "kind": "naming_convention",
-      "roots": ["app", "features", "shared", "generated", "tests", "tools", "docs"],
+      "roots": ["app", "features", "shared", "tests", "tools", "docs"],
       "exclude": [
         "**/*.uid",
         "**/*.import",
@@ -107,10 +107,10 @@
     },
     {
       "id": "generated_files_stay_in_generated_roots",
-      "description": "Generated files stay in generated instead of leaking into hand-authored modules.",
+      "description": "Generated files stay in build instead of leaking into hand-authored modules.",
       "kind": "generated_boundary",
-      "include": ["**/*.generated.*", "**/generated/**"],
-      "roots": ["generated"],
+      "include": ["**/*.generated.*", "build/**", "**/build/**"],
+      "roots": ["build"],
       "severity": "error"
     },
     {

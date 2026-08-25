@@ -67,12 +67,9 @@ var _list_scroll: ScrollContainer = null
 var _layout_mode: int = GameTaskPageLayoutUtility.LayoutMode.DESKTOP
 var _layout_update_queued: bool = false
 var _pending_delete_resource: Resource = null
-var _delete_operation_busy: bool = false
-var _delete_outcome_unknown: bool = false
-var _delete_operation_token: int = 0
-var _pending_delete_transaction_id: int = 0
-var _pending_delete_resource_identity: String = ""
-var _delete_reconciliation_prompted: bool = false
+var _delete_state: GameSaveSectionUiOperationState = (
+	GameSaveSectionUiOperationState.new()
+)
 var _delete_signal_utility: GFSignalUtility = null
 var _delete_save_graph: GameSaveGraphUtility = null
 var _delete_reconciliation_connection: GFSignalConnection = null
@@ -137,11 +134,7 @@ func _notification(what: int) -> void:
 func _exit_tree() -> void:
 	_content_ready = false
 	_virtual_population_terminal_pending = false
-	_delete_operation_token += 1
-	_delete_operation_busy = false
-	_delete_outcome_unknown = false
-	_pending_delete_transaction_id = 0
-	_pending_delete_resource_identity = ""
+	_delete_state.invalidate()
 	if is_instance_valid(_delete_signal_utility):
 		_delete_signal_utility.disconnect_owner(self)
 	_delete_reconciliation_connection = null
@@ -1234,7 +1227,7 @@ func _set_left_focus_target(source: Control, target: Control) -> void:
 ## 更新按钮可用状态。
 func _update_action_buttons() -> void:
 	var has_selection: bool = _selected_resource != null
-	var operation_blocked: bool = _delete_operation_busy or _delete_outcome_unknown
+	var operation_blocked: bool = _delete_state.is_blocked()
 	if is_instance_valid(_primary_button):
 		_primary_button.disabled = not has_selection or operation_blocked
 	if is_instance_valid(_delete_button):
@@ -1392,11 +1385,8 @@ func _show_delete_reconciliation_result(
 	candidate_persisted: bool,
 	memory_rolled_back: bool
 ) -> GFModalResult:
-	if (
-		_delete_reconciliation_prompted
-	):
+	if not _delete_state.claim_reconciliation_prompt():
 		return null
-	_delete_reconciliation_prompted = true
 	var message: String = ""
 	if candidate_persisted and status == &"late_success":
 		message = tr(
@@ -1431,17 +1421,6 @@ func _show_delete_message(message: String) -> GFModalResult:
 	)
 
 
-func _await_delete_operation(
-	operation: GameSaveSectionOperation
-) -> GameSaveSectionResult:
-	if operation == null:
-		return null
-	var result: GameSaveSectionResult = operation.get_result()
-	if result == null:
-		result = await operation.completed
-	return result
-
-
 func _get_materialized_resource_by_identity(identity: String) -> Resource:
 	if identity.is_empty():
 		return null
@@ -1460,48 +1439,38 @@ func _get_materialized_resource_by_identity(identity: String) -> Resource:
 
 
 func _is_current_delete_operation(token: int) -> bool:
-	return token == _delete_operation_token and is_inside_tree()
-
-
-func _is_delete_outcome_unknown(result: GameSaveSectionResult) -> bool:
-	if result == null:
-		return false
-	return result.get_status() in [
-		GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN,
-		GameSaveSectionResult.STATUS_ROLLBACK_OUTCOME_UNKNOWN,
-	]
+	return _delete_state.is_current(token, self)
 
 
 # --- 信号处理函数 ---
 
 func _on_section_reconciliation_settled(evidence: Dictionary) -> void:
-	if (
-		not _delete_outcome_unknown
-		or _pending_delete_transaction_id <= 0
-		or GFVariantData.get_option_int(evidence, &"transaction_id", 0)
-		!= _pending_delete_transaction_id
-	):
+	var settlement: Dictionary = _delete_state.settle_reconciliation(evidence)
+	if settlement.is_empty():
 		return
-	var operation_token: int = _delete_operation_token
-	var resource_identity: String = _pending_delete_resource_identity
+	var operation_token: int = GFVariantData.get_option_int(settlement, &"token", 0)
+	var context: Dictionary = GFVariantData.get_option_dictionary(
+		settlement,
+		&"context"
+	)
+	var resource_identity: String = GFVariantData.get_option_string(
+		context,
+		&"resource_identity"
+	)
 	var status: StringName = GFVariantData.get_option_string_name(
-		evidence,
+		settlement,
 		&"status"
 	)
 	var candidate_persisted: bool = GFVariantData.get_option_bool(
-		evidence,
+		settlement,
 		&"candidate_persisted",
 		false
 	)
 	var memory_rolled_back: bool = GFVariantData.get_option_bool(
-		evidence,
+		settlement,
 		&"memory_rolled_back",
 		false
 	)
-	_pending_delete_transaction_id = 0
-	_pending_delete_resource_identity = ""
-	_delete_outcome_unknown = false
-	_delete_operation_busy = true
 	if candidate_persisted:
 		_selected_resource = null
 	await _populate_list()
@@ -1513,7 +1482,9 @@ func _on_section_reconciliation_settled(evidence: Dictionary) -> void:
 		)
 		if is_instance_valid(restored_resource):
 			_set_selected_item(restored_resource)
-	_delete_operation_busy = false
+	if not _delete_state.finish_reconciliation(operation_token):
+		return
+	_delete_state.clear_context()
 	_update_action_buttons()
 	var _modal_result: GFModalResult = await _show_delete_reconciliation_result(
 		status,
@@ -1540,7 +1511,7 @@ func _on_virtual_item_gui_input(
 
 
 func _on_item_focused(data: Resource) -> void:
-	if _delete_operation_busy or _delete_outcome_unknown:
+	if _delete_state.is_blocked():
 		return
 	if _uses_virtual_list() and is_instance_valid(_virtual_focus_model):
 		var item_index: int = _virtual_data_list.find(data)
@@ -1553,22 +1524,18 @@ func _on_item_focused(data: Resource) -> void:
 
 
 func _on_item_confirmed(data: Resource) -> void:
-	if _delete_operation_busy or _delete_outcome_unknown:
+	if _delete_state.is_blocked():
 		return
 	_set_selected_item(data)
 
 
 func _on_primary_button_pressed() -> void:
-	if (
-		not _delete_operation_busy
-		and not _delete_outcome_unknown
-		and _selected_resource
-	):
+	if not _delete_state.is_blocked() and _selected_resource:
 		_on_primary_action_triggered(_selected_resource)
 
 
 func _on_delete_button_pressed() -> void:
-	if _delete_operation_busy or _delete_outcome_unknown:
+	if _delete_state.is_blocked():
 		return
 	if not is_instance_valid(_selected_resource):
 		return
@@ -1599,28 +1566,29 @@ func _on_delete_button_pressed() -> void:
 
 
 func _on_delete_confirmed() -> void:
-	if _delete_operation_busy or _delete_outcome_unknown:
+	if _delete_state.is_blocked():
 		return
 	var resource_to_delete: Resource = _pending_delete_resource
 	_pending_delete_resource = null
 	if not is_instance_valid(resource_to_delete):
 		return
 
-	_delete_operation_busy = true
-	_delete_operation_token += 1
-	var operation_token: int = _delete_operation_token
-	_delete_reconciliation_prompted = false
-	_pending_delete_transaction_id = 0
-	_pending_delete_resource_identity = _get_data_identity(resource_to_delete)
+	var operation_token: int = _delete_state.begin({
+		&"resource_identity": _get_data_identity(resource_to_delete),
+	})
 	_update_action_buttons()
 	var operation: GameSaveSectionOperation = _do_delete_logic(
 		resource_to_delete
 	)
-	var result: GameSaveSectionResult = await _await_delete_operation(operation)
+	var result: GameSaveSectionResult = (
+		await operation.await_result() if operation != null else null
+	)
 	if not _is_current_delete_operation(operation_token):
 		return
-	_delete_operation_busy = false
+	if not _delete_state.finish_request(operation_token):
+		return
 	if result == null:
+		_delete_state.clear_context()
 		_update_action_buttons()
 		var _modal_result: GFModalResult = await _show_delete_error(
 			ERR_UNAVAILABLE
@@ -1628,23 +1596,16 @@ func _on_delete_confirmed() -> void:
 		if not _is_current_delete_operation(operation_token):
 			return
 		return
-	if _is_delete_outcome_unknown(result):
-		_delete_outcome_unknown = true
-		_pending_delete_transaction_id = result.get_transaction_id()
+	if result.requires_reconciliation():
+		if not _delete_state.begin_reconciliation(result):
+			return
 		_update_action_buttons()
 		var last_evidence: Dictionary = {}
 		if is_instance_valid(_delete_save_graph):
 			last_evidence = (
 				_delete_save_graph.get_last_section_reconciliation_evidence()
 			)
-		if (
-			GFVariantData.get_option_int(
-				last_evidence,
-				&"transaction_id",
-				0
-			)
-			== _pending_delete_transaction_id
-		):
+		if _delete_state.matches_reconciliation_evidence(last_evidence):
 			await _on_section_reconciliation_settled(last_evidence)
 		else:
 			var _modal_result: GFModalResult = (
@@ -1654,7 +1615,7 @@ func _on_delete_confirmed() -> void:
 				return
 		return
 	if not result.is_successful():
-		_pending_delete_resource_identity = ""
+		_delete_state.clear_context()
 		var delete_error: Error = result.get_error_code()
 		push_error("[BaseListMenu] 删除操作失败，错误码：%d。" % int(delete_error))
 		_update_action_buttons()
@@ -1663,7 +1624,7 @@ func _on_delete_confirmed() -> void:
 			return
 		return
 	_selected_resource = null
-	_pending_delete_resource_identity = ""
+	_delete_state.clear_context()
 	await _populate_list()
 	if _is_current_delete_operation(operation_token):
 		_update_action_buttons()

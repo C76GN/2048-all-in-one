@@ -16,6 +16,7 @@ const _CHUNK_LOADER_SOURCE_PATH: String = (
 	"res://tools/wechat_minigame/chunked_file_loader.js"
 )
 const _PROJECT_NAME: String = "2048 Chunked Toolchain Smoke"
+const _RELEASE_PROJECT_NAME: String = "2048 Full Game Release Candidate"
 const _REQUIRED_FILES: PackedStringArray = [
 	"engine/2048-all-in-one.bin",
 	"engine/game.js",
@@ -85,6 +86,8 @@ func test_package_budget_hard_limits_are_inclusive_at_exact_boundaries() -> void
 func test_candidate_build_id_uses_the_cross_tool_canonical_framing() -> void:
 	var verifier: ArtifactVerifier = ArtifactVerifier.new()
 	var export_report: Dictionary = {
+		"scope": ArtifactVerifier.PROFILE_SCOPE_SMOKE,
+		"export_preset": "Web Compatibility Smoke",
 		"godot": {"version": "4.7.2.stable.official.abcdef123"},
 		"gf": {
 			"framework_version": "11.0.0-dev.0",
@@ -106,14 +109,16 @@ func test_candidate_build_id_uses_the_cross_tool_canonical_framing() -> void:
 			"export_tool": {"sha256": "0".repeat(64)},
 			"artifact_verifier": {"sha256": "1".repeat(64)},
 			"artifact_check": {"sha256": "2".repeat(64)},
-			"chunk_loader": {"sha256": "3".repeat(64)},
-			"wxmemfs_patch": {"sha256": "4".repeat(64)},
+			"bounded_json_reader": {"sha256": "3".repeat(64)},
+			"path_tools": {"sha256": "4".repeat(64)},
+			"chunk_loader": {"sha256": "5".repeat(64)},
+			"wxmemfs_patch": {"sha256": "6".repeat(64)},
 		},
 	}
 	var actual_build_id: String = verifier.compute_report_build_id(export_report)
 	assert_true(
 		actual_build_id ==
-			"a6545b8210195a47b91de64eb4da6842fba67005c10fb89c1e0c152dd5d1edc0",
+			"274bffc55db1555d7607d5dd297d99613139b80b9e76a5882ea432caea2521e7",
 		"PowerShell 与 GDScript 必须共享同一 build_id canonical framing。"
 	)
 
@@ -124,6 +129,42 @@ func test_report_bound_fixture_recomputes_the_complete_candidate_identity() -> v
 	var report: Dictionary = verifier.verify_report_bound(_FIXTURE_ROOT, _REPORT_PATH)
 	assert_true(GFVariantData.get_option_bool(report, "ok"), str(_get_issues(report)))
 	assert_true(_get_issues(report).is_empty())
+
+
+func test_report_bound_release_profile_requires_exact_font_policy() -> void:
+	var export_report: Dictionary = _make_valid_export_report()
+	assert_true(_write_project_config("", _RELEASE_PROJECT_NAME))
+	_refresh_artifact_and_package_evidence(export_report)
+	export_report["scope"] = ArtifactVerifier.PROFILE_SCOPE_RELEASE
+	export_report["export_preset"] = "Web Compatibility WeChat Release"
+	export_report["project_name"] = _RELEASE_PROJECT_NAME
+	export_report["font_policy"] = _release_font_policy_fixture()
+	export_report["limitations"] = [
+		"This candidate contains the full game, but is not a signed production release.",
+		"WeChat login, share, payment, cloud save and open-data capabilities are not enabled.",
+	]
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	export_report["build_id"] = verifier.compute_report_build_id(export_report)
+	assert_true(_write_report(export_report))
+	var report: Dictionary = verifier.verify_report_bound(_FIXTURE_ROOT, _REPORT_PATH)
+	assert_true(GFVariantData.get_option_bool(report, "ok"), str(_get_issues(report)))
+
+	var font_policy: Dictionary = GFVariantData.get_option_dictionary(
+		export_report,
+		"font_policy"
+	)
+	font_policy["subset_font_sha256"] = "0".repeat(64)
+	export_report["font_policy"] = font_policy
+	assert_true(_write_report(export_report))
+	var tampered_report: Dictionary = verifier.verify_report_bound(
+		_FIXTURE_ROOT,
+		_REPORT_PATH
+	)
+	assert_false(GFVariantData.get_option_bool(tampered_report, "ok", true))
+	assert_true(_has_issue(
+		tampered_report,
+		"report_release_font_policy_mismatch:subset_font_sha256"
+	))
 
 
 func test_report_binding_ignores_benign_private_configuration_changes() -> void:
@@ -285,6 +326,49 @@ func test_empty_configuration_objects_are_rejected() -> void:
 	assert_true(_has_issue(report, "project_compile_type_not_minigame"))
 	assert_true(_has_issue(report, "game_orientation_not_landscape"))
 	assert_true(_has_issue(report, "game_engine_subpackage_not_exact"))
+
+
+func test_project_config_is_rejected_before_parsing_when_oversized() -> void:
+	assert_true(_write_text(
+		"project.config.json",
+		JSON.stringify({
+			"projectname": _PROJECT_NAME,
+			"compileType": "minigame",
+			"appid": "",
+			"padding": "x".repeat(70 * 1024),
+		})
+	))
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	var report: Dictionary = verifier.verify_artifact(_FIXTURE_ROOT)
+	assert_false(GFVariantData.get_option_bool(report, "ok", true))
+	assert_true(_has_issue(
+		report,
+		"project_config_invalid_json:payload_too_large"
+	))
+
+
+func test_game_config_is_rejected_before_parsing_when_too_deep() -> void:
+	var nested_json: String = "{}"
+	for _depth: int in range(20):
+		nested_json = '{"level":%s}' % nested_json
+	assert_true(_write_text("game.json", nested_json))
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	var report: Dictionary = verifier.verify_artifact(_FIXTURE_ROOT)
+	assert_false(GFVariantData.get_option_bool(report, "ok", true))
+	assert_true(_has_issue(report, "game_config_invalid_json:nesting_too_deep"))
+
+
+func test_export_report_is_rejected_before_parsing_when_oversized() -> void:
+	var export_report: Dictionary = _make_valid_export_report()
+	export_report["padding"] = "x".repeat(300 * 1024)
+	assert_true(_write_report(export_report))
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	var report: Dictionary = verifier.verify_report_bound(_FIXTURE_ROOT, _REPORT_PATH)
+	assert_false(GFVariantData.get_option_bool(report, "ok", true))
+	assert_true(_has_issue(
+		report,
+		"export_report_invalid_json:payload_too_large"
+	))
 
 
 func test_miniprogram_compile_type_is_rejected() -> void:
@@ -594,15 +678,85 @@ func _valid_wxmemfs_runtime_text() -> String:
 	)
 
 
-func _write_project_config(app_id: String) -> bool:
+func _write_project_config(
+	app_id: String,
+	project_name: String = _PROJECT_NAME
+) -> bool:
 	return _write_text(
 		"project.config.json",
 		JSON.stringify({
-			"projectname": _PROJECT_NAME,
+			"projectname": project_name,
 			"compileType": "minigame",
 			"appid": app_id,
 		})
 	)
+
+
+func _refresh_artifact_and_package_evidence(export_report: Dictionary) -> void:
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	var structural_report: Dictionary = verifier.verify_artifact(_FIXTURE_ROOT)
+	var package: Dictionary = GFVariantData.get_option_dictionary(
+		structural_report,
+		"package"
+	)
+	var files: PackedStringArray = _get_files(structural_report)
+	package["main_hard_limit_bytes"] = ArtifactVerifier.MAIN_PACKAGE_HARD_LIMIT_BYTES
+	package["total_hard_limit_bytes"] = ArtifactVerifier.TOTAL_PACKAGE_HARD_LIMIT_BYTES
+	package["main_soft_limit_bytes"] = ArtifactVerifier.MAIN_PACKAGE_SOFT_LIMIT_BYTES
+	package["total_soft_limit_bytes"] = ArtifactVerifier.TOTAL_PACKAGE_SOFT_LIMIT_BYTES
+	package["file_count"] = files.size()
+	package["files"] = files
+	package["missing_paths"] = []
+	package["unexpected_paths"] = []
+	package["forbidden_paths"] = []
+	var artifact_manifest: Dictionary = verifier.build_artifact_manifest(_FIXTURE_ROOT)
+	export_report["artifact"] = artifact_manifest
+	export_report["artifact_manifest_sha256"] = str(
+		artifact_manifest.get("manifest_sha256", "")
+	)
+	export_report["package"] = package
+
+
+func _release_font_policy_fixture() -> Dictionary:
+	var manifest_path: String = (
+		"res://shared/assets/fonts/wechat_release_font_coverage.json"
+	)
+	var manifest_value: Variant = JSON.parse_string(
+		FileAccess.get_file_as_string(manifest_path)
+	)
+	assert_true(manifest_value is Dictionary)
+	if not manifest_value is Dictionary:
+		return {}
+	var manifest: Dictionary = manifest_value
+	var coverage: Dictionary = GFVariantData.get_option_dictionary(
+		manifest,
+		"coverage"
+	)
+	var subset_font: Dictionary = GFVariantData.get_option_dictionary(
+		manifest,
+		"subset_font"
+	)
+	var source_font: Dictionary = GFVariantData.get_option_dictionary(
+		manifest,
+		"source_font"
+	)
+	var license: Dictionary = GFVariantData.get_option_dictionary(manifest, "license")
+	return {
+		"policy_id": str(manifest.get("policy_id", "")),
+		"coverage_manifest_path": manifest_path.trim_prefix("res://"),
+		"coverage_manifest_sha256": FileAccess.get_sha256(manifest_path).to_lower(),
+		"coverage_path": "shared/assets/fonts/wechat_release_font_coverage.txt",
+		"coverage_sha256": str(coverage.get("codepoints_sha256", "")),
+		"codepoint_count": GFVariantData.get_option_int(coverage, "codepoint_count"),
+		"subset_font_path": str(subset_font.get("path", "")),
+		"subset_font_sha256": str(subset_font.get("sha256", "")),
+		"subset_font_bytes": GFVariantData.get_option_int(subset_font, "bytes"),
+		"source_font_path": str(source_font.get("path", "")),
+		"source_font_sha256": str(source_font.get("sha256", "")),
+		"license_path": str(license.get("path", "")),
+		"license_spdx": str(license.get("spdx", "")),
+		"license_sha256": str(license.get("sha256", "")),
+	}
 
 
 func _write_text(relative_path: String, text: String) -> bool:

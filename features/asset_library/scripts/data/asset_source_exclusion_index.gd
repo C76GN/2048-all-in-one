@@ -9,15 +9,15 @@ extends RefCounted
 # --- 常量 ---
 
 const SCHEMA_VERSION: int = 1
-const MAX_INDEX_FILE_BYTES: int = 4 * 1024 * 1024
+const MAX_INDEX_FILE_BYTES: int = GFBoundedJsonObjectReader.ABSOLUTE_MAX_BYTES
 const MAX_INDEX_DEPTH: int = 8
 const MAX_INDEX_ENTRIES: int = 500_000
 const _GENERATED_OUTPUT_ROOTS: PackedStringArray = [
 	"res://features/asset_library/resources",
 	"user://",
 ]
-const _BOUNDED_JSON_READER_SCRIPT = preload(
-	"res://features/asset_library/scripts/data/asset_bounded_json_object_reader.gd"
+const _JSON_ENTRY_BUDGET_SCRIPT = preload(
+	"res://features/asset_library/scripts/data/asset_json_entry_budget.gd"
 )
 
 
@@ -120,13 +120,14 @@ func load_report_from_path(path: String) -> Dictionary:
 			"exists": false,
 			"loaded_count": 0,
 		}
-	var read_report: Dictionary = _BOUNDED_JSON_READER_SCRIPT.read_object_report(
+	var read_report: Dictionary = GFBoundedJsonObjectReader.read_object(
 		path,
-		{
-			"max_file_bytes": MAX_INDEX_FILE_BYTES,
-			"max_depth": MAX_INDEX_DEPTH,
-			"max_entries": MAX_INDEX_ENTRIES,
-		}
+		MAX_INDEX_FILE_BYTES,
+		MAX_INDEX_DEPTH
+	)
+	read_report = _JSON_ENTRY_BUDGET_SCRIPT.apply_to_read_report(
+		read_report,
+		MAX_INDEX_ENTRIES
 	)
 	if not GFVariantData.get_option_bool(read_report, "ok"):
 		return _make_load_failure(

@@ -12,10 +12,12 @@ extends RefCounted
 const STREAM_SCHEMA_ID: StringName = &"bookmark_record_stream"
 const STREAM_SCHEMA_VERSION: int = 2
 const BUSINESS_SCHEMA_VERSION: int = BookmarkCatalogSaveData.SCHEMA_VERSION
-const CHUNK_BYTES: int = ChunkManifest.MAX_CHUNK_BYTES
-const MAX_TOTAL_BYTES: int = ChunkManifest.MAX_TOTAL_BYTES
-const MAX_FRAME_BYTES: int = ChunkManifest.MAX_CHUNK_BYTES
-const MAX_FRAME_PAYLOAD_BYTES: int = MAX_FRAME_BYTES - 4
+const CHUNK_BYTES: int = ChunkFrameStreamReader.CHUNK_BYTES
+const MAX_TOTAL_BYTES: int = ChunkFrameStreamReader.MAX_TOTAL_BYTES
+const MAX_FRAME_BYTES: int = ChunkFrameStreamReader.CHUNK_BYTES
+const MAX_FRAME_PAYLOAD_BYTES: int = (
+	ChunkFrameStreamReader.MAX_FRAME_PAYLOAD_BYTES
+)
 
 const TOPOLOGY_CELL_BATCH_SIZE: int = (
 	BookmarkChunkSourceSnapshot.TOPOLOGY_CELL_BATCH_SIZE
@@ -35,7 +37,6 @@ const RECORD_TILES: StringName = &"tiles"
 const RECORD_HISTORY_BYTES: StringName = &"history_bytes"
 const RECORD_REPLAY_STEP: StringName = &"replay_step"
 
-const _LENGTH_PREFIX_BYTES: int = 4
 const _PHASE_HEADER: int = 0
 const _PHASE_METADATA: int = 1
 const _PHASE_STATES: int = 2
@@ -111,7 +112,7 @@ const _REPLAY_STEP_FIELDS: Array[StringName] = [
 
 # --- 私有变量 ---
 
-var _reader: _ChunkReader = null
+var _reader: ChunkFrameStreamReader = null
 var _phase: int = _PHASE_HEADER
 var _bookmark_count: int = -1
 var _next_bookmark_index: int = 0
@@ -153,11 +154,13 @@ var _error: String = ""
 static func begin_decode(
 	chunks: Array[PackedByteArray]
 ) -> BookmarkChunkDecoder:
-	if not _validate_chunk_boundaries(chunks):
+	var reader: ChunkFrameStreamReader = (
+		ChunkFrameStreamReader.begin_reading_taking_ownership(chunks)
+	)
+	if reader == null:
 		return null
-	var owned_root: Array[PackedByteArray] = chunks.duplicate()
 	var decoder: BookmarkChunkDecoder = BookmarkChunkDecoder.new()
-	decoder._reader = _ChunkReader.new(owned_root)
+	decoder._reader = reader
 	return decoder
 
 
@@ -168,7 +171,7 @@ func advance(frame_budget: int) -> int:
 		return 0
 	var consumed_units: int = 0
 	while consumed_units < frame_budget and not _complete and not is_failed():
-		var frame_result: Dictionary = _read_variant_frame(_reader)
+		var frame_result: Dictionary = _reader.read_variant_frame()
 		if not GFVariantData.get_option_bool(frame_result, &"ok", false):
 			_fail(ERR_FILE_CORRUPT, "Bookmark stream frame is invalid.")
 			break
@@ -738,48 +741,6 @@ static func _is_valid_scalar_metadata(frame: Dictionary) -> bool:
 	)
 
 
-static func _read_variant_frame(reader: _ChunkReader) -> Dictionary:
-	var length_bytes: PackedByteArray = reader.read_exact(_LENGTH_PREFIX_BYTES)
-	if length_bytes.size() != _LENGTH_PREFIX_BYTES:
-		return {&"ok": false}
-	var payload_length: int = _decode_u32(length_bytes)
-	if (
-		payload_length <= 0
-		or payload_length > MAX_FRAME_PAYLOAD_BYTES
-		or payload_length > reader.get_remaining_bytes()
-	):
-		return {&"ok": false}
-	var payload: PackedByteArray = reader.read_exact(payload_length)
-	if payload.size() != payload_length:
-		return {&"ok": false}
-	# bytes_to_var() 不允许对象；扫描后再 canonical re-encode，避免让恶意
-	# 深层/巨容器 Variant 进入第二次递归序列化。
-	var value: Variant = bytes_to_var(payload)
-	if not BookmarkChunkSourceSnapshot.is_variant_within_frame_budget(value):
-		return {&"ok": false}
-	if var_to_bytes(value) != payload:
-		return {&"ok": false}
-	return {&"ok": true, &"value": value}
-
-
-static func _validate_chunk_boundaries(
-	chunks: Array[PackedByteArray]
-) -> bool:
-	if chunks.is_empty() or chunks.size() > ChunkManifest.MAX_CHUNK_COUNT:
-		return false
-	var total_bytes: int = 0
-	for index: int in range(chunks.size()):
-		var chunk: PackedByteArray = chunks[index]
-		if chunk.is_empty() or chunk.size() > CHUNK_BYTES:
-			return false
-		if index < chunks.size() - 1 and chunk.size() != CHUNK_BYTES:
-			return false
-		total_bytes += chunk.size()
-		if total_bytes > MAX_TOTAL_BYTES:
-			return false
-	return total_bytes > 0
-
-
 static func _has_record_type(frame: Dictionary, expected: StringName) -> bool:
 	var value: Variant = frame.get(&"record_type")
 	return value is StringName and value == expected
@@ -823,59 +784,3 @@ static func _is_cardinal_direction(direction: Vector2i) -> bool:
 
 static func _is_sha256(value: String) -> bool:
 	return value.length() == 64 and value.to_lower().is_valid_hex_number()
-
-
-static func _decode_u32(payload: PackedByteArray) -> int:
-	return (
-		(int(payload[0]) << 24)
-		| (int(payload[1]) << 16)
-		| (int(payload[2]) << 8)
-		| int(payload[3])
-	)
-
-
-# --- 内部类 ---
-
-class _ChunkReader extends RefCounted:
-	var _chunks: Array[PackedByteArray] = []
-	var _chunk_index: int = 0
-	var _chunk_offset: int = 0
-	var _remaining_bytes: int = 0
-
-	func _init(chunks: Array[PackedByteArray]) -> void:
-		_chunks = chunks
-		for chunk: PackedByteArray in chunks:
-			_remaining_bytes += chunk.size()
-
-	func get_remaining_bytes() -> int:
-		return _remaining_bytes
-
-	## 使用 slice/append_array 跨 chunk 复制，禁止逐字节 8 MiB 循环。
-	## @param byte_count: 要从当前读取位置精确取得的字节数。
-	func read_exact(byte_count: int) -> PackedByteArray:
-		if byte_count < 0 or byte_count > _remaining_bytes:
-			return PackedByteArray()
-		var result: PackedByteArray = PackedByteArray()
-		var copied_bytes: int = 0
-		while copied_bytes < byte_count:
-			var chunk: PackedByteArray = _chunks[_chunk_index]
-			var copy_count: int = mini(
-				chunk.size() - _chunk_offset,
-				byte_count - copied_bytes
-			)
-			result.append_array(
-				chunk.slice(_chunk_offset, _chunk_offset + copy_count)
-			)
-			copied_bytes += copy_count
-			_chunk_offset += copy_count
-			_remaining_bytes -= copy_count
-			if _chunk_offset == chunk.size():
-				_chunk_index += 1
-				_chunk_offset = 0
-		return result
-
-	func release() -> void:
-		_chunks.clear()
-		_chunk_index = 0
-		_chunk_offset = 0
-		_remaining_bytes = 0
