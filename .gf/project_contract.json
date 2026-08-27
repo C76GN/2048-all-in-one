@@ -891,10 +891,6 @@
       {
         "path": "res://docs",
         "role": "scan_root"
-      },
-      {
-        "path": "res://.gf/packages.lock.json",
-        "role": "optional_input"
       }
     ],
     "source_domains": [
@@ -1068,11 +1064,11 @@
       "id": "exact_vendored_gf",
       "status": "accepted",
       "statement": "项目使用完整、精确哈希锁定的 GF vendor 快照。",
-      "rationale": "当前环境中的远程包管理受 SSL 限制；vendor lock 为稳定发布和开发兼容快照提供可复现的官方仓库、渠道、ref、commit、Git tree、上游 CI 与内容哈希。",
+      "rationale": "GF 11 使用完整 addon 快照且不再提供 Package Manager；vendor lock 为稳定发布和开发兼容快照提供可复现的官方仓库、渠道、ref、commit、Git tree、上游 CI 与内容哈希。",
       "evidence": [
         ".gf/vendor.lock.json",
         "tools/verify_gf_vendor.ps1",
-        "tests/gut/test_gf_package_validation.gd"
+        "tests/gut/test_gf_vendor_validation.gd"
       ]
     },
     {

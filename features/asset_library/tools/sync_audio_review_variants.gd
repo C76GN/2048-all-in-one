@@ -8,10 +8,10 @@ extends SceneTree
 const REVIEW_RECORD_ROOT: String = "res://features/asset_library/resources/review/records"
 const MAX_REVIEW_RECORD_COUNT: int = 20000
 const _ASSET_REVIEW_RECORD_SCRIPT: Script = preload(
-	"res://features/asset_library/scripts/data/asset_review_record.gd"
+	"res://features/asset_library/tools/support/data/asset_review_record.gd"
 )
 const _SYNC_POLICY_SCRIPT = preload(
-	"res://features/asset_library/scripts/data/asset_review_sync_policy.gd"
+	"res://features/asset_library/tools/support/data/asset_review_sync_policy.gd"
 )
 
 

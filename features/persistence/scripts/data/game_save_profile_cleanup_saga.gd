@@ -33,6 +33,7 @@ var _derived_failed_count: int = 0
 var _busy_retry_count: int = 0
 var _derived_results: Array[ChunkProfileCleanupResult] = []
 var _derived_plan_frozen: bool = false
+var _derived_setup_failed: bool = false
 
 
 # --- 工厂方法 ---
@@ -144,6 +145,27 @@ func begin_derived_cleanup(total_count: int) -> bool:
 		return false
 	_derived_total_count = total_count
 	_derived_plan_frozen = true
+	return true
+
+
+## 派生清理依赖无法建立时，直接形成唯一 typed 终态。
+##
+## 此 transition 只允许发生在主删除成功、派生 plan 尚未冻结且没有活动句柄时；
+## 它保证调用方无需伪造 family 计数，也不会遗留 path ownership。
+## @param error_code: 派生清理 setup 的非成功错误码。
+func fail_derived_setup(error_code: Error) -> bool:
+	if (
+		_phase != PHASE_DERIVED_CLEANUP
+		or error_code == OK
+		or _derived_plan_frozen
+		or _active_derived_operation != null
+	):
+		return false
+	_derived_plan_frozen = true
+	_derived_setup_failed = true
+	_derived_error = error_code
+	_final_error = error_code
+	_phase = PHASE_COMPLETED
 	return true
 
 
@@ -291,6 +313,8 @@ func make_terminal_evidence() -> Dictionary:
 	var derived_status: StringName = &"cleaned"
 	if _main_error != OK:
 		derived_status = &"not_started"
+	elif _derived_setup_failed:
+		derived_status = &"setup_failed"
 	elif _derived_error != OK:
 		derived_status = &"partial_failure"
 	return {
@@ -360,4 +384,6 @@ func make_terminal_evidence() -> Dictionary:
 func _get_terminal_status() -> StringName:
 	if _final_error == OK:
 		return &"cleaned"
+	if _derived_setup_failed:
+		return &"derived_setup_failed"
 	return &"main_failed" if _main_error != OK else &"derived_partial"

@@ -722,6 +722,47 @@ func test_profile_delete_known_main_failure_never_cleans_derived() -> void:
 	_dispose_setup(setup)
 
 
+func test_profile_delete_missing_chunk_utility_closes_path_ownership() -> void:
+	var save_graph: GameSaveGraphUtility = GameSaveGraphUtility.new()
+	var profile_file_name: String = _make_inactive_profile_file_name(810_004)
+	var main_operation: GFStorageAsyncOperation = (
+		_make_completed_profile_delete_operation(
+			810_004,
+			profile_file_name,
+			OK
+		)
+	)
+	var saga: GameSaveProfileCleanupSaga = GameSaveProfileCleanupSaga.create(
+		profile_file_name,
+		&"inactive_profile_request",
+		main_operation,
+		false
+	)
+	assert_not_null(saga)
+	assert_true(saga.settle_main_delete(OK))
+	save_graph._profile_cleanup_paths[profile_file_name] = (
+		main_operation.get_request_id()
+	)
+	save_graph._profile_cleanup_sagas[main_operation.get_request_id()] = saga
+	var cleanup_error: Error = await save_graph._cleanup_manifest_families_async(
+		saga
+	)
+	assert_true(saga.is_completed())
+	save_graph._publish_profile_cleanup_saga_terminal(saga)
+	var evidence: Dictionary = save_graph.get_last_profile_cleanup_evidence()
+	assert_true(cleanup_error == ERR_UNCONFIGURED)
+	assert_false(save_graph.is_profile_cleanup_pending(profile_file_name))
+	assert_true(
+		GFVariantData.get_option_string_name(evidence, &"status")
+		== &"derived_setup_failed"
+		and GFVariantData.get_option_string_name(
+			evidence,
+			&"derived_status"
+		) == &"setup_failed",
+		"缺失 ChunkProfileUtility 时必须闭合 Saga 与 canonical path ownership。"
+	)
+
+
 func test_profile_delete_partial_derived_failure_is_retryable_and_idempotent() -> void:
 	var chunk_utility: _ControllableChunkProfileUtility = (
 		_ControllableChunkProfileUtility.new()
@@ -1393,7 +1434,7 @@ func test_known_section_save_failure_rolls_back_and_compensates() -> void:
 	_dispose_setup(setup)
 
 
-func test_rollback_failure_keeps_reconciliation_and_all_mutation_gates_closed() -> void:
+func test_rollback_failure_keeps_mutation_closed_and_fails_quiesce_for_restart() -> void:
 	var storage: _RetryStorage = _RetryStorage.new()
 	var progress_provider: _RollbackFailingProgressSaveData = (
 		_RollbackFailingProgressSaveData.new()
@@ -1432,7 +1473,10 @@ func test_rollback_failure_keeps_reconciliation_and_all_mutation_gates_closed() 
 		failed_result != null
 		and failed_result.get_status()
 		== GameSaveSectionResult.STATUS_ROLLBACK_FAILED
+		and failed_result.requires_restart()
+		and not failed_result.requires_reconciliation()
 		and save_graph.is_section_reconciliation_pending()
+		and save_graph.is_section_restart_required()
 		and save_graph.get_pending_section_reconciliation_transaction_id()
 		== transaction_id,
 		"rollback_failed 必须永久保留原事务 reconciliation 身份。"
@@ -1504,16 +1548,22 @@ func test_rollback_failure_keeps_reconciliation_and_all_mutation_gates_closed() 
 	var quiesce: GFAsyncCompletion = save_graph.begin_quiesce(
 		GFAsyncScope.new()
 	)
-	for _frame: int in range(12):
+	for _frame: int in range(2):
 		architecture.tick(1.0 / 60.0)
 		await get_tree().process_frame
 	assert_true(
 		quiesce != null
-		and quiesce.is_pending()
+		and quiesce.is_completed()
+		and quiesce.is_failed()
+		and GFVariantData.get_option_bool(
+			quiesce.get_metadata(),
+			&"restart_required",
+			false
+		)
 		and save_graph.is_section_reconciliation_pending()
 		and save_graph.get_pending_section_reconciliation_transaction_id()
 		== transaction_id,
-		"quiesce 必须持续等待 rollback_failed，不能伪造 flush 成功后释放所有权。"
+		"quiesce 必须以 restart-required 失败终结，同时保留 rollback_failed 所有权栅栏。"
 	)
 	_dispose_setup(setup)
 
@@ -4309,6 +4359,56 @@ func _make_classic_tile_snapshot(
 		&"capability_state": {},
 		&"pos": position,
 	}
+
+
+func _make_completed_profile_delete_operation(
+	request_id: int,
+	file_name: String,
+	error_code: Error
+) -> GFStorageAsyncOperation:
+	var operation: GFStorageAsyncOperation = GFStorageAsyncOperation.new()
+	assert_true(
+		operation.configure_for_framework(
+			request_id,
+			GFStorageAsyncOperation.OPERATION_DELETE,
+			file_name
+		)
+	)
+	var delete_result: GFStorageDeleteResult = GFStorageDeleteResult.new()
+	assert_true(
+		delete_result.configure_for_framework(
+			error_code,
+			(
+				GFStorageDeleteResult.FailureKind.NONE
+				if error_code == OK
+				else GFStorageDeleteResult.FailureKind.IO_FAILED
+			),
+			1,
+			1 if error_code == OK else 0,
+			0 if error_code == OK else 1,
+			(
+				GFStorageDeleteResult.FamilyMember.NONE
+				if error_code == OK
+				else GFStorageDeleteResult.FamilyMember.FINAL
+			)
+		)
+	)
+	var result: GFStorageAsyncResult = GFStorageAsyncResult.new()
+	assert_true(
+		result.configure_for_framework(
+			request_id,
+			GFStorageAsyncOperation.OPERATION_DELETE,
+			file_name,
+			error_code == OK,
+			error_code,
+			null,
+			GFStorageAsyncResult.WriteFailureKind.NONE,
+			{},
+			delete_result
+		)
+	)
+	assert_true(operation.complete_for_framework(result))
+	return operation
 
 
 

@@ -19,25 +19,11 @@ python addons/gf/tools/ai_developer/gf_ai_project.py validate --project-root .
 
 期望 `ok` 为 `true`，contract 本身没有 error、warning、`pending_review` 能力或缺失 Recipe 包。Snapshot 是按需重新生成的本地观察证据，不是日常校验的必需输入，也不得提交；其 drift advisory 必须逐项审阅，但不得为了追求 warning 数量为零而把生成输出、测试夹具、vendor 路径或目录扫描字符串伪报为项目所有资源。
 
-### 3. GF 包状态
+### 3. GF vendor 来源
 
-```powershell
-godot --headless --path . --script res://addons/gf/kernel/package/gf_package_cli.gd -- status --json
-```
+GF 11 使用完整 addon 快照，不再提供 Package Manager、包管理 CLI、registry、离线 bundle 或 `.gf/packages.lock.json` 安装流。项目的框架安装来源只由 `addons/gf/` 与 `.gf/vendor.lock.json` 共同定义；`.gf/project_contract.json` 中的 package declarations 继续表示能力与 API policy，不是本地安装记录。扩展选择只以 `project.godot` 的 `gf/extensions/enabled` 为准。
 
-期望：
-
-- `ok` 为 `true`
-- `issue_count` 为 `0`
-- `orphan_packages` 为空
-- `lockfile_verify.ok` 为 `true`
-- 如果 `.gf/packages.lock.json` 存在，`installed_count` 与 lockfile 中的 installed 包数量一致
-
-注意：当前 GF 使用 Godot 原生包管理 CLI，入口是 `res://addons/gf/kernel/package/gf_package_cli.gd`。不要继续使用旧的 Python `addons/gf/kernel/package_tools/gf_package_installer.py` 命令。
-
-当前仓库是手动更新后的 vendored GF 源码状态，`.gf/packages.lock.json` 可能暂时不存在。缺失 lockfile 时，包状态命令会把 lockfile 视为空安装状态；这不等价于项目运行失败，但表示当前 GF 源码不是由包管理器重建出来的。若后续恢复包管理器安装流，应先重新生成 lockfile，再恢复对 installed 包数量的强校验。
-
-手动 vendored 源码由独立锁文件校验：
+先执行离线来源校验：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/verify_gf_vendor.ps1
@@ -53,7 +39,7 @@ powershell -ExecutionPolicy Bypass -File tools/verify_gf_vendor.ps1 -VerifyRemot
 
 稳定示例线只采用 GF 正式发布；开发兼容线只采用 GF 官方 `main` 最新且全量上游门禁成功的精确 commit。开发版验证失败时不得移动稳定线、放宽基线或局部修补 vendor，应保留上一绿色身份并先完成项目误用排查和必要二分。
 
-远程 registry 可用性与本地 vendored 源码完整性必须分别报告。精确版本、文件数、commit 和内容哈希直接读取当次 CLI 输出与 `.gf/vendor.lock.json`，不在本指南中复制易过期的验证结果。
+GF 官方仓库可用性与本地 vendored 源码完整性必须分别报告。精确版本、文件数、commit 和内容哈希直接读取当次校验输出与 `.gf/vendor.lock.json`，不在本指南中复制易过期的验证结果。
 
 ## Godot / GUT 运行策略
 

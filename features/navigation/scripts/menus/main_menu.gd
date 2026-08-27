@@ -563,14 +563,14 @@ func _restore_initial_scroll_position() -> void:
 
 
 func _apply_safe_area_margins(extra_margins: Dictionary) -> void:
-	if is_instance_valid(_viewport_utility):
-		var _safe_area_report: Dictionary = _viewport_utility.apply_display_safe_area_margins(
+	var _safe_area_applied: bool = (
+		GameTaskPageLayoutUtility.apply_required_safe_area_margins(
+			_viewport_utility,
 			_safe_margin,
 			get_viewport(),
 			extra_margins
 		)
-		return
-	GameTaskPageLayoutUtility.apply_margin_fallback(_safe_margin, extra_margins)
+	)
 
 
 func _get_scene_router_system() -> SceneRouterSystem:

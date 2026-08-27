@@ -555,6 +555,7 @@ func test_empty_history_focus_survives_responsive_reparent() -> void:
 		_REPLAY_LIST_SCENE,
 	]:
 		var menu: BaseListMenu = list_scene.instantiate() as BaseListMenu
+		menu._viewport_utility = GFViewportUtility.new()
 		menu.set_anchors_preset(Control.PRESET_TOP_LEFT)
 		add_child(menu)
 		await get_tree().process_frame
@@ -669,12 +670,23 @@ func test_scroll_wrapper_fills_real_portrait_safe_area() -> void:
 
 
 func test_target_task_pages_delegate_safe_area_to_gf_viewport_utility() -> void:
+	var layout_utility_source: String = FileAccess.get_file_as_string(
+		"res://shared/scripts/ui/game_task_page_layout_utility.gd"
+	)
+	assert_true(
+		layout_utility_source.contains("apply_required_safe_area_margins"),
+		"任务页安全区应由唯一项目策略入口委托 GFViewportUtility。"
+	)
+	assert_false(
+		layout_utility_source.contains("apply_margin_fallback"),
+		"任务页不得恢复绕过 GFViewportUtility 的原生边距 fallback。"
+	)
 	for script_path: String in _SAFE_AREA_PAGE_SCRIPTS:
 		var source: String = FileAccess.get_file_as_string(script_path)
 		assert_false(source.is_empty(), "任务页脚本必须可读取：%s" % script_path)
 		assert_true(
-			source.contains("apply_display_safe_area_margins"),
-			"任务页必须通过 GFViewportUtility 叠加设备安全区：%s" % script_path
+			source.contains("apply_required_safe_area_margins"),
+			"任务页必须通过统一严格入口叠加设备安全区：%s" % script_path
 		)
 		assert_true(
 			source.contains("ensure_vertical_scroll_parent"),
@@ -1038,6 +1050,7 @@ func _assert_history_list_empty_state(
 	dead_action_names: Array[StringName]
 ) -> void:
 	var menu: BaseListMenu = scene.instantiate() as BaseListMenu
+	menu._viewport_utility = GFViewportUtility.new()
 	add_child(menu)
 	await get_tree().process_frame
 	await get_tree().process_frame

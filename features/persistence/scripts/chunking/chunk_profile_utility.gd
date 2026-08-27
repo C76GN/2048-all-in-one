@@ -750,64 +750,21 @@ func _drain_pending_unregisters() -> void:
 			var _erased_missing: bool = _pending_unregister.erase(profile_id)
 			var _forgotten_missing: bool = _registered_profiles.erase(profile_id)
 			continue
-		if not _is_profile_known_idle(snapshot):
+		if not _is_profile_known_idle(snapshot, profile_id):
 			continue
 		if _profile_utility.unregister_profile(profile_id):
 			var _erased: bool = _pending_unregister.erase(profile_id)
 			var _forgotten: bool = _registered_profiles.erase(profile_id)
 
 
-func _is_profile_known_idle(snapshot: Dictionary) -> bool:
-	var state_value: Variant = snapshot.get("state")
-	var unknown_value: Variant = snapshot.get("unknown_write_generations")
-	var detached_ids_value: Variant = snapshot.get(
-		"detached_storage_request_ids"
+func _is_profile_known_idle(
+	snapshot: Dictionary,
+	profile_id: StringName
+) -> bool:
+	var evidence: GameSaveProfileSettlementEvidence = (
+		GameSaveProfileSettlementEvidence.from_snapshot(snapshot)
 	)
-	if (
-		not unknown_value is PackedInt64Array
-		or not detached_ids_value is PackedInt64Array
-	):
-		return false
-	var state: StringName = &""
-	if state_value is StringName:
-		state = state_value
-	elif state_value is String:
-		var state_text: String = state_value
-		state = StringName(state_text)
-	else:
-		return false
-	var save_queue_size: int = _coerce_snapshot_int(
-		snapshot.get("save_queue_size", -1),
-		-1
-	)
-	var load_queue_size: int = _coerce_snapshot_int(
-		snapshot.get("load_queue_size", -1),
-		-1
-	)
-	var flush_queue_size: int = _coerce_snapshot_int(
-		snapshot.get("flush_queue_size", -1),
-		-1
-	)
-	var write_unknown_value: Variant = snapshot.get("write_outcome_unknown")
-	if not write_unknown_value is bool:
-		return false
-	var write_outcome_unknown: bool = write_unknown_value
-	var detached_write_count: int = _coerce_snapshot_int(
-		snapshot.get("detached_write_count", -1),
-		-1
-	)
-	var unknown_generations: PackedInt64Array = unknown_value
-	var detached_request_ids: PackedInt64Array = detached_ids_value
-	return (
-		state == GFSaveProfileUtility.STATE_IDLE
-		and save_queue_size == 0
-		and load_queue_size == 0
-		and flush_queue_size == 0
-		and not write_outcome_unknown
-		and unknown_generations.is_empty()
-		and detached_write_count == 0
-		and detached_request_ids.is_empty()
-	)
+	return evidence.is_settled_idle(profile_id)
 
 
 func _coerce_snapshot_int(value: Variant, fallback: int) -> int:

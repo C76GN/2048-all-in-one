@@ -53,21 +53,22 @@ func test_ui_operation_state_only_reconciles_typed_required_statuses() -> void:
 		GameSaveSectionResult.STATUS_PERSISTED,
 		OK
 	)))
-	assert_true(state.begin_reconciliation(_make_result(
+	var restart_required: GameSaveSectionResult = _make_result(
 		2,
 		GameSaveSectionResult.STATUS_ROLLBACK_FAILED,
 		ERR_CANT_CREATE
-	)))
+	)
+	assert_false(state.begin_reconciliation(restart_required))
+	assert_true(restart_required.requires_restart())
 	state.invalidate()
 	assert_false(state.is_blocked())
 	assert_true(state.get_context().is_empty())
 
 
-func test_section_result_centralizes_every_reconciliation_terminal() -> void:
+func test_section_result_separates_reconciliation_from_restart_required() -> void:
 	for status: StringName in [
 		GameSaveSectionResult.STATUS_OUTCOME_UNKNOWN,
 		GameSaveSectionResult.STATUS_ROLLBACK_OUTCOME_UNKNOWN,
-		GameSaveSectionResult.STATUS_ROLLBACK_FAILED,
 	]:
 		assert_true(
 			_make_result(11, status, ERR_TIMEOUT).requires_reconciliation(),
@@ -87,6 +88,16 @@ func test_section_result_centralizes_every_reconciliation_terminal() -> void:
 			_make_result(12, status, error_code).requires_reconciliation(),
 			"确定性终态 %s 不得伪装成 outcome-unknown。" % status
 		)
+	var rollback_failed: GameSaveSectionResult = _make_result(
+		13,
+		GameSaveSectionResult.STATUS_ROLLBACK_FAILED,
+		ERR_CANT_CREATE
+	)
+	assert_false(rollback_failed.requires_reconciliation())
+	assert_true(
+		rollback_failed.requires_restart(),
+		"内存回滚失败必须是 restart-required fatal fence，而不是永不收敛的对账。"
+	)
 
 
 # --- 私有/辅助方法 ---

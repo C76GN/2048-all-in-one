@@ -104,12 +104,12 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 3. 项目先保存本次涉及 section 的内存快照并应用候选；同一时刻只允许一个立即事务。项目构造一次性 `GFSaveProfileRequest`，`GFSaveProfileUtility.save_profile()` 立即返回 `GFSaveProfileOperation`，不在请求调用栈里收集或写盘；后续 Profile tick 按 provider 顺序推进 `GFSaveSectionSnapshotOperation`，再按 generation 串行化、合并和有界重试。小型、有严格容量上限的 provider 可以返回已完成 snapshot operation；`ReplayCatalogSaveData` 必须按回放、action 和 checkpoint 预算分片，避免长回放目录在单帧同步序列化。任何目录增长到会占用整帧时都应在 provider 内采用分步 snapshot operation，不得恢复 UI 调用栈同步深拷贝。
 4. 对每个 dirty 的 manifest-backed Section，SaveGraph 在主保存请求边界创建 `ChunkSaveLease`。Provider 分步编码冻结业务快照，把 chunks 一次性移交给 Lease；`ChunkProfileUtility` 通过 `GFSaveProfileUtility` 的公开 API 注册严格派生的 chunk Profiles，并按顺序把完整候选写入当前 active bank 之外的 bank。stage 成功只得到尚不可见的候选 Manifest，不能直接更新业务可见状态。
 5. Provider 只有在完整 stage 成功后才把候选 Manifest 写入本次主 Profile snapshot。主 `GFSaveProfile` 是唯一可见提交点：只有与 Lease 绑定的主保存 generation 被证明已经持久化，Provider 才把候选 Manifest 设为 active；已知失败、取消或被后续 generation 合并取代的 Lease 不得提交自己的候选 Manifest。未被 active Manifest 引用的 bank 内容不属于玩家可见状态。
-6. chunk stage 与主 Profile 保存各自保留 `outcome_unknown` 栅栏。stage 的任一 chunk 写结果未知时，同一主身份与 Section 不得开始新 stage；只有该精确 chunk Profile 的公开状态快照证明 idle、unknown generation 和 detached request 均已清空后，栅栏才收敛为已知失败，本路径永不提交候选 Manifest，后续必须完整重试。主 Profile 保存结果未知时也保留 Lease、Profile 和 logical identity；公开 generation 证据证明请求已持久化时才提交 Manifest，否则按已知失败收敛。只有 `COMMITTED` 终态可以推进同 scope 的进程内 bank/epoch 基线；推进发生在释放 stage owner 之前，并以不复制 payload 的标量重基线覆盖 WAITING/READY Lease。基线保留到 Utility dispose，确保栅栏后才创建的 Lease 仍从真实已提交 bank 选择对侧 bank；known failure、superseded 和 cancelled 均不得推进。
+6. chunk stage 与主 Profile 保存各自保留 `outcome_unknown` 栅栏。GF 公共 Profile 快照只由 `GameSaveProfileSettlementEvidence` 严格解析：Profile 身份、state、三类 queue、persisted generation、unknown generations、detached count 与 request IDs 任一缺失或错类型都 fail-closed，SaveGraph、ChunkProfileUtility、ChunkSaveLease 和 LocalAccountSystem 不得各自用默认零值解释快照。stage 的任一 chunk 写结果未知时，同一主身份与 Section 不得开始新 stage；只有该精确 chunk Profile 的 evidence 证明完整 idle 后，栅栏才收敛为已知失败，本路径永不提交候选 Manifest，后续必须完整重试。主 Profile 保存结果未知时也保留 Lease、Profile 和 logical identity；精确 persisted generation evidence 证明请求已持久化时才提交 Manifest，否则按已知失败收敛。只有 `COMMITTED` 终态可以推进同 scope 的进程内 bank/epoch 基线；推进发生在释放 stage owner 之前，并以不复制 payload 的标量重基线覆盖 WAITING/READY Lease。基线保留到 Utility dispose，确保栅栏后才创建的 Lease 仍从真实已提交 bank 选择对侧 bank；known failure、superseded 和 cancelled 均不得推进。
 7. `GFStorageUtility` 通过临时文件、事务标记和原子提交写入每个 GF logical family。确认成功后 `GameSaveSectionResult` 为 `persisted`；确认失败时项目反向恢复本次 section，并等待回滚状态的补偿保存后再终结。
-8. 普通 section 事务的 `outcome_unknown` 同样不表示成功或失败。项目保留候选快照、Profile 与路径所有权，并阻止新的立即写入和账号切换；GF caller-first 后的迟到物理写入收敛后，按 requested/persisted generation 判断晚到成功，或回滚并补偿保存，再以原 transaction ID 发布唯一对账证据。
+8. 普通 section 事务的 `outcome_unknown` 同样不表示成功或失败。项目保留候选快照、Profile 与路径所有权，并阻止新的立即写入和账号切换；GF caller-first 后的迟到物理写入收敛后，按 requested/persisted generation 判断晚到成功，或回滚并补偿保存，再以原 transaction ID 发布唯一对账证据。`GameSaveSectionSettlementWaiter` 独占即时 operation、latest-evidence 快路径、signal race 重检和 transaction matching，并只向业务层交付不可变的 `GameSaveSectionSettlementResult`；GameFlow 不得再次解析裸 evidence Dictionary。内存回滚本身失败是 `restart-required` fatal fence，不是可轮询收敛的 reconciliation：继续锁住 Section/Profile，拒绝后续 mutation，并让 quiesce 以明确失败终结，禁止永久 pending 或伪造 flush 成功。
 9. 高频统计、发现和成就更新使用 `queue_section_data()` 合并到下一 generation；`flush_profile()` 是覆盖调用时最新 generation 的屏障。“已排队”不等于“已持久化”。若 debounce/flush 在 chunk scope 栅栏期间不能创建 Lease，SaveGraph 必须显式停放该 dirty 意图；精确结算后仅在 manifest-backed Provider 仍 dirty 时自动重臂一次，不按帧忙重试。quiesce 即使先于 debounce 到达，也必须先识别并等待该意图，不能清掉 pending 后把 `ERR_BUSY` 拒绝当成最终 flush。
 
-Profile 删除使用 `GFStorageUtility.delete_file_request_async()` 和 `GFStorageAsyncRequestOptions`。caller 轴可以因 owner、token 或 deadline 先终结；已接纳 delete 此时是 `OUTCOME_UNKNOWN`，项目继续保留账号协调锁与 logical identity。只有同一 `GFStorageAsyncOperation.completed` 的物理终态到达后才释放路径所有权并推进 reconciliation。未找到 logical family 保持幂等成功语义；项目不得再用 `GFBackgroundWorkUtility` 自建文件删除任务。
+Profile 删除使用 `GFStorageUtility.delete_file_request_async()` 和 `GFStorageAsyncRequestOptions`。caller 轴可以因 owner、token 或 deadline 先终结；已接纳 delete 此时是 `OUTCOME_UNKNOWN`，项目继续保留账号协调锁与 logical identity。只有同一 `GFStorageAsyncOperation.completed` 的物理终态到达后才释放路径所有权并推进 reconciliation。主删除成功后若 `ChunkProfileUtility` 配置缺失，`GameSaveProfileCleanupSaga.fail_derived_setup()` 进入 typed `derived_setup_failed` 终态并释放路径 ownership；不得在未冻结 derived plan 时误调用完成入口而永久占有路径。未找到 logical family 保持幂等成功语义；项目不得再用 `GFBackgroundWorkUtility` 自建文件删除任务。
 
 业务 System 不得直接调用 `FileAccess`、枚举存档目录或生成旁路文件。
 
@@ -222,6 +222,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 - typed save/load/flush 终态、generation 合并、有界 retry 与覆盖最新 generation 的 flush barrier。
 - section 立即事务的 typed success、全局 busy、已知失败反向回滚与补偿保存。
 - IO 超时后的 `STATUS_OUTCOME_UNKNOWN`、迟到成功/失败、按 generation 对账和 profile/path 所有权保留；补偿迟到失败后必须保留待保存 generation，立即 flush 不得复活候选。
+- GF Profile 公共快照缺字段、错类型、未知 generation 或 detached request 时统一 fail-closed；内存 `rollback_failed` 必须报告 restart-required 并让 quiesce 明确失败，不能永久等待。
 - 普通 Section 只进入主 Profile；书签和回放主 section 只保存 Manifest，载荷只进入由可信主身份派生的 A/B chunk Profiles，不生成 Feature 自定义旁路文件。
 - 128 KiB/64 chunks/8 MiB 三层预算、descriptor 顺序/大小/SHA-256 校验，以及错误时不返回部分物化结果。
 - inactive-bank 完整 stage、主 Profile 可见提交点、known failure/superseded 不提交，以及 stage/main 两类 outcome-unknown 栅栏与迟到对账。
@@ -230,6 +231,7 @@ powershell -ExecutionPolicy Bypass -File tools/run_gut_safe.ps1 -GodotExecutable
 - `ChunkMaterializationLease` 绑定主 Profile authority 与完整 Manifest，只能由匹配 provider claim 一次；错配不消费，加载失败通过 context 内浅根反向交换业务载荷并恢复 active Manifest/revision，跨账号失败保持原状态。
 - 书签 schema 9/Manifest schema 10/流 schema 2 与回放 schema 6/Manifest schema 8/流 schema 2 分离；两种 length-prefixed record stream 都严格拒绝截断、尾随数据和非规范 frame，并按固定 work budget 增量物化为一次性 PreparedState。
 - 主 Profile 删除或开发期重置仅在主 logical family 已确定成功或不存在后清理全部 Manifest Provider 的派生 family；known failure 不清理，caller timeout、typed BUSY 和任一派生失败都必须保留 path 到后台 saga 收敛，并允许幂等重试。
+- 主删除成功但 derived cleanup 配置缺失时必须产生 typed setup-failed 终态并释放 path ownership，不得留下未冻结 plan。
 - Binary 往返后严格类型与稳定 UUID 保留。
 - 后期 section 应用失败时早期 section 回滚。
 - 同源旧 Profile 先完整备份再以当前默认 section 重建，且运行时不双读旧业务字段。

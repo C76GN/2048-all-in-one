@@ -1,15 +1,15 @@
-## 验证 GF 包锁、项目扩展启用和忽略规则保持一致。
+## 验证 GF 完整 vendor、项目扩展选择和维护门禁保持一致。
 extends GutTest
 
 
 # --- 常量 ---
 
-const _LOCKFILE_PATH: String = VerificationResourcePath.ROOT + ".gf/packages.lock.json"
 const _VENDOR_LOCKFILE_PATH: String = "res://.gf/vendor.lock.json"
 const _PROJECT_CONFIG_PATH: String = "res://project.godot"
 const _GF_PLUGIN_CONFIG_PATH: String = "res://addons/gf/plugin.cfg"
-const _GF_PACKAGE_CLI_PATH: String = "res://addons/gf/kernel/package/gf_package_cli.gd"
-const _GF_PACKAGE_BACKEND_PATH: String = "res://addons/gf/kernel/package/gf_package_manager_backend.gd"
+const _GF_RETIRED_PACKAGE_CLI_PATH: String = "res://addons/gf/kernel/package/gf_package_cli.gd"
+const _GF_RETIRED_PACKAGE_BACKEND_PATH: String = "res://addons/gf/kernel/package/gf_package_manager_backend.gd"
+const _GF_BOUNDED_ZIP_PATH: String = "res://addons/gf/tools/config_pipeline/gf_bounded_zip_support.gd"
 const _GF_EXTENSION_ROOT_PATH: String = "res://addons/gf/extensions"
 const _GITIGNORE_PATH: String = "res://.gitignore"
 const _GF_VENDOR_VERIFY_PATH: String = "res://tools/verify_gf_vendor.ps1"
@@ -34,7 +34,7 @@ func test_gf_plugin_version_is_recorded_as_semver() -> void:
 	elif not _is_semver(plugin_version):
 		_append_string(issues, "addons/gf/plugin.cfg 的 plugin/version 应为 SemVer：%s。" % plugin_version)
 
-	assert_true(issues.is_empty(), "GF 插件版本应可作为包管理和文档事实来源：\n%s" % _join_lines(issues))
+	assert_true(issues.is_empty(), "GF 插件版本应可作为 vendor 和文档事实来源：\n%s" % _join_lines(issues))
 
 
 func test_semver_validator_accepts_development_channel_versions() -> void:
@@ -197,48 +197,23 @@ func test_vendor_acceptance_gate_binds_remote_commit_tree_and_success_run() -> v
 	)
 
 
-func test_native_package_manager_entrypoints_exist() -> void:
+func test_gf_11_package_manager_retirement_is_fully_migrated() -> void:
 	var issues: Array[String] = []
 
-	if not ResourceLoader.exists(_GF_PACKAGE_CLI_PATH, "Script"):
-		_append_string(issues, "GF 原生包管理 CLI 缺失：%s。" % _GF_PACKAGE_CLI_PATH)
-	if not ResourceLoader.exists(_GF_PACKAGE_BACKEND_PATH, "Script"):
-		_append_string(issues, "GF 原生包管理后端缺失：%s。" % _GF_PACKAGE_BACKEND_PATH)
+	if ResourceLoader.exists(_GF_RETIRED_PACKAGE_CLI_PATH, "Script"):
+		_append_string(issues, "GF 11 已退役的 Package Manager CLI 不应残留。")
+	if ResourceLoader.exists(_GF_RETIRED_PACKAGE_BACKEND_PATH, "Script"):
+		_append_string(issues, "GF 11 已退役的 Package Manager 后端不应残留。")
+	if not ResourceLoader.exists(_GF_BOUNDED_ZIP_PATH, "Script"):
+		_append_string(issues, "配置流水线应保留迁移后的有界 ZIP 支持：%s。" % _GF_BOUNDED_ZIP_PATH)
+	if FileAccess.file_exists("res://.gf/packages.lock.json"):
+		_append_string(issues, "本项目已完成 GF 11 迁移，不应恢复 GF 10 packages.lock.json。")
 
-	assert_true(issues.is_empty(), "GF 包管理入口应使用 Godot 原生实现：\n%s" % _join_lines(issues))
-
-
-func test_lockfile_framework_version_matches_gf_plugin_version_when_present() -> void:
-	if not FileAccess.file_exists(_LOCKFILE_PATH):
-		assert_true(true, "当前为手动 vendored GF 源码状态，缺失 lockfile 时跳过 lockfile 版本校验。")
-		return
-
-	var lockfile: Dictionary = _read_json_dictionary(_LOCKFILE_PATH)
-	var plugin_config: ConfigFile = _load_config_file(_GF_PLUGIN_CONFIG_PATH)
-	var lockfile_version: String = _get_dictionary_text(lockfile, "framework_version")
-	var plugin_version: String = _get_config_text(plugin_config, "plugin", "version")
-	var issues: Array[String] = []
-
-	if lockfile_version.is_empty():
-		_append_string(issues, ".gf/packages.lock.json 存在时应记录 framework_version。")
-	if plugin_version.is_empty():
-		_append_string(issues, "addons/gf/plugin.cfg 应记录 plugin/version。")
-	if not lockfile_version.is_empty() and not plugin_version.is_empty() and lockfile_version != plugin_version:
-		_append_string(
-			issues,
-			"GF lockfile framework_version=%s 应与 plugin.cfg version=%s 一致。" % [
-				lockfile_version,
-				plugin_version,
-			]
-		)
-
-	assert_true(issues.is_empty(), "存在 GF lockfile 时，框架版本来源应保持一致：\n%s" % _join_lines(issues))
+	assert_true(issues.is_empty(), "GF 11 Package Manager 退役迁移应保持完整：\n%s" % _join_lines(issues))
 
 
 func test_project_enabled_extensions_have_vendored_manifests() -> void:
-	var lockfile: Dictionary = _read_json_dictionary(_LOCKFILE_PATH)
 	var project_config: ConfigFile = _load_config_file(_PROJECT_CONFIG_PATH)
-	var lockfile_extensions: PackedStringArray = _get_lockfile_enable_extensions(lockfile)
 	var project_extensions: PackedStringArray = _get_config_packed_string_array(
 		project_config,
 		"gf",
@@ -273,20 +248,6 @@ func test_project_enabled_extensions_have_vendored_manifests() -> void:
 			])
 
 	assert_true(issues.is_empty(), "project.godot 启用的 GF 扩展应在 vendored GF 源码中可解析：\n%s" % _join_lines(issues))
-
-	if not FileAccess.file_exists(_LOCKFILE_PATH):
-		return
-
-	lockfile_extensions.sort()
-	project_extensions.sort()
-
-	assert_true(
-		_packed_string_arrays_equal(lockfile_extensions, project_extensions),
-		"project.godot 启用的 GF 扩展应与 lockfile 中要求 enable_extension 的包一致。\nlockfile: %s\nproject: %s" % [
-			_format_packed_string_array(lockfile_extensions),
-			_format_packed_string_array(project_extensions),
-		]
-	)
 
 
 func test_extension_selection_is_explicit_and_export_strict() -> void:
@@ -424,15 +385,15 @@ func test_gut_project_config_discovers_the_full_test_tree() -> void:
 	assert_true(issues.is_empty(), "GUT 默认配置必须发现完整项目测试树：\n%s" % _join_lines(issues))
 
 
-func test_gf_package_cache_is_ignored_without_ignoring_lockfile() -> void:
+func test_gf_vendor_hygiene_ignores_only_regenerable_caches() -> void:
 	var gitignore_text: String = _read_text(_GITIGNORE_PATH)
 	var vendor_verify_text: String = _read_text(_GF_VENDOR_VERIFY_PATH)
 	var issues: Array[String] = []
 
-	if not _gitignore_has_entry(gitignore_text, ".gf/package_cache/"):
-		_append_string(issues, ".gitignore 应忽略 .gf/package_cache/，避免提交 GF 下载缓存。")
+	if _gitignore_has_entry(gitignore_text, ".gf/package_cache/"):
+		_append_string(issues, "GF 11 已退役 Package Manager，不应保留 package_cache 忽略规则。")
 	if _gitignore_has_entry(gitignore_text, ".gf/"):
-		_append_string(issues, ".gitignore 不应忽略整个 .gf/，否则 packages.lock.json 容易被漏提交。")
+		_append_string(issues, ".gitignore 不应忽略整个 .gf/，否则 vendor lock 与项目契约会被漏提交。")
 	if not _gitignore_has_entry(gitignore_text, "__pycache__/"):
 		_append_string(issues, ".gitignore 应忽略 GF Python 工具生成的 __pycache__/。")
 	if not _gitignore_has_entry(gitignore_text, "*.py[cod]"):
@@ -440,7 +401,7 @@ func test_gf_package_cache_is_ignored_without_ignoring_lockfile() -> void:
 	if not vendor_verify_text.contains("__pycache__") or not vendor_verify_text.contains(".py[cod]"):
 		_append_string(issues, "GF vendor 校验必须排除明确的 Python 缓存，不得把临时字节码计入快照。")
 
-	assert_true(issues.is_empty(), "GF 包管理相关忽略规则应只忽略缓存、不隐藏 lockfile：\n%s" % _join_lines(issues))
+	assert_true(issues.is_empty(), "GF vendor 忽略规则应只排除可再生缓存：\n%s" % _join_lines(issues))
 
 
 func test_generated_logs_user_data_and_exports_are_ignored() -> void:
@@ -516,25 +477,6 @@ func _load_config_file(path: String) -> ConfigFile:
 	return config
 
 
-func _get_lockfile_enable_extensions(lockfile: Dictionary) -> PackedStringArray:
-	var result: PackedStringArray = PackedStringArray()
-	var installed_value: Variant = lockfile.get("installed", {})
-	if not installed_value is Dictionary:
-		return result
-
-	var installed: Dictionary = installed_value
-	for package_id: Variant in installed.keys():
-		var package_value: Variant = installed[package_id]
-		if not package_value is Dictionary:
-			continue
-		var package_data: Dictionary = package_value
-		var extension_id: String = _get_dictionary_text(package_data, "enable_extension")
-		if extension_id.is_empty():
-			continue
-		_append_packed_string(result, extension_id)
-	return result
-
-
 func _get_config_text(config: ConfigFile, section: String, key: String) -> String:
 	if not config.has_section_key(section, key):
 		return ""
@@ -573,19 +515,6 @@ func _gitignore_has_entry(source: String, expected_entry: String) -> bool:
 		if line == expected_entry:
 			return true
 	return false
-
-
-func _packed_string_arrays_equal(left: PackedStringArray, right: PackedStringArray) -> bool:
-	if left.size() != right.size():
-		return false
-	for index: int in range(left.size()):
-		if _get_packed_line(left, index) != _get_packed_line(right, index):
-			return false
-	return true
-
-
-func _format_packed_string_array(source: PackedStringArray) -> String:
-	return "[" + ", ".join(source) + "]"
 
 
 func _get_packed_line(lines: PackedStringArray, index: int) -> String:

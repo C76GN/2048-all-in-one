@@ -20,9 +20,6 @@ repomix-output.txt
 repomix.config.json
 .repomixignore
 
-# GF package manager cache
-.gf/package_cache/
-
 # GF AI Developer regenerated local evidence
 /.gf/ai/
 

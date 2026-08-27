@@ -237,7 +237,7 @@ func test_gf_public_class_name_parser_uses_the_declared_class_header() -> void:
 		"res://addons/gf/kernel/core/gf_project_reference_scanner.gd"
 	)
 	var internal_class_name: String = _read_gf_public_class_name(
-		"res://addons/gf/kernel/package/gf_package_transaction_engine.gd"
+		"res://addons/gf/kernel/extension/gf_extension_id_validator.gd"
 	)
 
 	assert_true(

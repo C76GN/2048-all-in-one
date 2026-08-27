@@ -672,86 +672,23 @@ func _is_settled_stage_snapshot(evidence: Dictionary) -> bool:
 		or _stage_result.get_failed_chunk_index() < 0
 	):
 		return false
-	var profile_id_value: Variant = evidence.get("profile_id")
-	var state_value: Variant = evidence.get("state")
-	var write_unknown_value: Variant = evidence.get("write_outcome_unknown")
-	var unknown_generations_value: Variant = evidence.get(
-		"unknown_write_generations"
+	var settlement: GameSaveProfileSettlementEvidence = (
+		GameSaveProfileSettlementEvidence.from_snapshot(evidence)
 	)
-	var detached_count_value: Variant = evidence.get("detached_write_count")
-	var detached_request_ids_value: Variant = evidence.get(
-		"detached_storage_request_ids"
-	)
-	if not profile_id_value is StringName:
-		return false
-	var snapshot_profile_id: StringName = profile_id_value
-	if not state_value is StringName:
-		return false
-	var snapshot_state: StringName = state_value
-	if not write_unknown_value is bool:
-		return false
-	var snapshot_write_unknown: bool = write_unknown_value
-	if not unknown_generations_value is PackedInt64Array:
-		return false
-	var unknown_generations: PackedInt64Array = unknown_generations_value
-	if not detached_count_value is int:
-		return false
-	var detached_count: int = detached_count_value
-	if not detached_request_ids_value is PackedInt64Array:
-		return false
-	var detached_request_ids: PackedInt64Array = detached_request_ids_value
-	return (
-		snapshot_profile_id == profile_result.get_profile_id()
-		and snapshot_state == GFSaveProfileUtility.STATE_IDLE
-		and not snapshot_write_unknown
-		and unknown_generations.is_empty()
-		and detached_count == 0
-		and detached_request_ids.is_empty()
-	)
+	return settlement.is_settled_idle(profile_result.get_profile_id())
 
 
 func _is_settled_main_snapshot(
 	evidence: Dictionary,
 	persisted_generation: int
 ) -> bool:
-	var profile_id_value: Variant = evidence.get("profile_id")
-	var persisted_generation_value: Variant = evidence.get(
-		"persisted_generation"
+	var settlement: GameSaveProfileSettlementEvidence = (
+		GameSaveProfileSettlementEvidence.from_snapshot(evidence)
 	)
-	var write_unknown_value: Variant = evidence.get("write_outcome_unknown")
-	var unknown_generations_value: Variant = evidence.get(
-		"unknown_write_generations"
+	return settlement.confirms_persisted_generation(
+		_main_profile_id,
+		persisted_generation
 	)
-	var detached_count_value: Variant = evidence.get("detached_write_count")
-	var detached_request_ids_value: Variant = evidence.get(
-		"detached_storage_request_ids"
-	)
-	if not profile_id_value is StringName:
-		return false
-	var snapshot_profile_id: StringName = profile_id_value
-	if not persisted_generation_value is int:
-		return false
-	var snapshot_persisted_generation: int = persisted_generation_value
-	if not write_unknown_value is bool:
-		return false
-	var snapshot_write_unknown: bool = write_unknown_value
-	if not unknown_generations_value is PackedInt64Array:
-		return false
-	var unknown_generations: PackedInt64Array = unknown_generations_value
-	if not detached_count_value is int:
-		return false
-	var detached_count: int = detached_count_value
-	if not detached_request_ids_value is PackedInt64Array:
-		return false
-	var detached_request_ids: PackedInt64Array = detached_request_ids_value
-	if (
-		snapshot_profile_id != _main_profile_id
-		or snapshot_persisted_generation != persisted_generation
-		or snapshot_write_unknown
-		or detached_count != 0
-	):
-		return false
-	return unknown_generations.is_empty() and detached_request_ids.is_empty()
 
 
 func _fail_for_utility(error_code: Error, error: String) -> bool:

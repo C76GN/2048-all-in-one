@@ -472,6 +472,17 @@ func is_section_reconciliation_pending() -> bool:
 	return not _section_reconciliation.is_empty()
 
 
+## 返回 Section 事务是否因内存回滚失败进入只能重启恢复的致命栅栏。
+func is_section_restart_required() -> bool:
+	return (
+		GFVariantData.get_option_string_name(
+			_section_reconciliation,
+			&"stage"
+		)
+		== &"rollback_failed"
+	)
+
+
 ## 返回当前 reconciliation 对应的 section 事务标识；没有等待时返回 0。
 func get_pending_section_reconciliation_transaction_id() -> int:
 	return GFVariantData.get_option_int(
@@ -1235,7 +1246,10 @@ func _run_profile_cleanup_saga_async(request_id: int) -> void:
 		var derived_error: Error = await _cleanup_manifest_families_async(saga)
 		if _disposing:
 			return
-		if not saga.complete_derived_cleanup(derived_error):
+		if (
+			not saga.is_completed()
+			and not saga.complete_derived_cleanup(derived_error)
+		):
 			_log_error("Profile 清理派生终态无法闭合请求 %d。" % request_id)
 			return
 	if _disposing:
@@ -1247,7 +1261,11 @@ func _run_profile_cleanup_saga_async(request_id: int) -> void:
 func _cleanup_manifest_families_async(
 	saga: GameSaveProfileCleanupSaga
 ) -> Error:
-	if saga == null or _chunk_profiles == null:
+	if saga == null:
+		return ERR_INVALID_PARAMETER
+	if _chunk_profiles == null:
+		if not saga.fail_derived_setup(ERR_UNCONFIGURED):
+			return ERR_INVALID_DATA
 		return ERR_UNCONFIGURED
 	var manifest_providers: Array[ManifestBackedSaveSectionProvider] = []
 	for provider: GFSaveSectionProvider in _get_ordered_profile_providers():
@@ -1499,46 +1517,12 @@ func _make_runtime_profile_id(profile_file_name: String) -> StringName:
 func _is_registered_profile_idle(profile_id: StringName) -> bool:
 	if _profile_utility == null or profile_id == &"":
 		return false
-	var snapshot: Dictionary = (
-		_profile_utility.get_profile_state_snapshot(profile_id)
-	)
-	return (
-		not snapshot.is_empty()
-		and GFVariantData.get_option_string_name(
-			snapshot,
-			&"state"
-		)
-		== GFSaveProfileUtility.STATE_IDLE
-		and GFVariantData.get_option_int(
-			snapshot,
-			&"save_queue_size",
-			0
-		)
-		== 0
-		and GFVariantData.get_option_int(
-			snapshot,
-			&"load_queue_size",
-			0
-		)
-		== 0
-		and GFVariantData.get_option_int(
-			snapshot,
-			&"flush_queue_size",
-			0
-		)
-		== 0
-		and GFVariantData.get_option_int(
-			snapshot,
-			&"detached_write_count",
-			0
-		)
-		== 0
-		and not GFVariantData.get_option_bool(
-			snapshot,
-			&"write_outcome_unknown",
-			false
+	var evidence: GameSaveProfileSettlementEvidence = (
+		GameSaveProfileSettlementEvidence.from_snapshot(
+			_profile_utility.get_profile_state_snapshot(profile_id)
 		)
 	)
+	return evidence.is_settled_idle(profile_id)
 
 
 func _release_profile_for_cleanup(profile_file_name: String) -> Error:
@@ -3815,6 +3799,18 @@ func _try_advance_quiesce() -> void:
 		or _quiesce_completion == null
 		or not _quiesce_completion.is_pending()
 	):
+		return
+	if (
+		is_section_restart_required()
+	):
+		var _failed_restart_required: bool = _quiesce_completion.fail(
+			"Save graph requires restart after a Section memory rollback failure.",
+			{
+				&"error_code": int(ERR_CANT_CREATE),
+				&"restart_required": true,
+				&"transaction_id": get_pending_section_reconciliation_transaction_id(),
+			}
+		)
 		return
 	if (
 		_is_profile_transition_in_progress()

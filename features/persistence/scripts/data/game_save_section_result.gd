@@ -93,8 +93,12 @@ func requires_reconciliation() -> bool:
 	return _status in [
 		STATUS_OUTCOME_UNKNOWN,
 		STATUS_ROLLBACK_OUTCOME_UNKNOWN,
-		STATUS_ROLLBACK_FAILED,
 	]
+
+
+## 返回内存回滚是否已失败，只能保留 Profile 栅栏并要求重启恢复。
+func requires_restart() -> bool:
+	return _status == STATUS_ROLLBACK_FAILED
 
 
 ## 返回原始 GF 保存终态副本。

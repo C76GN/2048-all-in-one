@@ -39,7 +39,7 @@ var _is_settling_move_turn: bool = false
 var _persistence_epoch: int = 0
 var _persistence_owner_active: bool = false
 var _bookmark_save_in_progress: bool = false
-var _section_reconciliation_waiters: Array[_SectionReconciliationWaiter] = []
+var _section_settlement_waiters: Array[GameSaveSectionSettlementWaiter] = []
 
 ## 核心状态机。
 var _fsm: GFStateMachine
@@ -126,11 +126,11 @@ func dispose() -> void:
 	_persistence_epoch += 1
 	_persistence_owner_active = false
 	_bookmark_save_in_progress = false
-	for waiter: _SectionReconciliationWaiter in (
-		_section_reconciliation_waiters.duplicate()
+	for waiter: GameSaveSectionSettlementWaiter in (
+		_section_settlement_waiters.duplicate()
 	):
 		waiter.cancel()
-	_section_reconciliation_waiters.clear()
+	_section_settlement_waiters.clear()
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
 	if _fsm != null:
@@ -476,7 +476,7 @@ func restart_game() -> void:
 		seed_utility.set_global_seed(initial_seed)
 
 	if is_instance_valid(tree.current_scene) and not tree.current_scene.scene_file_path.is_empty():
-		router.goto_scene(tree.current_scene.scene_file_path)
+		router.restart_current_scene()
 
 
 # --- 私有/辅助方法 ---
@@ -987,15 +987,11 @@ func _persist_game_over_artifacts(
 				duration_msec
 			)
 		)
-		var progress_outcome: Dictionary = (
+		var progress_outcome: GameSaveSectionSettlementResult = (
 			await _await_section_operation_settlement(progress_operation)
 		)
 		if (
-			not GFVariantData.get_option_bool(
-				progress_outcome,
-				&"candidate_persisted",
-				false
-			)
+			not progress_outcome.is_candidate_persisted()
 			and owner_epoch == _persistence_epoch
 			and _is_game_over_persistence_profile_current(
 				owner_profile_file_name
@@ -1019,15 +1015,11 @@ func _persist_game_over_artifacts(
 		var replay_operation: GameSaveSectionOperation = (
 			replay_system.request_save_replay(replay_data)
 		)
-		var replay_outcome: Dictionary = (
+		var replay_outcome: GameSaveSectionSettlementResult = (
 			await _await_section_operation_settlement(replay_operation)
 		)
 		if (
-			not GFVariantData.get_option_bool(
-				replay_outcome,
-				&"candidate_persisted",
-				false
-			)
+			not replay_outcome.is_candidate_persisted()
 			and owner_epoch == _persistence_epoch
 			and _is_game_over_persistence_profile_current(
 				owner_profile_file_name
@@ -1068,7 +1060,7 @@ func _wait_for_section_serial_lane() -> void:
 		save_graph.get_pending_section_operation()
 	)
 	if pending_operation != null:
-		var _pending_outcome: Dictionary = (
+		var _pending_outcome: GameSaveSectionSettlementResult = (
 			await _await_section_operation_settlement(pending_operation)
 		)
 	if save_graph.is_section_reconciliation_pending():
@@ -1076,113 +1068,71 @@ func _wait_for_section_serial_lane() -> void:
 			save_graph.get_pending_section_reconciliation_transaction_id()
 		)
 		if transaction_id > 0:
-			var _evidence: Dictionary = await _await_section_reconciliation(
-				transaction_id
+			var _settlement: GameSaveSectionSettlementResult = (
+				await _await_pending_section_reconciliation(
+					save_graph,
+					transaction_id
+				)
 			)
 
 
 func _await_section_operation_settlement(
 	operation: GameSaveSectionOperation,
 	observed_result: GameSaveSectionResult = null
-) -> Dictionary:
+) -> GameSaveSectionSettlementResult:
 	if operation == null:
-		return {
-			&"candidate_persisted": false,
-			&"error_code": int(ERR_UNCONFIGURED),
-		}
-	var result: GameSaveSectionResult = (
-		observed_result
-		if observed_result != null
-		else await operation.await_result()
-	)
-	if result == null:
-		return {
-			&"candidate_persisted": false,
-			&"error_code": int(FAILED),
-		}
-	if result.is_successful():
-		return {
-			&"transaction_id": result.get_transaction_id(),
-			&"status": String(result.get_status()),
-			&"candidate_persisted": true,
-			&"memory_rolled_back": result.was_memory_rolled_back(),
-			&"error_code": int(OK),
-		}
-	if not result.requires_reconciliation():
-		return {
-			&"transaction_id": result.get_transaction_id(),
-			&"status": String(result.get_status()),
-			&"candidate_persisted": false,
-			&"memory_rolled_back": result.was_memory_rolled_back(),
-			&"error_code": int(result.get_error_code()),
-		}
-	var evidence: Dictionary = await _await_section_reconciliation(
-		result.get_transaction_id()
-	)
-	if evidence.is_empty():
-		return {
-			&"transaction_id": result.get_transaction_id(),
-			&"status": String(result.get_status()),
-			&"candidate_persisted": false,
-			&"memory_rolled_back": false,
-			&"error_code": int(result.get_error_code()),
-		}
-	evidence[&"error_code"] = (
-		int(OK)
-		if GFVariantData.get_option_bool(
-			evidence,
-			&"candidate_persisted",
-			false
-		)
-		else int(result.get_error_code())
-	)
-	return evidence
-
-
-func _await_section_reconciliation(transaction_id: int) -> Dictionary:
+		return GameSaveSectionSettlementResult.failed(ERR_UNCONFIGURED)
 	var save_graph: GameSaveGraphUtility = _get_save_graph_utility()
-	if save_graph == null or transaction_id <= 0:
-		return {}
-	var latest_evidence: Dictionary = (
-		save_graph.get_last_section_reconciliation_evidence()
+	var signal_utility: GFSignalUtility = _get_signal_utility()
+	if save_graph == null or not is_instance_valid(signal_utility):
+		var direct_result: GameSaveSectionResult = (
+			observed_result
+			if observed_result != null
+			else await operation.await_result()
+		)
+		return GameSaveSectionSettlementResult.from_section_result(direct_result)
+	var waiter: GameSaveSectionSettlementWaiter = (
+		GameSaveSectionSettlementWaiter.new()
 	)
-	if (
-		GFVariantData.get_option_int(
-			latest_evidence,
-			&"transaction_id",
-			0
-		) == transaction_id
-	):
-		return latest_evidence
+	if not waiter.configure(operation, save_graph, signal_utility, self):
+		return GameSaveSectionSettlementResult.failed(ERR_UNCONFIGURED)
+	_section_settlement_waiters.append(waiter)
+	var settlement: GameSaveSectionSettlementResult = (
+		await waiter.await_settlement(observed_result)
+	)
+	_section_settlement_waiters.erase(waiter)
+	return settlement
+
+
+func _await_pending_section_reconciliation(
+	save_graph: GameSaveGraphUtility,
+	transaction_id: int
+) -> GameSaveSectionSettlementResult:
 	var signal_utility: GFSignalUtility = _get_signal_utility()
 	if not is_instance_valid(signal_utility):
-		return {}
-	var waiter: _SectionReconciliationWaiter = _SectionReconciliationWaiter.new()
-	if not waiter.begin(save_graph, signal_utility, self, transaction_id):
-		return {}
-	_section_reconciliation_waiters.append(waiter)
-	var evidence: Dictionary = await waiter.settled
-	_section_reconciliation_waiters.erase(waiter)
-	if (
-		GFVariantData.get_option_bool(evidence, &"cancelled", false)
-		or GFVariantData.get_option_int(
-			evidence,
-			&"transaction_id",
-			0
-		) != transaction_id
-	):
-		return {}
-	return evidence
-
-
-static func _get_section_outcome_error(outcome: Dictionary) -> Error:
-	@warning_ignore("int_as_enum_without_cast")
-	var error_code: Error = GFVariantData.get_option_int(
-		outcome,
-		&"error_code",
-		FAILED
+		return GameSaveSectionSettlementResult.failed(ERR_UNCONFIGURED)
+	var waiter: GameSaveSectionSettlementWaiter = (
+		GameSaveSectionSettlementWaiter.new()
 	)
-	return error_code
+	if not waiter.configure_reconciliation(
+		transaction_id,
+		save_graph,
+		signal_utility,
+		self
+	):
+		return GameSaveSectionSettlementResult.failed(ERR_UNCONFIGURED)
+	_section_settlement_waiters.append(waiter)
+	var settlement: GameSaveSectionSettlementResult = (
+		await waiter.await_settlement()
+	)
+	_section_settlement_waiters.erase(waiter)
+	return settlement
+
+
+static func _get_section_outcome_error(
+	outcome: GameSaveSectionSettlementResult
+) -> Error:
+	return outcome.get_error_code() if outcome != null else FAILED
 
 
 func _play_game_over_sound() -> void:
@@ -1496,18 +1446,14 @@ func _complete_bookmark_save(
 			"gameplay.bookmark_save_pending",
 			GFNotificationUtility.Priority.HIGH
 		)
-	var outcome: Dictionary = await _await_section_operation_settlement(
+	var outcome: GameSaveSectionSettlementResult = await _await_section_operation_settlement(
 		operation,
 		initial_result
 	)
 	if owner_epoch != _persistence_epoch:
 		return
 	_bookmark_save_in_progress = false
-	if not GFVariantData.get_option_bool(
-		outcome,
-		&"candidate_persisted",
-		false
-	):
+	if not outcome.is_candidate_persisted():
 		var error_code: Error = _get_section_outcome_error(outcome)
 		_log_persistence_error("save bookmark", error_code)
 		_push_gameplay_notification(
@@ -1609,81 +1555,3 @@ func _on_score_updated(amount: int) -> void:
 	if is_instance_valid(_game_status_model):
 		_game_status_model.add_score(amount)
 		_persist_current_high_score()
-
-
-# --- 内部类 ---
-
-class _SectionReconciliationWaiter:
-	extends RefCounted
-
-	signal settled(evidence: Dictionary)
-
-	var _save_graph: GameSaveGraphUtility = null
-	var _transaction_id: int = 0
-	var _connection: GFSignalConnection = null
-	var _terminal: bool = false
-
-	## 绑定一个指定 section transaction 的 reconciliation 终态。
-	## @param save_graph: 发布 reconciliation 证据的项目持久化 Utility。
-	## @param signal_utility: 拥有安全 Signal 连接的 GF Utility。
-	## @param owner: 持有当前等待生命周期的 GameFlowSystem。
-	## @param transaction_id: 只接收此 section transaction 的证据。
-	func begin(
-		save_graph: GameSaveGraphUtility,
-		signal_utility: GFSignalUtility,
-		owner: Object,
-		transaction_id: int
-	) -> bool:
-		if (
-			_terminal
-			or _connection != null
-			or save_graph == null
-			or signal_utility == null
-			or owner == null
-			or transaction_id <= 0
-		):
-			return false
-		_save_graph = save_graph
-		_transaction_id = transaction_id
-		_connection = signal_utility.connect_signal(
-			_save_graph.section_reconciliation_settled,
-			_on_settled,
-			owner
-		)
-		if _connection != null and _connection.is_active():
-			return true
-		_disconnect()
-		return false
-
-	func cancel() -> void:
-		if _terminal:
-			return
-		_terminal = true
-		var transaction_id: int = _transaction_id
-		_disconnect()
-		settled.emit({
-			&"transaction_id": transaction_id,
-			&"cancelled": true,
-			&"candidate_persisted": false,
-		})
-
-	func _on_settled(evidence: Dictionary) -> void:
-		if (
-			_terminal
-			or GFVariantData.get_option_int(
-				evidence,
-				&"transaction_id",
-				0
-			) != _transaction_id
-		):
-			return
-		_terminal = true
-		var evidence_snapshot: Dictionary = evidence.duplicate(true)
-		_disconnect()
-		settled.emit(evidence_snapshot)
-
-	func _disconnect() -> void:
-		if _connection != null:
-			_connection.disconnect_signal()
-		_connection = null
-		_save_graph = null

@@ -316,14 +316,18 @@ func test_tile_lab_reconciliation_ignores_other_transaction_and_disposes() -> vo
 func test_game_flow_waiter_keeps_listening_until_matching_transaction() -> void:
 	var signal_utility: GFSignalUtility = GFSignalUtility.new()
 	var save_graph: GameSaveGraphUtility = GameSaveGraphUtility.new()
-	var waiter: GameFlowSystem._SectionReconciliationWaiter = (
-		GameFlowSystem._SectionReconciliationWaiter.new()
+	var waiter: GameSaveSectionSettlementWaiter = (
+		GameSaveSectionSettlementWaiter.new()
 	)
 	var probe: _EvidenceProbe = _EvidenceProbe.new()
 	var _settled_connection: Error = waiter.settled.connect(
 		probe.capture
 	) as Error
-	assert_true(waiter.begin(save_graph, signal_utility, waiter, 42))
+	assert_true(
+		waiter.configure_reconciliation(42, save_graph, signal_utility, waiter)
+	)
+	call_deferred(&"_drain_section_settlement_waiter", waiter)
+	await get_tree().process_frame
 	var connection: GFSignalConnection = waiter._connection
 
 	save_graph.section_reconciliation_settled.emit({
@@ -342,11 +346,9 @@ func test_game_flow_waiter_keeps_listening_until_matching_transaction() -> void:
 	})
 	assert_true(probe.count == 1)
 	assert_true(
-		GFVariantData.get_option_int(
-			probe.last_evidence,
-			&"transaction_id",
-			0
-		) == 42
+		probe.last_result != null
+		and probe.last_result.get_transaction_id() == 42
+		and probe.last_result.is_candidate_persisted()
 	)
 	assert_false(connection.is_active())
 	save_graph.section_reconciliation_settled.emit({
@@ -357,29 +359,68 @@ func test_game_flow_waiter_keeps_listening_until_matching_transaction() -> void:
 	signal_utility.dispose()
 
 
+func test_section_settlement_waiter_projects_direct_typed_terminal() -> void:
+	var signal_utility: GFSignalUtility = GFSignalUtility.new()
+	var save_graph: GameSaveGraphUtility = GameSaveGraphUtility.new()
+	var operation: GameSaveSectionOperation = GameSaveSectionOperation.new()
+	assert_true(
+		operation.configure_for_utility(
+			73,
+			&"profile:test",
+			PackedStringArray(["progress"])
+		)
+	)
+	var section_result: GameSaveSectionResult = GameSaveSectionResult.new()
+	assert_true(
+		section_result.configure_for_utility(
+			73,
+			&"profile:test",
+			PackedStringArray(["progress"]),
+			GameSaveSectionResult.STATUS_PERSISTED,
+			OK,
+			true,
+			false
+		)
+	)
+	assert_true(operation.complete_for_utility(section_result))
+	var waiter: GameSaveSectionSettlementWaiter = (
+		GameSaveSectionSettlementWaiter.new()
+	)
+	assert_true(waiter.configure(operation, save_graph, signal_utility, waiter))
+	var settlement: GameSaveSectionSettlementResult = (
+		await waiter.await_settlement()
+	)
+	assert_true(
+		settlement.get_transaction_id() == 73
+		and settlement.is_candidate_persisted()
+		and settlement.get_status() == GameSaveSectionResult.STATUS_PERSISTED
+		and settlement.get_error_code() == OK
+	)
+	assert_true(signal_utility.get_connection_count() == 0)
+	signal_utility.dispose()
+
+
 func test_game_flow_waiter_cancel_is_idempotent_and_disconnects() -> void:
 	var signal_utility: GFSignalUtility = GFSignalUtility.new()
 	var save_graph: GameSaveGraphUtility = GameSaveGraphUtility.new()
-	var waiter: GameFlowSystem._SectionReconciliationWaiter = (
-		GameFlowSystem._SectionReconciliationWaiter.new()
+	var waiter: GameSaveSectionSettlementWaiter = (
+		GameSaveSectionSettlementWaiter.new()
 	)
 	var probe: _EvidenceProbe = _EvidenceProbe.new()
 	var _settled_connection: Error = waiter.settled.connect(
 		probe.capture
 	) as Error
-	assert_true(waiter.begin(save_graph, signal_utility, waiter, 91))
+	assert_true(
+		waiter.configure_reconciliation(91, save_graph, signal_utility, waiter)
+	)
+	call_deferred(&"_drain_section_settlement_waiter", waiter)
+	await get_tree().process_frame
 	var connection: GFSignalConnection = waiter._connection
 
 	waiter.cancel()
 	waiter.cancel()
 	assert_true(probe.count == 1)
-	assert_true(
-		GFVariantData.get_option_bool(
-			probe.last_evidence,
-			&"cancelled",
-			false
-		)
-	)
+	assert_true(probe.last_result != null and probe.last_result.is_cancelled())
 	assert_false(connection.is_active())
 	assert_true(signal_utility.get_connection_count() == 0)
 	signal_utility.dispose()
@@ -446,19 +487,25 @@ func _make_blueprint(
 	return blueprint
 
 
+func _drain_section_settlement_waiter(
+	waiter: GameSaveSectionSettlementWaiter
+) -> void:
+	var _result: GameSaveSectionSettlementResult = await waiter.await_settlement()
+
+
 # --- 内部类 ---
 
 class _EvidenceProbe:
 	extends RefCounted
 
 	var count: int = 0
-	var last_evidence: Dictionary = {}
+	var last_result: GameSaveSectionSettlementResult = null
 
-	## 捕获一次对账证据。
-	## @param evidence: 共享对账信号载荷。
-	func capture(evidence: Dictionary) -> void:
+	## 捕获一次类型化对账终态。
+	## @param result: waiter 发布的不可变 settlement。
+	func capture(result: GameSaveSectionSettlementResult) -> void:
 		count += 1
-		last_evidence = evidence.duplicate(true)
+		last_result = result.duplicate_result()
 
 
 class _PlayerProfileDialogProbe:

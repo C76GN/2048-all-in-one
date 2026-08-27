@@ -194,6 +194,40 @@ func test_mode_selection_primes_gameplay_from_start_intent() -> void:
 	)
 
 
+func test_cross_module_scene_intents_resolve_to_navigation_owned_paths() -> void:
+	var router: _RouteSpy = _RouteSpy.new()
+
+	router.enter_gameplay()
+	assert_true(
+		router.last_scene_path == _GAME_SCENE_PATH,
+		"玩法 intent 必须由 navigation 解析为玩法场景路径。"
+	)
+
+	router.return_to_main_menu()
+	assert_true(
+		router.last_scene_path == _MAIN_MENU_SCENE.resource_path,
+		"主菜单 intent 必须由 navigation 解析为主菜单场景路径。"
+	)
+
+
+func test_restart_current_scene_intent_resolves_inside_navigation() -> void:
+	var router: _RouteSpy = _RouteSpy.new()
+	var previous_scene: Node = get_tree().current_scene
+	var current_scene: Node = _MAIN_MENU_SCENE.instantiate()
+	get_tree().root.add_child(current_scene)
+	get_tree().current_scene = current_scene
+
+	router.restart_current_scene()
+	var routed_path: String = router.last_scene_path
+
+	get_tree().current_scene = previous_scene
+	current_scene.queue_free()
+	assert_true(
+		routed_path == _MAIN_MENU_SCENE.resource_path,
+		"重开 intent 必须由 navigation 从当前场景解析稳定路径。"
+	)
+
+
 func test_mode_selection_includes_gameplay_in_neighbor_preload_plan() -> void:
 	var plan: Dictionary = _SCENE_PRELOAD_MAP.get_preload_plan(
 		_MODE_SELECTION_SCENE_PATH,

@@ -24,12 +24,12 @@ const DEFAULT_REVIEW_CATALOG_MARKDOWN_PATH: String = (
 	"res://build/asset_library/review_catalog_audit.md"
 )
 const _GENERATED_REPORT_ROOT: String = "res://build/asset_library"
-const _ASSET_REVIEW_RECORD_SCRIPT = preload("res://features/asset_library/scripts/data/asset_review_record.gd")
+const _ASSET_REVIEW_RECORD_SCRIPT = preload("res://features/asset_library/tools/support/data/asset_review_record.gd")
 const _ASSET_SOURCE_PACK_SCRIPT = preload("res://features/asset_library/scripts/data/asset_source_pack.gd")
 const _ASSET_SLOT_MAP_SCRIPT = preload("res://features/asset_library/scripts/data/asset_slot_map.gd")
 const _ASSET_SLOT_BINDING_SCRIPT = preload("res://features/asset_library/scripts/data/asset_slot_binding.gd")
 const _REVIEW_CATALOG_SOURCE_SCRIPT = preload(
-	"res://features/asset_library/scripts/catalog/game_asset_review_catalog_source_provider.gd"
+	"res://features/asset_library/tools/support/catalog/game_asset_review_catalog_source_provider.gd"
 )
 const _CATALOG_OWNER_ID: StringName = &"asset_library.audit"
 const _RUNTIME_CATALOG_MOUNT_ID: StringName = &"runtime_content_packages"

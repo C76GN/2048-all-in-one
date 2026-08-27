@@ -1,7 +1,7 @@
 ## GameTaskPageLayoutUtility: 为菜单与任务页提供统一的响应式布局判定。
 ##
-## 该工具只拥有项目 UI 的布局策略；设备安全区的实际换算继续交给
-## GFViewportUtility，页面脚本只需提供各自桌面构图所需的额外留白。
+## 该工具只拥有项目 UI 的布局策略；设备安全区的实际换算和应用继续交给
+## GFViewportUtility。缺少框架 Utility 时显式报告且拒绝写入，禁止退回第二套原生实现。
 class_name GameTaskPageLayoutUtility
 extends RefCounted
 
@@ -134,28 +134,34 @@ static func ensure_vertical_scroll_parent(
 	return scroll
 
 
-## 无 GFViewportUtility 时应用额外留白，保证隔离测试与降级启动仍可用。
+## 通过必需的 GFViewportUtility 叠加设备安全区与页面留白。
+## @param viewport_utility: Composition Root 注册的 GF 视口 Utility。
 ## @param margin_container: 要写入主题边距的页面容器。
+## @param viewport: 页面所在的逻辑视口。
 ## @param extra_margins: 包含 left、top、right、bottom 的额外边距。
-static func apply_margin_fallback(
+## @return: GF 报告同时确认 ok 与 applied 时返回 true。
+static func apply_required_safe_area_margins(
+	viewport_utility: GFViewportUtility,
 	margin_container: MarginContainer,
+	viewport: Viewport,
 	extra_margins: Dictionary
-) -> void:
-	if not is_instance_valid(margin_container):
-		return
-	margin_container.add_theme_constant_override(
-		"margin_left",
-		roundi(GFVariantData.get_option_float(extra_margins, "left"))
+) -> bool:
+	if not is_instance_valid(viewport_utility):
+		push_warning(
+			"[GameTaskPageLayoutUtility] 缺少必需的 GFViewportUtility，拒绝静默降级安全区布局。"
+		)
+		return false
+	var report: Dictionary = viewport_utility.apply_display_safe_area_margins(
+		margin_container,
+		viewport,
+		extra_margins
 	)
-	margin_container.add_theme_constant_override(
-		"margin_top",
-		roundi(GFVariantData.get_option_float(extra_margins, "top"))
+	var applied: bool = (
+		GFVariantData.get_option_bool(report, "ok")
+		and GFVariantData.get_option_bool(report, "applied")
 	)
-	margin_container.add_theme_constant_override(
-		"margin_right",
-		roundi(GFVariantData.get_option_float(extra_margins, "right"))
-	)
-	margin_container.add_theme_constant_override(
-		"margin_bottom",
-		roundi(GFVariantData.get_option_float(extra_margins, "bottom"))
-	)
+	if not applied:
+		push_warning(
+			"[GameTaskPageLayoutUtility] GFViewportUtility 未能应用安全区布局。"
+		)
+	return applied

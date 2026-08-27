@@ -63,6 +63,43 @@ func test_main_failure_never_opens_derived_cleanup() -> void:
 	)
 
 
+func test_derived_setup_failure_closes_typed_terminal_without_family_plan() -> void:
+	var operation: GFStorageAsyncOperation = _make_main_delete_operation(105)
+	assert_true(_complete_main_delete(operation, OK))
+	var saga: GameSaveProfileCleanupSaga = GameSaveProfileCleanupSaga.create(
+		_CANONICAL_NAME,
+		&"inactive_profile_request",
+		operation,
+		false
+	)
+	assert_not_null(saga)
+	assert_true(saga.settle_main_delete(OK))
+	assert_true(saga.fail_derived_setup(ERR_UNCONFIGURED))
+	assert_false(saga.fail_derived_setup(ERR_UNCONFIGURED))
+	assert_false(saga.begin_derived_cleanup(0))
+	assert_true(saga.is_completed())
+	assert_true(saga.get_final_error() == ERR_UNCONFIGURED)
+
+	var evidence: Dictionary = saga.make_terminal_evidence()
+	assert_true(
+		GFVariantData.get_option_string_name(evidence, &"status")
+		== &"derived_setup_failed"
+	)
+	assert_true(
+		GFVariantData.get_option_string_name(evidence, &"derived_status")
+		== &"setup_failed"
+	)
+	assert_true(
+		GFVariantData.get_option_int(evidence, &"derived_total_count", -1)
+		== 0
+		and GFVariantData.get_option_int(
+			evidence,
+			&"derived_completed_count",
+			-1
+		) == 0
+	)
+
+
 func test_typed_derived_terminals_own_counts_busy_retry_and_evidence() -> void:
 	var operation: GFStorageAsyncOperation = _make_main_delete_operation(103)
 	assert_true(_complete_main_delete(operation, OK))

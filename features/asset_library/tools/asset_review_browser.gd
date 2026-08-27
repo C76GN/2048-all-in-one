@@ -7,10 +7,10 @@ extends Control
 # --- 常量 ---
 
 const REVIEW_CATALOG_PROVIDER_SCRIPT = preload(
-	"res://features/asset_library/scripts/catalog/game_asset_review_catalog_source_provider.gd"
+	"res://features/asset_library/tools/support/catalog/game_asset_review_catalog_source_provider.gd"
 )
 const REVIEW_SYNC_POLICY_SCRIPT = preload(
-	"res://features/asset_library/scripts/data/asset_review_sync_policy.gd"
+	"res://features/asset_library/tools/support/data/asset_review_sync_policy.gd"
 )
 const REVIEW_RECORD_ROOT: String = "res://features/asset_library/resources/review/records"
 const STATUS_OPTIONS: Array[String] = [

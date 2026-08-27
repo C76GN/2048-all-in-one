@@ -9,6 +9,7 @@ extends GameSceneRouterPort
 # --- 常量 ---
 
 const _LOG_TAG: String = "SceneRouterSystem"
+const _GAMEPLAY_SCENE_PATH: String = "res://features/game_session/scenes/game/game_play.tscn"
 const _TRANSITION_MINIMUM_SECONDS: float = 0.0
 const _DEFAULT_TRANSITION_TIMEOUT_SECONDS: float = 5.0
 const _QUIT_SHUTDOWN_TIMEOUT_SECONDS: float = 10.0
@@ -143,6 +144,11 @@ func goto_scene(path: String) -> void:
 	var _scene_change: GFAsyncCompletion = request_scene_change(path)
 
 
+## 解析并执行跨 Module 的玩法场景意图。
+func enter_gameplay() -> void:
+	goto_scene(_GAMEPLAY_SCENE_PATH)
+
+
 ## 提交可观测的场景路径切换请求。
 ## @param path: 待切换的绝对 .tscn 资源路径。
 ## @param owner: 可选请求 owner；Node 在 GF 接管前退出场景树时取消请求。
@@ -227,6 +233,21 @@ func prime_scene(path: String) -> Error:
 ## 快速返回到主菜单。
 func return_to_main_menu() -> void:
 	goto_scene(_main_menu_scene_path)
+
+
+## 解析并执行重新进入当前场景的意图。
+func restart_current_scene() -> void:
+	var tree: SceneTree = _get_scene_tree()
+	if not is_instance_valid(tree) or not is_instance_valid(tree.current_scene):
+		if is_instance_valid(_log):
+			_log.error(_LOG_TAG, "当前场景不可用，无法重新进入。")
+		return
+	var current_path: String = tree.current_scene.scene_file_path
+	if current_path.is_empty():
+		if is_instance_valid(_log):
+			_log.error(_LOG_TAG, "当前场景缺少稳定资源路径，无法重新进入。")
+		return
+	goto_scene(current_path)
 
 
 ## 静默并关闭当前 GF 架构后退出整个游戏；重复调用共享同一终态。

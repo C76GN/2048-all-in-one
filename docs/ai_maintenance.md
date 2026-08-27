@@ -6,7 +6,7 @@
 
 - 本项目是 Godot 4.7+ 与 gf 的 2048 实战示例，不是一个脱离框架的普通小游戏仓库。
 - gf 当前版本以 `addons/gf/plugin.cfg` 中的 `version` 字段为唯一来源。规范文档描述当前 vendor 的契约，不复制容易过时的版本号；带日期的验证证据可以记录当次精确版本、commit 和 vendor hash，但不能冒充持续更新的“当前版本”。
-- 当前 GF 源码由 `.gf/vendor.lock.json` 精确锁定。若 `.gf/packages.lock.json` 存在，GF Package Manager 的安装状态以它为准；若不存在，不要把旧 lockfile 假设当作当前事实。`.gf/package_cache/` 是下载缓存，不应提交。
+- 当前 GF 源码是由 `.gf/vendor.lock.json` 精确锁定的完整 addon 快照。GF 11 已退役 Package Manager、包管理 CLI、registry、离线 bundle 和 `.gf/packages.lock.json` 安装流；不要恢复这些 GF 10 遗留状态。
 - 业务代码应尽量展示 gf 的核心能力：`GFInstaller`、`GFModel`、`GFSystem`、`GFController`、`GFUtility`、事件系统、命令历史、资源化输入、资源化规则、存储、场景工具、对象池、动作队列和设置绑定。
 - 当发现 gf 难以表达项目需求时，先判断问题属于示例项目建模不足、框架 API 可用性不足，还是框架缺陷。项目层先保持清晰边界；框架能力或缺陷必须先进入 `C76GN/gf-framework` GitHub issue，issue 是协作、复现和验收的唯一记录。
 - 当前工作区的 `addons/gf/**` 始终只读。即使任务要求反哺框架，经授权的 GF 实现也只能在独立 `gf-pr` 工作区的非 `main` 分支完成；用户自有 `gf` 工作区只对本项目自动化与协作者保持只读，自动化和协作者不得修改、整理、提交或推送其中内容，但不限制用户本人继续维护。
@@ -56,11 +56,11 @@
 6. 涉及公开方法、信号、导出变量、Resource 字段或存档格式时，同步补齐 `##` 文档和聚焦测试。
 7. 修改后优先运行安全静态验证；如需 GUT，必须使用隔离用户数据目录和日志策略。如果无法运行，明确说明原因和剩余风险。
 
-## GF 包管理
+## GF 完整插件与扩展选择
 
-当前项目使用精确锁定的 vendored GF 源码。GF 提供 Godot 原生 Package Manager；恢复包管理器安装流后，正式安装状态记录在 `.gf/packages.lock.json`。
+当前项目使用精确锁定的完整 vendored GF addon。GF 11 不再提供项目侧安装器；框架来源只由 `addons/gf/` 和 `.gf/vendor.lock.json` 共同定义，并通过本地内容哈希、官方 Git tree 和绿色 CI provenance 验证。
 
-必需包、可选包与能力采用状态只在 `.gf/project_contract.json` 的 `framework` 段维护；运行时扩展开关只在 `project.godot` 的 `gf/extensions/enabled` 维护。文档不得复制这两份列表，避免升级后出现第二套过时真相。
+必需包、可选包与能力采用状态只在 `.gf/project_contract.json` 的 `framework` 段维护，它们表示 API policy 与能力目录，不是安装状态；运行时扩展开关只在 `project.godot` 的 `gf/extensions/enabled` 维护。文档不得复制这两份列表，避免升级后出现第二套过时真相。
 
 ## GF AI 项目契约
 
@@ -88,9 +88,10 @@ python addons/gf/tools/ai_developer/gf_ai_project.py snapshot --project-root .
 
 所有验证入口、参数、结果解释和安全策略统一以 [`docs/validation.md`](./validation.md) 为准。本指南只描述何时验证，不复制命令清单。禁止裸跑 GUT；修改 `.gd` 后必须执行 GDScript LSP 门禁，目录布局的 warning 和 error 都必须清零。
 
-新增或移除 GF 包时必须同步检查：
+升级 GF vendor 或调整能力、扩展时必须同步检查：
 
-- `.gf/packages.lock.json`
+- `.gf/vendor.lock.json`
+- `.gf/project_contract.json` 的 framework policy
 - `project.godot` 的 `gf/extensions/enabled`
 - `README.md`
 - `docs/roadmap.md`
@@ -219,10 +220,10 @@ python addons/gf/tools/ai_developer/gf_ai_project.py snapshot --project-root .
 本项目的静态维护测试位于：
 
 - `tests/gut/test_api_docs_validation.gd`
-- `tests/gut/test_gf_package_validation.gd`
+- `tests/gut/test_gf_vendor_validation.gd`
 - `tests/gut/test_gdscript_layout_validation.gd`
 
-它们扫描示例项目源码和项目测试，不扫描 `addons/gf/**` 或 `addons/gut/**`。这些测试用于把 `docs/coding_style.md` 中能稳定机器判断的规则固定下来，也用于约束 GF 包状态和容易触发 Godot 4.7 静态警告的测试写法。
+它们扫描示例项目源码和项目测试，不扫描 `addons/gf/**` 或 `addons/gut/**`。这些测试用于把 `docs/coding_style.md` 中能稳定机器判断的规则固定下来，也用于约束 GF vendor 来源、扩展选择和容易触发 Godot 4.7 静态警告的测试写法。
 
 执行方法统一见 [`docs/validation.md`](./validation.md)。完整套件的测试数、断言数、运行时类集合和退出计数都是易变生成状态，只读取当次安全包装器输出；修改退出门禁输入集合时必须通过显式校准更新基线，不能只改文档数字。纯文档修改至少检查链接、路径和项目定位；修改 `.gd` 时补充或运行相关测试与 LSP 门禁，无法验证时必须说明风险。
 

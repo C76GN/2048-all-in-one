@@ -7,11 +7,6 @@ class_name GameSessionLaunchSystem
 extends GameSessionLaunchPort
 
 
-# --- 常量 ---
-
-const GAME_SCENE_PATH: String = "res://features/game_session/scenes/game/game_play.tscn"
-
-
 # --- 私有变量 ---
 
 var _app_config: AppConfigModel = null
@@ -105,7 +100,7 @@ func launch_new_game(
 		board_is_custom
 	)
 	_seed_utility.set_global_seed(seed_value)
-	_scene_router.goto_scene(GAME_SCENE_PATH)
+	_scene_router.enter_gameplay()
 	return true
 
 
@@ -121,7 +116,7 @@ func launch_bookmark(bookmark_id: String) -> bool:
 		return false
 
 	_commit_bookmark_launch(bookmark)
-	_scene_router.goto_scene(GAME_SCENE_PATH)
+	_scene_router.enter_gameplay()
 	return true
 
 
@@ -137,7 +132,7 @@ func launch_replay(replay_id: String) -> bool:
 		return false
 
 	_commit_replay_launch(replay)
-	_scene_router.goto_scene(GAME_SCENE_PATH)
+	_scene_router.enter_gameplay()
 	return true
 
 

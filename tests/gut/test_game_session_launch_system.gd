@@ -58,7 +58,7 @@ func test_new_game_freezes_topology_snapshot_before_committing_and_routing() -> 
 			false
 		)
 	)
-	assert_true(router.paths == [GameSessionLaunchSystem.GAME_SCENE_PATH])
+	assert_true(router.gameplay_request_count == 1)
 
 
 func test_invalid_stable_identity_fails_without_mutating_launch_state() -> void:
@@ -76,7 +76,7 @@ func test_invalid_stable_identity_fails_without_mutating_launch_state() -> void:
 			""
 		) == "sentinel"
 	)
-	assert_true(router.paths.is_empty())
+	assert_true(router.gameplay_request_count == 0)
 
 
 func test_new_game_rejects_domain_valid_but_unplayable_topology() -> void:
@@ -105,7 +105,7 @@ func test_new_game_rejects_domain_valid_but_unplayable_topology() -> void:
 			""
 		) == "sentinel"
 	)
-	assert_true(router.paths.is_empty())
+	assert_true(router.gameplay_request_count == 0)
 
 
 func test_bookmark_and_replay_are_reresolved_by_id_and_copy_isolated() -> void:
@@ -144,7 +144,7 @@ func test_bookmark_and_replay_are_reresolved_by_id_and_copy_isolated() -> void:
 		assert_true(selected_replay.final_score == 0)
 	var cleared_bookmark_value: Variant = app_config.selected_bookmark_data.get_value()
 	assert_true(cleared_bookmark_value == null)
-	assert_true(router.paths.size() == 2)
+	assert_true(router.gameplay_request_count == 2)
 
 
 # --- 私有/辅助方法 ---
@@ -256,8 +256,7 @@ class _ModeCatalogStub extends GameModeCatalogUtility:
 
 
 class _RouterSpy extends GameSceneRouterPort:
-	var paths: Array[String] = []
+	var gameplay_request_count: int = 0
 
-	## @param path: 要记录的场景导航目标路径。
-	func goto_scene(path: String) -> void:
-		paths.append(path)
+	func enter_gameplay() -> void:
+		gameplay_request_count += 1

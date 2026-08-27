@@ -106,6 +106,10 @@ const PLATFORM_PROBE_EXCEPTION_MISUSE_FIXTURE_PATH: String = (
 	"res://tests/gut/fixtures/platform_probe_exception_misuse.gd.txt"
 )
 const MAIN_MENU_SCRIPT_PATH: String = "res://features/navigation/scripts/menus/main_menu.gd"
+const GF_API_INDEX_PATH: String = (
+	"res://addons/gf/tools/ai_developer/knowledge/api_index.json"
+)
+const PROJECT_CONTRACT_PATH: String = "res://.gf/project_contract.json"
 const GF_MODULE_BASE_PATHS: Array[String] = [
 	"res://addons/gf/kernel/base/gf_model.gd",
 	"res://addons/gf/kernel/base/gf_system.gd",
@@ -229,6 +233,66 @@ func test_project_does_not_call_deprecated_gf_methods() -> void:
 		"项目不得调用当前 GF 源码标记为 @deprecated 的 API；升级 GF 后本测试会自动读取新声明：\n%s"
 		% _join_lines(issues)
 	)
+
+
+func test_runtime_sources_do_not_depend_on_gf_editor_api() -> void:
+	var editor_api_classes: Array[String] = _collect_gf_editor_api_classes()
+	var source_domains: Array[Dictionary] = _collect_project_source_domains()
+	var issues: Array[String] = []
+	if editor_api_classes.is_empty():
+		_append_string(issues, "GF API index 未提供 editor_api 类目录。")
+	if source_domains.is_empty():
+		_append_string(issues, "项目契约未提供 source_domains。")
+
+	for path: String in _collect_project_script_paths():
+		if _resolve_source_domain(path, source_domains) in ["tool", "editor", "test"]:
+			continue
+		var source: String = _read_text(path)
+		var executable_source: String = _mask_gdscript_comments_and_strings(source)
+		for class_name_value: String in editor_api_classes:
+			if not executable_source.contains(class_name_value):
+				continue
+			for line_number: int in _collect_symbol_lines(executable_source, class_name_value):
+				_append_string(
+					issues,
+					"%s:%d runtime source 不应依赖 GF editor_api %s。" % [
+						path,
+						line_number,
+						class_name_value,
+					]
+				)
+
+	assert_true(
+		issues.is_empty(),
+		"GF editor API 只允许位于显式 tool source domain，不能进入玩家运行时依赖链：\n%s"
+		% _join_lines(issues)
+	)
+
+
+func test_editor_api_guard_uses_deepest_contract_source_domain() -> void:
+	var domains: Array[Dictionary] = [
+		{"root": "res://features", "domain": "runtime"},
+		{"root": "res://features/custom_authoring", "domain": "tool"},
+	]
+	assert_true(
+		_resolve_source_domain("res://features/custom_authoring/editor.gd", domains) == "tool",
+		"未命名为 tools 的契约 tool root 也必须按 deepest-root 获得工具域。"
+	)
+	assert_true(
+		_resolve_source_domain("res://features/gameplay/tools/runtime.gd", domains) == "runtime",
+		"路径名包含 tools 不得自动豁免 runtime source。"
+	)
+
+
+func test_editor_api_guard_only_scans_executable_references() -> void:
+	var source: String = (
+		"# GFEditorFixture comment\n"
+		+ "var message: String = \"GFEditorFixture string\"\n"
+		+ "var multiline: String = \"\"\"GFEditorFixture\ncontinued\"\"\"\n"
+		+ "var utility: GFEditorFixture\n"
+	)
+	var lines: Array[int] = _collect_executable_symbol_lines(source, "GFEditorFixture")
+	assert_true(lines == [5], "注释和字符串不得误报，实际可执行类型引用必须命中精确行。")
 
 
 func test_gf_modules_only_resolve_cross_module_dependencies_in_ready() -> void:
@@ -645,6 +709,122 @@ func _collect_deprecated_gf_methods() -> Array[Dictionary]:
 				})
 			pending_deprecation = ""
 	return result
+
+
+func _collect_gf_editor_api_classes() -> Array[String]:
+	var result: Array[String] = []
+	var parsed: Variant = JSON.parse_string(_read_text(GF_API_INDEX_PATH))
+	if not parsed is Dictionary:
+		return result
+	var api_index: Dictionary = parsed
+	var classes: Dictionary = _get_dictionary(api_index, "classes")
+	for class_name_value: Variant in classes.keys():
+		var class_name_text: String = GFVariantData.to_text(class_name_value)
+		var class_record: Dictionary = _get_dictionary(classes, class_name_value)
+		if GFVariantData.get_option_string(class_record, "category") != "editor_api":
+			continue
+		if not class_name_text.is_empty():
+			result.append(class_name_text)
+	result.sort()
+	return result
+
+
+func _collect_project_source_domains() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var parsed: Variant = JSON.parse_string(_read_text(PROJECT_CONTRACT_PATH))
+	if not parsed is Dictionary:
+		return result
+	var contract: Dictionary = parsed
+	var architecture: Dictionary = _get_dictionary(contract, "architecture")
+	for record_value: Variant in GFVariantData.get_option_array(architecture, "source_domains"):
+		if not record_value is Dictionary:
+			continue
+		var record: Dictionary = record_value
+		var root: String = GFVariantData.get_option_string(record, "root").trim_suffix("/")
+		var domain: String = GFVariantData.get_option_string(record, "domain")
+		if root.is_empty() or domain.is_empty():
+			continue
+		result.append({"root": root, "domain": domain})
+	return result
+
+
+func _resolve_source_domain(path: String, source_domains: Array[Dictionary]) -> String:
+	var resolved_domain: String = "runtime"
+	var resolved_root_length: int = -1
+	for record: Dictionary in source_domains:
+		var root: String = GFVariantData.get_option_string(record, "root").trim_suffix("/")
+		if path != root and not path.begins_with(root + "/"):
+			continue
+		if root.length() <= resolved_root_length:
+			continue
+		resolved_root_length = root.length()
+		resolved_domain = GFVariantData.get_option_string(record, "domain", "runtime")
+	return resolved_domain
+
+
+func _collect_executable_symbol_lines(source: String, symbol: String) -> Array[int]:
+	var executable_source: String = _mask_gdscript_comments_and_strings(source)
+	return _collect_symbol_lines(executable_source, symbol)
+
+
+func _collect_symbol_lines(executable_source: String, symbol: String) -> Array[int]:
+	var result: Array[int] = []
+	var lines: PackedStringArray = executable_source.split("\n")
+	for line_index: int in range(lines.size()):
+		if _regex_matches(_get_packed_line(lines, line_index), "\\b%s\\b" % symbol):
+			result.append(line_index + 1)
+	return result
+
+
+func _mask_gdscript_comments_and_strings(source: String) -> String:
+	var result: Array[String] = []
+	var index: int = 0
+	var quote: String = ""
+	var triple_quoted: bool = false
+	var escaped: bool = false
+	var in_comment: bool = false
+	while index < source.length():
+		var character: String = source[index]
+		if in_comment:
+			if character == "\n":
+				in_comment = false
+				result.append("\n")
+			else:
+				result.append(" ")
+			index += 1
+			continue
+		if not quote.is_empty():
+			if character == "\n":
+				result.append("\n")
+			else:
+				result.append(" ")
+			if triple_quoted and source.substr(index, 3) == quote.repeat(3):
+				result.append("  ")
+				index += 3
+				quote = ""
+				triple_quoted = false
+				continue
+			if not triple_quoted and not escaped and character == quote:
+				quote = ""
+			escaped = not escaped and character == "\\"
+			if character != "\\":
+				escaped = false
+			index += 1
+			continue
+		if character == "#":
+			in_comment = true
+			result.append(" ")
+			index += 1
+			continue
+		if character == "\"" or character == "'":
+			quote = character
+			triple_quoted = source.substr(index, 3) == character.repeat(3)
+			result.append("   " if triple_quoted else " ")
+			index += 3 if triple_quoted else 1
+			continue
+		result.append(character)
+		index += 1
+	return "".join(result)
 
 
 func _collect_deprecated_call_issues(

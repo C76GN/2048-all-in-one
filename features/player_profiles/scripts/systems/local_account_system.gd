@@ -1996,40 +1996,10 @@ func _profile_reconciliation_can_run() -> bool:
 	var snapshot: Dictionary = (
 		_profile_utility.get_profile_state_snapshot(profile_id)
 	)
-	return (
-		not snapshot.is_empty()
-		and GFVariantData.get_option_string_name(snapshot, &"state")
-		== GFSaveProfileUtility.STATE_IDLE
-		and GFVariantData.get_option_int(
-			snapshot,
-			&"save_queue_size",
-			0
-		)
-		== 0
-		and GFVariantData.get_option_int(
-			snapshot,
-			&"load_queue_size",
-			0
-		)
-		== 0
-		and GFVariantData.get_option_int(
-			snapshot,
-			&"flush_queue_size",
-			0
-		)
-		== 0
-		and GFVariantData.get_option_int(
-			snapshot,
-			&"detached_write_count",
-			0
-		)
-		== 0
-		and not GFVariantData.get_option_bool(
-			snapshot,
-			&"write_outcome_unknown",
-			false
-		)
+	var evidence: GameSaveProfileSettlementEvidence = (
+		GameSaveProfileSettlementEvidence.from_snapshot(snapshot)
 	)
+	return evidence.is_settled_idle(profile_id)
 
 
 func _run_catalog_reconciliation() -> void:

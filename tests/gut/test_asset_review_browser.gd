@@ -5,7 +5,7 @@ extends GutTest
 # --- 常量 ---
 
 const REVIEW_SYNC_POLICY_SCRIPT = preload(
-	"res://features/asset_library/scripts/data/asset_review_sync_policy.gd"
+	"res://features/asset_library/tools/support/data/asset_review_sync_policy.gd"
 )
 
 

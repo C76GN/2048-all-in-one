@@ -342,14 +342,14 @@ func _apply_responsive_layout() -> void:
 
 
 func _apply_safe_area_margins(extra_margins: Dictionary) -> void:
-	if is_instance_valid(_viewport_utility):
-		var _safe_area_report: Dictionary = _viewport_utility.apply_display_safe_area_margins(
+	var _safe_area_applied: bool = (
+		GameTaskPageLayoutUtility.apply_required_safe_area_margins(
+			_viewport_utility,
 			_margin_container,
 			get_viewport(),
 			extra_margins
 		)
-		return
-	GameTaskPageLayoutUtility.apply_margin_fallback(_margin_container, extra_margins)
+	)
 
 
 func _apply_field_widths() -> void:

@@ -6,10 +6,10 @@ extends SceneTree
 # --- 常量 ---
 
 const REVIEW_CATALOG_PROVIDER_SCRIPT = preload(
-	"res://features/asset_library/scripts/catalog/game_asset_review_catalog_source_provider.gd"
+	"res://features/asset_library/tools/support/catalog/game_asset_review_catalog_source_provider.gd"
 )
 const SOURCE_EXCLUSION_INDEX_SCRIPT = preload(
-	"res://features/asset_library/scripts/data/asset_source_exclusion_index.gd"
+	"res://features/asset_library/tools/support/data/asset_source_exclusion_index.gd"
 )
 const SOURCE_PACK_ROOT: String = "res://features/asset_library/resources/source_packs"
 const REVIEW_RECORD_ROOT: String = "res://features/asset_library/resources/review/records"

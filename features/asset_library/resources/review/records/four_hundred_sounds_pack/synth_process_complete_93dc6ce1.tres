@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="AssetReviewRecord" format=3]
 
-[ext_resource type="Script" path="res://features/asset_library/scripts/data/asset_review_record.gd" id="1_nlgyk"]
+[ext_resource type="Script" path="res://features/asset_library/tools/support/data/asset_review_record.gd" id="1_nlgyk"]
 
 [resource]
 script = ExtResource("1_nlgyk")

@@ -771,7 +771,11 @@ func _make_chunks(values: Array[String]) -> Array[PackedByteArray]:
 func _make_settled_main_snapshot(persisted_generation: int) -> Dictionary:
 	return {
 		"profile_id": MAIN_PROFILE_ID,
+		"state": GFSaveProfileUtility.STATE_IDLE,
 		"persisted_generation": persisted_generation,
+		"save_queue_size": 0,
+		"load_queue_size": 0,
+		"flush_queue_size": 0,
 		"write_outcome_unknown": false,
 		"unknown_write_generations": PackedInt64Array(),
 		"detached_write_count": 0,
@@ -783,6 +787,10 @@ func _make_settled_stage_snapshot(profile_id: StringName) -> Dictionary:
 	return {
 		"profile_id": profile_id,
 		"state": GFSaveProfileUtility.STATE_IDLE,
+		"persisted_generation": 0,
+		"save_queue_size": 0,
+		"load_queue_size": 0,
+		"flush_queue_size": 0,
 		"write_outcome_unknown": false,
 		"unknown_write_generations": PackedInt64Array(),
 		"detached_write_count": 0,

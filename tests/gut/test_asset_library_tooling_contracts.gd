@@ -16,7 +16,7 @@ const GENERATED_TEXT_TOOL_PATHS: PackedStringArray = [
 	"res://tools/purge_rejected_assets.gd",
 ]
 const BOUNDED_JSON_CALLER_PATHS: PackedStringArray = [
-	"res://features/asset_library/scripts/data/asset_source_exclusion_index.gd",
+	"res://features/asset_library/tools/support/data/asset_source_exclusion_index.gd",
 	"res://features/asset_library/tools/import_asset_sources.gd",
 ]
 const ASSET_JSON_ENTRY_BUDGET_PATH: String = (

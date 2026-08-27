@@ -26,12 +26,12 @@ const MAX_SOURCE_FILE_COUNT: int = 100000
 const MAX_CONFIG_FILE_BYTES: int = 1024 * 1024
 const MAX_CONFIG_DEPTH: int = 16
 const MAX_CONFIG_ENTRIES: int = 50_000
-const ASSET_REVIEW_RECORD_SCRIPT = preload("res://features/asset_library/scripts/data/asset_review_record.gd")
+const ASSET_REVIEW_RECORD_SCRIPT = preload("res://features/asset_library/tools/support/data/asset_review_record.gd")
 const ASSET_SOURCE_PACK_SCRIPT = preload("res://features/asset_library/scripts/data/asset_source_pack.gd")
 const ASSET_SLOT_BINDING_SCRIPT = preload("res://features/asset_library/scripts/data/asset_slot_binding.gd")
 const ASSET_SLOT_MAP_SCRIPT = preload("res://features/asset_library/scripts/data/asset_slot_map.gd")
 const SOURCE_EXCLUSION_INDEX_SCRIPT = preload(
-	"res://features/asset_library/scripts/data/asset_source_exclusion_index.gd"
+	"res://features/asset_library/tools/support/data/asset_source_exclusion_index.gd"
 )
 const JSON_ENTRY_BUDGET_SCRIPT = preload(
 	"res://features/asset_library/scripts/data/asset_json_entry_budget.gd"

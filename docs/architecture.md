@@ -64,7 +64,7 @@ Feature 的 `scripts/` 内可以继续使用 `models/`、`systems/`、`utilities
 - **Adapter** 只在 Seam 上翻译两个已存在的契约；不得拥有被适配领域的规则，也不得把供应商 API、场景 NodePath 或存储路径泄漏给调用方。
 - **Leverage** 优先来自复用 GF 已安装能力处理生命周期、预算、目录、事务、输入与导航；产品身份、资格、排行分组、方块内容与冲突文案仍由项目拥有。
 - **Locality** 要求一次业务变更主要停留在所属 Feature。若修改一个产品概念必须同时了解多个 Feature 的私有 Implementation，应先收紧公开 Interface，而不是把代码搬进 `shared`。
-- **跨 Feature Port** 只在 `shared` 保存最小契约：`GameSessionLaunchPort` 接收稳定路径、ID 与严格值快照；`GameSceneRouterPort` 和 `GameUiRouterPort` 接收场景或 UI 导航意图。Composition Root 把同一个 `GameSessionLaunchSystem`、`SceneRouterSystem` 与 `GameUiRouterUtility` 实例分别注册为具体类型和对应 Port 的 alias，调用方不得向下转型或依赖实现路径。
+- **跨 Feature Port** 只在 `shared` 保存最小契约：`GameSessionLaunchPort` 接收稳定路径、ID 与严格值快照；`GameSceneRouterPort` 只暴露 `enter_gameplay()`、`restart_current_scene()`、`return_to_main_menu()` 三个 typed intent，场景路径解析归 navigation Implementation；`GameUiRouterPort` 接收稳定 UI route intent。Composition Root 把同一个 `GameSessionLaunchSystem`、`SceneRouterSystem` 与 `GameUiRouterUtility` 实例分别注册为具体类型和对应 Port 的 alias，调用方不得向下转型或依赖实现路径。
 - **共享页面 Module** 仍应拥有自己的 Feature 边界。`saved_content_browser` 的 `BaseListMenu` 隐藏列表物化、焦点、预览、响应式布局和删除终态；`bookmarks` 与 `replays` 只实现各自的数据查询、文案和稳定 ID 激活动作，不把这个深实现放进 `shared`，也不依赖 navigation 的具体 Router 类型。
 
 ## 启动与装配
@@ -98,8 +98,8 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 1. 模式选择页只向 `GameSessionLaunchPort` 提交已登记模式资源路径、`BoardTopology.to_dict()` 的严格副本、seed、seed 来源和自定义棋盘标记；主菜单的继续入口经同一 Port 查询并提交最新可恢复书签 ID，书签与回放列表也只提交当前玩家目录中的稳定 UUID v7，不传递 UI 持有的可变 Resource。
 2. `game_session` 的 `GameSessionLaunchSystem` 在请求边界重新解析模式目录、书签或回放，复核规则集与拓扑契约，并为写入 `AppConfigModel` 的对象创建隔离副本。navigation、bookmarks 与 replays 不读取或写入该会话模型。
-3. 只有全部校验通过后，启动 System 才统一提交下一局选择，并经 `GameSceneRouterPort` 请求进入 `features/game_session/scenes/game/game_play.tscn`；无效 ID、模式或拓扑必须失败关闭，保持原会话状态和当前场景不变。
-4. `GameSessionLaunchPort` 与 `GameSceneRouterPort` 由 Composition Root 注入；调用方不得保存 `game_scene_path`、直接访问 `SceneRouterSystem`，或以 `SceneTree.change_scene_to_file()` 建立第二条启动路径。
+3. 只有全部校验通过后，启动 System 才统一提交下一局选择，并经 `GameSceneRouterPort.enter_gameplay()` 提交稳定意图；navigation 独占意图到 `features/game_session/scenes/game/game_play.tscn` 的映射。无效 ID、模式或拓扑必须失败关闭，保持原会话状态和当前场景不变。
+4. `GameSessionLaunchPort` 与 `GameSceneRouterPort` 由 Composition Root 注入；调用方不得保存 gameplay/raw scene path、直接访问 `SceneRouterSystem`，或以 `SceneTree.change_scene_to_file()` 建立第二条启动路径。重开与返回同样只提交 `restart_current_scene()` / `return_to_main_menu()`。
 
 ### 玩家移动
 
@@ -131,7 +131,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 12. game_session 的 `GamePlayController` 在棋盘完成初始化后发布由 gameplay 拥有的 `BoardTopologyReadyData`；该事件只携带复制隔离的 `BoardTopology`，供 `TileDiscoverySystem` 等领域观察者消费，不暴露会话控制器或表现节点。同一控制器另行发布由 game_session 拥有的 `GameplayBoardReadyData`，只供 diagnostics 建立开发期棋盘表现上下文。
 13. `board_editor` 拥有独立 GF 输入上下文和 `board_editor_undo`、`board_editor_redo` 抽象动作；编辑器快捷键不得依赖未注册的 Godot `InputMap` 动作。场景控件与草稿信号统一由 `GFSignalUtility` 持有连接生命周期。
 14. `CanvasViewportMath` 仅保存 gameplay 的 HUD inset 构图与边缘余量纯策略；它不再持有或写入画布变换。编辑器用稳定世界尺寸绘制草稿；`GFSpatialCanvas2D` 的输入策略拥有通用视口操作，`BoardEditorViewportController` 只保留左/右键、单指绘制和笔画提交/取消语义。
-15. `BoardEditorResponsiveLayoutController` 负责桌面三栏、紧凑横屏和竖屏布局。紧凑布局以编辑/模板分区替代被压缩的三栏，竖屏工具栏位于画布上方，所有外边距通过 `GFViewportUtility.apply_display_safe_area_margins()` 叠加物理安全区。
+15. `BoardEditorResponsiveLayoutController` 负责桌面三栏、紧凑横屏和竖屏布局。紧凑布局以编辑/模板分区替代被压缩的三栏，竖屏工具栏位于画布上方。任务页通过 `GameTaskPageLayoutUtility.apply_required_safe_area_margins()` 唯一委托 `GFViewportUtility` 叠加物理安全区；缺失 GF Utility 时显式报告并拒绝写入，不得以主题边距恢复第二套静默 fallback。
 
 详细契约见 `features/gameplay/docs/board_topology.md`。
 
@@ -187,7 +187,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 
 ### 素材评审
 
-1. 运行时 manifest 只登记已批准素材；候选记录和隔离源包不得被玩家运行时依赖。`ProjectContentCatalogUtility` 统一注册内容，`GFProjectReferenceScanner`、`GFAssetAttributionTools` 与 `GFAssetCatalog` 提供引用、授权和用途证据。
+1. 运行时 manifest 只登记已批准素材；候选记录、同步策略、排除索引、评审目录 Adapter 和隔离源包不得被玩家运行时依赖。它们位于 `features/asset_library/tools/support/**` 的显式 tool source domain，评审 `.tres` 也随发布过滤器排除；维护门禁从 GF API index 自动拒绝 runtime source 对 `editor_api` 类的引用。`ProjectContentCatalogUtility` 统一注册玩家内容，`GFProjectReferenceScanner`、`GFAssetAttributionTools` 与 `GFAssetCatalog` 只在工具链提供引用、授权和用途证据。
 2. 项目级治理、晋升与安全边界以 [`docs/asset_library.md`](./asset_library.md) 为权威；命令、快捷键和工具行为以 [`features/asset_library/docs/readme.md`](../features/asset_library/docs/readme.md) 为权威。架构文档不复制编码同步、许可证或清理流程。
 
 ### 运行时通知

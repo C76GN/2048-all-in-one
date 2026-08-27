@@ -5,7 +5,7 @@ extends GutTest
 # --- 常量 ---
 
 const EXCLUSION_INDEX_SCRIPT = preload(
-	"res://features/asset_library/scripts/data/asset_source_exclusion_index.gd"
+	"res://features/asset_library/tools/support/data/asset_source_exclusion_index.gd"
 )
 
 

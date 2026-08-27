@@ -6,7 +6,7 @@ extends GFAssetCatalogSourceProvider
 
 # --- 常量 ---
 
-const _ASSET_REVIEW_RECORD_SCRIPT: Script = preload("res://features/asset_library/scripts/data/asset_review_record.gd")
+const _ASSET_REVIEW_RECORD_SCRIPT: Script = preload("res://features/asset_library/tools/support/data/asset_review_record.gd")
 const _MAX_REVIEW_RECORD_COUNT: int = 20000
 
 
