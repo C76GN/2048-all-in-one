@@ -44,6 +44,10 @@ _Avoid_: chunk stage 完成、单块写入成功
 GF 已接纳写入但 caller 终态不能证明物理结果时，对精确主身份、Section、Profile 和 generation 保留的独占协调边界。
 _Avoid_: 普通失败、自动重试标记
 
+**账号协调 Saga**:
+账号目录或玩家 Profile 的物理终态未知后，由 `player_profiles` 独占的单次恢复身份；它在目录补偿与 Profile 对齐中只选择一种 tagged state，目录 cleanup 只是目录补偿的内部子阶段，并持续阻断新账号事务直到精确收敛。
+_Avoid_: 并行协调真源、自动 cleanup 重试循环
+
 **Scope 提交基线**:
 同一主身份与 Section 在当前进程内最近一次被精确证明已提交的 Chunk Bank 与单调 epoch；它只重定向尚未开始 stage 的 Lease，不缓存业务载荷。
 _Avoid_: Provider 当前视图、磁盘缓存、猜测提交
@@ -63,6 +67,7 @@ _Avoid_: 排行榜、全球榜
 ## Relationships
 
 - 一个**玩家 Profile**属于且只属于一个本地账号。
+- 一次账号事务最多产生一个**账号协调 Saga**；目录补偿与 Profile 对齐不得并存，确定性 cleanup 失败只能由显式请求重臂。
 - 一个**玩家 Profile**包含多个 Feature-owned **Section**。
 - 一个大型 **Section**在任一时刻只由一个**Chunk Manifest**指向 A/B 两套 **Chunk Bank**中的一套。
 - 一个**Chunk Bank**只有在所有块写入并校验成功后，才能被新的**Chunk Manifest**设为可见。

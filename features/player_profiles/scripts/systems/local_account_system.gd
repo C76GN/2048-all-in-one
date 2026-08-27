@@ -7,7 +7,7 @@ extends GFSystem
 
 signal active_account_changed(account: LocalPlayerAccount)
 signal account_catalog_changed()
-## true 表示账号目录迟到终态尚未与 GF Profile 收敛，新 saga 会被拒绝。
+## true 表示类型化账号协调 Saga 尚未收敛，新账号事务会被拒绝。
 signal account_reconciliation_state_changed(pending: bool)
 
 
@@ -32,10 +32,7 @@ var _activation_bootstrap_completion: GFAsyncCompletion = null
 var _operation_runner_started: bool = false
 var _legacy_cleanup_in_progress: bool = false
 var _legacy_cleanup_runner_started: bool = false
-var _catalog_reconciliation: Dictionary = {}
-var _catalog_reconciliation_running: bool = false
-var _profile_reconciliation: Dictionary = {}
-var _profile_reconciliation_running: bool = false
+var _reconciliation_saga: LocalAccountReconciliationSaga = null
 var _last_reconciliation_evidence: Dictionary = {}
 
 # --- GF 生命周期方法 ---
@@ -59,6 +56,7 @@ func ready() -> void:
 	_legacy_cleanup_in_progress = false
 	_legacy_cleanup_runner_started = false
 	_last_legacy_cleanup_evidence.clear()
+	_reconciliation_saga = null
 	_catalog = _resolve_catalog_utility()
 	_save_graph = _resolve_save_graph_utility()
 	_profile_utility = _resolve_profile_utility()
@@ -163,8 +161,7 @@ func begin_activation(scope: GFAsyncScope) -> GFAsyncCompletion:
 ## 推进目录迟到终态与当前 Profile 的协调。
 ## @param _delta: 本帧增量；协调只依赖类型化终态，因此不使用该值。
 func tick(_delta: float = 0.0) -> void:
-	_maybe_start_catalog_reconciliation()
-	_maybe_start_profile_reconciliation()
+	_maybe_start_account_reconciliation()
 	_try_complete_quiesce()
 
 
@@ -243,24 +240,31 @@ func dispose() -> void:
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
 	_clear_async_tracking()
-	if not _catalog_reconciliation.is_empty():
+	if (
+		_reconciliation_saga != null
+		and _reconciliation_saga.is_catalog_compensation()
+	):
 		_last_reconciliation_evidence = {
 			&"ok": false,
 			&"status": "disposed_before_reconciliation",
 			&"error_code": int(ERR_TIMEOUT),
-			&"reconciliation": _catalog_reconciliation.duplicate(true),
+			&"reconciliation": (
+				_reconciliation_saga.make_state_snapshot()
+			),
 		}
-	elif not _profile_reconciliation.is_empty():
+	elif (
+		_reconciliation_saga != null
+		and _reconciliation_saga.is_profile_alignment()
+	):
 		_last_reconciliation_evidence = {
 			&"ok": false,
 			&"status": "disposed_before_profile_reconciliation",
 			&"error_code": int(ERR_TIMEOUT),
-			&"reconciliation": _profile_reconciliation.duplicate(true),
+			&"reconciliation": (
+				_reconciliation_saga.make_state_snapshot()
+			),
 		}
-	_catalog_reconciliation.clear()
-	_catalog_reconciliation_running = false
-	_profile_reconciliation.clear()
-	_profile_reconciliation_running = false
+	_reconciliation_saga = null
 	_catalog = null
 	_save_graph = null
 	_profile_utility = null
@@ -338,15 +342,15 @@ func get_pending_operation() -> LocalAccountOperation:
 	return _pending_operation
 
 
-## 目录迟到终态是否仍在等待或正在与 GF Profile 协调。
+## 单一目录补偿或 Profile 对齐 Saga 是否仍在持有账号协调锁。
 func is_account_reconciliation_pending() -> bool:
 	return (
-		not _catalog_reconciliation.is_empty()
-		or not _profile_reconciliation.is_empty()
+		_reconciliation_saga != null
+		and _reconciliation_saga.is_pending()
 	)
 
 
-## 返回最近一次目录/Profile 协调的类型化证据摘要。
+## 返回最近一次目录/Profile 协调的复制隔离证据摘要。
 func get_last_reconciliation_evidence() -> Dictionary:
 	return _last_reconciliation_evidence.duplicate(true)
 
@@ -358,52 +362,31 @@ func get_last_reconciliation_evidence() -> Dictionary:
 func request_account_reconciliation() -> Error:
 	if _disposed or _dispose_requested or _quiescing or not _is_configured():
 		return ERR_UNAVAILABLE
-	if _catalog_reconciliation.is_empty() and _profile_reconciliation.is_empty():
+	if not is_account_reconciliation_pending():
 		return OK
-	if not _catalog_reconciliation.is_empty():
-		if GFVariantData.get_option_bool(
-			_catalog_reconciliation,
-			&"cleanup_retry_explicit_required",
-			false
+	var saga: LocalAccountReconciliationSaga = _reconciliation_saga
+	if saga.is_cleanup_retry_explicit_required():
+		var _rearmed: bool = saga.rearm_cleanup_retry()
+	elif saga.is_waiting_for_cleanup_terminal():
+		var cleanup_file: String = saga.get_cleanup_profile_file()
+		if (
+			not cleanup_file.is_empty()
+			and not _save_graph.is_profile_cleanup_pending(cleanup_file)
 		):
-			_catalog_reconciliation[&"cleanup_retry_explicit_required"] = false
-			_catalog_reconciliation[&"reconcile_ready"] = true
-		elif GFVariantData.get_option_bool(
-			_catalog_reconciliation,
-			&"cleanup_pending",
-			false
-		):
-			var cleanup_file: String = GFVariantData.get_option_string(
-				_catalog_reconciliation,
-				&"cleanup_profile_file"
+			var _cleanup_ready: bool = saga.accept_cleanup_terminal(
+				cleanup_file
 			)
-			if (
-				not cleanup_file.is_empty()
-				and not _save_graph.is_profile_cleanup_pending(cleanup_file)
-			):
-				_catalog_reconciliation[&"reconcile_ready"] = true
-		_maybe_start_catalog_reconciliation()
-		return (
-			OK
-			if _catalog_reconciliation_running
-			or GFVariantData.get_option_bool(
-				_catalog_reconciliation,
-				&"reconcile_ready",
-				false
-			)
-			else ERR_BUSY
+	elif (
+		saga.is_waiting_for_profile_settlement()
+		and _reconciliation_profile_can_run(saga)
+	):
+		var _profile_ready: bool = saga.accept_profile_settled_idle(
+			saga.get_profile_id()
 		)
-	if _profile_reconciliation_can_run():
-		_profile_reconciliation[&"reconcile_ready"] = true
-	_maybe_start_profile_reconciliation()
+	_maybe_start_account_reconciliation()
 	return (
 		OK
-		if _profile_reconciliation_running
-		or GFVariantData.get_option_bool(
-			_profile_reconciliation,
-			&"reconcile_ready",
-			false
-		)
+		if saga.is_running() or saga.is_ready()
 		else ERR_BUSY
 	)
 
@@ -1471,8 +1454,7 @@ func _begin_catalog_reconciliation(
 ) -> void:
 	if (
 		operation == null
-		or not _catalog_reconciliation.is_empty()
-		or not _profile_reconciliation.is_empty()
+		or is_account_reconciliation_pending()
 	):
 		return
 	var cleanup_target: Dictionary = _resolve_cleanup_target(
@@ -1480,33 +1462,24 @@ func _begin_catalog_reconciliation(
 		cleanup_profile_file,
 		cleanup_account_id
 	)
-	var suppress_create_rollback_events: bool = (
-		operation.get_operation() == LocalAccountOperation.OPERATION_CREATE
-		and not cleanup_target.is_empty()
+	var saga: LocalAccountReconciliationSaga = (
+		LocalAccountReconciliationSaga.create_catalog_compensation(
+			operation,
+			account,
+			previous_account_id,
+			GFVariantData.get_option_string(
+				cleanup_target,
+				&"profile_file"
+			),
+			GFVariantData.get_option_string(
+				cleanup_target,
+				&"account_id"
+			)
+		)
 	)
-	_catalog_reconciliation = {
-		&"operation": operation.get_operation(),
-		&"target_account_id": operation.get_target_account_id(),
-		&"result_account_id": (
-			account.account_id if account != null else ""
-		),
-		&"previous_account_id": previous_account_id,
-		&"settlement_received": false,
-		&"reconcile_ready": false,
-		&"publish_success": false,
-		&"publish_events": not suppress_create_rollback_events,
-		&"success_events_published": false,
-		&"failure_catalog_event_published": false,
-		&"cleanup_required": not cleanup_target.is_empty(),
-		&"cleanup_profile_file": GFVariantData.get_option_string(
-			cleanup_target,
-			&"profile_file"
-		),
-		&"cleanup_account_id": GFVariantData.get_option_string(
-			cleanup_target,
-			&"account_id"
-		),
-	}
+	if saga == null:
+		return
+	_reconciliation_saga = saga
 	_last_reconciliation_evidence = {
 		&"ok": false,
 		&"status": "catalog_outcome_unknown",
@@ -1529,8 +1502,7 @@ func _begin_profile_reconciliation(
 ) -> void:
 	if (
 		operation == null
-		or not _catalog_reconciliation.is_empty()
-		or not _profile_reconciliation.is_empty()
+		or is_account_reconciliation_pending()
 		or not is_instance_valid(_save_graph)
 	):
 		return
@@ -1541,16 +1513,17 @@ func _begin_profile_reconciliation(
 		profile_evidence,
 		&"profile_id"
 	)
-	_profile_reconciliation = {
-		&"operation": operation.get_operation(),
-		&"target_account_id": operation.get_target_account_id(),
-		&"result_account_id": (
-			account.account_id if account != null else ""
-		),
-		&"previous_account_id": previous_account_id,
-		&"profile_id": profile_id,
-		&"reconcile_ready": false,
-	}
+	var saga: LocalAccountReconciliationSaga = (
+		LocalAccountReconciliationSaga.create_profile_alignment(
+			operation,
+			account,
+			previous_account_id,
+			profile_id
+		)
+	)
+	if saga == null:
+		return
+	_reconciliation_saga = saga
 	_last_reconciliation_evidence = {
 		&"ok": false,
 		&"status": "profile_outcome_unknown",
@@ -1573,8 +1546,7 @@ func _begin_cleanup_reconciliation(
 ) -> void:
 	if (
 		operation == null
-		or not _catalog_reconciliation.is_empty()
-		or not _profile_reconciliation.is_empty()
+		or is_account_reconciliation_pending()
 	):
 		return
 	var cleanup_target: Dictionary = _resolve_cleanup_target(
@@ -1594,40 +1566,26 @@ func _begin_cleanup_reconciliation(
 		ERR_TIMEOUT,
 		ERR_BUSY,
 	]
-	_catalog_reconciliation = {
-		&"operation": operation.get_operation(),
-		&"target_account_id": operation.get_target_account_id(),
-		&"result_account_id": (
-			account.account_id if account != null else ""
-		),
-		&"previous_account_id": previous_account_id,
-		&"settlement_received": true,
-		&"reconcile_ready": false,
-		&"publish_success": true,
-		&"publish_events": false,
-		&"cleanup_pending": waits_for_cleanup_terminal,
-		&"cleanup_retry_explicit_required": not waits_for_cleanup_terminal,
-		&"cleanup_required": true,
-		&"cleanup_profile_file": resolved_cleanup_profile_file,
-		&"cleanup_account_id": resolved_cleanup_account_id,
-		&"cleanup_only": true,
-		&"success_events_published": true,
-		&"failure_catalog_event_published": false,
-	}
+	var saga: LocalAccountReconciliationSaga = (
+		LocalAccountReconciliationSaga.create_cleanup_compensation(
+			operation,
+			account,
+			previous_account_id,
+			resolved_cleanup_profile_file,
+			resolved_cleanup_account_id,
+			initial_cleanup_error
+		)
+	)
+	if saga == null:
+		return
+	_reconciliation_saga = saga
 	_last_cleanup_error = initial_cleanup_error
 	_last_reconciliation_evidence = {
 		&"ok": false,
 		&"status": (
-			_make_cleanup_pending_evidence_status(
-				operation.get_operation(),
-				true,
-				initial_cleanup_error
-			)
+			saga.make_cleanup_pending_evidence_status(initial_cleanup_error)
 			if waits_for_cleanup_terminal
-			else _make_cleanup_retry_required_evidence_status(
-				operation.get_operation(),
-				true
-			)
+			else saga.make_cleanup_retry_required_evidence_status()
 		),
 		&"error_code": int(initial_cleanup_error),
 		&"operation": String(operation.get_operation()),
@@ -1673,27 +1631,23 @@ func _on_catalog_storage_late_settled(
 	previous_active_account_id: String,
 	active_account_id: String
 ) -> void:
-	if _disposed or _catalog_reconciliation.is_empty():
+	var saga: LocalAccountReconciliationSaga = _reconciliation_saga
+	if (
+		_disposed
+		or saga == null
+		or not saga.is_catalog_compensation()
+	):
 		return
 	var storage_succeeded: bool = (
 		result != null and result.is_successful()
 	)
-	_catalog_reconciliation[&"settlement_received"] = true
-	_catalog_reconciliation[&"reconcile_ready"] = true
-	_catalog_reconciliation[&"publish_success"] = (
-		storage_succeeded and candidate_apply_error == OK
-	)
-	_catalog_reconciliation[&"storage_succeeded"] = storage_succeeded
-	_catalog_reconciliation[&"candidate_apply_error"] = int(
-		candidate_apply_error
-	)
-	_catalog_reconciliation[&"storage_result"] = (
-		result.to_dict() if result != null else {}
-	)
-	_catalog_reconciliation[&"catalog_previous_active_account_id"] = (
-		previous_active_account_id
-	)
-	_catalog_reconciliation[&"catalog_active_account_id"] = active_account_id
+	if not saga.accept_catalog_settlement(
+		result,
+		candidate_apply_error,
+		previous_active_account_id,
+		active_account_id
+	):
+		return
 	_last_reconciliation_evidence = {
 		&"ok": false,
 		&"status": (
@@ -1714,12 +1668,7 @@ func _on_catalog_storage_late_settled(
 				else ERR_CANT_CREATE
 			)
 		),
-		&"operation": String(
-			GFVariantData.get_option_string_name(
-				_catalog_reconciliation,
-				&"operation"
-			)
-		),
+		&"operation": String(saga.get_operation()),
 		&"storage_result": (
 			result.to_dict() if result != null else {}
 		),
@@ -1730,7 +1679,7 @@ func _on_catalog_storage_late_settled(
 	# 保持阻塞并保留证据，不能擅自按旧目录切 Profile。
 	if storage_succeeded and candidate_apply_error != OK:
 		return
-	call_deferred(&"_maybe_start_catalog_reconciliation")
+	call_deferred(&"_maybe_start_account_reconciliation")
 
 
 func _on_profile_state_changed(
@@ -1738,157 +1687,92 @@ func _on_profile_state_changed(
 	_previous_state: StringName,
 	current_state: StringName
 ) -> void:
+	if current_state != GFSaveProfileUtility.STATE_IDLE:
+		return
+	var saga: LocalAccountReconciliationSaga = _reconciliation_saga
+	if saga == null or saga.is_running():
+		return
+	var should_start: bool = false
 	if (
-		current_state == GFSaveProfileUtility.STATE_IDLE
-		and not _profile_reconciliation.is_empty()
-		and profile_id
-		== GFVariantData.get_option_string_name(
-			_profile_reconciliation,
-			&"profile_id"
-		)
-		and _profile_reconciliation_can_run()
+		saga.is_waiting_for_profile_settlement()
+		and profile_id == saga.get_profile_id()
+		and _reconciliation_profile_can_run(saga)
 	):
-		_profile_reconciliation[&"reconcile_ready"] = true
-		call_deferred(&"_maybe_start_profile_reconciliation")
-	if (
-		current_state == GFSaveProfileUtility.STATE_IDLE
-		and not _catalog_reconciliation.is_empty()
-		and not _catalog_reconciliation_running
-		and GFVariantData.get_option_string_name(
-			_last_reconciliation_evidence,
-			&"status"
-		)
-		== &"profile_reconciliation_outcome_unknown"
-	):
-		_catalog_reconciliation[&"reconcile_ready"] = true
-		call_deferred(&"_maybe_start_catalog_reconciliation")
-	if (
-		current_state == GFSaveProfileUtility.STATE_IDLE
-		and not _catalog_reconciliation.is_empty()
-		and GFVariantData.get_option_bool(
-			_catalog_reconciliation,
-			&"cleanup_pending",
-			false
-		)
-		and profile_id == _profile_id_for_account(
-			GFVariantData.get_option_string(
-				_catalog_reconciliation,
-				&"cleanup_account_id"
-			)
-		)
-	):
-		_catalog_reconciliation[&"reconcile_ready"] = true
-		call_deferred(&"_maybe_start_catalog_reconciliation")
+		should_start = saga.accept_profile_settled_idle(profile_id)
+	if should_start:
+		call_deferred(&"_maybe_start_account_reconciliation")
 
 
 func _on_profile_cleanup_task_terminal(_work_id: StringName) -> void:
+	var saga: LocalAccountReconciliationSaga = _reconciliation_saga
 	if (
 		_disposed
-		or _catalog_reconciliation.is_empty()
-		or not GFVariantData.get_option_bool(
-			_catalog_reconciliation,
-			&"cleanup_pending",
-			false
-		)
+		or saga == null
+		or not saga.is_catalog_compensation()
+		or not saga.is_waiting_for_cleanup_terminal()
 		or not is_instance_valid(_save_graph)
 	):
 		return
-	var cleanup_file: String = GFVariantData.get_option_string(
-		_catalog_reconciliation,
-		&"cleanup_profile_file"
-	)
+	var cleanup_file: String = saga.get_cleanup_profile_file()
 	if (
 		cleanup_file.is_empty()
 		or _save_graph.is_profile_cleanup_pending(cleanup_file)
 	):
 		return
-	_catalog_reconciliation[&"reconcile_ready"] = true
-	call_deferred(&"_maybe_start_catalog_reconciliation")
+	var _ready: bool = saga.accept_cleanup_terminal(cleanup_file)
+	call_deferred(&"_maybe_start_account_reconciliation")
 
 
-func _maybe_start_catalog_reconciliation() -> void:
+func _maybe_start_account_reconciliation() -> void:
+	var saga: LocalAccountReconciliationSaga = _reconciliation_saga
 	if (
-		not _catalog_reconciliation.is_empty()
-		and GFVariantData.get_option_bool(
-			_catalog_reconciliation,
-			&"cleanup_pending",
-			false
-		)
+		_disposed
+		or saga == null
+		or not saga.is_pending()
+		or saga.is_running()
+		or not _is_configured()
+	):
+		return
+	if (
+		saga.is_catalog_compensation()
+		and saga.is_waiting_for_cleanup_terminal()
 		and is_instance_valid(_save_graph)
 	):
-		var cleanup_file: String = GFVariantData.get_option_string(
-			_catalog_reconciliation,
-			&"cleanup_profile_file"
-		)
+		var cleanup_file: String = saga.get_cleanup_profile_file()
 		if (
 			not cleanup_file.is_empty()
 			and not _save_graph.is_profile_cleanup_pending(cleanup_file)
 		):
-			_catalog_reconciliation[&"reconcile_ready"] = true
+			var _cleanup_ready: bool = saga.accept_cleanup_terminal(
+				cleanup_file
+			)
 	if (
-		_disposed
-		or _catalog_reconciliation_running
-		or _catalog_reconciliation.is_empty()
-		or not GFVariantData.get_option_bool(
-			_catalog_reconciliation,
-			&"settlement_received",
-			false
-		)
-		or not GFVariantData.get_option_bool(
-			_catalog_reconciliation,
-			&"reconcile_ready",
-			false
-		)
-		or not _is_configured()
+		saga.is_waiting_for_profile_settlement()
+		and _reconciliation_profile_can_run(saga)
 	):
+		var _profile_ready: bool = saga.accept_profile_settled_idle(
+			saga.get_profile_id()
+		)
+	if not saga.begin_run():
 		return
-	var status: StringName = GFVariantData.get_option_string_name(
-		_last_reconciliation_evidence,
-		&"status"
-	)
-	if status == &"catalog_late_apply_failed":
-		return
-	_catalog_reconciliation[&"reconcile_ready"] = false
-	_catalog_reconciliation_running = true
-	call_deferred(&"_run_catalog_reconciliation")
+	call_deferred(&"_run_account_reconciliation", saga)
 
 
-func _maybe_start_profile_reconciliation() -> void:
-	if (
-		_disposed
-		or _profile_reconciliation_running
-		or _profile_reconciliation.is_empty()
-		or not _is_configured()
-	):
+func _run_account_reconciliation(
+	saga: LocalAccountReconciliationSaga
+) -> void:
+	if not _is_current_reconciliation_saga(saga) or not saga.is_running():
 		return
-	if (
-		not GFVariantData.get_option_bool(
-			_profile_reconciliation,
-			&"reconcile_ready",
-			false
-		)
-		and GFVariantData.get_option_string_name(
-			_last_reconciliation_evidence,
-			&"status"
-		)
-		== &"profile_outcome_unknown"
-		and _profile_reconciliation_can_run()
-	):
-		_profile_reconciliation[&"reconcile_ready"] = true
-	if not GFVariantData.get_option_bool(
-		_profile_reconciliation,
-		&"reconcile_ready",
-		false
-	):
-		return
-	_profile_reconciliation[&"reconcile_ready"] = false
-	_profile_reconciliation_running = true
-	call_deferred(&"_run_profile_reconciliation")
+	if saga.is_profile_alignment():
+		await _run_profile_reconciliation(saga)
+	else:
+		await _run_catalog_reconciliation(saga)
 
 
-func _run_profile_reconciliation() -> void:
-	if _profile_reconciliation.is_empty() or not _is_configured():
-		_profile_reconciliation_running = false
+func _run_profile_reconciliation(
+	saga: LocalAccountReconciliationSaga
+) -> void:
+	if not _is_current_reconciliation_saga(saga) or not _is_configured():
 		return
 	var authoritative_account: LocalPlayerAccount = (
 		_catalog.get_active_account()
@@ -1899,7 +1783,7 @@ func _run_profile_reconciliation() -> void:
 			&"status": "profile_reconciliation_catalog_missing",
 			&"error_code": int(ERR_INVALID_DATA),
 		}
-		_profile_reconciliation_running = false
+		var _blocked_missing_catalog: bool = saga.block_known_failure()
 		return
 	var profile_file_name: String = (
 		LocalAccountCatalogUtility.make_profile_file_name(
@@ -1912,8 +1796,7 @@ func _run_profile_reconciliation() -> void:
 			profile_file_name,
 			false
 		)
-	if _disposed or _profile_reconciliation.is_empty():
-		_profile_reconciliation_running = false
+	if not _is_current_reconciliation_saga(saga):
 		return
 	if reconcile_error != OK:
 		var outcome_unknown: bool = (
@@ -1923,12 +1806,16 @@ func _run_profile_reconciliation() -> void:
 			_save_graph.get_last_profile_transition_evidence()
 		)
 		if outcome_unknown:
-			_profile_reconciliation[&"profile_id"] = (
+			var settled_profile_id: StringName = (
 				GFVariantData.get_option_string_name(
 					profile_evidence,
 					&"profile_id"
 				)
 			)
+			if not saga.wait_for_profile_settlement(settled_profile_id):
+				var _blocked_invalid_profile: bool = saga.block_known_failure()
+		else:
+			var _blocked_known_failure: bool = saga.block_known_failure()
 		_last_reconciliation_evidence = {
 			&"ok": false,
 			&"status": (
@@ -1941,56 +1828,43 @@ func _run_profile_reconciliation() -> void:
 			&"profile_file": _save_graph.get_profile_file_name(),
 			&"profile": profile_evidence,
 		}
-		_profile_reconciliation_running = false
 		return
-	var reconciliation: Dictionary = _profile_reconciliation.duplicate(true)
+	var operation_kind: StringName = saga.get_operation()
+	var result_account_id: String = saga.get_result_account_id()
+	var previous_account_id: String = saga.get_previous_account_id()
 	_last_reconciliation_evidence = {
 		&"ok": true,
 		&"status": "profile_outcome_unknown_reconciled",
 		&"error_code": int(OK),
-		&"operation": String(
-			GFVariantData.get_option_string_name(
-				reconciliation,
-				&"operation"
-			)
-		),
+		&"operation": String(operation_kind),
 		&"catalog_active_account_id": authoritative_account.account_id,
 		&"profile_file": _save_graph.get_profile_file_name(),
 	}
-	_profile_reconciliation.clear()
-	_profile_reconciliation_running = false
+	var _completed: bool = saga.complete()
+	_reconciliation_saga = null
 	_publish_reconciliation_state_changed(false)
-	var operation_kind: StringName = GFVariantData.get_option_string_name(
-		reconciliation,
-		&"operation"
-	)
 	if operation_kind == LocalAccountOperation.OPERATION_CREATE:
-		var result_account_id: String = GFVariantData.get_option_string(
-			reconciliation,
-			&"result_account_id"
-		)
 		if authoritative_account.account_id == result_account_id:
 			_publish_account_change(
-				GFVariantData.get_option_string(
-					reconciliation,
-					&"previous_account_id"
-				),
+				previous_account_id,
 				authoritative_account
 			)
 		else:
 			_publish_catalog_changed()
 
 
-func _profile_reconciliation_can_run() -> bool:
+func _reconciliation_profile_can_run(
+	saga: LocalAccountReconciliationSaga = null
+) -> bool:
+	var active_saga: LocalAccountReconciliationSaga = (
+		saga if saga != null else _reconciliation_saga
+	)
 	if (
-		_profile_reconciliation.is_empty()
+		active_saga == null
 		or not is_instance_valid(_profile_utility)
 	):
 		return false
-	var profile_id: StringName = GFVariantData.get_option_string_name(
-		_profile_reconciliation,
-		&"profile_id"
-	)
+	var profile_id: StringName = active_saga.get_profile_id()
 	if profile_id == &"":
 		return false
 	var snapshot: Dictionary = (
@@ -2002,9 +1876,10 @@ func _profile_reconciliation_can_run() -> bool:
 	return evidence.is_settled_idle(profile_id)
 
 
-func _run_catalog_reconciliation() -> void:
-	if _catalog_reconciliation.is_empty() or not _is_configured():
-		_catalog_reconciliation_running = false
+func _run_catalog_reconciliation(
+	saga: LocalAccountReconciliationSaga
+) -> void:
+	if not _is_current_reconciliation_saga(saga) or not _is_configured():
 		return
 	var authoritative_account: LocalPlayerAccount = (
 		_catalog.get_active_account()
@@ -2016,7 +1891,7 @@ func _run_catalog_reconciliation() -> void:
 			&"error_code": int(ERR_INVALID_DATA),
 			&"catalog": _catalog.get_last_async_storage_result(),
 		}
-		_catalog_reconciliation_running = false
+		var _blocked_missing_authority: bool = saga.block_known_failure()
 		return
 	var profile_file_name: String = (
 		LocalAccountCatalogUtility.make_profile_file_name(
@@ -2029,56 +1904,46 @@ func _run_catalog_reconciliation() -> void:
 			profile_file_name,
 			false
 		)
-	if _disposed or _catalog_reconciliation.is_empty():
-		_catalog_reconciliation_running = false
+	if not _is_current_reconciliation_saga(saga):
 		return
 	if reconcile_error != OK:
+		var outcome_unknown: bool = (
+			_save_graph.was_last_profile_transition_outcome_unknown()
+		)
+		var profile_evidence: Dictionary = (
+			_save_graph.get_last_profile_transition_evidence()
+		)
+		if outcome_unknown:
+			var profile_id: StringName = GFVariantData.get_option_string_name(
+				profile_evidence,
+				&"profile_id"
+			)
+			if not saga.wait_for_profile_settlement(profile_id):
+				var _blocked_invalid_profile: bool = saga.block_known_failure()
+		else:
+			var _blocked_known_failure: bool = saga.block_known_failure()
 		_last_reconciliation_evidence = {
 			&"ok": false,
 			&"status": (
 				"profile_reconciliation_outcome_unknown"
-				if _save_graph.was_last_profile_transition_outcome_unknown()
+				if outcome_unknown
 				else "profile_reconciliation_failed"
 			),
 			&"error_code": int(reconcile_error),
 			&"catalog_active_account_id": authoritative_account.account_id,
 			&"profile_file": _save_graph.get_profile_file_name(),
-			&"profile": _save_graph.get_last_profile_transition_evidence(),
+			&"profile": profile_evidence,
 			&"catalog": _catalog.get_last_async_storage_result(),
 		}
-		_catalog_reconciliation_running = false
 		return
 
-	var reconciliation: Dictionary = _catalog_reconciliation.duplicate(true)
-	var publish_success: bool = GFVariantData.get_option_bool(
-		reconciliation,
-		&"publish_success",
-		false
-	)
-	var operation_kind: StringName = GFVariantData.get_option_string_name(
-		reconciliation,
-		&"operation"
-	)
-	var cleanup_only: bool = GFVariantData.get_option_bool(
-		reconciliation,
-		&"cleanup_only",
-		false
-	)
-	var cleanup_required: bool = GFVariantData.get_option_bool(
-		reconciliation,
-		&"cleanup_required",
-		false
-	)
+	var publish_success: bool = saga.should_publish_success()
+	var operation_kind: StringName = saga.get_operation()
+	var cleanup_required: bool = saga.is_cleanup_required()
 	var cleanup_error: Error = OK
 	var cleanup_attempted: bool = false
-	var cleanup_profile_file: String = GFVariantData.get_option_string(
-		reconciliation,
-		&"cleanup_profile_file"
-	)
-	var cleanup_account_id: String = GFVariantData.get_option_string(
-		reconciliation,
-		&"cleanup_account_id"
-	)
+	var cleanup_profile_file: String = saga.get_cleanup_profile_file()
+	var cleanup_account_id: String = saga.get_cleanup_account_id()
 	if publish_success and cleanup_required:
 		cleanup_attempted = true
 		if cleanup_profile_file.is_empty():
@@ -2087,83 +1952,58 @@ func _run_catalog_reconciliation() -> void:
 			cleanup_error = await _save_graph.delete_inactive_profile_async(
 				cleanup_profile_file
 			)
-		if _disposed or _catalog_reconciliation.is_empty():
-			_catalog_reconciliation_running = false
+		if not _is_current_reconciliation_saga(saga):
 			return
 		_last_cleanup_error = cleanup_error
 		if cleanup_error in [ERR_TIMEOUT, ERR_BUSY]:
-			_catalog_reconciliation[&"cleanup_pending"] = true
-			_catalog_reconciliation[&"cleanup_retry_explicit_required"] = false
-			_catalog_reconciliation[&"cleanup_profile_file"] = (
-				cleanup_profile_file
-			)
+			var _waiting_cleanup: bool = saga.wait_for_cleanup_terminal()
 			_last_reconciliation_evidence = {
 				&"ok": false,
-				&"status": _make_cleanup_pending_evidence_status(
-					operation_kind,
-					cleanup_only,
+				&"status": saga.make_cleanup_pending_evidence_status(
 					cleanup_error
 				),
 				&"error_code": int(cleanup_error),
 				&"operation": String(operation_kind),
-				&"target_account_id": GFVariantData.get_option_string(
-					reconciliation,
-					&"target_account_id"
-				),
+				&"target_account_id": saga.get_target_account_id(),
 				&"cleanup_account_id": cleanup_account_id,
 				&"catalog_active_account_id": authoritative_account.account_id,
 				&"profile_file": _save_graph.get_profile_file_name(),
 				&"cleanup_profile_file": cleanup_profile_file,
-				&"storage_result": GFVariantData.get_option_dictionary(
-					reconciliation,
-					&"storage_result"
-				),
+				&"storage_result": saga.get_storage_result(),
 			}
-			_catalog_reconciliation_running = false
 			return
 		if cleanup_error != OK:
 			# 确定性失败只终结本次 cleanup attempt，不终结账号级补偿 saga。
 			# 后续只能由显式 reconciliation 请求重臂，避免 tick 形成 IO 热循环。
-			_catalog_reconciliation[&"cleanup_pending"] = false
-			_catalog_reconciliation[&"cleanup_retry_explicit_required"] = true
-			_catalog_reconciliation[&"reconcile_ready"] = false
+			var _retry_required: bool = saga.require_cleanup_retry()
 			_last_reconciliation_evidence = {
 				&"ok": false,
-				&"status": _make_cleanup_retry_required_evidence_status(
-					operation_kind,
-					cleanup_only
+				&"status": (
+					saga.make_cleanup_retry_required_evidence_status()
 				),
 				&"error_code": int(cleanup_error),
 				&"operation": String(operation_kind),
-				&"target_account_id": GFVariantData.get_option_string(
-					reconciliation,
-					&"target_account_id"
-				),
+				&"target_account_id": saga.get_target_account_id(),
 				&"cleanup_account_id": cleanup_account_id,
 				&"catalog_active_account_id": authoritative_account.account_id,
 				&"profile_file": _save_graph.get_profile_file_name(),
 				&"cleanup_profile_file": cleanup_profile_file,
-				&"storage_result": GFVariantData.get_option_dictionary(
-					reconciliation,
-					&"storage_result"
-				),
+				&"storage_result": saga.get_storage_result(),
 			}
-			_publish_catalog_reconciliation_success_once(authoritative_account)
-			_catalog_reconciliation_running = false
+			_publish_catalog_reconciliation_success_once(
+				saga,
+				authoritative_account
+			)
 			return
 	_last_reconciliation_evidence = {
 		&"ok": cleanup_error == OK,
 		&"status": (
-			_make_cleanup_terminal_evidence_status(
-				operation_kind,
-				cleanup_only,
-				cleanup_error
-			)
+			saga.make_cleanup_terminal_evidence_status(cleanup_error)
 			if cleanup_attempted
 			else (
-				"catalog_late_success_reconciled"
+				&"catalog_late_success_reconciled"
 				if publish_success
-				else "catalog_late_failure_rolled_back"
+				else &"catalog_late_failure_rolled_back"
 			)
 		),
 		&"error_code": int(cleanup_error),
@@ -2174,161 +2014,72 @@ func _run_catalog_reconciliation() -> void:
 		&"catalog_active_account_id": authoritative_account.account_id,
 		&"profile_file": _save_graph.get_profile_file_name(),
 		&"cleanup_profile_file": cleanup_profile_file,
-		&"storage_result": GFVariantData.get_option_dictionary(
-			reconciliation,
-			&"storage_result"
-		),
+		&"storage_result": saga.get_storage_result(),
 	}
 	if publish_success:
-		_publish_catalog_reconciliation_success_once(authoritative_account)
+		_publish_catalog_reconciliation_success_once(
+			saga,
+			authoritative_account
+		)
 	else:
-		_publish_retained_create_candidate_from_reconciliation_once()
-	_catalog_reconciliation.clear()
-	_catalog_reconciliation_running = false
+		_publish_retained_create_candidate_from_reconciliation_once(saga)
+	var _completed: bool = saga.complete()
+	_reconciliation_saga = null
 	_publish_reconciliation_state_changed(false)
 
 
-func _make_cleanup_pending_evidence_status(
-	operation_kind: StringName,
-	cleanup_only: bool,
-	cleanup_error: Error
-) -> String:
-	if operation_kind == LocalAccountOperation.OPERATION_CREATE:
-		return (
-			"create_rollback_cleanup_outcome_unknown"
-			if cleanup_error == ERR_TIMEOUT
-			else "create_rollback_cleanup_pending"
-		)
-	if cleanup_error == ERR_TIMEOUT:
-		return (
-			"cleanup_outcome_unknown"
-			if cleanup_only
-			else "catalog_late_success_cleanup_outcome_unknown"
-		)
+func _is_current_reconciliation_saga(
+	saga: LocalAccountReconciliationSaga
+) -> bool:
 	return (
-		"cleanup_reconciliation_pending"
-		if cleanup_only
-		else "catalog_late_success_cleanup_pending"
-	)
-
-
-func _make_cleanup_terminal_evidence_status(
-	operation_kind: StringName,
-	cleanup_only: bool,
-	cleanup_error: Error
-) -> String:
-	if operation_kind == LocalAccountOperation.OPERATION_CREATE:
-		return (
-			"create_rollback_cleanup_reconciled"
-			if cleanup_error == OK
-			else "create_rollback_cleanup_failed"
-		)
-	if cleanup_error == OK:
-		return (
-			"cleanup_outcome_unknown_reconciled"
-			if cleanup_only
-			else "catalog_late_success_cleanup_succeeded"
-		)
-	return (
-		"cleanup_reconciliation_failed"
-		if cleanup_only
-		else "catalog_late_success_cleanup_failed"
-	)
-
-
-func _make_cleanup_retry_required_evidence_status(
-	operation_kind: StringName,
-	cleanup_only: bool
-) -> String:
-	if operation_kind == LocalAccountOperation.OPERATION_CREATE:
-		return "create_rollback_cleanup_retry_required"
-	return (
-		"cleanup_retry_required"
-		if cleanup_only
-		else "catalog_late_success_cleanup_retry_required"
+		not _disposed
+		and saga != null
+		and saga.is_pending()
+		and is_same(_reconciliation_saga, saga)
 	)
 
 
 func _publish_catalog_reconciliation_success_once(
+	saga: LocalAccountReconciliationSaga,
 	active_account: LocalPlayerAccount
 ) -> void:
-	if (
-		_catalog_reconciliation.is_empty()
-		or not GFVariantData.get_option_bool(
-			_catalog_reconciliation,
-			&"publish_success",
-			false
-		)
-		or not GFVariantData.get_option_bool(
-			_catalog_reconciliation,
-			&"publish_events",
-			true
-		)
-		or GFVariantData.get_option_bool(
-			_catalog_reconciliation,
-			&"success_events_published",
-			false
-		)
-	):
+	if saga == null:
 		return
-	_catalog_reconciliation[&"success_events_published"] = true
+	if not saga.claim_catalog_success_publication():
+		return
 	_publish_reconciled_catalog_success(
-		_catalog_reconciliation.duplicate(true),
+		saga.get_previous_account_id(),
+		saga.get_operation(),
+		saga.get_target_account_id(),
 		active_account
 	)
 
 
-func _publish_retained_create_candidate_from_reconciliation_once() -> void:
-	if (
-		_catalog_reconciliation.is_empty()
-		or GFVariantData.get_option_string_name(
-			_catalog_reconciliation,
-			&"operation"
-		)
-		!= LocalAccountOperation.OPERATION_CREATE
-		or GFVariantData.get_option_bool(
-			_catalog_reconciliation,
-			&"failure_catalog_event_published",
-			false
-		)
-	):
+func _publish_retained_create_candidate_from_reconciliation_once(
+	saga: LocalAccountReconciliationSaga
+) -> void:
+	if saga == null:
 		return
-	var candidate_account_id: String = GFVariantData.get_option_string(
-		_catalog_reconciliation,
-		&"cleanup_account_id"
+	var candidate_account_id: String = (
+		saga.get_retained_create_candidate_id()
 	)
-	if candidate_account_id.is_empty():
-		candidate_account_id = GFVariantData.get_option_string(
-			_catalog_reconciliation,
-			&"result_account_id"
-		)
 	if not _is_retained_create_candidate(candidate_account_id):
 		return
-	_catalog_reconciliation[&"failure_catalog_event_published"] = true
+	var _claimed: bool = saga.mark_retained_create_candidate_published()
 	_publish_catalog_changed()
 
 
 func _publish_reconciled_catalog_success(
-	reconciliation: Dictionary,
+	previous_account_id: String,
+	operation_kind: StringName,
+	target_account_id: String,
 	active_account: LocalPlayerAccount
 ) -> void:
 	if active_account == null:
 		return
-	var previous_account_id: String = GFVariantData.get_option_string(
-		reconciliation,
-		&"previous_account_id"
-	)
 	if previous_account_id != active_account.account_id:
 		_publish_account_change(previous_account_id, active_account)
 		return
-	var operation_kind: StringName = GFVariantData.get_option_string_name(
-		reconciliation,
-		&"operation"
-	)
-	var target_account_id: String = GFVariantData.get_option_string(
-		reconciliation,
-		&"target_account_id"
-	)
 	if (
 		operation_kind == LocalAccountOperation.OPERATION_RENAME
 		and target_account_id == active_account.account_id
@@ -2404,12 +2155,6 @@ func _publish_reconciliation_state_changed(pending: bool) -> void:
 
 func _can_publish_runtime_state() -> bool:
 	return not _quiescing and not _dispose_requested and not _disposed
-
-
-func _profile_id_for_account(account_id: String) -> StringName:
-	if not GFUuid.is_valid(account_id, 7):
-		return &""
-	return StringName("player_data.%s" % account_id)
 
 
 func _track_account_operation(operation: LocalAccountOperation) -> void:

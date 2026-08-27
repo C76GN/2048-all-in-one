@@ -155,7 +155,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 ### 本地账号与玩家 Profile
 
 1. `LocalAccountCatalogUtility` 只拥有设备级账号身份目录；每个账号映射到独立主 Profile，统计、书签、回放、成就、图鉴和试验台数据仍由各 Feature 的业务 section provider 拥有。大型 Section 使用的 A/B chunk Profiles 只由 `persistence` 从主身份派生，不能成为账号目录中的第二套身份。
-2. `LocalAccountSystem` 是创建、重命名、切换和删除账号的唯一异步业务 Interface。账号变更必须以一次性 operation/result 事务协调目录与 Profile，outcome-unknown 时保留所有权并阻断后续变更；页面只投影结果，不读取目录文件、拼接路径或拥有存档事务。启动期通过 GF `begin_activation()` 等待 `GameSaveGraphUtility.begin_bootstrap_profile()` 的真实异步终态，关闭期通过 `begin_quiesce()` 停止准入并排空已接纳 saga；不得在生命周期 Hook 中同步轮询 Storage，也不得在 quiesce 后发布运行期事件。精确文件边界、切换顺序、恢复与 schema 契约见 [`docs/save_model.md`](./save_model.md)。
+2. `LocalAccountSystem` 是创建、重命名、切换和删除账号的唯一异步业务 Interface。账号变更必须以一次性 operation/result 事务协调目录与 Profile，outcome-unknown 时保留所有权并阻断后续变更；页面只投影结果，不读取目录文件、拼接路径或拥有存档事务。System 继续拥有 GF IO、signal lifecycle 与领域事件发布，单一 `LocalAccountReconciliationSaga` 则以互斥 tagged state 独占目录补偿或 Profile 对齐的 phase、等待/阻塞 condition、精确证据接纳、显式重臂和一次性 publication effect，cleanup 只能作为目录补偿子阶段；诊断 Dictionary 不得反向驱动状态。启动期通过 GF `begin_activation()` 等待 `GameSaveGraphUtility.begin_bootstrap_profile()` 的真实异步终态，关闭期通过 `begin_quiesce()` 停止准入并排空已接纳 saga；不得在生命周期 Hook 中同步轮询 Storage，也不得在 quiesce 后发布运行期事件。精确文件边界、切换顺序、恢复与 schema 契约见 [`docs/save_model.md`](./save_model.md)。
 
 ### 方块试验台
 

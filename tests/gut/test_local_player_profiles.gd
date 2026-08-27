@@ -656,6 +656,17 @@ func test_catalog_late_create_success_publishes_catalog_once_and_unblocks_ui() -
 		== LocalAccountOperationResult.STATUS_CATALOG_OUTCOME_UNKNOWN
 	)
 	assert_true(accounts.is_account_reconciliation_pending())
+	assert_true(
+		accounts._reconciliation_saga != null
+		and accounts._reconciliation_saga.is_catalog_compensation()
+		and not accounts._reconciliation_saga.is_profile_alignment(),
+		"目录迟到终态必须由唯一 catalog tagged state 持有。"
+	)
+	assert_true(accounts.request_account_reconciliation() == ERR_BUSY)
+	assert_true(
+		accounts.request_account_reconciliation() == ERR_BUSY,
+		"目录物理终态抵达前的重复推进请求必须幂等且不得创建 runner。"
+	)
 	var blocked: LocalAccountOperation = accounts.request_switch_account(
 		original.account_id
 	)
@@ -672,6 +683,21 @@ func test_catalog_late_create_success_publishes_catalog_once_and_unblocks_ui() -
 	assert_true(accounts.get_active_account().account_id == original.account_id)
 	assert_signal_emit_count(accounts, "active_account_changed", 0)
 	assert_signal_emit_count(accounts, "account_catalog_changed", 1)
+	assert_signal_emit_count(
+		accounts,
+		"account_reconciliation_state_changed",
+		2
+	)
+	assert_signal_emitted_with_parameters(
+		accounts.account_reconciliation_state_changed,
+		[true],
+		0
+	)
+	assert_signal_emitted_with_parameters(
+		accounts.account_reconciliation_state_changed,
+		[false],
+		1
+	)
 	assert_signal_emit_count(catalog, "active_account_changed", 0)
 	assert_signal_emit_count(catalog, "account_catalog_changed", 1)
 	assert_true(probe.active_account_event_count == 0)
@@ -1550,6 +1576,7 @@ func test_profile_reconciliation_publishes_late_active_create_once() -> void:
 	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
 	var probe: _AccountEventProbe = _get_account_event_probe(setup)
 	var previous: LocalPlayerAccount = accounts.get_active_account()
+	watch_signals(accounts)
 	storage.hang_profile_writes = true
 	var operation: LocalAccountOperation = accounts.request_create_account(
 		"迟到激活账号"
@@ -1569,6 +1596,17 @@ func test_profile_reconciliation_publishes_late_active_create_once() -> void:
 		_dispose_setup(setup)
 		return
 	assert_true(
+		accounts._reconciliation_saga != null
+		and accounts._reconciliation_saga.is_profile_alignment()
+		and not accounts._reconciliation_saga.is_catalog_compensation(),
+		"Profile 结果未知必须由唯一 profile tagged state 持有。"
+	)
+	assert_true(accounts.request_account_reconciliation() == ERR_BUSY)
+	assert_true(
+		accounts.request_account_reconciliation() == ERR_BUSY,
+		"GF Profile 未 settled-idle 时重复推进不得创建第二个 runner。"
+	)
+	assert_true(
 		await _await_catalog_activation(
 			catalog,
 			created.account_id,
@@ -1584,7 +1622,6 @@ func test_profile_reconciliation_publishes_late_active_create_once() -> void:
 		)
 	)
 	probe.reset()
-	watch_signals(accounts)
 	storage.hang_profile_writes = false
 	storage.complete_all_hanging(OK)
 	await _await_account_reconciliation(accounts, setup)
@@ -1596,6 +1633,21 @@ func test_profile_reconciliation_publishes_late_active_create_once() -> void:
 	)
 	assert_signal_emit_count(accounts, "active_account_changed", 1)
 	assert_signal_emit_count(accounts, "account_catalog_changed", 1)
+	assert_signal_emit_count(
+		accounts,
+		"account_reconciliation_state_changed",
+		2
+	)
+	assert_signal_emitted_with_parameters(
+		accounts.account_reconciliation_state_changed,
+		[true],
+		0
+	)
+	assert_signal_emitted_with_parameters(
+		accounts.account_reconciliation_state_changed,
+		[false],
+		1
+	)
 	assert_true(
 		probe.active_account_event_count == 1
 		and probe.last_previous_account_id == previous.account_id
