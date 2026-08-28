@@ -45,8 +45,15 @@
 		const manifest = {};
 		let totalBytes = 0;
 		for (const path of paths) {
-			if (!path.startsWith("/engine/")) {
-				throw makeError("invalid_configuration", {path, detail: "resource_path_outside_engine"});
+			const hasAllowedRoot = path.startsWith("/engine/") || path.startsWith("/game_data/");
+			const hasUnsafeSegment = path.includes("\\") || path.includes("//")
+				|| path.includes("/./") || path.includes("/../") || path.endsWith("/.")
+				|| path.endsWith("/..");
+			if (!hasAllowedRoot || hasUnsafeSegment) {
+				throw makeError("invalid_configuration", {
+					path,
+					detail: "resource_path_outside_allowed_packages",
+				});
 			}
 			const expectedBytes = requirePositiveSafeInteger(resourceBytes[path], `resource_bytes:${path}`);
 			totalBytes += expectedBytes;

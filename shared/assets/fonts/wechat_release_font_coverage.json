@@ -1,7 +1,7 @@
 {
   "coverage": {
-    "codepoint_count": 811,
-    "codepoints_sha256": "8765a1f0f6f328241d7a0ab6177988ded74cdc359bc02302a2ec3681655e671e",
+    "codepoint_count": 810,
+    "codepoints_sha256": "aa0d06deafac5ccf7cccca1565d143b1b1478b1377170254161c44cab07ad157",
     "excluded_prefixes": [
       "features/asset_library/resources/review/",
       "features/asset_library/resources/source_packs/",
@@ -120,8 +120,8 @@
       ".tscn",
       ".tres"
     ],
-    "source_file_count": 409,
-    "source_paths_sha256": "46621ce56679d57e204abd5a797da76351f769c8bdf8dffefeb0fe04e5398e4d",
+    "source_file_count": 410,
+    "source_paths_sha256": "10e05787b5432bfbe4e0e2bf12b3e2af5297c04472c5e2f62e58c68b47733beb",
     "translation_source": {
       "path": "shared/assets/translations.csv",
       "sha256": "616f2450dcca20e3cb7f11bf16e78c64b10aef9c85177178bcf9935067e35ab1"
@@ -144,8 +144,8 @@
     "sha256": "763146584cf0710223441356b4395e279021b0806c196614377a7a0174ae074a"
   },
   "subset_font": {
-    "bytes": 445352,
+    "bytes": 445076,
     "path": "shared/assets/fonts/wechat_release_sans_subset.ttf",
-    "sha256": "e1db03e438be4c6c7c91fb372188675aab97015924c99a53b93e623ccafe3f43"
+    "sha256": "b9bd519d1a5cee5647c976b21153726035adc848a563f0e8af2d612e56fd265f"
   }
 }

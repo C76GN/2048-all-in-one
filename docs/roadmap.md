@@ -12,10 +12,10 @@
 
 ### P0-01 在正式工具链复跑目标平台产物
 
-- **当前状态**：当前工作站已实际完成 Web release export，并由 `tools/export_wechat_minigame_release.ps1` 生成无 `platform_smoke` 的完整游戏候选；主包 83,341 bytes、引擎分包 25,152,639 bytes、总包 25,235,980 bytes，正式字体子集、精确资源清单、4 MiB 分块读取和隔离产物验证全部通过项目门禁。微信开发者工具已通过官方 skill 完成版本/登录检查、打开工程并触发 refresh，但小游戏 automator 未建立 runtime、console 缓冲为空且截图接口超时，因此当前不能签字模拟器启动或视觉正确；Android/iOS 真机矩阵也仍待执行。
-- **结果**：由 `tools/check_platform_readiness.ps1` 完成真实 Web release export；由同一事务核心分别生成 `toolchain_smoke` 与 `full_game_release_candidate`，正式候选必须通过字体闭包、包内无完整字体引用、精确文件白名单、分块读取、主包/总包预算及原子报告校验，随后再完成开发者工具与真机签字。
+- **当前状态**：当前工作站已由 `tools/export_wechat_minigame_release.ps1` 生成无 `platform_smoke` 的完整游戏候选。最终 build ID 为 `749f6ff3c9ea0c396dc8a9b3e82546312b4e924533063b7cce664189ce3ef0ce`；report schema 3 记录主包 88,331 bytes、engine 分包 8,901,332 bytes、game_data 分包 8,916,808 bytes、总包 17,906,471 bytes，全部预算与隔离门禁通过。正式预览计量为 17,693,596 bytes。微信模拟器已经启动横屏中文主菜单，main→game_data→engine、4 MiB chunk、PCK 探针、WASM 与 GF 均取得成功终态；当前唯一运行告警是内容目录同步刷新 116 ms。Android/iOS 真机矩阵、玩家手势与长时游玩、音频、前后台恢复和重启存档仍待签字。
+- **结果**：由 `tools/check_platform_readiness.ps1` 完成真实 Web release export；由同一事务核心分别生成 `toolchain_smoke` 与 `full_game_release_candidate`。正式候选必须通过字体闭包、包内无完整字体引用、精确双分包白名单、main→game_data→engine 串行入口、4 MiB 分块读取、各包与总包预算及 schema 3 原子报告校验。微信 release 禁用 ICU，并由 Boot/Composition Root 在 GF 架构创建前调用唯一的平台启动 Utility，注册随包 en/zh Translation。
 - **边界**：静态配置扫描不得冒充成功产物；临时验证不得修改项目 release 输出或把生成物提交为规范。
-- **验收**：环境报告中的 `web_export.status` 为 `passed`、临时产物已清理；微信候选保存明确的 build identity、CLI/skill 版本、包体与字体证据，并取得可复核的模拟器启动、console 与真机终态后才能关闭本项。
+- **验收**：环境报告中的 `web_export.status` 为 `passed`、临时产物已清理；微信候选保存明确的 build identity、CLI/skill 版本、包体与字体证据。模拟器启动与 console 已完成，仍须取得 Android/iOS 真机、玩家输入、长时运行、音频、前后台与重启存档终态后才能关闭本项。
 
 ## P1：目标设备证据
 

@@ -5,15 +5,19 @@ extends RefCounted
 # --- 常量 ---
 
 const MAIN_PACKAGE_HARD_LIMIT_BYTES: int = 4_000_000
-const TOTAL_PACKAGE_HARD_LIMIT_BYTES: int = 30_000_000
+const ENGINE_SUBPACKAGE_HARD_LIMIT_BYTES: int = 20_000_000
+const GAME_DATA_SUBPACKAGE_HARD_LIMIT_BYTES: int = 20_000_000
+const TOTAL_PACKAGE_HARD_LIMIT_BYTES: int = 20_000_000
 const MAIN_PACKAGE_SOFT_LIMIT_BYTES: int = 3_600_000
-const TOTAL_PACKAGE_SOFT_LIMIT_BYTES: int = 27_000_000
-const EXPORT_REPORT_SCHEMA_VERSION: int = 2
+const ENGINE_SUBPACKAGE_SOFT_LIMIT_BYTES: int = 18_000_000
+const GAME_DATA_SUBPACKAGE_SOFT_LIMIT_BYTES: int = 18_000_000
+const TOTAL_PACKAGE_SOFT_LIMIT_BYTES: int = 18_000_000
+const EXPORT_REPORT_SCHEMA_VERSION: int = 3
 const ARTIFACT_MANIFEST_SCHEMA_VERSION: int = 1
 const BUILD_IDENTITY_SCHEMA_VERSION: int = 2
 const INPUT_SNAPSHOT_SCHEMA_VERSION: int = 1
 const REQUIRED_GODOT_VERSION_PREFIX: String = "4.7.2.stable"
-const PACK_RELATIVE_PATH: String = "engine/2048-all-in-one.bin"
+const PACK_RELATIVE_PATH: String = "game_data/2048-all-in-one.bin"
 const PROFILE_SCOPE_SMOKE: String = "toolchain_smoke"
 const PROFILE_SCOPE_RELEASE: String = "full_game_release_candidate"
 const PROJECT_NAME: String = "2048 Chunked Toolchain Smoke"
@@ -80,10 +84,10 @@ const _INPUT_EXCLUDE_GENERATED: PackedStringArray = [
 	"__pycache__/",
 ]
 const _INPUT_EXCLUDE_CACHE_SUFFIXES: PackedStringArray = [".pyc", ".pyo"]
-const _PACK_LOADER_REFERENCE: String = "/engine/2048-all-in-one.bin"
+const _PACK_LOADER_REFERENCE: String = "/game_data/2048-all-in-one.bin"
 const _CHUNK_LOADER_RELATIVE_PATH: String = "engine/wechat-chunked-file-loader.js"
 const _CHUNK_LOADER_SHA256: String = (
-	"ba1da7e564ea4a4cea46fd2c58ec02a55e3d3b466a2d01f54dbcef98ba22540f"
+	"f04b13f34837d9220897aba0e45abe25c0cfd391cea0f283ff99e41288922524"
 )
 const _CHUNK_LOADER_IMPORT: String = "import './wechat-chunked-file-loader'"
 const _CHUNK_LOADER_INSTALL: String = "installChunkedLocalFetch"
@@ -104,16 +108,41 @@ const _CHUNK_RESOURCE_PATHS: PackedStringArray = [
 	"/engine/godot.wasm.br",
 	_PACK_LOADER_REFERENCE,
 ]
+const _GAME_DATA_ENTRY_MARKER: String = (
+	"GameGlobal.__godotGameDataSubpackageEntryStarted = true;"
+)
+const _ENGINE_ENTRY_MARKER: String = (
+	"GameGlobal.__godotEngineSubpackageEntryStarted = true;"
+)
+const _GAME_DATA_LOAD_TOKEN: String = (
+	'loadPackage("game_data","__godotGameDataSubpackageEntryStarted",' +
+	'"game_data/game.js"'
+)
+const _ENGINE_LOAD_TOKEN: String = (
+	'loadPackage("engine","__godotEngineSubpackageEntryStarted",' +
+	'"engine/game.js"'
+)
+const _DATA_PROBE_TOKEN: String = "probeGameData(()=>{"
+const _REQUIRED_PACK_INCLUDE_FILES: PackedStringArray = [
+	"engine/godot.wasm.br",
+	PACK_RELATIVE_PATH,
+]
 const _FULL_FONT_TOKEN: String = "noto_sans_sc_variable"
 const _SMOKE_FONT_TOKEN: String = "wechat_smoke_sans_subset"
 const _EXPORT_PLUGIN_CODE_TOKEN: String = "WeChatMiniGameProfileFontExportPlugin"
+const _TEXT_SERVER_DATA_TOKEN: String = "icudt_godot.dat"
+const _RELEASE_TRANSLATION_PATHS: PackedStringArray = [
+	"res://shared/assets/translations.en.translation",
+	"res://shared/assets/translations.zh.translation",
+]
+const _RELEASE_TRANSLATION_LOCALES: PackedStringArray = ["en", "zh"]
 const _SMOKE_FONT_SHA256: String = (
 	"38bdd2457e67c2c1721f5734fee67059bc1b961563afb4f3e0f8b8c8b8049c22"
 )
 const _SMOKE_FONT_PATH: String = "res://shared/assets/fonts/wechat_smoke_sans_subset.ttf"
 const _RELEASE_FONT_TOKEN: String = "wechat_release_sans_subset"
 const _RELEASE_FONT_SHA256: String = (
-	"e1db03e438be4c6c7c91fb372188675aab97015924c99a53b93e623ccafe3f43"
+	"b9bd519d1a5cee5647c976b21153726035adc848a563f0e8af2d612e56fd265f"
 )
 const _RELEASE_FONT_PATH: String = (
 	"res://shared/assets/fonts/wechat_release_sans_subset.ttf"
@@ -125,10 +154,10 @@ const _RELEASE_COVERAGE_MANIFEST_PATH: String = (
 	"res://shared/assets/fonts/wechat_release_font_coverage.json"
 )
 const _RELEASE_COVERAGE_SHA256: String = (
-	"8765a1f0f6f328241d7a0ab6177988ded74cdc359bc02302a2ec3681655e671e"
+	"aa0d06deafac5ccf7cccca1565d143b1b1478b1377170254161c44cab07ad157"
 )
-const _RELEASE_FONT_BYTES: int = 445_352
-const _RELEASE_CODEPOINT_COUNT: int = 811
+const _RELEASE_FONT_BYTES: int = 445_076
+const _RELEASE_CODEPOINT_COUNT: int = 810
 const _RELEASE_SOURCE_FONT_SHA256: String = (
 	"763146584cf0710223441356b4395e279021b0806c196614377a7a0174ae074a"
 )
@@ -145,6 +174,7 @@ const _FONT_VARIATION_PATHS: PackedStringArray = [
 ]
 const _REQUIRED_PATHS: PackedStringArray = [
 	PACK_RELATIVE_PATH,
+	"game_data/game.js",
 	"engine/game.js",
 	_CHUNK_LOADER_RELATIVE_PATH,
 	"engine/godot-sdk.js",
@@ -197,15 +227,28 @@ func verify_report_bound(
 
 
 ## 纯计算包体预算，供边界测试与目录测量共享同一判定。
-static func evaluate_package_budget(main_bytes: int, engine_bytes: int) -> Dictionary:
-	var total_bytes: int = main_bytes + engine_bytes
+static func evaluate_package_budget(
+	main_bytes: int,
+	engine_bytes: int,
+	game_data_bytes: int
+) -> Dictionary:
+	var total_bytes: int = main_bytes + engine_bytes + game_data_bytes
 	return {
 		"main_package_bytes": main_bytes,
 		"engine_package_bytes": engine_bytes,
+		"game_data_package_bytes": game_data_bytes,
 		"total_package_bytes": total_bytes,
 		"main_hard_limit_ok": main_bytes <= MAIN_PACKAGE_HARD_LIMIT_BYTES,
+		"engine_hard_limit_ok": engine_bytes <= ENGINE_SUBPACKAGE_HARD_LIMIT_BYTES,
+		"game_data_hard_limit_ok": (
+			game_data_bytes <= GAME_DATA_SUBPACKAGE_HARD_LIMIT_BYTES
+		),
 		"total_hard_limit_ok": total_bytes <= TOTAL_PACKAGE_HARD_LIMIT_BYTES,
 		"main_soft_budget_ok": main_bytes <= MAIN_PACKAGE_SOFT_LIMIT_BYTES,
+		"engine_soft_budget_ok": engine_bytes <= ENGINE_SUBPACKAGE_SOFT_LIMIT_BYTES,
+		"game_data_soft_budget_ok": (
+			game_data_bytes <= GAME_DATA_SUBPACKAGE_SOFT_LIMIT_BYTES
+		),
 		"total_soft_budget_ok": total_bytes <= TOTAL_PACKAGE_SOFT_LIMIT_BYTES,
 	}
 
@@ -312,6 +355,7 @@ func _verify(
 	var files: PackedStringArray = _artifact_files_from(discovered_files)
 	var package: Dictionary = _measure_package(normalized_root, files, issues)
 	_validate_loader(normalized_root, issues)
+	_validate_subpackage_entries(normalized_root, issues)
 	_validate_project_config(normalized_root, profile, issues)
 	_validate_game_config(normalized_root, issues)
 	_validate_private_config(normalized_root, issues)
@@ -435,6 +479,7 @@ func _measure_package(
 ) -> Dictionary:
 	var main_bytes: int = 0
 	var engine_bytes: int = 0
+	var game_data_bytes: int = 0
 	for relative_path: String in files:
 		var file: FileAccess = FileAccess.open(root.path_join(relative_path), FileAccess.READ)
 		if file == null:
@@ -443,11 +488,24 @@ func _measure_package(
 		var file_bytes: int = file.get_length()
 		if relative_path.begins_with("engine/"):
 			engine_bytes += file_bytes
+		elif relative_path.begins_with("game_data/"):
+			game_data_bytes += file_bytes
 		else:
 			main_bytes += file_bytes
-	var package: Dictionary = evaluate_package_budget(main_bytes, engine_bytes)
+	var package: Dictionary = evaluate_package_budget(
+		main_bytes,
+		engine_bytes,
+		game_data_bytes
+	)
 	if not _boolean_value(package.get("main_hard_limit_ok")):
 		_add_issue(issues, "main_package_hard_limit_exceeded:%d" % main_bytes)
+	if not _boolean_value(package.get("engine_hard_limit_ok")):
+		_add_issue(issues, "engine_subpackage_hard_limit_exceeded:%d" % engine_bytes)
+	if not _boolean_value(package.get("game_data_hard_limit_ok")):
+		_add_issue(
+			issues,
+			"game_data_subpackage_hard_limit_exceeded:%d" % game_data_bytes
+		)
 	if not _boolean_value(package.get("total_hard_limit_ok")):
 		_add_issue(
 			issues,
@@ -467,6 +525,47 @@ func _validate_loader(root: String, issues: PackedStringArray) -> void:
 		_add_issue(issues, "loader_uses_upstream_sample_pack")
 	_validate_chunk_loader(root, loader_text, issues)
 	_validate_wxmemfs_runtime(root, issues)
+
+
+func _validate_subpackage_entries(root: String, issues: PackedStringArray) -> void:
+	var data_entry: String = FileAccess.get_file_as_string(
+		root.path_join("game_data/game.js")
+	)
+	if not data_entry.contains(_GAME_DATA_ENTRY_MARKER):
+		_add_issue(issues, "game_data_entry_marker_missing")
+	var engine_entry: String = FileAccess.get_file_as_string(
+		root.path_join("engine/game.js")
+	)
+	if not engine_entry.contains(_ENGINE_ENTRY_MARKER):
+		_add_issue(issues, "engine_entry_marker_missing")
+	var root_loader: String = FileAccess.get_file_as_string(
+		root.path_join("godot-loader.js")
+	)
+	var data_load_index: int = root_loader.find(_GAME_DATA_LOAD_TOKEN)
+	var data_probe_index: int = root_loader.find(_DATA_PROBE_TOKEN)
+	var engine_load_index: int = root_loader.find(_ENGINE_LOAD_TOKEN)
+	if data_load_index < 0:
+		_add_issue(issues, "root_loader_game_data_stage_missing")
+	if engine_load_index < 0:
+		_add_issue(issues, "root_loader_engine_stage_missing")
+	if data_probe_index < 0:
+		_add_issue(issues, "root_loader_data_probe_missing")
+	var load_order_invalid: bool = (
+		data_load_index >= 0
+		and engine_load_index >= 0
+		and data_load_index >= engine_load_index
+	)
+	var probe_order_invalid: bool = (
+		data_load_index >= 0
+		and data_probe_index >= 0
+		and engine_load_index >= 0
+		and not (
+			data_load_index < data_probe_index
+			and data_probe_index < engine_load_index
+		)
+	)
+	if load_order_invalid or probe_order_invalid:
+		_add_issue(issues, "root_loader_subpackage_order_invalid")
 
 
 func _validate_wxmemfs_runtime(root: String, issues: PackedStringArray) -> void:
@@ -602,6 +701,29 @@ func _validate_project_config(
 		_add_issue(issues, "project_app_id_invalid:%s" % app_id)
 	elif _FORBIDDEN_SAMPLE_APP_IDS.has(app_id):
 		_add_issue(issues, "project_app_id_is_upstream_sample:%s" % app_id)
+	_validate_pack_include(config, issues)
+
+
+func _validate_pack_include(config: Dictionary, issues: PackedStringArray) -> void:
+	var pack_options_value: Variant = config.get("packOptions", {})
+	if not pack_options_value is Dictionary:
+		_add_issue(issues, "project_pack_options_not_object")
+		return
+	var pack_options: Dictionary = pack_options_value
+	var include_value: Variant = pack_options.get("include", [])
+	if not include_value is Array:
+		_add_issue(issues, "project_pack_include_not_array")
+		return
+	var included_files: PackedStringArray = PackedStringArray()
+	for rule_value: Variant in include_value:
+		if not rule_value is Dictionary:
+			continue
+		var rule: Dictionary = rule_value
+		if str(rule.get("type", "")) == "file":
+			included_files.append(str(rule.get("value", "")))
+	for required_path: String in _REQUIRED_PACK_INCLUDE_FILES:
+		if not included_files.has(required_path):
+			_add_issue(issues, "project_pack_include_missing:%s" % required_path)
 
 
 func _validate_game_config(root: String, issues: PackedStringArray) -> void:
@@ -617,15 +739,26 @@ func _validate_game_config(root: String, issues: PackedStringArray) -> void:
 		_add_issue(issues, "game_subpackages_not_array")
 		return
 	var subpackages: Array = subpackages_value
-	if subpackages.size() != 1 or not subpackages[0] is Dictionary:
-		_add_issue(issues, "game_engine_subpackage_not_exact")
-		return
-	var engine_package: Dictionary = subpackages[0]
 	if (
-		str(engine_package.get("name", "")) != "engine"
-		or str(engine_package.get("root", "")) != "engine/"
+		subpackages.size() != 2
+		or not subpackages[0] is Dictionary
+		or not subpackages[1] is Dictionary
 	):
-		_add_issue(issues, "game_engine_subpackage_not_exact")
+		_add_issue(issues, "game_subpackages_not_exact")
+		return
+	var expected_subpackages: Array[Dictionary] = [
+		{"name": "game_data", "root": "game_data/"},
+		{"name": "engine", "root": "engine/"},
+	]
+	for index: int in range(expected_subpackages.size()):
+		var actual: Dictionary = subpackages[index]
+		var expected: Dictionary = expected_subpackages[index]
+		if (
+			str(actual.get("name", "")) != str(expected.get("name", ""))
+			or str(actual.get("root", "")) != str(expected.get("root", ""))
+		):
+			_add_issue(issues, "game_subpackages_not_exact")
+			return
 
 
 func _validate_private_config(root: String, issues: PackedStringArray) -> void:
@@ -716,7 +849,7 @@ func _validate_report_identity(
 	issues: PackedStringArray
 ) -> void:
 	if _integer_value(export_report.get("schema_version")) != EXPORT_REPORT_SCHEMA_VERSION:
-		_add_issue(issues, "export_report_schema_not_2")
+		_add_issue(issues, "export_report_schema_not_3")
 	var ok_value: Variant = export_report.get("ok")
 	if not ok_value is bool:
 		_add_issue(issues, "export_report_not_ok")
@@ -981,6 +1114,7 @@ func _validate_report_package(
 	for field: String in PackedStringArray([
 		"main_package_bytes",
 		"engine_package_bytes",
+		"game_data_package_bytes",
 		"total_package_bytes",
 	]):
 		if _integer_value(declared.get(field)) != _integer_value(
@@ -989,8 +1123,12 @@ func _validate_report_package(
 			_add_issue(issues, "report_package_bytes_mismatch:%s" % field)
 	var expected_limits: Dictionary = {
 		"main_hard_limit_bytes": MAIN_PACKAGE_HARD_LIMIT_BYTES,
+		"engine_hard_limit_bytes": ENGINE_SUBPACKAGE_HARD_LIMIT_BYTES,
+		"game_data_hard_limit_bytes": GAME_DATA_SUBPACKAGE_HARD_LIMIT_BYTES,
 		"total_hard_limit_bytes": TOTAL_PACKAGE_HARD_LIMIT_BYTES,
 		"main_soft_limit_bytes": MAIN_PACKAGE_SOFT_LIMIT_BYTES,
+		"engine_soft_limit_bytes": ENGINE_SUBPACKAGE_SOFT_LIMIT_BYTES,
+		"game_data_soft_limit_bytes": GAME_DATA_SUBPACKAGE_SOFT_LIMIT_BYTES,
 		"total_soft_limit_bytes": TOTAL_PACKAGE_SOFT_LIMIT_BYTES,
 	}
 	for limit_name_value: Variant in expected_limits.keys():
@@ -1001,8 +1139,12 @@ func _validate_report_package(
 			_add_issue(issues, "report_package_limit_mismatch:%s" % limit_name)
 	for field: String in PackedStringArray([
 		"main_hard_limit_ok",
+		"engine_hard_limit_ok",
+		"game_data_hard_limit_ok",
 		"total_hard_limit_ok",
 		"main_soft_budget_ok",
+		"engine_soft_budget_ok",
+		"game_data_soft_budget_ok",
 		"total_soft_budget_ok",
 	]):
 		var value: Variant = declared.get(field)
@@ -1208,13 +1350,48 @@ func _inspect_pack(
 		_add_issue(issues, "pack_unexpected_font_token:%s" % unexpected_font_token)
 	if _bytes_contain_text(pack_bytes, _EXPORT_PLUGIN_CODE_TOKEN):
 		_add_issue(issues, "pack_contains_editor_export_plugin")
+	if (
+		str(profile.get("scope", "")) == PROFILE_SCOPE_RELEASE
+		and _bytes_contain_text(pack_bytes, _TEXT_SERVER_DATA_TOKEN)
+	):
+		_add_issue(issues, "pack_contains_text_server_support_data")
 	if not ProjectSettings.load_resource_pack(pack_path, true):
 		_add_issue(issues, "pack_mount_failed")
 		return
+	if (
+		str(profile.get("scope", "")) == PROFILE_SCOPE_RELEASE
+		and FileAccess.file_exists("res://%s" % _TEXT_SERVER_DATA_TOKEN)
+	):
+		_add_issue(issues, "pack_contains_text_server_support_data")
 	var expected_font_path: String = str(profile.get("font_path", ""))
 	var expected_font_sha256: String = str(profile.get("font_sha256", ""))
 	if not ResourceLoader.exists(expected_font_path):
 		_add_issue(issues, "pack_expected_font_resource_missing:%s" % expected_font_path)
+	if str(profile.get("scope", "")) == PROFILE_SCOPE_RELEASE:
+		for index: int in range(_RELEASE_TRANSLATION_PATHS.size()):
+			var translation_path: String = _RELEASE_TRANSLATION_PATHS[index]
+			if not ResourceLoader.exists(translation_path):
+				_add_issue(
+					issues,
+					"pack_translation_missing:%s" % translation_path
+				)
+				continue
+			var translation_resource: Resource = load(translation_path)
+			if not translation_resource is Translation:
+				_add_issue(
+					issues,
+					"pack_translation_invalid:%s" % translation_path
+				)
+				continue
+			var translation: Translation = translation_resource
+			if translation.get_locale() != _RELEASE_TRANSLATION_LOCALES[index]:
+				_add_issue(
+					issues,
+					"pack_translation_locale_mismatch:%s:%s" % [
+						translation_path,
+						translation.get_locale(),
+					]
+				)
 	var required_codepoints: PackedInt32Array = _required_profile_codepoints(
 		profile,
 		issues

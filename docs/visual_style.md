@@ -213,7 +213,7 @@ UI 应像纸媒工具页里的可交互模块，不像半透明网页控制台�
 字体：
 
 - 正文、标题和数字字体都由 `GameUiPalette` 提供语义资源；页面只能声明文本角色，不得自行查询系统字体。
-- 默认主题随包携带 `shared/assets/fonts/noto_sans_sc_variable.ttf`，许可证保存在同目录。Steam、正式 Web、正式微信和移动端必须使用同一份字形资源。仅 `wechat_minigame_smoke` 工具链诊断构建可使用内部改名、按实际冒烟文案裁剪的 `wechat_smoke_sans_subset.ttf`；它不得进入正式游戏发布预设。
+- 默认主题在 Steam、普通 Web 和移动端随包携带 `shared/assets/fonts/noto_sans_sc_variable.ttf`，许可证保存在同目录。微信构建因包体约束使用同源、同语义角色且经过闭包验证的确定性子集：诊断构建使用内部改名的 `wechat_smoke_sans_subset.ttf`；正式 release 使用 445,076-byte 的 `wechat_release_sans_subset.ttf`，SHA-256 为 `B9BD519D1A5CEE5647C976B21153726035ADC848A563F0E8AF2D612E56FD265F`，policy 为 `wechat-release-shipped-literals-v1`。正式子集由 FontTools 4.59.1 生成并保留 OFL 证据，只保证随包 en/zh 文案与可打印 ASCII；新增或修改运行时文案必须先更新 coverage 和子集，禁止依赖系统 fallback。
 - 禁止把 `SystemFont` 作为发布主题的正文、标题或数字字体；系统字体只允许用于编辑器工具或明确的本机诊断界面。
 - 标题通过字号、字重语义和留白形成层级，不再依赖手写字体制造个性。方块数字与状态数字使用统一数字角色，确保快速扫读。
 - 新主题可以替换三种语义字体，但必须在资源校验和 Web/窄屏截图中验证中文、数字、标点、换行和最长按钮文案。

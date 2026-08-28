@@ -68,7 +68,7 @@
         "id": "godot_local_platform_adapter",
         "provider": "Godot local runtime",
         "project_root": "res://features/platform_runtime",
-        "responsibility": "拥有完整平台运行时 Adapter Seam：GamePlatformAdapter、LocalPlatformAdapter、GamePlatformUtility、生命周期桥接、platform.clipboard/write_text、平台 smoke 场景/工具与局部文档；把 Godot OS/DisplayServer 的本地存储、HTTP、音频、输入、显示安全区、剪贴板写入和生命周期事实投影为 GFPlatformRuntime 契约。只有运行时声明 platform.clipboard.write 时才能调用剪贴板契约，DisplayServer 只允许位于 LocalPlatformAdapter 内；不宣称微信 SDK 能力。"
+        "responsibility": "拥有平台运行时 Adapter Seam：GamePlatformAdapter、LocalPlatformAdapter、GamePlatformUtility、生命周期桥接、platform.clipboard/write_text、smoke 工具与文档；把 Godot OS/DisplayServer 的存储、HTTP、音频、输入、安全区、剪贴板和生命周期事实投影为 GFPlatformRuntime 契约。剪贴板调用必须声明 capability，DisplayServer 仅限 LocalPlatformAdapter。微信 release 禁用 ICU；Boot/Composition Root 在 GF 架构创建前调用唯一平台启动 Utility 注册 en/zh Translation。该适配不宣称微信 SDK 业务能力。"
       }
     ],
     "capability_requirements": [
@@ -1329,7 +1329,7 @@
     },
     {
       "id": "wechat_export_toolchain",
-      "question": "本地 toolchain_smoke 与无 platform_smoke 的 full_game_release_candidate 已锁定 godothub/godot-minigame 4.7 模板、项目自有确定性导出器、正式字体闭包和 4 MiB 异步分块大文件读取层；首次完整候选的离线 JS、隔离产物、包内字体与 25,235,980-byte 总包门禁已通过。开发者工具已经打开候选并触发 refresh，但 automator/runtime/截图取证尚未成功，Android/iOS 真机、平台 SDK capability 范围和 CI 发布环境仍未锁定。",
+      "question": "本地 toolchain_smoke 与无 platform_smoke 的 full_game_release_candidate 已锁定 godothub/godot-minigame 4.7 模板、项目自有确定性导出器、report schema 3、main→game_data→engine 双分包顺序、正式字体闭包、无 ICU 的 en/zh 启动注册和 4 MiB 异步分块大文件读取层。build 749f6ff3c9ea0c396dc8a9b3e82546312b4e924533063b7cce664189ce3ef0ce 的隔离门禁与 17,693,596-byte 正式预览已通过，微信模拟器已启动横屏中文主菜单，双分包、PCK 探针、WASM 与 GF 均成功。尚未锁定 Android/iOS 真机矩阵、玩家手势与长时游玩、音频、前后台恢复、重启存档、平台 SDK capability 范围和 CI 发布环境。",
       "blocking": false
     }
   ]

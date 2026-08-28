@@ -32,6 +32,12 @@ This inventory distinguishes runtime-distributed assets from review-only source 
   `2048 WeChat Smoke Sans`, avoiding the upstream reserved font name. It was generated with
   fontTools 4.63.0 and is pinned at SHA-256
   `38BDD2457E67C2C1721F5734FEE67059BC1B961563AFB4F3E0F8B8C8B8049C22`.
+- Release derivative: `shared/assets/fonts/wechat_release_sans_subset.ttf` is the deterministic
+  WeChat release font for the `wechat-release-shipped-literals-v1` policy. It contains shipped
+  en/zh runtime literals plus printable ASCII, is 445,076 bytes, and is pinned at SHA-256
+  `B9BD519D1A5CEE5647C976B21153726035ADC848A563F0E8AF2D612E56FD265F`.
+  It was generated with FontTools 4.59.1 from the licensed Noto Sans SC source. The coverage
+  manifest and OFL evidence are build inputs; arbitrary user-authored Unicode text is not covered.
 - Bundled notice: `shared/assets/fonts/noto_sans_sc_ofl.txt`.
 
 ### Godot Mini Game 4.7 Template (Build-Time Only)
@@ -39,12 +45,12 @@ This inventory distinguishes runtime-distributed assets from review-only source 
 - Maintainer: GodotHub / `godothub/godot-minigame` contributors.
 - Source: https://github.com/godothub/godot-minigame/releases/tag/4.7
 - Repository license: MIT.
-- Usage: `tools/export_wechat_minigame_smoke.ps1` downloads or accepts the pinned
-  `minigame4.7.tpz`, verifies its exact size and SHA-256, and creates an ignored local WeChat
-  DevTools smoke project under `build/`. The archive is not vendored into the repository.
-- Distribution boundary: the generated project is for local toolchain validation. Public preview,
-  upload, or release still requires an AppID, device validation, and a separate license audit of all
-  files carried by the generated template.
+- Usage: the shared WeChat export transaction downloads or accepts the pinned `minigame4.7.tpz`,
+  verifies its exact size and SHA-256, and creates ignored smoke or full-release DevTools candidates
+  under `build/`. The archive is not vendored into the repository.
+- Distribution boundary: generated candidates may be used for authenticated preview after artifact
+  verification, but production release still requires an AppID, Android/iOS device validation and a
+  separate license audit of every template file carried by the generated project.
 
 ### Kenney Pattern Pack 2
 

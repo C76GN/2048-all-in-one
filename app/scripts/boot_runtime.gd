@@ -11,6 +11,7 @@ extends Control
 const MAIN_MENU_SCENE_PATH: String = "res://features/navigation/scenes/menus/main_menu.tscn"
 const PLATFORM_SMOKE_SCENE_PATH: String = "res://features/platform_runtime/scenes/smoke_test/platform_smoke_test.tscn"
 const _PLATFORM_SMOKE_FEATURE: String = "platform_smoke"
+const _WECHAT_RELEASE_FEATURE: String = "wechat_minigame_release"
 const _SCENE_PRELOAD_MAP: GFScenePreloadMap = preload("res://features/navigation/resources/scene_preload_map.tres")
 const _GAMEPLAY_VISUAL_WARMUP_SCRIPT: GDScript = preload("res://features/game_session/scripts/ui/gameplay_visual_warmup.gd")
 const _STARTUP_RENDER_WARMUP_MANIFEST: GFRenderWarmupManifest = preload(
@@ -72,6 +73,18 @@ func _run_startup_sequence() -> void:
 	var started_usec: int = Time.get_ticks_usec()
 	_complete_startup_task(_PROGRESS_TASK_PREPARE, "准备启动")
 	await _await_startup_frame(true)
+	var translation_error: Error = (
+		WechatReleaseTranslationBootstrapUtility.install_if_required(
+			OS.has_feature(_WECHAT_RELEASE_FEATURE)
+		)
+	)
+	if translation_error != OK:
+		push_error(
+			"[Boot] WeChat release translation registration failed: %s."
+			% error_string(translation_error)
+		)
+		_complete_startup_failure("Translation initialization failed")
+		return
 
 	_set_startup_task_progress(_PROGRESS_TASK_ARCHITECTURE, 0.25, "初始化 GF 架构")
 	await _await_startup_frame(true)

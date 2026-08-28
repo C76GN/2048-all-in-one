@@ -8,6 +8,7 @@ const loader = require("../../tools/wechat_minigame/chunked_file_loader.js");
 
 const CHUNK_BYTES = 4 * 1024 * 1024;
 const RESOURCE_PATH = "/engine/2048-all-in-one.bin";
+const GAME_DATA_RESOURCE_PATH = "/game_data/2048-all-in-one.bin";
 
 
 function makeBytes(size) {
@@ -114,6 +115,21 @@ test("reassembles deterministic bytes across chunk boundaries", async () => {
 			})),
 		);
 	}
+});
+
+
+test("accepts only engine and game_data package resource roots", async () => {
+	const source = makeBytes(64);
+	const calls = [];
+	const {fsUtils} = installFor({[GAME_DATA_RESOURCE_PATH]: source}, calls);
+	assert.equal(
+		sha256(Buffer.from(await fsUtils.localFetch(GAME_DATA_RESOURCE_PATH))),
+		sha256(source),
+	);
+	assert.throws(
+		() => installFor({"/other/data.bin": source}, []),
+		/resource_path_outside_allowed_packages/,
+	);
 });
 
 

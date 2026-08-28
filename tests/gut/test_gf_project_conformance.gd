@@ -66,6 +66,7 @@ const PLATFORM_PROBE_EXCEPTIONS: Dictionary = {
 	"res://app/scripts/boot_runtime.gd": {
 		"allowed_fragments": [
 			"OS.has_feature(_PLATFORM_SMOKE_FEATURE)",
+			"OS.has_feature(_WECHAT_RELEASE_FEATURE)",
 			"DisplayServer.get_name() == \"headless\"",
 			"DisplayServer.get_name() != \"headless\"",
 		],

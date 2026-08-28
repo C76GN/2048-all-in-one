@@ -28,7 +28,7 @@ $TemplateDownloadUrl = (
 $TemplateExpectedBytes = 11763895
 $TemplateExpectedSha256 = "AE5BDEB5BA1CE9712D4EFC35D337CB5ECBEF3AD5BFB0F7D06AE9CB662C1F2D71"
 $RequiredGodotVersionPrefix = "4.7.2.stable"
-$ExportReportSchemaVersion = 2
+$ExportReportSchemaVersion = 3
 $ArtifactManifestSchemaVersion = 1
 $InputSnapshotSchemaVersion = 1
 $BuildIdentitySchemaVersion = 2
@@ -51,6 +51,7 @@ $ChunkLoaderOutputRelativePath = "engine\wechat-chunked-file-loader.js"
 $WxMemFsRenamePatchRelativePath = "tools\wechat_minigame\wxmemfs_rename_patch.ps1"
 $TemplateGodotRuntimeSha256 = "CC396C67F410502C958185003EA72F5F67E5ACBCD040774D1AAF5B9622491B15"
 $PatchedGodotRuntimeSha256 = "FD91EA35F0515360BE35AE6FD2425D102CBAF17F30F5B7CCB8688AF635CE3638"
+$TemplateGodotLoaderSha256 = "181E61961CF6527F718E93E132D86DAF4310E091E3B004909076BDCE4D56C99C"
 $ChunkBytes = 4194304
 $WeChatProjectName = if ($IsReleaseProfile) {
 	"2048 Full Game Release Candidate"
@@ -65,9 +66,11 @@ else {
 	"2048-all-in-one - Godot 4.7 WeChat Mini Game smoke"
 }
 $MainPackageHardLimitBytes = 4000000
-$TotalPackageHardLimitBytes = 30000000
+$TotalPackageHardLimitBytes = 20000000
 $MainPackageSoftLimitBytes = 3600000
-$TotalPackageSoftLimitBytes = 27000000
+$SubpackageHardLimitBytes = 20000000
+$SubpackageSoftLimitBytes = 18000000
+$TotalPackageSoftLimitBytes = 18000000
 $DeviceOrientation = "landscape"
 $VolatileLocalSidecarRelativePath = "project.private.config.json"
 $ForbiddenSampleAppIds = @(
@@ -181,6 +184,159 @@ function Assert-NoReparsePointPath {
 			throw "$Label may not traverse a reparse point: $currentPath"
 		}
 	}
+}
+
+function ConvertTo-WeChatSubpackageLifecyclePatchedSource {
+	param(
+		[Parameter(Mandatory = $true)]
+		[string]$Source
+	)
+
+	$original = (
+		'loadGameEngine(){wx.loadSubpackage({complete:t=>{},name:"engine",' +
+		'success:()=>{this.progress=1,this.updateProgress(this.progress,' +
+		'this.config.textConfig.initText)}}).onProgressUpdate(({progress:t})=>{' +
+		'this.progress=t/100,this.updateProgress(this.progress,' +
+		'this.config.textConfig.downloadingText[0])})}'
+	)
+	$patched = @'
+loadGameEngine(){
+  const SUBPACKAGE_TIMEOUT_MS=300000;
+  const DATA_PROBE_TIMEOUT_MS=10000;
+  let fatal=false;
+  const asError=(reason,fallback)=>reason instanceof Error
+    ?reason
+    :new Error(reason&&reason.errMsg?reason.errMsg:(reason==null?fallback:String(reason)));
+  const failVisible=error=>{
+    if(fatal){return;}
+    fatal=true;
+    this.progress=0;
+    this.updateProgress(this.progress,this.config.textConfig.loadFailedText||"引擎分包加载失败");
+    setTimeout(()=>{throw error;},0);
+  };
+  const probeGameData=onSuccess=>{
+    const path="/game_data/2048-all-in-one.bin";
+    let settled=false;
+    let timeoutId=0;
+    const finish=(error,result)=>{
+      if(settled){return;}
+      settled=true;
+      clearTimeout(timeoutId);
+      if(fatal){return;}
+      if(error){
+        console.error("[wechat-subpackage] data_probe_fail",error.message);
+        failVisible(error);
+        return;
+      }
+      const bytes=result&&result.data&&result.data.byteLength;
+      if(bytes!==1){
+        const probeError=new Error("game_data PCK probe returned no byte");
+        console.error("[wechat-subpackage] data_probe_fail",probeError.message);
+        failVisible(probeError);
+        return;
+      }
+      console.log("[wechat-subpackage] data_probe_success",path,bytes);
+      onSuccess();
+    };
+    console.log("[wechat-subpackage] data_probe_start",path);
+    timeoutId=setTimeout(()=>finish(new Error("game_data PCK probe timed out")),DATA_PROBE_TIMEOUT_MS);
+    try{
+      const fileSystem=wx.getFileSystemManager();
+      if(!fileSystem||typeof fileSystem.readFile!=="function"){
+        throw new Error("wx file system readFile is unavailable");
+      }
+      fileSystem.readFile({
+        filePath:path,
+        position:0,
+        length:1,
+        success:result=>finish(null,result),
+        fail:result=>{
+          const detail=result&&result.errMsg?result.errMsg:String(result);
+          finish(new Error("game_data PCK probe failed: "+detail));
+        }
+      });
+    }catch(reason){
+      finish(asError(reason,"game_data PCK probe failed"));
+    }
+  };
+  const loadPackage=(name,marker,entryPath,progressBase,onSuccess)=>{
+    let settled=false;
+    let timeoutId=0;
+    const clearDeadline=()=>clearTimeout(timeoutId);
+    const fail=(event,error)=>{
+      if(settled){return;}
+      settled=true;
+      clearDeadline();
+      if(fatal){return;}
+      console.error(event,name,error.message);
+      failVisible(error);
+    };
+    const succeed=result=>{
+      if(settled||fatal){return;}
+      const detail=result&&result.errMsg?result.errMsg:"loadSubpackage:ok";
+      console.log("[wechat-subpackage] success",name,detail);
+      if(GameGlobal[marker]!==true){
+        fail(
+          "[wechat-subpackage] entry_missing",
+          new Error(entryPath+" did not execute after the "+name+" subpackage loaded")
+        );
+        return;
+      }
+      settled=true;
+      clearDeadline();
+      console.log("[wechat-subpackage] entry_confirmed",name,entryPath);
+      try{onSuccess();}catch(reason){failVisible(asError(reason,name+" continuation failed"));}
+    };
+    GameGlobal[marker]=false;
+    console.log("[wechat-subpackage] start",name);
+    timeoutId=setTimeout(()=>fail(
+      "[wechat-subpackage] timeout",
+      new Error(name+" subpackage load timed out")
+    ),SUBPACKAGE_TIMEOUT_MS);
+    try{
+      const task=wx.loadSubpackage({
+        name:name,
+        success:result=>succeed(result),
+        fail:result=>fail(
+          "[wechat-subpackage] fail",
+          asError(result,name+" subpackage load failed")
+        ),
+        complete:result=>{
+          const detail=result&&result.errMsg?result.errMsg:String(result);
+          console.log("[wechat-subpackage] complete",name,detail);
+        }
+      });
+      if(!task||typeof task.onProgressUpdate!=="function"){
+        throw new Error(name+" subpackage progress task is unavailable");
+      }
+      task.onProgressUpdate(({progress})=>{
+        if(settled||fatal){return;}
+        console.log("[wechat-subpackage] progress",name,progress);
+        this.progress=progressBase+progress/200;
+        this.updateProgress(this.progress,this.config.textConfig.downloadingText[0]);
+      });
+    }catch(reason){
+      fail("[wechat-subpackage] fail",asError(reason,name+" subpackage load failed"));
+    }
+  };
+  loadPackage("game_data","__godotGameDataSubpackageEntryStarted","game_data/game.js",0,()=>{
+    probeGameData(()=>{
+      loadPackage("engine","__godotEngineSubpackageEntryStarted","engine/game.js",0.5,()=>{
+        this.progress=1;
+        this.updateProgress(this.progress,this.config.textConfig.initText);
+      });
+    });
+  });
+}
+'@
+	$firstIndex = $Source.IndexOf($original, [StringComparison]::Ordinal)
+	if ($firstIndex -lt 0) {
+		throw "Pinned godot-loader.js no longer contains the expected loadGameEngine implementation."
+	}
+	if ($Source.IndexOf($original, $firstIndex + $original.Length, [StringComparison]::Ordinal) -ge 0) {
+		throw "Pinned godot-loader.js contains multiple loadGameEngine patch targets."
+	}
+	return $Source.Replace($original, $patched)
 }
 
 function Assert-NoReparsePointTree {
@@ -1222,12 +1378,13 @@ function Get-PackageEvidence {
 	param([Parameter(Mandatory = $true)][string]$StageRoot)
 
 	$allowedPaths = @(
-		"engine/$PackFileName",
 		"engine/game.js",
 		"engine/wechat-chunked-file-loader.js",
 		"engine/godot-sdk.js",
 		"engine/godot.js",
 		"engine/godot.wasm.br",
+		"game_data/$PackFileName",
+		"game_data/game.js",
 		"game.js",
 		"game.json",
 		"glx-config.js",
@@ -1244,6 +1401,7 @@ function Get-PackageEvidence {
 	$unexpectedPaths = @()
 	$mainPackageBytes = [int64]0
 	$enginePackageBytes = [int64]0
+	$gameDataPackageBytes = [int64]0
 	foreach ($file in $files) {
 		$relativePath = Get-RelativeOutputPath -Root $StageRoot -FullName $file.FullName
 		$discoveredRelativePaths += $relativePath
@@ -1258,6 +1416,9 @@ function Get-PackageEvidence {
 		$relativePaths += $relativePath
 		if ($relativePath.StartsWith("engine/", [StringComparison]::OrdinalIgnoreCase)) {
 			$enginePackageBytes += $file.Length
+		}
+		elseif ($relativePath.StartsWith("game_data/", [StringComparison]::OrdinalIgnoreCase)) {
+			$gameDataPackageBytes += $file.Length
 		}
 		else {
 			$mainPackageBytes += $file.Length
@@ -1276,18 +1437,27 @@ function Get-PackageEvidence {
 	)
 	[string[]]$sortedRelativePaths = @($relativePaths)
 	[Array]::Sort($sortedRelativePaths, [StringComparer]::Ordinal)
-	$totalPackageBytes = $mainPackageBytes + $enginePackageBytes
+	$totalPackageBytes = $mainPackageBytes + $enginePackageBytes + $gameDataPackageBytes
 	return [ordered]@{
 		main_package_bytes = $mainPackageBytes
 		engine_package_bytes = $enginePackageBytes
+		game_data_package_bytes = $gameDataPackageBytes
 		total_package_bytes = $totalPackageBytes
 		main_hard_limit_bytes = $MainPackageHardLimitBytes
+		engine_hard_limit_bytes = $SubpackageHardLimitBytes
+		game_data_hard_limit_bytes = $SubpackageHardLimitBytes
 		total_hard_limit_bytes = $TotalPackageHardLimitBytes
 		main_soft_limit_bytes = $MainPackageSoftLimitBytes
+		engine_soft_limit_bytes = $SubpackageSoftLimitBytes
+		game_data_soft_limit_bytes = $SubpackageSoftLimitBytes
 		total_soft_limit_bytes = $TotalPackageSoftLimitBytes
 		main_hard_limit_ok = ($mainPackageBytes -le $MainPackageHardLimitBytes)
+		engine_hard_limit_ok = ($enginePackageBytes -le $SubpackageHardLimitBytes)
+		game_data_hard_limit_ok = ($gameDataPackageBytes -le $SubpackageHardLimitBytes)
 		total_hard_limit_ok = ($totalPackageBytes -le $TotalPackageHardLimitBytes)
 		main_soft_budget_ok = ($mainPackageBytes -le $MainPackageSoftLimitBytes)
+		engine_soft_budget_ok = ($enginePackageBytes -le $SubpackageSoftLimitBytes)
+		game_data_soft_budget_ok = ($gameDataPackageBytes -le $SubpackageSoftLimitBytes)
 		total_soft_budget_ok = ($totalPackageBytes -le $TotalPackageSoftLimitBytes)
 		file_count = $relativePaths.Count
 		files = @($sortedRelativePaths)
@@ -1558,12 +1728,29 @@ try {
 	$gameEntryText = $gameEntryText.Replace("images/background.jpg", "images/background.png")
 	Write-Utf8Text -Path $gameEntryPath -Text $gameEntryText
 
+	$godotLoaderPath = Join-Path $stageRoot "godot-loader.js"
+	$godotLoaderSha256 = Get-FileSha256 -Path $godotLoaderPath
+	if ($godotLoaderSha256 -ne $TemplateGodotLoaderSha256) {
+		throw (
+			"Pinned godot-loader.js hash mismatch before lifecycle patch: expected " +
+			"$TemplateGodotLoaderSha256, got $godotLoaderSha256"
+		)
+	}
+	$godotLoaderSource = Get-Content -Raw -Encoding UTF8 -LiteralPath $godotLoaderPath
+	$godotLoaderSource = ConvertTo-WeChatSubpackageLifecyclePatchedSource `
+		-Source $godotLoaderSource
+	Write-Utf8Text -Path $godotLoaderPath -Text $godotLoaderSource
+
 	$gameConfig = [ordered]@{
 		deviceOrientation = $DeviceOrientation
 		iOSHighPerformance = $true
 		"iOSHighPerformance+" = $true
 		plugins = [ordered]@{}
 		subpackages = @(
+			[ordered]@{
+				name = "game_data"
+				root = "game_data/"
+			},
 			[ordered]@{
 				name = "engine"
 				root = "engine/"
@@ -1585,6 +1772,29 @@ try {
 	$projectConfig.compileType = "minigame"
 	$projectConfig.appid = $preservedAppId
 	$projectConfig.isGameTourist = $false
+	$packIgnore = @()
+	if (
+		$null -ne $projectConfig.packOptions `
+		-and $null -ne $projectConfig.packOptions.ignore
+	) {
+		$packIgnore = @($projectConfig.packOptions.ignore)
+	}
+	$projectConfig | Add-Member `
+		-NotePropertyName "packOptions" `
+		-NotePropertyValue ([ordered]@{
+			ignore = $packIgnore
+			include = @(
+				[ordered]@{
+					type = "file"
+					value = "engine/godot.wasm.br"
+				},
+				[ordered]@{
+					type = "file"
+					value = "game_data/$PackFileName"
+				}
+			)
+		}) `
+		-Force
 	Write-Utf8Text `
 		-Path $projectConfigPath `
 		-Text (($projectConfig | ConvertTo-Json -Depth 16) + "`n")
@@ -1592,10 +1802,16 @@ try {
 		-Snapshot $privateConfigSnapshot `
 		-DestinationPath (Join-Path $stageRoot $VolatileLocalSidecarRelativePath)
 
-	$temporaryPackPath = Join-Path $stageRoot "engine\2048-all-in-one.pck"
+	$gameDataRoot = Join-Path $stageRoot "game_data"
+	$null = New-Item -ItemType Directory -Force -Path $gameDataRoot
+	$temporaryPackPath = Join-Path $gameDataRoot "2048-all-in-one.pck"
 	Invoke-GodotPackExport -GodotPath $godotPath -PackPath $temporaryPackPath
-	$finalPackPath = Join-Path $stageRoot "engine\$PackFileName"
+	$finalPackPath = Join-Path $gameDataRoot $PackFileName
 	Move-Item -LiteralPath $temporaryPackPath -Destination $finalPackPath
+	Write-Utf8Text -Path (Join-Path $gameDataRoot "game.js") -Text @"
+GameGlobal.__godotGameDataSubpackageEntryStarted = true;
+console.log('[wechat-subpackage] entry_started', 'game_data', 'game_data/game.js');
+"@
 
 	$chunkLoaderSourcePath = Join-Path $ProjectRoot $ChunkLoaderSourceRelativePath
 	if (-not (Test-Path -LiteralPath $chunkLoaderSourcePath -PathType Leaf)) {
@@ -1613,7 +1829,7 @@ try {
 			file = (Join-Path $stageRoot "engine\godot.wasm.br")
 		},
 		[ordered]@{
-			path = "/engine/$PackFileName"
+			path = "/game_data/$PackFileName"
 			file = $finalPackPath
 		}
 	)
@@ -1637,8 +1853,10 @@ try {
 import './godot-sdk'
 import './godot'
 import './wechat-chunked-file-loader'
+GameGlobal.__godotEngineSubpackageEntryStarted = true;
+console.log('[wechat-subpackage] entry_started', 'engine', 'engine/game.js');
 const exe = '/engine/godot';
-const pack = '/engine/$PackFileName';
+const pack = '/game_data/$PackFileName';
 const chunkedResourceBytes = Object.freeze($chunkedResourceBytesJson);
 GameGlobal.WeChatChunkedFileLoader.installChunkedLocalFetch(
   GameGlobal.fsUtils,
@@ -1665,7 +1883,7 @@ GODOTSDK.startGame(exe, pack)
 
 	$packageEvidence = Get-PackageEvidence -StageRoot $stageRoot
 	$engineGameText = Get-Content -Raw -Encoding UTF8 -LiteralPath $engineGamePath
-	if (-not $engineGameText.Contains("/engine/$PackFileName")) {
+	if (-not $engineGameText.Contains("/game_data/$PackFileName")) {
 		throw "Generated engine loader does not reference the exported .bin pack."
 	}
 	if (
@@ -1683,6 +1901,12 @@ GODOTSDK.startGame(exe, pack)
 	}
 	if (-not $packageEvidence.main_hard_limit_ok) {
 		throw "Generated WeChat main package exceeds $MainPackageHardLimitBytes bytes."
+	}
+	if (-not $packageEvidence.engine_hard_limit_ok) {
+		throw "Generated WeChat engine package exceeds $SubpackageHardLimitBytes bytes."
+	}
+	if (-not $packageEvidence.game_data_hard_limit_ok) {
+		throw "Generated WeChat game_data package exceeds $SubpackageHardLimitBytes bytes."
 	}
 	if (-not $packageEvidence.total_hard_limit_ok) {
 		throw "Generated WeChat package exceeds $TotalPackageHardLimitBytes bytes."
@@ -1810,9 +2034,10 @@ GODOTSDK.startGame(exe, pack)
 	Write-Host "Output: $outputRoot"
 	Write-Host "Build ID: $buildId"
 	Write-Host (
-		"Package bytes: main={0}, engine={1}, total={2}" -f
+		"Package bytes: main={0}, engine={1}, game_data={2}, total={3}" -f
 		$packageEvidence.main_package_bytes,
 		$packageEvidence.engine_package_bytes,
+		$packageEvidence.game_data_package_bytes,
 		$packageEvidence.total_package_bytes
 	)
 	Write-Host "Report: $reportPath"

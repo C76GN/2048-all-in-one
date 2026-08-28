@@ -7,6 +7,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
+const vm = require("node:vm");
 
 const projectRoot = path.resolve(__dirname, "../..");
 const exporterPath = path.join(projectRoot, "tools/export_wechat_minigame_smoke.ps1");
@@ -95,6 +96,201 @@ function writeFile(root, relativePath, contents) {
 function sha256(contents) {
 	return crypto.createHash("sha256").update(contents).digest("hex");
 }
+
+const originalSubpackageLoaderSource = 'class GodotLoader{loadGameEngine(){wx.loadSubpackage({complete:t=>{},name:"engine",success:()=>{this.progress=1,this.updateProgress(this.progress,this.config.textConfig.initText)}}).onProgressUpdate(({progress:t})=>{this.progress=t/100,this.updateProgress(this.progress,this.config.textConfig.downloadingText[0])})}cleanup(){}}';
+let patchedSubpackageLoaderSource = "";
+
+function getPatchedSubpackageLoaderSource() {
+	if (patchedSubpackageLoaderSource !== "") {
+		return patchedSubpackageLoaderSource;
+	}
+	const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-subpackage-loader-"));
+	try {
+		const sourceBase64 = Buffer.from(originalSubpackageLoaderSource, "utf8").toString("base64");
+		const result = runPowerShell(fixtureRoot, [
+			`$source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${sourceBase64}'))`,
+			"$patched = ConvertTo-WeChatSubpackageLifecyclePatchedSource -Source $source",
+			"[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($patched))",
+		].join("\n"));
+		patchedSubpackageLoaderSource = Buffer.from(result.stdout.trim(), "base64").toString("utf8");
+		return patchedSubpackageLoaderSource;
+	} finally {
+		fs.rmSync(fixtureRoot, {recursive: true, force: true});
+	}
+}
+
+function createSubpackageLoaderHarness(options = {}) {
+	const events = [];
+	const progressUpdates = [];
+	const callbacksByName = new Map();
+	const progressCallbacksByName = new Map();
+	const dataProbePaths = [];
+	const timers = new Map();
+	let nextTimerId = 1;
+	let pendingProbe = null;
+	const context = {
+		GameGlobal: {},
+		console: {
+			log: (...args) => events.push(["log", ...args]),
+			error: (...args) => events.push(["error", ...args]),
+		},
+		wx: {
+			getFileSystemManager() {
+				return {readFile(probeOptions) {
+					dataProbePaths.push(probeOptions.filePath);
+					if (options.probeMode === "throw") {
+						throw new Error("probe sync failure");
+					}
+					if (options.probeMode === "pending") {
+						pendingProbe = probeOptions;
+						return;
+					}
+					if (options.probeMode === "fail") {
+						probeOptions.fail({errMsg: "readFile:fail fixture"});
+						return;
+					}
+					probeOptions.success({data: new Uint8Array([0x47]).buffer});
+				}};
+			},
+			loadSubpackage(packageOptions) {
+				if (options.syncThrowPackage === packageOptions.name) {
+					throw new Error(`${packageOptions.name} sync failure`);
+				}
+				callbacksByName.set(packageOptions.name, packageOptions);
+				if (options.invalidTaskPackage === packageOptions.name) {
+					return {};
+				}
+				return {onProgressUpdate(callback) {
+					if (options.progressThrowPackage === packageOptions.name) {
+						throw new Error(`${packageOptions.name} progress failure`);
+					}
+					progressCallbacksByName.set(packageOptions.name, callback);
+				}};
+			},
+		},
+		setTimeout(callback, delay = 0) {
+			const id = nextTimerId++;
+			timers.set(id, {callback, delay});
+			return id;
+		},
+		clearTimeout(id) {
+			timers.delete(id);
+		},
+	};
+	vm.runInNewContext(
+		`${getPatchedSubpackageLoaderSource()};globalThis.LoaderForTest=GodotLoader;`,
+		context,
+	);
+	const loader = Object.create(context.LoaderForTest.prototype);
+	loader.progress = 0;
+	loader.config = {textConfig: {
+		downloadingText: ["下载中"],
+		initText: "初始化",
+		loadFailedText: "引擎分包加载失败",
+	}};
+	loader.updateProgress = (...args) => progressUpdates.push(args);
+	return {
+		callbacksByName,
+		context,
+		dataProbePaths,
+		events,
+		getPendingProbe: () => pendingProbe,
+		loader,
+		progressCallbacksByName,
+		progressUpdates,
+		runTimer(delay) {
+			const timerEntry = [...timers.entries()].find(([, timer]) => timer.delay === delay);
+			assert.ok(timerEntry, `missing ${delay} ms timer`);
+			const [id, timer] = timerEntry;
+			timers.delete(id);
+			return timer.callback();
+		},
+		timerCount: (delay) => [...timers.values()].filter((timer) => timer.delay === delay).length,
+	};
+}
+
+function assertSingleVisibleFailure(harness, pattern) {
+	assert.equal(
+		harness.progressUpdates.filter(([progress]) => progress === 0).length,
+		1,
+	);
+	assert.equal(harness.timerCount(0), 1);
+	assert.throws(() => harness.runTimer(0), pattern);
+}
+
+test("subpackage loader loads game data before engine and settles each stage once", () => {
+	const harness = createSubpackageLoaderHarness();
+	harness.loader.loadGameEngine();
+	assert.deepEqual(harness.events[0], ["log", "[wechat-subpackage] start", "game_data"]);
+	assert.equal(harness.callbacksByName.has("engine"), false);
+	harness.progressCallbacksByName.get("game_data")({progress: 50});
+	assert.deepEqual(harness.progressUpdates.at(-1), [0.25, "下载中"]);
+	harness.context.GameGlobal.__godotGameDataSubpackageEntryStarted = true;
+	harness.callbacksByName.get("game_data").success({errMsg: "loadSubpackage:ok"});
+	assert.deepEqual(harness.dataProbePaths, ["/game_data/2048-all-in-one.bin"]);
+	assert.equal(harness.callbacksByName.has("engine"), true);
+	harness.progressCallbacksByName.get("engine")({progress: 50});
+	assert.deepEqual(harness.progressUpdates.at(-1), [0.75, "下载中"]);
+	harness.context.GameGlobal.__godotEngineSubpackageEntryStarted = true;
+	harness.callbacksByName.get("engine").success({errMsg: "loadSubpackage:ok"});
+	assert.deepEqual(harness.progressUpdates.at(-1), [1, "初始化"]);
+	harness.callbacksByName.get("engine").complete({errMsg: "loadSubpackage:ok"});
+	harness.callbacksByName.get("engine").fail({errMsg: "late failure"});
+	harness.callbacksByName.get("engine").success({errMsg: "late success"});
+	assert.equal(harness.timerCount(0), 0);
+	assert.equal(harness.progressUpdates.filter(([progress]) => progress === 0).length, 0);
+});
+
+test("subpackage loader reports a missing entry once and ignores late callbacks", () => {
+	const harness = createSubpackageLoaderHarness();
+	harness.loader.loadGameEngine();
+	harness.callbacksByName.get("game_data").success({errMsg: "loadSubpackage:ok"});
+	harness.context.GameGlobal.__godotGameDataSubpackageEntryStarted = true;
+	harness.callbacksByName.get("game_data").success({errMsg: "late success"});
+	harness.callbacksByName.get("game_data").fail({errMsg: "late failure"});
+	assert.equal(harness.callbacksByName.has("engine"), false);
+	assert.ok(harness.events.some((event) => event[1] === "[wechat-subpackage] entry_missing"));
+	assertSingleVisibleFailure(harness, /game_data\/game\.js did not execute/);
+});
+
+test("subpackage loader converts synchronous API and progress-task failures", () => {
+	for (const options of [
+		{syncThrowPackage: "game_data"},
+		{invalidTaskPackage: "game_data"},
+		{progressThrowPackage: "game_data"},
+	]) {
+		const harness = createSubpackageLoaderHarness(options);
+		harness.loader.loadGameEngine();
+		if (harness.callbacksByName.has("game_data")) {
+			harness.context.GameGlobal.__godotGameDataSubpackageEntryStarted = true;
+			harness.callbacksByName.get("game_data").success({errMsg: "late success"});
+		}
+		assert.equal(harness.callbacksByName.has("engine"), false);
+		assertSingleVisibleFailure(harness, /(sync failure|progress task is unavailable|progress failure)/);
+	}
+});
+
+test("subpackage deadline fails visibly and late success cannot continue", () => {
+	const harness = createSubpackageLoaderHarness();
+	harness.loader.loadGameEngine();
+	harness.runTimer(300000);
+	harness.context.GameGlobal.__godotGameDataSubpackageEntryStarted = true;
+	harness.callbacksByName.get("game_data").success({errMsg: "late success"});
+	assert.equal(harness.callbacksByName.has("engine"), false);
+	assert.ok(harness.events.some((event) => event[1] === "[wechat-subpackage] timeout"));
+	assertSingleVisibleFailure(harness, /game_data subpackage load timed out/);
+});
+
+test("PCK probe deadline fails visibly and late read cannot start the engine", () => {
+	const harness = createSubpackageLoaderHarness({probeMode: "pending"});
+	harness.loader.loadGameEngine();
+	harness.context.GameGlobal.__godotGameDataSubpackageEntryStarted = true;
+	harness.callbacksByName.get("game_data").success({errMsg: "loadSubpackage:ok"});
+	harness.runTimer(10000);
+	harness.getPendingProbe().success({data: new Uint8Array([0x47]).buffer});
+	assert.equal(harness.callbacksByName.has("engine"), false);
+	assertSingleVisibleFailure(harness, /game_data PCK probe timed out/);
+});
 
 function makeSourceFixture() {
 	const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-export-identity-"));
@@ -248,7 +444,6 @@ test("package evidence uses host-invariant ordinal file order", () => {
 	try {
 		const artifactRoot = path.join(fixtureRoot, "wxgame");
 		const expectedPackageFiles = [
-			"engine/2048-all-in-one.bin",
 			"engine/game.js",
 			"engine/godot-sdk.js",
 			"engine/godot.js",
@@ -256,6 +451,8 @@ test("package evidence uses host-invariant ordinal file order", () => {
 			"engine/wechat-chunked-file-loader.js",
 			"game.js",
 			"game.json",
+			"game_data/2048-all-in-one.bin",
+			"game_data/game.js",
 			"glx-config.js",
 			"godot-loader.js",
 			"images/background.png",

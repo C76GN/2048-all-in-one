@@ -14,7 +14,7 @@
 - `docs/`：项目级架构、规范和维护文档。
 - `build/`：验证报告、导出检查和其他可再生产物；由 GF 合同中的 `generated_artifacts` 模块拥有，不得混入手写源码或运行时资源。
 - `addons/gf/` 与 `addons/gut/`：vendored GF 与 GUT，不属于项目业务 Feature。
-- `addons/wechat_minigame_smoke_export/`：项目自有、由验证模块拥有的 EditorExportPlugin；只为微信工具链冒烟定制资源，并从所有发布预设排除。
+- `addons/wechat_minigame_smoke_export/`：项目自有、由验证模块拥有的 profile-specific EditorExportPlugin；历史目录名保留，但实现同时为微信冒烟与正式 release 映射各自经过验证的字体子集，普通桌面/Web 发布不启用该定制。
 
 旧的 `scripts/`、`scenes/`、`resources/`、`assets/` 和 `asset_library/` 根目录不再承载项目文件，也不提供旧路径别名。
 
@@ -219,6 +219,8 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 5. 只有具体平台 Adapter 可以使用 `OS.has_feature()`、`DisplayServer` 或供应商 SDK 探测玩家设备与平台能力；Gameplay、Board Editor、Navigation 和其他 Feature 必须通过 `GamePlatformUtility` 查询 `GFPlatformRuntimeContext`、metadata 与能力 ID，平台上下文变化时重新投影布局。Composition Root 的构建 feature 开关以及 `GFDisplaySettingsUtility` 所需的枚举类型不属于玩家平台能力探测。
 6. 平台请求统一返回 `GFPlatformRequestHandle`。`platform.clipboard/write_text` 以严格 request/result schema、capability gating 和唯一 typed 终态完成；game_session 的 `Hud` 通过 owner-bound `GFSignalUtility` 消费 pending 结果，销毁后不得收到迟到完成。调用方不得另建项目私有异步请求协议。
 7. `GFHttpClientUtility` 目前只服务 `platform_smoke` 的网络兼容性验证，因此 Composition Root 仅在该导出 feature 下注册它。正式 Steam、Android、Web 与微信构建不得为未实现的在线业务常驻 HTTP 模块；未来排行榜联网应由平台 Adapter 或独立后端 Feature 明确拥有请求和重试边界。
+8. 微信正式 release 采用 main→game_data→engine 串行启动：`game_data/` 独占项目 PCK，`engine/` 独占 WASM 与引擎入口，两个大资源由同一项目加载器按 4 MiB 分块读取。schema 3 候选报告必须绑定精确双分包文件集、入口 marker、串行顺序、资源 manifest、每包与总包预算及 build identity；不得仅凭 DevTools 导入或 refresh 视为运行成功。
+9. 微信 release 明确禁用 ICU。Boot/Composition Root 必须在 GF 架构创建与正式场景路由前调用唯一的平台启动 Utility，注册随包 en/zh Translation；Boot 不得自行通过 `ResourceLoader` 读取翻译文件，业务 Feature 与 UI 不得复制 locale 状态。该构建适配不扩张 `GamePlatformAdapter` 的微信 SDK capability。
 
 ### 时钟、随机与运行诊断
 

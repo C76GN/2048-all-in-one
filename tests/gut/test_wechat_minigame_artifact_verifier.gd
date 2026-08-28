@@ -18,7 +18,6 @@ const _CHUNK_LOADER_SOURCE_PATH: String = (
 const _PROJECT_NAME: String = "2048 Chunked Toolchain Smoke"
 const _RELEASE_PROJECT_NAME: String = "2048 Full Game Release Candidate"
 const _REQUIRED_FILES: PackedStringArray = [
-	"engine/2048-all-in-one.bin",
 	"engine/game.js",
 	"engine/wechat-chunked-file-loader.js",
 	"engine/godot-sdk.js",
@@ -26,6 +25,8 @@ const _REQUIRED_FILES: PackedStringArray = [
 	"engine/godot.wasm.br",
 	"game.js",
 	"game.json",
+	"game_data/2048-all-in-one.bin",
+	"game_data/game.js",
 	"glx-config.js",
 	"godot-loader.js",
 	"images/background.png",
@@ -55,31 +56,82 @@ func test_valid_fixture_passes_real_file_json_loader_and_budget_checks() -> void
 	assert_true(_get_issues(report).is_empty())
 	var package: Dictionary = GFVariantData.get_option_dictionary(report, "package")
 	assert_true(GFVariantData.get_option_bool(package, "main_hard_limit_ok"))
+	assert_true(GFVariantData.get_option_bool(package, "engine_hard_limit_ok"))
+	assert_true(GFVariantData.get_option_bool(package, "game_data_hard_limit_ok"))
 	assert_true(GFVariantData.get_option_bool(package, "total_hard_limit_ok"))
 
 
 func test_package_budget_hard_limits_are_inclusive_at_exact_boundaries() -> void:
-	var exact: Dictionary = ArtifactVerifier.evaluate_package_budget(
+	var main_exact: Dictionary = ArtifactVerifier.evaluate_package_budget(
 		ArtifactVerifier.MAIN_PACKAGE_HARD_LIMIT_BYTES,
-		ArtifactVerifier.TOTAL_PACKAGE_HARD_LIMIT_BYTES -
-			ArtifactVerifier.MAIN_PACKAGE_HARD_LIMIT_BYTES
+		0,
+		0
 	)
-	assert_true(GFVariantData.get_option_bool(exact, "main_hard_limit_ok"))
-	assert_true(GFVariantData.get_option_bool(exact, "total_hard_limit_ok"))
+	assert_true(GFVariantData.get_option_bool(main_exact, "main_hard_limit_ok"))
+	assert_true(GFVariantData.get_option_bool(main_exact, "total_hard_limit_ok"))
+
+	var engine_exact: Dictionary = ArtifactVerifier.evaluate_package_budget(
+		0,
+		ArtifactVerifier.ENGINE_SUBPACKAGE_HARD_LIMIT_BYTES,
+		0
+	)
+	assert_true(GFVariantData.get_option_bool(engine_exact, "engine_hard_limit_ok"))
+	assert_true(GFVariantData.get_option_bool(engine_exact, "total_hard_limit_ok"))
+
+	var game_data_exact: Dictionary = ArtifactVerifier.evaluate_package_budget(
+		0,
+		0,
+		ArtifactVerifier.GAME_DATA_SUBPACKAGE_HARD_LIMIT_BYTES
+	)
+	assert_true(GFVariantData.get_option_bool(
+		game_data_exact,
+		"game_data_hard_limit_ok"
+	))
+	assert_true(GFVariantData.get_option_bool(game_data_exact, "total_hard_limit_ok"))
+
+	var total_exact: Dictionary = ArtifactVerifier.evaluate_package_budget(
+		0,
+		ArtifactVerifier.TOTAL_PACKAGE_HARD_LIMIT_BYTES / 2,
+		ArtifactVerifier.TOTAL_PACKAGE_HARD_LIMIT_BYTES / 2
+	)
+	assert_true(GFVariantData.get_option_bool(total_exact, "total_hard_limit_ok"))
 
 	var main_over: Dictionary = ArtifactVerifier.evaluate_package_budget(
 		ArtifactVerifier.MAIN_PACKAGE_HARD_LIMIT_BYTES + 1,
+		0,
 		0
 	)
 	assert_false(GFVariantData.get_option_bool(main_over, "main_hard_limit_ok", true))
 	assert_true(GFVariantData.get_option_bool(main_over, "total_hard_limit_ok"))
 
+	var engine_over: Dictionary = ArtifactVerifier.evaluate_package_budget(
+		0,
+		ArtifactVerifier.ENGINE_SUBPACKAGE_HARD_LIMIT_BYTES + 1,
+		0
+	)
+	assert_false(GFVariantData.get_option_bool(engine_over, "engine_hard_limit_ok", true))
+	assert_false(GFVariantData.get_option_bool(engine_over, "total_hard_limit_ok", true))
+
+	var game_data_over: Dictionary = ArtifactVerifier.evaluate_package_budget(
+		0,
+		0,
+		ArtifactVerifier.GAME_DATA_SUBPACKAGE_HARD_LIMIT_BYTES + 1
+	)
+	assert_false(GFVariantData.get_option_bool(
+		game_data_over,
+		"game_data_hard_limit_ok",
+		true
+	))
+	assert_false(GFVariantData.get_option_bool(game_data_over, "total_hard_limit_ok", true))
+
 	var total_over: Dictionary = ArtifactVerifier.evaluate_package_budget(
-		ArtifactVerifier.MAIN_PACKAGE_HARD_LIMIT_BYTES,
-		ArtifactVerifier.TOTAL_PACKAGE_HARD_LIMIT_BYTES -
-			ArtifactVerifier.MAIN_PACKAGE_HARD_LIMIT_BYTES + 1
+		0,
+		ArtifactVerifier.TOTAL_PACKAGE_HARD_LIMIT_BYTES / 2,
+		ArtifactVerifier.TOTAL_PACKAGE_HARD_LIMIT_BYTES / 2 + 1
 	)
 	assert_true(GFVariantData.get_option_bool(total_over, "main_hard_limit_ok"))
+	assert_true(GFVariantData.get_option_bool(total_over, "engine_hard_limit_ok"))
+	assert_true(GFVariantData.get_option_bool(total_over, "game_data_hard_limit_ok"))
 	assert_false(GFVariantData.get_option_bool(total_over, "total_hard_limit_ok", true))
 
 
@@ -317,6 +369,25 @@ func test_main_package_over_hard_limit_is_rejected() -> void:
 	assert_true(_has_issue(report, "main_package_hard_limit_exceeded:"))
 
 
+func test_each_subpackage_over_hard_limit_is_rejected() -> void:
+	var oversized_bytes: PackedByteArray = PackedByteArray()
+	assert_true(oversized_bytes.resize(
+		ArtifactVerifier.ENGINE_SUBPACKAGE_HARD_LIMIT_BYTES + 1
+	) == OK)
+	assert_true(_write_bytes("engine/godot.wasm.br", oversized_bytes))
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	var engine_report: Dictionary = verifier.verify_artifact(_FIXTURE_ROOT)
+	assert_true(_has_issue(engine_report, "engine_subpackage_hard_limit_exceeded:"))
+
+	assert_true(_create_valid_fixture())
+	assert_true(_write_bytes("game_data/2048-all-in-one.bin", oversized_bytes))
+	var game_data_report: Dictionary = verifier.verify_artifact(_FIXTURE_ROOT)
+	assert_true(_has_issue(
+		game_data_report,
+		"game_data_subpackage_hard_limit_exceeded:"
+	))
+
+
 func test_empty_configuration_objects_are_rejected() -> void:
 	assert_true(_write_text("project.config.json", "{}"))
 	assert_true(_write_text("game.json", "{}"))
@@ -325,7 +396,7 @@ func test_empty_configuration_objects_are_rejected() -> void:
 	assert_false(GFVariantData.get_option_bool(report, "ok", true))
 	assert_true(_has_issue(report, "project_compile_type_not_minigame"))
 	assert_true(_has_issue(report, "game_orientation_not_landscape"))
-	assert_true(_has_issue(report, "game_engine_subpackage_not_exact"))
+	assert_true(_has_issue(report, "game_subpackages_not_exact"))
 
 
 func test_project_config_is_rejected_before_parsing_when_oversized() -> void:
@@ -428,7 +499,7 @@ func test_missing_or_modified_chunk_loader_is_rejected() -> void:
 func test_chunk_loader_install_order_and_resource_sizes_are_enforced() -> void:
 	assert_true(_write_text(
 		"engine/game.js",
-		"GODOTSDK.startGame('/engine/godot', '/engine/2048-all-in-one.bin')\n" +
+		"GODOTSDK.startGame('/engine/godot', '/game_data/2048-all-in-one.bin')\n" +
 		"GameGlobal.WeChatChunkedFileLoader.installChunkedLocalFetch(" +
 		"GameGlobal.fsUtils, wx.getFileSystemManager(), {}, {chunkBytes: 4194304});\n"
 	))
@@ -462,12 +533,52 @@ func test_chunk_loader_rejects_wrong_chunk_size_and_manifest_paths() -> void:
 		"GameGlobal.WeChatChunkedFileLoader.installChunkedLocalFetch(" +
 		"GameGlobal.fsUtils, wx.getFileSystemManager(), chunkedResourceBytes, " +
 		"{chunkBytes: 10485760});\n" +
-		"GODOTSDK.startGame('/engine/godot', '/engine/2048-all-in-one.bin')\n"
+		"GODOTSDK.startGame('/engine/godot', '/game_data/2048-all-in-one.bin')\n"
 	))
 	var verifier: ArtifactVerifier = ArtifactVerifier.new()
 	var report: Dictionary = verifier.verify_artifact(_FIXTURE_ROOT)
 	assert_true(_has_issue(report, "chunk_loader_chunk_bytes_not_4194304"))
 	assert_true(_has_issue(report, "chunk_loader_manifest_paths_not_exact"))
+
+
+func test_subpackage_entry_markers_and_serial_load_order_are_enforced() -> void:
+	assert_true(_write_text("game_data/game.js", "fixture"))
+	assert_true(_write_text("engine/game.js", "fixture"))
+	assert_true(_write_text(
+		"godot-loader.js",
+		'loadPackage("engine","__godotEngineSubpackageEntryStarted",' +
+		'"engine/game.js",0.5,()=>{});\n' +
+		'loadPackage("game_data","__godotGameDataSubpackageEntryStarted",' +
+		'"game_data/game.js",0,()=>{});\n'
+	))
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	var report: Dictionary = verifier.verify_artifact(_FIXTURE_ROOT)
+	assert_true(_has_issue(report, "game_data_entry_marker_missing"))
+	assert_true(_has_issue(report, "engine_entry_marker_missing"))
+	assert_true(_has_issue(report, "root_loader_data_probe_missing"))
+	assert_true(_has_issue(report, "root_loader_subpackage_order_invalid"))
+
+
+func test_dynamic_binary_files_must_be_forced_into_upload_package() -> void:
+	assert_true(_write_text(
+		"project.config.json",
+		JSON.stringify({
+			"projectname": _PROJECT_NAME,
+			"compileType": "minigame",
+			"appid": "",
+			"packOptions": {"ignore": [], "include": []},
+		})
+	))
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	var report: Dictionary = verifier.verify_artifact(_FIXTURE_ROOT)
+	assert_true(_has_issue(
+		report,
+		"project_pack_include_missing:engine/godot.wasm.br"
+	))
+	assert_true(_has_issue(
+		report,
+		"project_pack_include_missing:game_data/2048-all-in-one.bin"
+	))
 
 
 func test_unpatched_or_fail_silent_wxmemfs_rename_is_rejected() -> void:
@@ -505,8 +616,12 @@ func _make_valid_export_report() -> Dictionary:
 	)
 	var files: PackedStringArray = _get_files(structural_report)
 	package["main_hard_limit_bytes"] = ArtifactVerifier.MAIN_PACKAGE_HARD_LIMIT_BYTES
+	package["engine_hard_limit_bytes"] = ArtifactVerifier.ENGINE_SUBPACKAGE_HARD_LIMIT_BYTES
+	package["game_data_hard_limit_bytes"] = ArtifactVerifier.GAME_DATA_SUBPACKAGE_HARD_LIMIT_BYTES
 	package["total_hard_limit_bytes"] = ArtifactVerifier.TOTAL_PACKAGE_HARD_LIMIT_BYTES
 	package["main_soft_limit_bytes"] = ArtifactVerifier.MAIN_PACKAGE_SOFT_LIMIT_BYTES
+	package["engine_soft_limit_bytes"] = ArtifactVerifier.ENGINE_SUBPACKAGE_SOFT_LIMIT_BYTES
+	package["game_data_soft_limit_bytes"] = ArtifactVerifier.GAME_DATA_SUBPACKAGE_SOFT_LIMIT_BYTES
 	package["total_soft_limit_bytes"] = ArtifactVerifier.TOTAL_PACKAGE_SOFT_LIMIT_BYTES
 	package["file_count"] = files.size()
 	package["files"] = files
@@ -640,30 +755,53 @@ func _create_valid_fixture() -> bool:
 		_valid_loader_text(7, 7)
 	):
 		return false
+	if not _write_text(
+		"game_data/game.js",
+		"GameGlobal.__godotGameDataSubpackageEntryStarted = true;\n"
+	):
+		return false
+	if not _write_text("godot-loader.js", _valid_root_loader_text()):
+		return false
 	if not _write_project_config(""):
 		return false
 	return _write_text(
 		"game.json",
 		JSON.stringify({
 			"deviceOrientation": "landscape",
-			"subpackages": [{"name": "engine", "root": "engine/"}],
+		"subpackages": [
+				{"name": "game_data", "root": "game_data/"},
+				{"name": "engine", "root": "engine/"},
+			],
 		})
 	)
 
 
 func _valid_loader_text(wasm_bytes: int, pack_bytes: int) -> String:
 	return (
+		"GameGlobal.__godotEngineSubpackageEntryStarted = true;\n" +
 		"import './wechat-chunked-file-loader'\n" +
 		"const chunkedResourceBytes = Object.freeze(" +
 		JSON.stringify({
 			"/engine/godot.wasm.br": wasm_bytes,
-			"/engine/2048-all-in-one.bin": pack_bytes,
+			"/game_data/2048-all-in-one.bin": pack_bytes,
 		}) +
 		");\n" +
 		"GameGlobal.WeChatChunkedFileLoader.installChunkedLocalFetch(" +
 		"GameGlobal.fsUtils, wx.getFileSystemManager(), chunkedResourceBytes, " +
 		"{chunkBytes: 4194304});\n" +
-		"GODOTSDK.startGame('/engine/godot', '/engine/2048-all-in-one.bin')\n"
+		"GODOTSDK.startGame('/engine/godot', '/game_data/2048-all-in-one.bin')\n"
+	)
+
+
+func _valid_root_loader_text() -> String:
+	return (
+		'loadPackage("game_data","__godotGameDataSubpackageEntryStarted",' +
+		'"game_data/game.js",0,()=>{\n' +
+		"probeGameData(()=>{\n" +
+		'loadPackage("engine","__godotEngineSubpackageEntryStarted",' +
+		'"engine/game.js",0.5,()=>{});\n' +
+		"});\n" +
+		"});\n"
 	)
 
 
@@ -688,6 +826,16 @@ func _write_project_config(
 			"projectname": project_name,
 			"compileType": "minigame",
 			"appid": app_id,
+			"packOptions": {
+				"ignore": [],
+				"include": [
+					{"type": "file", "value": "engine/godot.wasm.br"},
+					{
+						"type": "file",
+						"value": "game_data/2048-all-in-one.bin",
+					},
+				],
+			},
 		})
 	)
 
@@ -701,8 +849,12 @@ func _refresh_artifact_and_package_evidence(export_report: Dictionary) -> void:
 	)
 	var files: PackedStringArray = _get_files(structural_report)
 	package["main_hard_limit_bytes"] = ArtifactVerifier.MAIN_PACKAGE_HARD_LIMIT_BYTES
+	package["engine_hard_limit_bytes"] = ArtifactVerifier.ENGINE_SUBPACKAGE_HARD_LIMIT_BYTES
+	package["game_data_hard_limit_bytes"] = ArtifactVerifier.GAME_DATA_SUBPACKAGE_HARD_LIMIT_BYTES
 	package["total_hard_limit_bytes"] = ArtifactVerifier.TOTAL_PACKAGE_HARD_LIMIT_BYTES
 	package["main_soft_limit_bytes"] = ArtifactVerifier.MAIN_PACKAGE_SOFT_LIMIT_BYTES
+	package["engine_soft_limit_bytes"] = ArtifactVerifier.ENGINE_SUBPACKAGE_SOFT_LIMIT_BYTES
+	package["game_data_soft_limit_bytes"] = ArtifactVerifier.GAME_DATA_SUBPACKAGE_SOFT_LIMIT_BYTES
 	package["total_soft_limit_bytes"] = ArtifactVerifier.TOTAL_PACKAGE_SOFT_LIMIT_BYTES
 	package["file_count"] = files.size()
 	package["files"] = files

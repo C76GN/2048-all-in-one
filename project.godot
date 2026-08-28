@@ -157,6 +157,9 @@ save_bookmark={
 [internationalization]
 
 locale/translations=PackedStringArray("res://shared/assets/translations.en.translation", "res://shared/assets/translations.zh.translation")
+locale/translations.wechat_minigame_release=PackedStringArray()
+locale/include_text_server_data=true
+locale/include_text_server_data.wechat_minigame_release=false
 
 [rendering]
 
