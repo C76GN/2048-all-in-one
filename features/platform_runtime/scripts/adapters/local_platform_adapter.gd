@@ -10,6 +10,10 @@ extends GamePlatformAdapter
 const ADAPTER_ID: StringName = &"platform.adapter.godot_local"
 const PLATFORM_WECHAT_MINIGAME: StringName = &"wechat_minigame"
 const PLATFORM_WEB: StringName = &"web"
+const _WECHAT_MINIGAME_FEATURE: String = "wechat_minigame"
+const _WECHAT_MINIGAME_RELEASE_FEATURE: String = "wechat_minigame_release"
+const _WECHAT_MINIGAME_SMOKE_FEATURE: String = "wechat_minigame_smoke"
+const _WEB_FEATURE: String = "web"
 const _FALLBACK_LOCALE: String = "en"
 
 
@@ -31,6 +35,34 @@ func _init() -> void:
 
 
 # --- 公共方法 ---
+
+## 按已经投影出的宿主 feature 事实解析规范平台标识。
+##
+## 该纯函数让正式微信构建的 custom feature 可以在无宿主 mock 的测试中验证，
+## 同时确保微信正式版即使也携带 web feature，仍优先采用微信平台契约。
+## @param has_wechat_minigame: 宿主是否提供通用微信小游戏 feature。
+## @param has_wechat_minigame_release: 是否为微信小游戏正式构建。
+## @param has_wechat_minigame_smoke: 是否为微信小游戏冒烟构建。
+## @param has_web: 宿主是否提供 Godot web feature。
+## @param os_name: 非微信、非 Web 宿主的 Godot OS 名称。
+## @return 规范平台标识。
+static func resolve_platform_id(
+	has_wechat_minigame: bool,
+	has_wechat_minigame_release: bool,
+	has_wechat_minigame_smoke: bool,
+	has_web: bool,
+	os_name: String
+) -> StringName:
+	if (
+		has_wechat_minigame
+		or has_wechat_minigame_release
+		or has_wechat_minigame_smoke
+	):
+		return PLATFORM_WECHAT_MINIGAME
+	if has_web:
+		return PLATFORM_WEB
+	return StringName(os_name.to_snake_case())
+
 
 func is_available() -> bool:
 	return true
@@ -175,11 +207,13 @@ func _set_clipboard_text(text: String) -> void:
 
 
 func _detect_platform_id() -> StringName:
-	if OS.has_feature("wechat_minigame") or OS.has_feature("wechat_minigame_smoke"):
-		return PLATFORM_WECHAT_MINIGAME
-	if OS.has_feature("web"):
-		return PLATFORM_WEB
-	return StringName(OS.get_name().to_snake_case())
+	return resolve_platform_id(
+		OS.has_feature(_WECHAT_MINIGAME_FEATURE),
+		OS.has_feature(_WECHAT_MINIGAME_RELEASE_FEATURE),
+		OS.has_feature(_WECHAT_MINIGAME_SMOKE_FEATURE),
+		OS.has_feature(_WEB_FEATURE),
+		OS.get_name()
+	)
 
 
 func _get_platform_display_name(platform_id: StringName) -> String:

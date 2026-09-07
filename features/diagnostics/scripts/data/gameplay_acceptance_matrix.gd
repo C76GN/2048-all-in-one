@@ -66,6 +66,24 @@ const _CASES: Array[Dictionary] = [
 		&"minimum_samples": 120,
 		&"minimum_touch_target_px": 0.0,
 	},
+	# 1280x720 是当前 16:9 微信目标机实际观测的根 Viewport 逻辑尺寸；
+	# canvas_items/expand 在其他宽高比会得到不同尺寸，必须另建精确匹配用例。
+	{
+		&"id": &"wechat_touch_default",
+		&"platform": &"wechat",
+		&"input_modality": InputModality.TOUCH,
+		&"viewport_size": Vector2i(1280, 720),
+		&"prefer_compact": true,
+		&"expected_layout": GameplayResponsiveLayoutController.LayoutMode.COMPACT_LANDSCAPE,
+		&"board_bounds": Vector2i(4, 4),
+		&"active_cell_count": 16,
+		&"shape": &"rectangle",
+		&"vfx_quality": GameAccessibilityState.VfxQuality.MINIMAL,
+		&"frame_p95_budget_ms": 25.0,
+		&"input_feedback_p95_budget_ms": 50.0,
+		&"minimum_samples": 120,
+		&"minimum_touch_target_px": 44.0,
+	},
 	{
 		&"id": &"wechat_touch_landscape",
 		&"platform": &"wechat",

@@ -2307,6 +2307,146 @@ func test_high_frequency_sections_coalesce_into_one_async_profile_write() -> voi
 	_dispose_setup(setup)
 
 
+func test_configured_profile_save_debounce_coalesces_continuous_updates() -> void:
+	var setup: Dictionary = await _create_persistence_architecture()
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	var baseline_profile_state: Dictionary = GFVariantData.get_option_dictionary(
+		save_graph.get_debug_snapshot(),
+		&"profile_state"
+	)
+	var baseline_generation: int = GFVariantData.get_option_int(
+		baseline_profile_state,
+		&"generation"
+	)
+	var completion_counter: Dictionary = {"value": 0}
+	var _completion_connection: int = save_graph.profile_save_completed.connect(
+		func(_error: Error) -> void:
+			completion_counter["value"] = GFVariantData.get_option_int(
+				completion_counter,
+				"value"
+			) + 1
+	)
+	save_graph.profile_save_debounce_seconds = 1.0
+
+	for _update_index: int in range(3):
+		assert_true(
+			save_graph.queue_section_data(
+				GameSaveGraphUtility.PROGRESS_SECTION_ID,
+				_make_empty_progress_data()
+			) == OK
+		)
+		save_graph.tick(0.18)
+		architecture.tick(0.0)
+
+	var active_snapshot: Dictionary = save_graph.get_debug_snapshot()
+	assert_true(
+		GFVariantData.get_option_int(
+			GFVariantData.get_option_dictionary(active_snapshot, &"profile_state"),
+			&"generation"
+		) == baseline_generation,
+		"连续出招期间每次更新都应重置静默窗口，不得每步创建物理 generation。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(completion_counter, "value") == 0,
+		"一秒静默窗口结束前不得完成物理 Profile 写。"
+	)
+
+	save_graph.tick(0.81)
+	architecture.tick(0.0)
+	assert_true(
+		GFVariantData.get_option_int(completion_counter, "value") == 0,
+		"累计静默 0.99 秒仍应保持合并状态。"
+	)
+	save_graph.tick(0.02)
+	architecture.tick(0.0)
+	storage.wait_for_async_tasks()
+	architecture.tick(0.0)
+	var completed_profile_state: Dictionary = GFVariantData.get_option_dictionary(
+		save_graph.get_debug_snapshot(),
+		&"profile_state"
+	)
+	assert_true(
+		GFVariantData.get_option_int(completion_counter, "value") == 1,
+		"持续更新结束后只应提交一次合并后的 Profile。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(completed_profile_state, &"generation")
+		== baseline_generation + 1,
+		"合并窗口只能创建一个新 generation。"
+	)
+
+	_dispose_setup(setup)
+
+
+func test_profile_save_max_staleness_flushes_during_continuous_updates() -> void:
+	var setup: Dictionary = await _create_persistence_architecture()
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	var baseline_profile_state: Dictionary = GFVariantData.get_option_dictionary(
+		save_graph.get_debug_snapshot(),
+		&"profile_state"
+	)
+	var baseline_generation: int = GFVariantData.get_option_int(
+		baseline_profile_state,
+		&"generation"
+	)
+	var completion_counter: Dictionary = {"value": 0}
+	var _completion_connection: int = save_graph.profile_save_completed.connect(
+		func(_error: Error) -> void:
+			completion_counter["value"] = GFVariantData.get_option_int(
+				completion_counter,
+				"value"
+			) + 1
+	)
+	save_graph.profile_save_debounce_seconds = 2.5
+	save_graph.profile_save_max_staleness_seconds = 1.0
+
+	for update_index: int in range(4):
+		assert_true(
+			save_graph.queue_section_data(
+				GameSaveGraphUtility.PROGRESS_SECTION_ID,
+				_make_empty_progress_data()
+			) == OK
+		)
+		save_graph.tick(0.26)
+		architecture.tick(0.0)
+		if update_index < 3:
+			assert_true(
+				GFVariantData.get_option_int(completion_counter, "value") == 0,
+				"最长驻留时间到达前，连续更新仍应留在同一个待写 generation。"
+			)
+
+	storage.wait_for_async_tasks()
+	architecture.tick(0.0)
+	var completed_snapshot: Dictionary = save_graph.get_debug_snapshot()
+	var completed_profile_state: Dictionary = GFVariantData.get_option_dictionary(
+		completed_snapshot,
+		&"profile_state"
+	)
+	assert_true(
+		GFVariantData.get_option_int(completion_counter, "value") == 1,
+		"即使静默窗口持续被重置，最大驻留上限也必须只提交一次最新状态。"
+	)
+	assert_true(
+		GFVariantData.get_option_int(completed_profile_state, &"generation")
+		== baseline_generation + 1,
+		"最大驻留提交只能创建一个新 generation。"
+	)
+	assert_false(GFVariantData.get_option_bool(completed_snapshot, &"save_pending"))
+	assert_true(
+		GFVariantData.get_option_float(
+			completed_snapshot,
+			&"save_pending_elapsed_seconds",
+			-1.0
+		) == 0.0,
+		"提交后必须清空最长驻留计时。"
+	)
+	_dispose_setup(setup)
+
+
 func test_bookmark_save_submission_keeps_synchronous_work_bounded() -> void:
 	var setup: Dictionary = await _create_persistence_architecture("", true)
 	var bookmark_system: BookmarkSystem = _get_bookmark_system(setup)

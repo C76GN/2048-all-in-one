@@ -43,6 +43,43 @@ func test_project_defaults_register_independent_audio_bus_volumes() -> void:
 	)
 
 
+func test_project_defaults_accept_platform_visual_quality_defaults() -> void:
+	var desktop_settings: GameSettingsUtility = GameSettingsUtility.new()
+	desktop_settings.persistence_enabled = false
+	desktop_settings.register_project_defaults()
+	assert_true(
+		GFVariantData.to_bool(desktop_settings.get_value(
+			GameAccessibilityState.SHADER_EFFECTS_ENABLED_SETTING_KEY
+		)),
+		"无参注册必须保留桌面完整表现默认值。"
+	)
+	assert_true(
+		GFVariantData.to_int(desktop_settings.get_value(
+			GameAccessibilityState.VFX_QUALITY_SETTING_KEY
+		)) == GameAccessibilityState.VfxQuality.FULL,
+		"无参注册必须继续使用完整 VFX 档。"
+	)
+
+	var constrained_settings: GameSettingsUtility = GameSettingsUtility.new()
+	constrained_settings.persistence_enabled = false
+	constrained_settings.register_project_defaults(
+		false,
+		GameAccessibilityState.VfxQuality.MINIMAL
+	)
+	assert_false(
+		GFVariantData.to_bool(constrained_settings.get_value(
+			GameAccessibilityState.SHADER_EFFECTS_ENABLED_SETTING_KEY
+		)),
+		"受限平台首次启动应允许默认卸载持续 Shader。"
+	)
+	assert_true(
+		GFVariantData.to_int(constrained_settings.get_value(
+			GameAccessibilityState.VFX_QUALITY_SETTING_KEY
+		)) == GameAccessibilityState.VfxQuality.MINIMAL,
+		"受限平台首次启动应允许采用最小 VFX 预算。"
+	)
+
+
 func test_storage_recovery_policy_only_resets_physical_format_failures() -> void:
 	var envelope_failure: GFStorageReadResult = GFStorageReadResult.new().configure_failure(
 		"Storage document envelope missing or malformed",

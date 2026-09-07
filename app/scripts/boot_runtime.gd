@@ -66,6 +66,41 @@ func _exit_tree() -> void:
 	_finish_startup_diagnostics(false, &"owner_exited")
 
 
+# --- 公共方法 ---
+
+## 按当前有效表现预算过滤项目显式声明的 Shader 预热条目。
+##
+## 转场与 UI 焦点始终保留；只有已经被预算关闭的持续背景和庆祝 Shader 会跳过。
+## @param entries: GFRenderWarmupManifest 规范条目。
+## @param feedback_budget: 当前设置解析出的统一表现预算；无效时退回完整档。
+## @return 可安全追加到临时预热清单的规范条目副本。
+static func filter_startup_render_warmup_entries(
+	entries: Array[Dictionary],
+	feedback_budget: GameFeedbackBudget
+) -> Array[Dictionary]:
+	var effective_budget: GameFeedbackBudget = feedback_budget
+	if effective_budget == null or not effective_budget.is_valid_budget():
+		effective_budget = GameFeedbackPerformanceMatrix.resolve(null)
+
+	var filtered_entries: Array[Dictionary] = []
+	for entry: Dictionary in entries:
+		var normalized_entry: Dictionary = GFRenderWarmupManifest.normalize_entry(entry)
+		var entry_metadata: Dictionary = GFVariantData.get_option_dictionary(
+			normalized_entry,
+			"metadata"
+		)
+		var role: StringName = GFVariantData.get_option_string_name(
+			entry_metadata,
+			"role"
+		)
+		if role == &"background" and not effective_budget.background_shader_enabled:
+			continue
+		if role == &"celebration" and not effective_budget.celebration_shader_enabled:
+			continue
+		filtered_entries.append(normalized_entry)
+	return filtered_entries
+
+
 # --- 私有/辅助方法 ---
 
 func _run_startup_sequence() -> void:
@@ -238,9 +273,13 @@ func _prime_gameplay_visuals() -> void:
 		return
 	var warmup: GameplayVisualWarmup = warmup_value
 	var theme_utility: GameThemeUtility = _get_theme_utility()
+	var feedback_budget: GameFeedbackBudget = _get_current_feedback_budget()
 	if (
 		not is_instance_valid(theme_utility)
-		or not warmup.configure(theme_utility.get_current_visual_theme())
+		or not warmup.configure(
+			theme_utility.get_current_visual_theme(),
+			feedback_budget
+		)
 	):
 		push_error("[Boot] 游戏视觉预热无法绑定当前已激活主题。")
 		return
@@ -248,7 +287,7 @@ func _prime_gameplay_visuals() -> void:
 	_visual_warmup.name = "GameplayVisualWarmup"
 	add_child(_visual_warmup)
 	_visual_warmup.prime()
-	_prime_render_resources(_visual_warmup)
+	_prime_render_resources(_visual_warmup, feedback_budget)
 	await RenderingServer.frame_post_draw
 	_release_visual_warmup()
 
@@ -540,7 +579,10 @@ func _release_visual_warmup() -> void:
 	_visual_warmup = null
 
 
-func _prime_render_resources(warmup_root: Node) -> void:
+func _prime_render_resources(
+	warmup_root: Node,
+	feedback_budget: GameFeedbackBudget
+) -> void:
 	var render_warmup: GFRenderWarmupUtility = _get_render_warmup_utility()
 	if not is_instance_valid(render_warmup):
 		push_error("[Boot] 缺少 GFRenderWarmupUtility，无法执行启动渲染预热。")
@@ -555,7 +597,14 @@ func _prime_render_resources(warmup_root: Node) -> void:
 			"include_textures": true,
 		}
 	)
-	var _appended_entries: int = manifest.append_manifest(_STARTUP_RENDER_WARMUP_MANIFEST)
+	var startup_manifest: GFRenderWarmupManifest = GFRenderWarmupManifest.new()
+	startup_manifest.manifest_id = _STARTUP_RENDER_WARMUP_MANIFEST.manifest_id
+	startup_manifest.metadata = _STARTUP_RENDER_WARMUP_MANIFEST.metadata.duplicate(true)
+	startup_manifest.entries = filter_startup_render_warmup_entries(
+		_STARTUP_RENDER_WARMUP_MANIFEST.get_entries(),
+		feedback_budget
+	)
+	var _appended_entries: int = manifest.append_manifest(startup_manifest)
 	var summary: Dictionary = render_warmup.warmup_manifest_now(
 		manifest,
 		{
@@ -567,7 +616,6 @@ func _prime_render_resources(warmup_root: Node) -> void:
 	)
 	if not GFVariantData.get_option_bool(summary, "ok", false):
 		push_error("[Boot] 启动渲染预热存在失败条目：%s" % summary)
-
 
 func _play_startup_outro() -> void:
 	var boot_shell: Boot = _get_boot_shell()
@@ -620,6 +668,24 @@ func _get_theme_utility() -> GameThemeUtility:
 		var theme_utility: GameThemeUtility = utility_value
 		return theme_utility
 	return null
+
+
+func _get_accessibility_utility() -> GameAccessibilityUtility:
+	var utility_value: Object = Gf.get_utility(GameAccessibilityUtility)
+	if utility_value is GameAccessibilityUtility:
+		var accessibility: GameAccessibilityUtility = utility_value
+		return accessibility
+	return null
+
+
+func _get_current_feedback_budget() -> GameFeedbackBudget:
+	var accessibility: GameAccessibilityUtility = _get_accessibility_utility()
+	var state: GameAccessibilityState = (
+		accessibility.get_state()
+		if is_instance_valid(accessibility)
+		else GameAccessibilityState.new()
+	)
+	return GameFeedbackPerformanceMatrix.resolve(state)
 
 
 func _get_operation_diagnostics_utility() -> GFOperationDiagnosticsUtility:

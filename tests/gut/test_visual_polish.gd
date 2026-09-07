@@ -333,6 +333,56 @@ func test_gameplay_visual_warmup_uses_active_theme_and_draws_transition_material
 	)
 
 
+func test_gameplay_visual_warmup_uses_minimal_budget_without_dropping_transitions() -> void:
+	var minimal_state: GameAccessibilityState = GameAccessibilityState.new()
+	minimal_state.vfx_quality = GameAccessibilityState.VfxQuality.MINIMAL
+	minimal_state.shader_effects_enabled = false
+	var minimal_budget: GameFeedbackBudget = GameFeedbackPerformanceMatrix.resolve(
+		minimal_state
+	)
+	var warmup_value: Object = _GAMEPLAY_VISUAL_WARMUP_SCRIPT.new()
+	assert_true(warmup_value is GameplayVisualWarmup)
+	if not warmup_value is GameplayVisualWarmup:
+		return
+	var warmup: GameplayVisualWarmup = warmup_value
+	add_child_autoqfree(warmup)
+	assert_true(warmup.configure(_HALFTONE_GAME_THEME, minimal_budget))
+	warmup.prime()
+
+	var transition_probe_count: int = 0
+	for child: Node in warmup.get_children():
+		if child is ColorRect and (child as ColorRect).material is ShaderMaterial:
+			transition_probe_count += 1
+	assert_true(
+		transition_probe_count == 2,
+		"MINIMAL 仍必须真实预热 cover/reveal 转场材质。"
+	)
+
+	var feedback_value: Node = warmup.get_node_or_null("FeedbackWarmup")
+	assert_true(feedback_value is BoardFeedbackCanvas)
+	if not feedback_value is BoardFeedbackCanvas:
+		return
+	var feedback_canvas: BoardFeedbackCanvas = feedback_value
+	assert_true(
+		GFVariantData.to_int(feedback_canvas.get("_turn_fragment_count"))
+		== mini(
+			_HALFTONE_GAME_THEME.board_feedback_profile.high_merge_recipe.edge_fragment_count,
+			minimal_budget.max_edge_fragments
+		),
+		"视觉预热的回合碎片数必须消费当前 MINIMAL 硬预算。"
+	)
+	var merge_bursts: Array = feedback_canvas.get("_merge_bursts")
+	assert_true(merge_bursts.size() == 1)
+	if merge_bursts.size() == 1 and merge_bursts[0] is Object:
+		var burst: Object = merge_bursts[0]
+		assert_almost_eq(
+			GFVariantData.to_float(burst.get("motion_scale")),
+			minimal_budget.motion_scale,
+			0.0001,
+			"视觉预热的 burst 必须使用当前 MINIMAL 位移倍率。"
+		)
+
+
 func test_main_menu_board_motif_uses_neutral_palette_without_dense_patterns() -> void:
 	var motif_source: String = _read_text(_MAIN_MENU_BOARD_MOTIF_PATH)
 

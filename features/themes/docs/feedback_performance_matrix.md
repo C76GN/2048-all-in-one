@@ -56,12 +56,13 @@
 | Steam 桌面，1920x1080 | 4x4 常规对局，`FULL` | P95 不高于 16.667 ms | 有效输入到首个主要反馈 P95 小于 50 ms |
 | Steam 手柄，1280x720 | 32x32 边界、256 个有效格的不规则棋盘，`FULL` | P95 不高于 16.667 ms | 手柄输入到首个主要反馈 P95 小于 50 ms |
 | Web，960x540 | 12x8 长方形棋盘，`REDUCED` | P95 不高于 20 ms | 键鼠输入到首个主要反馈 P95 小于 50 ms |
-| 微信小游戏横屏，1280x720 | 12x8 边界、72 个有效格，`REDUCED` | P95 不高于 25 ms | 触控目标不小于 44px，首反馈 P95 小于 50 ms |
+| 微信小游戏默认 16:9 目标机（根 Viewport 实测 1280x720） | 4x4 常规对局，正式默认 `MINIMAL` | P95 不高于 25 ms | 触控目标不小于 44px，首个绘制反馈 P95 小于 50 ms |
+| 微信小游戏横屏压力场景，1280x720 | 12x8 边界、72 个有效格，`REDUCED` | P95 不高于 25 ms | 触控目标不小于 44px，首个绘制反馈 P95 小于 50 ms |
 | 手机竖屏，390x844 | 6x10 边界、48 个有效格，`REDUCED` | P95 不高于 25 ms | 触控目标不小于 44px，首反馈 P95 小于 50 ms |
 | 低端移动端，360x640 | 20x30 边界、180 个有效格的稀疏棋盘，`MINIMAL` | P95 不高于 33.3 ms | 保留文字、轮廓和声音的语义可读性 |
 
 正式报告至少记录 P50、P95、P99 帧时、首反馈延迟、单帧峰值、对象池峰值/耗尽次数和活动 Action 数。帧时与首反馈延迟使用 `GFMetricSeries`，矩阵契约通过 `GameDiagnosticsUtility` 进入 GF Diagnostics 和 Support Report，尚无实测时明确输出 `measurement_status = not_measured`。只有 profiling 证明收益后，才允许引入 dirty-cell 或其他额外复杂度。
 
-运行时证据默认关闭，并复用设置页的“本地性能轨迹”显式同意。开发 Console 通过 `acceptance.begin <case_id> <observed JSON object>` 开始窗口；JSON 必须完整声明平台、输入方式、根视口、紧凑布局偏好、棋盘边界、有效格数量、形态和 VFX 档位，触控用例还必须声明实际最小触控目标。矩阵逐字段匹配后只保留这份脱敏白名单，额外字段不会进入内存或支持报告，自动回放会直接拒绝验收窗口，不能冒充玩家输入。`BoardWorldViewportController` 只在对局视图已经初始化时标记玩家可见帧边界，`GamePerformanceTraceUtility` 用共享 `GFClock` 的相邻单调 tick 计算真实墙钟帧间隔，避免把受 `Engine.time_scale` 影响的游戏 delta 当成帧时；首反馈只取 `BoardAnimationAction.execute()` 已开始的既有移动阶段指标，禁止用微基准或入队时间冒充玩家反馈。
+运行时证据默认关闭，并复用设置页的“本地性能轨迹”显式同意。开发 Console 通过 `acceptance.begin <case_id> <observed JSON object>` 开始窗口；JSON 必须完整声明平台、输入方式、根视口、紧凑布局偏好、棋盘边界、有效格数量、形态和 VFX 档位，触控用例还必须声明实际最小触控目标。矩阵逐字段匹配后只保留这份脱敏白名单，额外字段不会进入内存或支持报告，自动回放会直接拒绝验收窗口，不能冒充玩家输入。`wechat_touch_default` 只覆盖当前 16:9 目标机观测到的 1280x720 根 Viewport；项目使用 `canvas_items/expand`，其他设备宽高比必须按 `get_visible_rect()` 的实际逻辑尺寸新增并精确匹配用例，不能沿用本用例签署。`BoardWorldViewportController` 只在对局视图已经初始化时标记玩家可见帧边界，`GamePerformanceTraceUtility` 用共享 `GFClock` 的相邻单调 tick 计算真实墙钟帧间隔，避免把受 `Engine.time_scale` 影响的游戏 delta 当成帧时；输入延迟从触控进入项目且尚未调用 GF virtual pulse，或键盘/手柄触发 GF `action_started` 的时刻开始，经 `PlayerInputSystem` 和移动尝试贯穿同步回合计算。`BoardAnimationAction` 提交首批可见状态后只挂接一次 `RenderingServer.frame_post_draw`，下一次实际绘制完成才写入首反馈样本；音频可独立播放，但不能提前结束视觉指标。没有真实输入收据、动作无效、场景退出或迟到绘制时不会产出可签署样本。
 
 两条 `GFMetricSeries` 各自最多保留 256 个样本，与既有 96 条 / 96 KiB 的 GF Session Trace 预算独立。执行 `acceptance.end` 后才允许矩阵签署结论：没有窗口为 `not_measured`；采样尚在进行、少于 120 个样本或视口等条件中途漂移为 `partial`，并输出规范原因；只有窗口终结、条件仍匹配且两条序列均达到样本门槛时为 `evaluated`。撤回同意、新对局和 Utility dispose 会清空 Observation 与两条序列，不允许跨会话拼接证据。

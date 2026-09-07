@@ -20,6 +20,9 @@ func _run() -> void:
 	var compatibility_report: Dictionary = (
 		harness.verify_checkpoint_hash_compatibility()
 	)
+	var full_turn_report: Dictionary = await (
+		harness.benchmark_classic_4x4_full_turn()
+	)
 	var lifecycle_report: Dictionary = await harness.run_lifecycle_plateau(host)
 	host.queue_free()
 	await process_frame
@@ -27,10 +30,12 @@ func _run() -> void:
 		&"passed": (
 			GFVariantData.get_option_bool(checkpoint_report, &"passed")
 			and GFVariantData.get_option_bool(compatibility_report, &"passed")
+			and GFVariantData.get_option_bool(full_turn_report, &"passed")
 			and GFVariantData.get_option_bool(lifecycle_report, &"passed")
 		),
 		&"checkpoint": checkpoint_report,
 		&"hash_compatibility": compatibility_report,
+		&"classic_4x4_full_turn": full_turn_report,
 		&"lifecycle_plateau": lifecycle_report,
 	}
 	print("Game performance acceptance: %s" % JSON.stringify(report))

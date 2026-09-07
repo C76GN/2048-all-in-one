@@ -39,12 +39,15 @@ const CUSTOM_BOARDS_SECTION_ID: StringName = &"custom_boards"
 const DISCOVERIES_SECTION_ID: StringName = &"discoveries"
 const ACHIEVEMENTS_SECTION_ID: StringName = &"achievements"
 const REPLAYS_SECTION_ID: StringName = &"replays"
+## 桌面端默认的高频 section 静默合并窗口。
+const DEFAULT_PROFILE_SAVE_DEBOUNCE_SECONDS: float = 0.16
+## 默认不强制周期提交；受限平台可显式设置连续更新的最长脏数据驻留时间。
+const DEFAULT_PROFILE_SAVE_MAX_STALENESS_SECONDS: float = 0.0
 
 const _RECOVERY_DIRECTORY: String = "recovery"
 const _REJECTED_PROFILE_ID: StringName = &"project.rejected_profile"
 const _PROJECT_VERSION_SETTING: String = "application/config/version"
 const _LOG_TAG: String = "GameSaveGraphUtility"
-const _ASYNC_SAVE_DEBOUNCE_SECONDS: float = 0.16
 const _LIFECYCLE_PRIORITY: int = -100
 const _PROFILE_IO_TIMEOUT_MSEC: int = 5_000
 const _PROFILE_DELETE_TIMEOUT_MSEC: int = 5_000
@@ -67,6 +70,31 @@ enum SectionOrder {
 	NORMAL,
 	LATE,
 }
+
+
+# --- 公共变量 ---
+
+## 高频 section 更新形成物理 GFSaveProfile generation 前的静默窗口。
+## 平台 Composition Root 可在实例注册前提高该值；后台与 quiesce 冲刷不受影响。
+var profile_save_debounce_seconds: float = DEFAULT_PROFILE_SAVE_DEBOUNCE_SECONDS:
+	set(value):
+		profile_save_debounce_seconds = (
+			clampf(value, 0.0, 10.0)
+			if is_finite(value)
+			else DEFAULT_PROFILE_SAVE_DEBOUNCE_SECONDS
+		)
+
+## 连续更新始终重置静默窗口时，允许脏 generation 驻留的最长秒数。
+## 0 表示禁用上限；后台、quiesce 与显式 flush 仍立即冲刷。
+var profile_save_max_staleness_seconds: float = (
+	DEFAULT_PROFILE_SAVE_MAX_STALENESS_SECONDS
+):
+	set(value):
+		profile_save_max_staleness_seconds = (
+			clampf(value, 0.0, 60.0)
+			if is_finite(value)
+			else DEFAULT_PROFILE_SAVE_MAX_STALENESS_SECONDS
+		)
 
 
 # --- 私有变量 ---
@@ -97,6 +125,7 @@ var _last_load_result: Dictionary = {}
 var _last_save_result: Dictionary = {}
 var _profile_save_pending: bool = false
 var _profile_save_wait_seconds: float = 0.0
+var _profile_save_pending_elapsed_seconds: float = 0.0
 ## outcome-unknown chunk scope 暂停接纳主保存时保留的 dirty 意图。
 ##
 ## 只在 exact fence settlement 信号后重臂一次 debounce；不能在 tick 中反复
@@ -224,13 +253,26 @@ func tick(delta: float = 0.0) -> void:
 		# pending，等新 Profile 确认激活后再开始 debounce，不能在 tick 中
 		# 篡改 transition 锁或把更新写进尚未提交的目标 Profile。
 		if not _is_profile_transition_in_progress():
-			_profile_save_wait_seconds += maxf(delta, 0.0)
-			if _profile_save_wait_seconds >= _ASYNC_SAVE_DEBOUNCE_SECONDS:
-				_profile_save_pending = false
-				_profile_save_wait_seconds = 0.0
+			var elapsed_delta: float = maxf(delta, 0.0)
+			_profile_save_wait_seconds += elapsed_delta
+			_profile_save_pending_elapsed_seconds += elapsed_delta
+			var quiet_window_elapsed: bool = (
+				_profile_save_wait_seconds >= profile_save_debounce_seconds
+			)
+			var maximum_staleness_elapsed: bool = (
+				profile_save_max_staleness_seconds > 0.0
+				and _profile_save_pending_elapsed_seconds
+					>= profile_save_max_staleness_seconds
+			)
+			if quiet_window_elapsed or maximum_staleness_elapsed:
+				_clear_profile_save_pending()
 				var _operation: GFSaveProfileOperation = (
 					_request_save_active_profile({
-						&"reason": "debounced_feature_update",
+						&"reason": (
+							"maximum_staleness_feature_update"
+							if maximum_staleness_elapsed
+							else "debounced_feature_update"
+						),
 					})
 				)
 	_try_advance_quiesce()
@@ -309,8 +351,7 @@ func dispose() -> void:
 	_default_section_payloads.clear()
 	_last_load_result.clear()
 	_last_save_result.clear()
-	_profile_save_pending = false
-	_profile_save_wait_seconds = 0.0
+	_clear_profile_save_pending()
 	_chunk_save_parked = false
 	_platform_backgrounded = false
 	_profile_file_name = PROFILE_FILE_NAME
@@ -891,8 +932,7 @@ func queue_sections_data(sections: Dictionary) -> Error:
 	if apply_error != OK:
 		return apply_error
 	_mark_profile_sections_changed(applied_keys)
-	_profile_save_pending = true
-	_profile_save_wait_seconds = 0.0
+	_arm_profile_save_pending()
 	profile_save_queued.emit()
 	return OK
 
@@ -972,6 +1012,10 @@ func get_debug_snapshot() -> Dictionary:
 		&"last_load": _last_load_result.duplicate(true),
 		&"last_save": _last_save_result.duplicate(true),
 		&"save_pending": _profile_save_pending,
+		&"save_debounce_seconds": profile_save_debounce_seconds,
+		&"save_debounce_elapsed_seconds": _profile_save_wait_seconds,
+		&"save_max_staleness_seconds": profile_save_max_staleness_seconds,
+		&"save_pending_elapsed_seconds": _profile_save_pending_elapsed_seconds,
 		&"chunk_save_parked": _chunk_save_parked,
 		# 清理诊断刻意不暴露 canonical logical name、Profile ID 或物理路径。
 		&"profile_cleanup": {
@@ -3155,8 +3199,7 @@ func _start_pending_section_compensation(
 		),
 	})
 	if _pending_section_compensation_operation == null:
-		_profile_save_pending = true
-		_profile_save_wait_seconds = 0.0
+		_arm_profile_save_pending()
 		_complete_pending_section_operation(
 			GameSaveSectionResult.STATUS_COMPENSATION_FAILED,
 			original_error if original_error != OK else ERR_UNAVAILABLE,
@@ -3250,8 +3293,7 @@ func _on_pending_section_compensation_completed(
 			result
 		)
 		return
-	_profile_save_pending = true
-	_profile_save_wait_seconds = 0.0
+	_arm_profile_save_pending()
 	_complete_pending_section_operation(
 		GameSaveSectionResult.STATUS_COMPENSATION_FAILED,
 		compensation_error,
@@ -3371,8 +3413,7 @@ func _tick_section_reconciliation() -> void:
 		if persisted_generation < requested_generation:
 			# 内存已回滚但 GF 仍未确认补偿 generation；解锁前保留待保存
 			# 标记，确保紧随其后的 flush/账号切换重新 gather 回滚状态。
-			_profile_save_pending = true
-			_profile_save_wait_seconds = 0.0
+			_arm_profile_save_pending()
 		_settle_section_reconciliation(
 			(
 				&"late_rollback_persisted"
@@ -3401,8 +3442,7 @@ func _start_section_reconciliation_compensation(
 		),
 	})
 	if _section_reconciliation_operation == null:
-		_profile_save_pending = true
-		_profile_save_wait_seconds = 0.0
+		_arm_profile_save_pending()
 		_settle_section_reconciliation(
 			&"late_failure_compensation_unavailable",
 			false,
@@ -3468,8 +3508,7 @@ func _on_section_reconciliation_compensation_completed(
 			result.duplicate_result()
 		)
 		return
-	_profile_save_pending = true
-	_profile_save_wait_seconds = 0.0
+	_arm_profile_save_pending()
 	_settle_section_reconciliation(
 		&"late_failure_compensation_failed",
 		false,
@@ -3757,6 +3796,19 @@ func _request_save_active_profile(
 	return _track_profile_operation(operation)
 
 
+func _arm_profile_save_pending() -> void:
+	if not _profile_save_pending:
+		_profile_save_pending_elapsed_seconds = 0.0
+	_profile_save_pending = true
+	_profile_save_wait_seconds = 0.0
+
+
+func _clear_profile_save_pending() -> void:
+	_profile_save_pending = false
+	_profile_save_wait_seconds = 0.0
+	_profile_save_pending_elapsed_seconds = 0.0
+
+
 func _request_flush_active_profile(
 	metadata: Dictionary = {}
 ) -> GFSaveProfileOperation:
@@ -3771,8 +3823,7 @@ func _request_flush_active_profile(
 				GFSaveProfileOperation.OPERATION_FLUSH
 			)
 	if _profile_save_pending:
-		_profile_save_pending = false
-		_profile_save_wait_seconds = 0.0
+		_clear_profile_save_pending()
 		var save_operation: GFSaveProfileOperation = (
 			_request_save_active_profile({
 				&"reason": "flush_pending_generation",
@@ -4091,8 +4142,7 @@ func _try_rearm_parked_chunk_save() -> void:
 	_chunk_save_parked = false
 	if not has_dirty_manifest:
 		return
-	_profile_save_pending = true
-	_profile_save_wait_seconds = 0.0
+	_arm_profile_save_pending()
 
 
 func _has_fenced_dirty_chunk_save() -> bool:

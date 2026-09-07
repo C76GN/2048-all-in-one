@@ -112,7 +112,8 @@
           "主题资源先在 GFAssetLoadSession staging group 全量通过再事务提交；成功后释放旧组，失败保留旧主题与旧音频银行。",
           "模式目录在 BootRuntime 进入主菜单前等待 GFAssetUtility 异步预载的唯一终态；业务 get_config 热路径只读取已完成缓存，预载进行中或缓存缺失时不得同步 ResourceLoader 降级。",
           "Composition Root 在 GFAssetUtility、GFSceneUtility 和 GFBackgroundWorkUtility 之前注册唯一共享 GFResourceBroker；三条加载路径必须共享有界 admission、同资源复用和消费者取消语义。",
-          "当前视觉与声音主题只由独立 GFAssetSlot 强持有，并以稳定用途键、类型契约、单调 generation 和 Utility dispose 终态释放接受测试；作者评审 AssetSlotMap 不得充当运行时句柄。"
+          "当前视觉与声音主题只由独立 GFAssetSlot 强持有，并以稳定用途键、类型契约、单调 generation 和 Utility dispose 终态释放接受测试；作者评审 AssetSlotMap 不得充当运行时句柄。",
+          "GFContentPackageManifest、Catalog、ExportPlan 与挂载生命周期只拥有供应商无关的内容描述和终态；微信普通本地分包的 wx.loadSubpackage，以及未来远程包的 wx.downloadFile、缓存、签名、重试、淘汰和离线降级均由项目微信适配与发布基础设施拥有，不得进入 addons/gf。"
         ],
         "notes": "GFAssetSlot 拥有当前可替换主题资源的生命周期；GFAssetLoadSession/GFAssetUtility 仍拥有依赖预载、资源组与缓存，二者职责不得混淆。"
       },
@@ -133,7 +134,8 @@
           "跨账号统计的调用方 player_profiles 通过 LocalAccountSystem 冻结 progress-owned DeviceProgressAccountCatalogSnapshot；值对象只含 active_account_id 与规范 account_id/display_name/last_active_at/profile_file_name，构造和读取复制隔离。ProgressStatsSystem 不依赖 LocalAccountCatalogUtility 或 LocalPlayerAccount。",
           "设备快照请求先核对输入活动账号的 Profile 路径与 GameSaveGraphUtility 当前路径；不一致返回带 reconciliation 证据的 ERR_BUSY。一致时当前账号使用内存 section，N 个账号只提交 N-1 个 GFStorage 异步读取并由 GFAsyncBatch 汇总。UI 投影不重复读盘；无 caller token 也在 5 秒内返回 typed partial timeout，取消、dispose、迟到终态由 token 与 owner-bound GFSignalUtility 收敛。",
           "书签/自定义棋盘产品上限为 16/32，复制前兼容性防线为 20,000/50,000；旧目录完整校验后稳定收敛，满额新增淘汰最旧项。书签根棋盘及每条命令快照最多 256 格，书签 replay 最多 8192 步、v6 命令历史最多 64 条且二进制 envelope 最多 2 MiB；v5 合法迁移输入升级时裁为最近 64 条。目录编辑与回滚复用已验证的不可变 envelope，并经显式 ownership 入口转交。bookmarks、custom_boards 与 progress provider 使用 GFSaveSectionSnapshotOperation 分片并 take_ownership；progress 整节约 8 MiB/131072 节点，单 work unit 约 256 KiB/4096 节点，递归深度最多 8。",
-          "终局持久化 saga 必须冻结触发时的 Profile 身份：同一 Profile 内的新会话不取消已成立的结果与回放；账号或 Profile 切换会在 saga 开始前或进度落盘后阻止剩余写入，旧对局不得写入新账号。"
+          "终局持久化 saga 必须冻结触发时的 Profile 身份：同一 Profile 内的新会话不取消已成立的结果与回放；账号或 Profile 切换会在 saga 开始前或进度落盘后阻止剩余写入，旧对局不得写入新账号。",
+          "高频 Section 保存按构建配置静默窗口：桌面默认 0.16 秒；正式微信为 2.5 秒 idle debounce，并以 12 秒 max staleness 保证持续操作仍周期提交。切后台、quiesce 与显式 flush 均绕过静默窗口，立即冲刷调用时最新 generation。"
         ],
         "notes": ""
       },
@@ -235,7 +237,7 @@
           "普通玩家构建只保留无 UI、32 个完成操作与 16 个活动操作硬上限的运行诊断；Console、Overlay、Inspector 与 Screenshot 仅在 with_dev_tools 下安装。",
           "动态目录、场景与运行状态只通过 GFDiagnosticSnapshotProvider 在显式支持请求时惰性采集；普通快照不得隐式扫描场景树。",
           "支持报告只导出有界、脱敏快照和 GFSessionTraceRecipe 约束的移动阶段耗时，不包含账号、棋盘、绝对路径、凭据或原始日志；诊断 GUT 通过。",
-          "性能验收只在玩家显式同意且观测平台、输入、视口、布局、棋盘与渲染档精确匹配已声明用例时采集；帧时和输入到首反馈分别使用最多 256 个样本的 GFMetricSeries，并以 GFClock 单调时间计量。两项各少于 120 个样本或中途失配时只能报告 not_measured/partial，不得产出通过结论。"
+          "性能验收只在玩家显式同意且观测平台、输入、视口、布局、棋盘与渲染档精确匹配已声明用例时采集；帧时与输入到已绘制首反馈分别使用最多 256 个样本的 GFMetricSeries。触控从识别有效方向且进入 GF virtual pulse 前起算，键盘或手柄从项目收到 GF action_started 起算，终点是可见状态提交后匹配的 RenderingServer.frame_post_draw；每项少于 120 个真实输入样本或中途失配只能报告 not_measured/partial。"
         ],
         "notes": "移动轨迹设置默认关闭，只有玩家显式开启后才保留最近一局的内存事件，关闭时立即清空；轨迹使用项目共享 GFClock 读取单调时间，不得把性能观测写入 canonical gameplay state。"
       },
@@ -315,7 +317,7 @@
           "render-feedback-orchestration"
         ],
         "acceptance": [
-          "启动页 reveal 前完成 GFRenderWarmupUtility manifest 与 GameplayVisualWarmup；预热节点和资源组在首帧提交后释放。",
+          "启动页 reveal 前按当前有效 GameFeedbackBudget 过滤并完成 GFRenderWarmupUtility manifest 与 GameplayVisualWarmup；正式微信首次默认 MINIMAL 且禁用可选背景/庆祝 Shader。后续首次启用某可选 Shader role 时必须先执行 role-scoped warmup，失败保持禁用；启动预热节点和资源组在首帧提交后释放。",
           "Shader、Transition、Shake 与 Haptic 只消费已提交 TurnResult，不得写回模型、推进 gameplay RNG 或改变 canonical checksum。",
           "减少动态、禁用震动和 MINIMAL VFX 必须直接落到静态终态；反馈无障碍、视觉润色与 GameplayAcceptanceMatrix 测试通过。"
         ],
@@ -331,7 +333,7 @@
         "acceptance": [
           "DeterministicHintQuery 在 GFExecutionBudget 或 cancellation 耗尽时返回稳定 reason 与已有有界结果，不得越过 deadline 继续计算；玩家可见方向只能由确定的步数预算决定，墙钟截止结果不得显示；test_deterministic_hint_query.gd 通过。",
           "GameBoardController 只为最多 256 格的玩家可见窗口从 GFObjectPoolUtility 取得格子或方块节点；揭示前以单一 worker 完整预算预热 Tile 与 GridCell，重复 setup 只保留最新 generation，回收不得删除 GridModel 状态或释放仍由 Tween 拥有的节点。",
-          "桌面正常回合 P95 frame time 不高于 16.667 ms，input_to_primary_feedback 不高于 50 ms；性能验收矩阵不得以跳过规范模拟来达标。"
+          "精确矩阵的 P95 frame time 上限分别为桌面 16.667 ms、Web 20 ms、微信和普通移动 25 ms、低端移动 33.3 ms；真实输入到已绘制首反馈 P95 小于 50 ms。每项至少 120 个精确匹配样本；headless 经典 4x4 完整回合分阶段基准只阻止数量级回退，不得替代目标设备签字或以跳过规范模拟达标。"
         ],
         "notes": "执行预算仅可截断提示、诊断或装饰性工作，不截断权威移动；对象池只拥有表现节点，不拥有领域身份。"
       }
@@ -974,7 +976,25 @@
         "metric": "input_to_primary_feedback",
         "target": 50,
         "unit": "milliseconds",
-        "scope": "有效移动输入到棋盘开始位移、背景脉冲或音效等首个主要反馈。"
+        "scope": "项目收到可签署的有效抽象移动输入，到可见状态提交后匹配的 RenderingServer.frame_post_draw；音频启动或 Action execute 不单独结束该视觉指标。"
+      },
+      {
+        "metric": "web_player_visible_frame_time",
+        "target": 20,
+        "unit": "milliseconds",
+        "scope": "Web 精确验收矩阵用例的 P95 玩家可见帧时。"
+      },
+      {
+        "metric": "wechat_mobile_player_visible_frame_time",
+        "target": 25,
+        "unit": "milliseconds",
+        "scope": "微信小游戏与普通移动端精确验收矩阵用例的 P95 玩家可见帧时。"
+      },
+      {
+        "metric": "low_end_mobile_player_visible_frame_time",
+        "target": 33.3,
+        "unit": "milliseconds",
+        "scope": "低端移动端 MINIMAL 精确验收矩阵用例的 P95 玩家可见帧时。"
       }
     ],
     "security_boundaries": [
@@ -1205,7 +1225,7 @@
       },
       {
         "id": "gf_vendor",
-        "description": "验证 vendored GF 版本与内容哈希，并通过 GitHub API 将本地逐文件 Git blob、官方 commit、addons/gf Git tree、规范 full-validation workflow 与成功 merge gate 绑定为同一份 provenance。",
+        "description": "验证 vendored GF 版本、内容哈希与渠道 provenance：development 绑定官方 main/full/merge gate；stable 绑定 annotated tag、精确 release workflow、严格 manifest、发布 archive 字节与 digest。",
         "argv": [
           "powershell",
           "-ExecutionPolicy",
@@ -1253,6 +1273,89 @@
         "working_directory": ".",
         "timeout_seconds": 300,
         "network_access": "forbidden",
+        "writes_project": true,
+        "required": true
+      },
+      {
+        "id": "wechat_release_resource_closure",
+        "description": "在隔离 Godot 运行中验证微信正式 release 的精确资源闭包、动态路径、runtime res:// literal、字体 remap 与 export preset 一致性。",
+        "argv": [
+          "powershell",
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "tools/invoke_godot_project_tool.ps1",
+          "-ScriptPath",
+          "res://tools/wechat_minigame_release_resource_closure.gd",
+          "-ExpectedOutputPattern",
+          "\"ok\":true",
+          "-TimeoutSeconds",
+          "300"
+        ],
+        "working_directory": ".",
+        "timeout_seconds": 360,
+        "network_access": "forbidden",
+        "writes_project": true,
+        "required": true
+      },
+      {
+        "id": "wechat_tooling",
+        "description": "验证微信分块读取、并发启动协调、候选身份、正式字体和 GF stable vendor verifier 的 Node 工具契约。",
+        "argv": [
+          "node",
+          "--test",
+          "tests/tooling/wechat_chunked_file_loader.test.cjs",
+          "tests/tooling/wechat_subpackage_startup_coordinator.test.cjs",
+          "tests/tooling/wechat_export_identity.test.cjs",
+          "tests/tooling/wechat_release_font_coverage.test.cjs",
+          "tests/tooling/gf_vendor_verifier.test.cjs"
+        ],
+        "working_directory": ".",
+        "timeout_seconds": 300,
+        "network_access": "forbidden",
+        "writes_project": false,
+        "required": true
+      },
+      {
+        "id": "game_performance_diagnostic",
+        "description": "运行经典 4x4 完整回合分阶段与 checkpoint/lifecycle headless 诊断；该结果只阻止数量级回退，不替代目标设备矩阵。",
+        "argv": [
+          "powershell",
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "tools/invoke_godot_project_tool.ps1",
+          "-ScriptPath",
+          "res://tools/run_game_performance_acceptance.gd",
+          "-ExpectedOutputPattern",
+          "Game performance acceptance:",
+          "-TimeoutSeconds",
+          "300"
+        ],
+        "working_directory": ".",
+        "timeout_seconds": 360,
+        "network_access": "forbidden",
+        "writes_project": true,
+        "required": true
+      },
+      {
+        "id": "wechat_release_candidate",
+        "description": "生成并隔离验证 schema 5、build identity 4 的完整微信候选；报告必须绑定资源闭包、工具身份、双分包与包体证据。",
+        "argv": [
+          "powershell",
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "tools/export_wechat_minigame_release.ps1",
+          "-GodotExecutable",
+          "godot"
+        ],
+        "working_directory": ".",
+        "timeout_seconds": 1200,
+        "network_access": "required",
         "writes_project": true,
         "required": true
       },
@@ -1307,10 +1410,23 @@
       "docs/architecture.md",
       "docs/ai_maintenance.md",
       "docs/save_model.md",
+      "docs/validation.md",
+      "docs/roadmap.md",
       "features/platform_runtime",
+      "features/platform_runtime/docs/wechat_minigame_readiness.md",
       "features/persistence",
       "tests/gut",
-      "tools/run_gut_safe.ps1"
+      "tests/tooling",
+      "tools/run_gut_safe.ps1",
+      "tools/export_wechat_minigame_release.ps1",
+      "tools/export_wechat_minigame_smoke.ps1",
+      "tools/wechat_minigame_artifact_verifier.gd",
+      "tools/wechat_minigame_release_resource_closure.gd",
+      "tools/wechat_minigame/release_resource_policy.json",
+      "tools/wechat_minigame/chunked_file_loader.js",
+      "tools/wechat_minigame/subpackage_startup_coordinator.js",
+      "tools/game_performance_acceptance_harness.gd",
+      "tools/run_game_performance_acceptance.gd"
     ]
   },
   "feedback": {
@@ -1329,7 +1445,7 @@
     },
     {
       "id": "wechat_export_toolchain",
-      "question": "本地 toolchain_smoke 与无 platform_smoke 的 full_game_release_candidate 已锁定 godothub/godot-minigame 4.7 模板、项目自有确定性导出器、report schema 3、main→game_data→engine 双分包顺序、正式字体闭包、无 ICU 的 en/zh 启动注册和 4 MiB 异步分块大文件读取层。build 749f6ff3c9ea0c396dc8a9b3e82546312b4e924533063b7cce664189ce3ef0ce 的隔离门禁与 17,693,596-byte 正式预览已通过，微信模拟器已启动横屏中文主菜单，双分包、PCK 探针、WASM 与 GF 均成功。尚未锁定 Android/iOS 真机矩阵、玩家手势与长时游玩、音频、前后台恢复、重启存档、平台 SDK capability 范围和 CI 发布环境。",
+      "question": "schema 5 / build identity 4 候选已通过隔离产物门禁，精确身份与包体见 docs/roadmap.md 和本机 export-report.json。同运行时代码已在微信模拟器进入主菜单，但官方 automator 读取与 evaluate 超时；Android/iOS 真机的启动、手势、帧时、首反馈、内存、音频、前后台和重启存档仍待验收。远程 CDN 包、平台 SDK capability 与 CI 发布环境尚未锁定。",
       "blocking": false
     }
   ]

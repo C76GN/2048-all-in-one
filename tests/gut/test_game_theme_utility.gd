@@ -345,6 +345,194 @@ func test_theme_utility_tracks_cross_utility_signals_with_gf_signal_utility() ->
 		assert_true(signal_utility.get_connection_count() == 0, "架构释放后 GF 信号连接必须清空。")
 
 
+func test_optional_shader_warmup_runs_once_on_enable_edge_and_releases_cache() -> void:
+	var required_utilities: Array[Script] = GameThemeUtility.new().get_required_utilities()
+	assert_true(
+		required_utilities.has(GFRenderWarmupUtility),
+		"GameThemeUtility 必须声明 GFRenderWarmupUtility 严格依赖。"
+	)
+	assert_true(
+		required_utilities.has(GFOperationDiagnosticsUtility),
+		"GameThemeUtility 必须声明 GFOperationDiagnosticsUtility 严格依赖。"
+	)
+	var initial_accessibility_state: GameAccessibilityState = GameAccessibilityState.new()
+	initial_accessibility_state.shader_effects_enabled = false
+	initial_accessibility_state.vfx_quality = GameAccessibilityState.VfxQuality.MINIMAL
+	var setup: Dictionary = await _create_theme_architecture(
+		false,
+		true,
+		initial_accessibility_state
+	)
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var theme_utility: GameThemeUtility = _get_theme_utility(setup)
+	var accessibility_value: Variant = setup.get("accessibility")
+	var accessibility: GameAccessibilityUtility = null
+	if accessibility_value is GameAccessibilityUtility:
+		accessibility = accessibility_value
+	var render_warmup_value: Variant = setup.get("render_warmup")
+	var render_warmup: GFRenderWarmupUtility = null
+	if render_warmup_value is GFRenderWarmupUtility:
+		render_warmup = render_warmup_value
+	var diagnostics_value: Variant = setup.get("operation_diagnostics")
+	var diagnostics: GFOperationDiagnosticsUtility = null
+	if diagnostics_value is GFOperationDiagnosticsUtility:
+		diagnostics = diagnostics_value
+	var signal_utility_value: Variant = setup.get("signal_utility")
+	var signal_utility: GFSignalUtility = null
+	if signal_utility_value is GFSignalUtility:
+		signal_utility = signal_utility_value
+	var style_value: Variant = setup.get("style")
+	var style: GameUiStyleUtility = null
+	if style_value is GameUiStyleUtility:
+		style = style_value
+
+	assert_true(is_instance_valid(accessibility), "测试架构应提供 GameAccessibilityUtility。")
+	assert_true(is_instance_valid(render_warmup), "测试架构应提供 GFRenderWarmupUtility。")
+	assert_true(is_instance_valid(diagnostics), "测试架构应提供 GFOperationDiagnosticsUtility。")
+	assert_true(is_instance_valid(signal_utility), "测试架构应提供 GFSignalUtility。")
+	assert_true(is_instance_valid(style), "测试架构应提供 GameUiStyleUtility。")
+	assert_true(style.is_static_visuals_enabled(), "初始 MINIMAL 档必须先应用静态视觉策略。")
+	var completion_observation: Dictionary = {
+		"count": 0,
+		"style_was_static": false,
+	}
+	var _warmup_connected: Error = render_warmup.warmup_completed.connect(
+		func(_queue_id: int, _completion_summary: Dictionary) -> void:
+			completion_observation["count"] = (
+				GFVariantData.get_option_int(completion_observation, "count", 0) + 1
+			)
+			completion_observation["style_was_static"] = (
+				style.is_static_visuals_enabled()
+			)
+	) as Error
+	var initial_snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		theme_utility.get_debug_snapshot(),
+		"optional_shader_warmup"
+	)
+	assert_true(
+		GFVariantData.get_option_array(initial_snapshot, "warmed_roles").is_empty(),
+		"初始 MINIMAL 档只记录禁用状态，不得预热可选 Shader。"
+	)
+	assert_true(
+		render_warmup.get_cached_resource_count(
+			GameThemeUtility.OPTIONAL_SHADER_WARMUP_CACHE_GROUP
+		) == 0,
+		"初始 MINIMAL 档不得为可选 Shader 增加 startup cache 成本。"
+	)
+	assert_true(
+		diagnostics.get_operations(
+			0,
+			{&"operation_type": GameThemeUtility.OPTIONAL_SHADER_WARMUP_OPERATION_TYPE}
+		).is_empty(),
+		"初始化禁用状态不得伪造运行时启用边沿。"
+	)
+
+	accessibility.set_vfx_quality(GameAccessibilityState.VfxQuality.FULL)
+	assert_true(
+		diagnostics.get_operations(
+			0,
+			{&"operation_type": GameThemeUtility.OPTIONAL_SHADER_WARMUP_OPERATION_TYPE}
+		).is_empty(),
+		"Shader 总开关仍关闭时，提升 VFX 档位不得触发可选 Shader 预热。"
+	)
+
+	accessibility.set_shader_effects_enabled(true)
+	assert_true(
+		GFVariantData.get_option_int(completion_observation, "count", 0) == 1,
+		"启用边沿必须同步完成一次 GF RID warmup。"
+	)
+	assert_true(
+		GFVariantData.get_option_bool(completion_observation, "style_was_static", false),
+		"warmup_completed 发出时仍应保持旧静态策略，避免先启用后冷加载。"
+	)
+	assert_false(style.is_static_visuals_enabled(), "RID warmup 完成后才应应用新的动态视觉策略。")
+	var operations: Array[Dictionary] = diagnostics.get_operations(
+		0,
+		{&"operation_type": GameThemeUtility.OPTIONAL_SHADER_WARMUP_OPERATION_TYPE}
+	)
+	assert_true(operations.size() == 1, "一次禁用到启用边沿必须只产生一次同步预热操作。")
+	assert_true(
+		diagnostics.get_incidents(
+			0,
+			{&"code": &"game_theme_optional_shader_warmup_failed"}
+		).is_empty(),
+		"成功 RID warmup 不得产生失败 incident。"
+	)
+	if operations.size() == 1:
+		assert_true(
+			GFVariantData.get_option_bool(operations[0], "success"),
+			"背景与庆祝 Shader RID 预热必须成功后再应用动态视觉策略。"
+		)
+		var operation_metadata: Dictionary = GFVariantData.get_option_dictionary(
+			operations[0],
+			"metadata"
+		)
+		var warmup_summary: Dictionary = GFVariantData.get_option_dictionary(
+			operation_metadata,
+			"summary"
+		)
+		var warmup_results: Array = GFVariantData.get_option_array(
+			warmup_summary,
+			"results"
+		)
+		assert_true(warmup_results.size() == 2, "同步预热摘要必须覆盖两个启用 role。")
+		for result_value: Variant in warmup_results:
+			var result: Dictionary = GFVariantData.as_dictionary(result_value)
+			assert_true(
+				GFVariantData.get_option_int(result, "touched_count", 0) == 1,
+				"每个 Shader 条目必须通过 RID_ONLY 精确触碰一个 RID。"
+			)
+			assert_true(
+				GFVariantData.get_option_bool(result, "cache_retained", false),
+				"每个启用 role 都必须保留在项目 cache group。"
+			)
+	var warmup_snapshot: Dictionary = GFVariantData.get_option_dictionary(
+		theme_utility.get_debug_snapshot(),
+		"optional_shader_warmup"
+	)
+	var warmed_roles: Array = GFVariantData.get_option_array(
+		warmup_snapshot,
+		"warmed_roles"
+	)
+	assert_true(warmed_roles.has(&"background"), "启用边沿必须预热 startup manifest 的 background role。")
+	assert_true(warmed_roles.has(&"celebration"), "启用边沿必须预热 startup manifest 的 celebration role。")
+	assert_true(
+		render_warmup.get_cached_resource_count(
+			GameThemeUtility.OPTIONAL_SHADER_WARMUP_CACHE_GROUP
+		) == 2,
+		"两项可选 Shader 必须由项目专属 cache group 持有。"
+	)
+
+	accessibility.state_changed.emit(accessibility.get_state())
+	assert_true(
+		GFVariantData.get_option_int(completion_observation, "count", 0) == 1,
+		"重复通知不得再次调用 GFRenderWarmupUtility。"
+	)
+	assert_true(
+		diagnostics.get_operations(
+			0,
+			{&"operation_type": GameThemeUtility.OPTIONAL_SHADER_WARMUP_OPERATION_TYPE}
+		).size() == 1,
+		"重复 state_changed 通知不得重复预热已成功缓存的 role。"
+	)
+	assert_true(
+		render_warmup.get_cached_resource_count(
+			GameThemeUtility.OPTIONAL_SHADER_WARMUP_CACHE_GROUP
+		) == 2,
+		"重复通知不得扩张可选 Shader cache。"
+	)
+
+	await _dispose_architecture(architecture)
+	assert_true(
+		render_warmup.get_cached_resource_count(
+			GameThemeUtility.OPTIONAL_SHADER_WARMUP_CACHE_GROUP
+		) == 0,
+		"GameThemeUtility dispose 必须释放项目专属可选 Shader cache group。"
+	)
+	if is_instance_valid(signal_utility):
+		assert_true(signal_utility.get_connection_count() == 0, "dispose 必须释放 owner-bound 无障碍信号。")
+
+
 func test_theme_content_package_registers_selectable_theme_resources_only() -> void:
 	var setup: Dictionary = await _create_theme_architecture()
 	var architecture: GFArchitecture = _get_architecture(setup)
@@ -774,7 +962,8 @@ func _make_audio_merge_result(consumed_value: int, survivor_value: int) -> TileM
 
 func _create_theme_architecture(
 	include_scene_router: bool = false,
-	prime_asset_cache: bool = true
+	prime_asset_cache: bool = true,
+	initial_accessibility_state: GameAccessibilityState = null
 ) -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var resolver: GFResourceResolverUtility = GFResourceResolverUtility.new()
@@ -793,6 +982,22 @@ func _create_theme_architecture(
 	settings.auto_load_on_init = false
 	settings.auto_save_on_change = false
 	settings.register_project_defaults()
+	if initial_accessibility_state != null:
+		settings.set_value(
+			GameAccessibilityState.REDUCED_MOTION_SETTING_KEY,
+			initial_accessibility_state.reduced_motion,
+			false
+		)
+		settings.set_value(
+			GameAccessibilityState.SHADER_EFFECTS_ENABLED_SETTING_KEY,
+			initial_accessibility_state.shader_effects_enabled,
+			false
+		)
+		settings.set_value(
+			GameAccessibilityState.VFX_QUALITY_SETTING_KEY,
+			initial_accessibility_state.vfx_quality,
+			false
+		)
 	var storage: GFStorageUtility = GFStorageUtility.new()
 	var audio: GFAudioUtility = GFAudioUtility.new()
 	var style: GameUiStyleUtility = GameUiStyleUtility.new()
@@ -805,6 +1010,10 @@ func _create_theme_architecture(
 	var theme_catalog: GameThemeCatalogUtility = GameThemeCatalogUtility.new()
 	var theme_utility: GameThemeUtility = GameThemeUtility.new()
 	var shader_parameters: GFShaderParameterUtility = GFShaderParameterUtility.new()
+	var render_warmup: GFRenderWarmupUtility = GFRenderWarmupUtility.new()
+	var operation_diagnostics: GFOperationDiagnosticsUtility = (
+		GFOperationDiagnosticsUtility.new()
+	)
 	var timer_utility: GFTimerUtility = GFTimerUtility.new()
 	var signal_utility: GFSignalUtility = GFSignalUtility.new()
 	var accessibility: GameAccessibilityUtility = GameAccessibilityUtility.new()
@@ -826,12 +1035,13 @@ func _create_theme_architecture(
 	await architecture.register_utility(GFStorageUtility, storage)
 	await architecture.register_utility(
 		GFOperationDiagnosticsUtility,
-		GFOperationDiagnosticsUtility.new()
+		operation_diagnostics
 	)
 	await architecture.register_utility(GFSettingsUtility, settings)
 	await architecture.register_utility(GFAudioUtility, audio)
 	await architecture.register_utility(GFLogUtility, GFLogUtility.new())
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
+	await architecture.register_utility(GFRenderWarmupUtility, render_warmup)
 	await architecture.register_utility(GFTimerUtility, timer_utility)
 	await architecture.register_utility(GFSignalUtility, signal_utility)
 	await architecture.register_utility(GameAccessibilityUtility, accessibility)
@@ -881,6 +1091,8 @@ func _create_theme_architecture(
 		"theme_catalog": theme_catalog,
 		"theme_utility": theme_utility,
 		"shader_parameters": shader_parameters,
+		"render_warmup": render_warmup,
+		"operation_diagnostics": operation_diagnostics,
 		"signal_utility": signal_utility,
 		"accessibility": accessibility,
 		"scene_utility": scene_utility,

@@ -35,7 +35,7 @@ powershell -ExecutionPolicy Bypass -File tools/verify_gf_vendor.ps1
 powershell -ExecutionPolicy Bypass -File tools/verify_gf_vendor.ps1 -VerifyRemote
 ```
 
-远程校验会通过 GitHub API 比对本地每个文件的 Git blob，并把它们与官方仓库的 commit、`addons/gf` Git tree、规范 `.github/workflows/ci.yml` 的 `mode=full` push run、`GF full validation` 和 `GF merge gate` 成功终态绑定为同一份 provenance；CI 可通过 `GITHUB_TOKEN` 提高 API 配额。若本地有已锁定 commit 的干净 GF checkout，可再传入 `-UpstreamRepositoryPath <path>`，以独立 checkout 复核同一份内容。GF Python 工具运行时生成的 `__pycache__` / `*.pyc` 不属于 vendor 快照，校验和 Git 均明确排除；除此之外的额外文件仍会导致校验失败。
+远程校验会通过 GitHub API 比对本地每个文件的 Git blob，并把它们与官方仓库的 commit 和 `addons/gf` Git tree 绑定为同一份 provenance。`development` 渠道继续要求规范 `.github/workflows/ci.yml` 的 `mode=full` main push run、`GF full validation` 和 `GF merge gate` 成功终态；`stable` 渠道要求版本 ref 是可有界 peel 到同一 `source_commit` 的 annotated tag，并验证精确 tag 上 `.github/workflows/release.yml` 的 build、static、GUT、integration、LSP 与发布 job 全部成功。稳定版还会下载有界的 `gf-release-artifacts-<version>.json` 和 `gf-framework-<version>.zip`，把严格 UTF-8 manifest 的 `version`、`source_revision`、单次构建计数、文件大小和 SHA-256 与 GitHub Release asset digest 及实际下载字节交叉绑定。CI 可通过 `GITHUB_TOKEN` 提高 API 配额。若本地有已锁定 commit 的干净 GF checkout，可再传入 `-UpstreamRepositoryPath <path>`，以独立 checkout 复核同一份内容。GF Python 工具运行时生成的 `__pycache__` / `*.pyc` 不属于 vendor 快照，校验和 Git 均明确排除；除此之外的额外文件仍会导致校验失败。
 
 稳定示例线只采用 GF 正式发布；开发兼容线只采用 GF 官方 `main` 最新且全量上游门禁成功的精确 commit。开发版验证失败时不得移动稳定线、放宽基线或局部修补 vendor，应保留上一绿色身份并先完成项目误用排查和必要二分。
 
@@ -217,6 +217,20 @@ powershell -ExecutionPolicy Bypass -File tools/invoke_godot_project_tool.ps1 -Sc
 
 `capture_visual_review.gd` 负责实际移动命令、稳定帧和耗时证据；`capture_ui_vfx_matrix.gd` 负责页面与状态矩阵。两者用途不同，不以其中一个替代另一个。
 
+## 性能诊断与目标设备证据
+
+经典 4×4 的同步完整回合、各阶段、checkpoint 与生命周期数量级回归使用隔离的 headless 工具：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File tools/invoke_godot_project_tool.ps1 `
+  -ScriptPath res://tools/run_game_performance_acceptance.gd `
+  -ExpectedOutputPattern "Game performance acceptance:" `
+  -TimeoutSeconds 300
+```
+
+该结果只证明共享开发机上没有数量级退化，不是玩家帧预算或微信真机签字。可签署的 `input_to_primary_feedback` 必须从项目收到真实有效抽象移动输入开始，到可见状态提交后匹配的 `RenderingServer.frame_post_draw` 结束；触控样本包含 virtual pulse 与 `PlayerInputSystem` 轮询，Action execute 或音频启动只形成阶段诊断。平台、输入、视口、布局、棋盘和渲染档必须精确匹配矩阵，帧时与首反馈各至少 120 个样本；桌面、Web、微信/普通移动和低端移动的 P95 帧时上限分别为 16.667、20、25 和 33.3 ms，首个已绘制反馈 P95 小于 50 ms。未经 Android/iOS 目标真机采样，不得把模拟器、headless 或共享开发机结果写成微信性能已通过。
+
 ## Web / 微信小游戏准备预检
 
 平台准备必须先通过项目契约，再检查本机工具链：
@@ -236,6 +250,45 @@ powershell -ExecutionPolicy Bypass -File tools/check_platform_readiness.ps1 -God
 预检数量、issue 数和本机 blocker 直接读取上述两份生成报告；长期文档不保存某次工作站签字或环境快照。尚未完成的微信能力边界与真机矩阵记录在 `features/platform_runtime/docs/wechat_minigame_readiness.md`。
 
 动态加载的脚本资源必须在 GF 注册表或内容包中使用内置 `Resource` 作为 `ResourceLoader` type hint，再以 `is` 收窄到业务资源类型。Godot Web 导出不能依赖编辑器侧 `class_name` 名称作为动态加载 type hint；自动预检和 GUT 回归测试必须持续约束这条规则。
+
+### 微信正式资源闭包
+
+正式微信预设使用精确 `resources` 文件集。闭包工具从主场景、Installer、扩展选择、GF 注册表、内容包、动态结构路径和 raw include 构建根集合，继续展开资源依赖、GDScript class 与 static preload；运行时 `res://` literal 只有精确绑定 script path、literal、expected count、kind 与 reason 的规则才可豁免。缺失、partial/truncated、未登记或动态 literal、规则缺失/重复/次数漂移、字体 remap 漂移、禁入 editor/test/tool 资源和 preset 漂移均必须失败。
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File tools/invoke_godot_project_tool.ps1 `
+  -ScriptPath res://tools/wechat_minigame_release_resource_closure.gd `
+  -ExpectedOutputPattern '"ok":true' `
+  -TimeoutSeconds 300
+```
+
+闭包数量和 SHA-256 只能读取当次输出，不复制到长期文档。正式候选报告 schema 5 的 `resource_closure` 必须绑定 policy/tool/closure SHA-256、完整依赖扫描终态和当次计数；build identity 4 必须纳入这些闭包证据。独立闭包通过仍不能替代候选原子报告与隔离产物验证。
+
+### 微信工具与正式候选
+
+不启动 Godot 的确定性工具回归：
+
+```powershell
+node --test `
+  tests/tooling/wechat_chunked_file_loader.test.cjs `
+  tests/tooling/wechat_subpackage_startup_coordinator.test.cjs `
+  tests/tooling/wechat_export_identity.test.cjs `
+  tests/tooling/wechat_release_font_coverage.test.cjs `
+  tests/tooling/gf_vendor_verifier.test.cjs
+```
+
+正式候选只能由零策略入口生成：
+
+重导出同一个候选目录前，先关闭该目录对应的微信开发者工具项目窗口。Windows 文件占用可能使原子目录替换失败；此时旧候选必须保留，不得通过逐文件覆盖绕过事务。释放占用后重新导出，并按新报告确认身份。
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File tools/export_wechat_minigame_release.ps1 `
+  -GodotExecutable godot
+```
+
+期望同根 `export-report.json` 为 schema 5，build identity 为第 4 版，且绑定资源闭包、字体、GF/Godot、工具、输入快照、DPR、启动协调器、两个大资源、精确双分包 manifest 和包体预算。build ID、主包/engine/game_data/总包字节和工具 hash 都只从本轮新候选报告读取；源文件、闭包、模板、AppID 或工具变化后不得沿用旧值。导出器内置的临时最小宿主隔离验证是正式签字的一部分，项目宿主的结构复核不能替代它。
 
 ### 脚本静态检查
 

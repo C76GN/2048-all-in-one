@@ -58,6 +58,48 @@ func test_session_checkpoint_path_preserves_registered_mode_hashes() -> void:
 	)
 
 
+func test_classic_4x4_full_turn_reports_real_phase_timings() -> void:
+	var harness: GamePerformanceAcceptanceHarness = HarnessType.new()
+	var report: Dictionary = await harness.benchmark_classic_4x4_full_turn(12, 2)
+
+	assert_true(GFVariantData.get_option_bool(report, &"pipeline_valid"), str(report))
+	assert_true(
+		GFVariantData.get_option_bool(report, &"passed"),
+		"经典 4x4 桌面 headless 完整回合应满足 16.667 ms P95 回归门禁：%s"
+		% str(report)
+	)
+	assert_true(
+		GFVariantData.get_option_string_name(report, &"evidence_scope")
+		== &"desktop_headless_diagnostic",
+		"桌面夹具不得伪装成微信真机验收。"
+	)
+	assert_false(
+		GFVariantData.get_option_bool(report, &"mobile_acceptance_claim", true),
+		"headless 分段计时不得产出真机通过声明。"
+	)
+	var phase_statistics: Dictionary = GFVariantData.get_option_dictionary(
+		report,
+		&"statistics_usec"
+	)
+	for phase_id: StringName in [
+		&"command",
+		&"turn_state_snapshot",
+		&"rules",
+		&"checkpoint_without_snapshot",
+		&"settlement",
+		&"presentation",
+		&"full_turn",
+	]:
+		var statistics: Dictionary = GFVariantData.get_option_dictionary(
+			phase_statistics,
+			phase_id
+		)
+		assert_true(
+			GFVariantData.get_option_int(statistics, &"sample_count") == 12,
+			"%s 必须保留真实计时样本。" % String(phase_id)
+		)
+
+
 func test_representative_ui_and_resource_lifecycle_reaches_plateau() -> void:
 	var harness: GamePerformanceAcceptanceHarness = HarnessType.new()
 	var host: Node = Node.new()

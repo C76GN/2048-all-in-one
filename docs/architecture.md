@@ -75,7 +75,7 @@ Feature 的 `scripts/` 内可以继续使用 `models/`、`systems/`、`utilities
 4. GF 根据 `project.godot` 的 `gf/project/installers` 执行 `GameArchitectureInstaller`。
 5. `app/scripts/game_architecture_installer.gd` 声明项目 Model、System、Utility；GF 扩展拥有的模块由扩展 Installer 自动装配。
 6. BootRuntime 通过 `GFSceneUtility` 预热主菜单，并配置 Feature-Cohesive 的 `features/navigation/resources/scene_preload_map.tres`；场景图只预热最高频相邻路径。随后每次 `SceneRouterSystem.request_scene_change()` 都在覆盖转场前显式调用一次 `prime_scene()`，正式 `load_scene_with_transition()` 将 `preload_before_change` 保持为 `false`，由 `GFSceneUtility.load_scene_async()` 直接复用已缓存或仍在进行中的同资源请求，禁止在正式切换阶段再次提交第二次预载。
-7. BootRuntime 使用 `GFRenderWarmupUtility` 执行 `startup_render_warmup_manifest.tres`，统一加载并触碰首轮背景、转场、焦点和庆祝 Shader；随后在不透明启动页背后提交 `GameplayVisualWarmup` 首绘，补足 GF 通用资源预热无法表达的方块轮廓、母题和反馈画布自绘 pipeline。缓存和预绘节点在首帧提交后按组释放。
+7. BootRuntime 先以当前 `GameFeedbackBudget` 过滤 `startup_render_warmup_manifest.tres`，再由 `GFRenderWarmupUtility` 只加载并触碰本构建实际启用的转场、焦点、背景和庆祝 Shader；正式微信首次默认 `MINIMAL` 且跳过已关闭的背景/庆祝 Shader。随后在不透明启动页背后提交同一预算约束的 `GameplayVisualWarmup` 首绘，补足 GF 通用资源预热无法表达的方块轮廓、母题和反馈画布自绘 pipeline。缓存和预绘节点在首帧提交后按组释放；玩家后续首次启用某个可选 Shader role 时，由 `GameThemeUtility` 先执行一次 role-scoped warmup，失败则保持 Shader 禁用。
 
 Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_scene_to_file()` 等旁路。
 
@@ -219,8 +219,11 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 5. 只有具体平台 Adapter 可以使用 `OS.has_feature()`、`DisplayServer` 或供应商 SDK 探测玩家设备与平台能力；Gameplay、Board Editor、Navigation 和其他 Feature 必须通过 `GamePlatformUtility` 查询 `GFPlatformRuntimeContext`、metadata 与能力 ID，平台上下文变化时重新投影布局。Composition Root 的构建 feature 开关以及 `GFDisplaySettingsUtility` 所需的枚举类型不属于玩家平台能力探测。
 6. 平台请求统一返回 `GFPlatformRequestHandle`。`platform.clipboard/write_text` 以严格 request/result schema、capability gating 和唯一 typed 终态完成；game_session 的 `Hud` 通过 owner-bound `GFSignalUtility` 消费 pending 结果，销毁后不得收到迟到完成。调用方不得另建项目私有异步请求协议。
 7. `GFHttpClientUtility` 目前只服务 `platform_smoke` 的网络兼容性验证，因此 Composition Root 仅在该导出 feature 下注册它。正式 Steam、Android、Web 与微信构建不得为未实现的在线业务常驻 HTTP 模块；未来排行榜联网应由平台 Adapter 或独立后端 Feature 明确拥有请求和重试边界。
-8. 微信正式 release 采用 main→game_data→engine 串行启动：`game_data/` 独占项目 PCK，`engine/` 独占 WASM 与引擎入口，两个大资源由同一项目加载器按 4 MiB 分块读取。schema 3 候选报告必须绑定精确双分包文件集、入口 marker、串行顺序、资源 manifest、每包与总包预算及 build identity；不得仅凭 DevTools 导入或 refresh 视为运行成功。
-9. 微信 release 明确禁用 ICU。Boot/Composition Root 必须在 GF 架构创建与正式场景路由前调用唯一的平台启动 Utility，注册随包 en/zh Translation；Boot 不得自行通过 `ResourceLoader` 读取翻译文件，业务 Feature 与 UI 不得复制 locale 状态。该构建适配不扩张 `GamePlatformAdapter` 的微信 SDK capability。
+8. 微信正式 release 的根包同一轮请求 `engine` 与 `game_data` 两个普通本地分包：`game_data/` 独占项目 PCK，`engine/` 独占 WASM 与引擎入口。WASM 与 PCK 各自在同一路径内按 4 MiB 顺序读取，加载器允许最多两个不同资源并发并复用同一规范路径的在途 Promise；失败或超时会释放逻辑槽位，迟到原生回调失效。只有 engine 入口、幂等 starter、game_data 入口和 1-byte PCK 探针四项全部就绪，coordinator 才能启动一次 Godot；首个致命错误终止会话，迟到回调不得恢复会话。
+9. 正式 release 预设使用精确 `resources` 文件集。项目工具从主场景、Installer、扩展选择、GF 注册表、内容包、动态结构路径和原始 include 构建依赖闭包，并继续展开 GDScript class 与 static preload 边；运行时 `res://` literal 只有精确的 script path、literal、kind、reason 与 expected count 规则才可豁免。依赖缺失、partial/truncated、未登记或动态 literal、规则缺失/重复/次数漂移、字体 remap 漂移、禁入 editor/test/tool 资源或 preset 漂移均失败关闭。正式候选报告 schema 5 的 `resource_closure` 绑定 policy/tool/closure SHA-256、依赖扫描终态和审计计数；build identity 4 再把这些证据与精确双分包 manifest、coordinator、实际包字节权重、DPR、超时、有界时间线、字体、GF/Godot 和输入快照绑定。不得仅凭 DevTools 导入或 refresh 视为运行成功。
+10. 微信加载器保持 CSS 尺寸和输入映射不变，只限制 canvas backing store：目标长/短边为 1280×720，运行 DPR 不低于 1 且不高于设备 DPR，并在 resize 时重新计算。候选报告必须携带 `render_resolution` policy 与 loader/runtime 内容身份；该策略降低填充率，不构成目标真机帧时已经通过的证据。
+11. 当前只产品化随小游戏代码上传的普通本地分包，还没有产品化 CDN 远程内容包。GF 的 `GFContentPackageManifest`、Catalog、ExportPlan、资源发现与挂载生命周期只拥有供应商无关的内容描述和终态；项目微信适配层拥有 `wx.loadSubpackage`、未来的 `wx.downloadFile`/文件系统缓存、合法域名、内容哈希或签名、重试、淘汰与离线降级。CDN 部署、域名与版本发布策略是产品/基础设施决策，不得塞进 `addons/gf`，也不得让 GF 直接依赖微信 SDK。
+12. 微信 release 明确禁用 ICU。Boot/Composition Root 必须在 GF 架构创建与正式场景路由前调用唯一的平台启动 Utility，注册随包 en/zh Translation；Boot 不得自行通过 `ResourceLoader` 读取翻译文件，业务 Feature 与 UI 不得复制 locale 状态。该构建适配不扩张 `GamePlatformAdapter` 的微信 SDK capability。
 
 ### 时钟、随机与运行诊断
 
@@ -234,7 +237,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 8. Composition Root 在全部构建中安装无 UI、严格有界的 `GFOperationDiagnosticsUtility`，最多保留 32 个完成操作、16 个活动操作、32 个 incident、64 个 sample stat 和每份 12 个业务 metadata 键；设置存取、账号目录变更、Profile 切换与场景路由都记录真实终态。运行时必需消费者（包括 `SceneRouterSystem`）必须在 `get_required_utilities()` 中声明该基线并用严格 `get_utility()` 解析，缺失时让初始化失败；只有真正可选的开发工具才可使用当前 Architecture 的 local lookup。开发构建只额外安装 Console、Overlay、Inspector 与支持报告界面；发布构建不得引入这些 UI 或扫描器。
 9. 只有 Boot 组合根和 `features/asset_library/tools/` 下的离线素材工具可以直接访问 `Time`；该例外由 GF 合规测试的精确路径 allowlist 约束，不得扩散到运行时 Feature。
 10. `GameDiagnosticsUtility` 只把架构依赖与验收矩阵保留为固定成本缓存；资源目录、业务状态和最多 256 个节点的场景资产元数据改由 owner-bound `GFDiagnosticSnapshotProvider` 在显式支持请求时惰性采集，普通 Overlay 刷新不得扫描场景树。开发构建再组合 Console、Debug Overlay、Runtime Inspector 与 Screenshot；发布构建不安装这些调试界面。
-11. game_session 的 `GamePerformanceTraceUtility` 通过 `GFSessionTraceRecipe` 记录最近一局移动的请求、命令终态、表现入队、真实 Action execute 首反馈与队列终态，使用共享 `GFClock` 计算阶段耗时，并以 96 条/96 KiB/单条 2 KiB 和 privacy redaction 形成硬预算。轨迹设置默认关闭，只有玩家在设置页显式开启后才开始采集；关闭时立即停止并清空内存事件。轨迹只存在内存并只进入显式支持报告，不得包含棋盘、账号、路径、设备身份或写入 canonical gameplay state。
+11. game_session 的 `GamePerformanceTraceUtility` 通过 `GFSessionTraceRecipe` 记录最近一局移动的输入收据、GF 映射、命令终态、表现入队、可见状态提交、匹配的 `RenderingServer.frame_post_draw` 与队列终态，并以共享 `GFClock` 计算阶段耗时。触控在项目识别有效方向且进入 GF virtual pulse 前冻结收据；键盘/手柄在项目收到 GF `action_started` 时冻结收据。只有从真实收据到已绘制帧的样本可进入 `input_to_primary_feedback` 验收序列，Action execute 或音频启动只作为阶段诊断。轨迹以 96 条/96 KiB/单条 2 KiB 和 privacy redaction 形成硬预算；设置默认关闭，关闭时立即停止并清空内存事件，不得包含棋盘、账号、路径、设备身份或写入 canonical gameplay state。
 
 ### 持久化
 
@@ -244,6 +247,7 @@ Boot 和路由依赖缺失时必须明确失败，不保留 `SceneTree.change_sc
 - 加载先在 Provider callback 外读取并校验 Manifest 指向的全部 chunk Profiles，再由 Feature codec 构造绑定主 Profile authority 与完整 Manifest 内容的单次 claim `ChunkMaterializationLease`；第二次主文档读取发生漂移时，错配 claim 必须失败且不能消费 Lease。需要处理大记录流的 Provider 通过有界异步 materialization hook 分帧推进，并把已验证的 opaque prepared root 移交主 Profile apply；事务回滚根只存在于同一 load context 的一次性 Lease 中，GF rollback section 保持为小型 sentinel，不重新序列化合法大型业务树。直接同步 `request_load_profile()` 不承担该异步 preflight，也不能接受调用方伪造 context；生产入口是 bootstrap/账号 activate。
 - 主 Profile 删除与开发期重置使用同一复合 cleanup saga：只有主 logical family 已确定删除成功或不存在后，才按稳定 Provider 顺序清理全部派生 chunk family；主删除、任一派生清理、typed BUSY 重试或 caller timeout 尚未收敛时都继续持有 canonical path，禁止账号层提前复用身份。
 - `GFStorageUtility` 是 codec、checksum 和原子文件事务边界；业务 System 不直接写玩家 section，设置继续使用独立 `GFSettingsUtility` 文件。
+- 高频 Section 变更只向 `GameSaveGraphUtility` 排队 dirty generation：桌面默认使用 0.16 秒静默窗口，正式微信使用 2.5 秒 idle debounce，并以 12 秒 max staleness 保证连续操作仍周期提交；切后台、quiesce 和显式 flush 均绕过静默窗口并覆盖调用时最新 generation。该项目策略只配置 GF Profile 管线，不复制 GF 的串行化、重试、事务或 flush barrier。
 - 账号目录变更和异步 Profile 切换都通过 `GFAsyncKeyedGate.try_request_lease()` 取得单 key、单并发租约；busy 不排队，所有成功、失败、取消和 dispose 路径必须释放租约，不再维护平行布尔锁或手工 callback 保活字典。
 - Composition Root 把 `GFStorageSettingsStoreUtility` 注册为精确 `GFSettingsStoreUtility` alias；Store 只负责把 Settings 端口映射到已 ready 的 Storage。`GFSettingsUtility` 自身拥有 activation 自动加载、mutation admission、冻结保存记录、多目标 debounce/batch quiesce drain 与 dispose，`GameSettingsUtility` 只叠加损坏恢复授权、未来版本写入阻断和运行诊断，不读取框架私有队列或复制生命周期门禁。payload/envelope 损坏可经同一 Store 覆写为默认值；GF 已提供由同一 Utility 的原始 CORRUPT 读取签发、绑定 Storage root 与 logical identity 的一次性 family-reset 授权，但项目尚未接入，因此 catalog、owner 或事务身份等私有 family 结构损坏仍失败关闭：激活前检测到时由 Storage 阻止架构进入 READY，已激活后的显式重载则可使用内存默认值，但必须把持久化标记为不健康、保留证据、阻断后续写入。后续恢复切片只能消费该 source-bound 授权和类型化 reset 终态，项目不得直接修改私有成员。音量滑杆拖动期间由 `GFDisplaySettingsUtility` 以 `persist_changes=false` 更新内存真值并即时试听，拖动结束只在该 Utility 允许持久化时排队一次保存，不能让每个采样点进入存储热路径。
 - Profile operation、chunk 预算、Manifest schema、outcome-unknown、账号切换、UUID、恢复和开发期 schema 13 重置策略统一以 [`docs/save_model.md`](./save_model.md) 为权威，本架构文档不复制字段细节。

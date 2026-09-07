@@ -26,6 +26,7 @@ const _WARMUP_COLORS: Array[Color] = [
 var _primed: bool = false
 var _tile_visual_theme: TileVisualTheme
 var _feedback_profile: GameBoardFeedbackProfile
+var _feedback_budget: GameFeedbackBudget
 var _transition_materials: Array[ShaderMaterial] = []
 
 
@@ -33,7 +34,11 @@ var _transition_materials: Array[ShaderMaterial] = []
 
 ## 配置预热需要的当前游戏主题资源。
 ## @param theme: 提供方块视觉、棋盘反馈与转场材质的已激活游戏主题。
-func configure(theme: GameTheme) -> bool:
+## @param feedback_budget: 当前设置解析出的表现预算；无效时退回完整档。
+func configure(
+	theme: GameTheme,
+	feedback_budget: GameFeedbackBudget = null
+) -> bool:
 	if (
 		not is_instance_valid(theme)
 		or not is_instance_valid(theme.tile_visual_theme)
@@ -42,6 +47,9 @@ func configure(theme: GameTheme) -> bool:
 		return false
 	_tile_visual_theme = theme.tile_visual_theme
 	_feedback_profile = theme.board_feedback_profile
+	_feedback_budget = feedback_budget
+	if _feedback_budget == null or not _feedback_budget.is_valid_budget():
+		_feedback_budget = GameFeedbackPerformanceMatrix.resolve(null)
 	_transition_materials.clear()
 	for effect: GFScreenTransitionEffect in [
 		theme.scene_transition_cover_effect,
@@ -57,6 +65,8 @@ func prime() -> void:
 		_primed
 		or not is_instance_valid(_tile_visual_theme)
 		or not is_instance_valid(_feedback_profile)
+		or _feedback_budget == null
+		or not _feedback_budget.is_valid_budget()
 	):
 		return
 	_primed = true
@@ -91,9 +101,6 @@ func prime() -> void:
 	var feedback_canvas: BoardFeedbackCanvas = BoardFeedbackCanvas.new()
 	feedback_canvas.name = "FeedbackWarmup"
 	add_child(feedback_canvas)
-	var budget: GameFeedbackBudget = GameFeedbackPerformanceMatrix.resolve(
-		GameAccessibilityState.new()
-	)
 	for shader_material: ShaderMaterial in _transition_materials:
 		_add_canvas_material_probe(shader_material)
 
@@ -102,11 +109,11 @@ func prime() -> void:
 		Rect2(Vector2.ZERO, Vector2(312.0, 208.0)),
 		Vector2.RIGHT,
 		3,
-		mini(turn_recipe.edge_fragment_count, budget.max_edge_fragments),
+		mini(turn_recipe.edge_fragment_count, _feedback_budget.max_edge_fragments),
 		turn_recipe.accent_color,
 		(turn_recipe.impact_duration + turn_recipe.settle_duration + 0.07)
-		* budget.duration_scale,
-		budget.motion_scale
+		* _feedback_budget.duration_scale,
+		_feedback_budget.motion_scale
 	)
 	var tile_recipe: GameFeedbackRecipe = _feedback_profile.tile_merge_recipe
 	var _burst_primitives: int = feedback_canvas.play_tile_burst(
@@ -114,10 +121,10 @@ func prime() -> void:
 		&"merge",
 		"128",
 		tile_recipe.accent_color,
-		mini(tile_recipe.tile_shard_count, budget.max_tile_shards),
-		tile_recipe.tile_burst_duration * budget.duration_scale,
-		budget.motion_scale,
-		budget.max_active_bursts
+		mini(tile_recipe.tile_shard_count, _feedback_budget.max_tile_shards),
+		tile_recipe.tile_burst_duration * _feedback_budget.duration_scale,
+		_feedback_budget.motion_scale,
+		_feedback_budget.max_active_bursts
 	)
 
 

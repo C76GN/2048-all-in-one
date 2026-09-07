@@ -9,14 +9,41 @@ func test_acceptance_matrix_has_complete_static_coverage() -> void:
 	var cases: Array[Dictionary] = GameplayAcceptanceMatrix.get_cases()
 
 	assert_true(report.is_ok(), "验收矩阵的布局、输入、质量和棋盘形态覆盖必须完整。")
-	assert_true(cases.size() == 6, "矩阵应覆盖六类主要发布环境。")
+	assert_true(cases.size() == 7, "矩阵应覆盖七个主要与压力发布用例。")
 	assert_false(
 		GameplayAcceptanceMatrix.get_case(&"steam_gamepad_large_irregular").is_empty(),
 		"大型不规则棋盘必须进入桌面手柄验收范围。"
 	)
 	assert_false(
+		GameplayAcceptanceMatrix.get_case(&"wechat_touch_default").is_empty(),
+		"微信正式默认 4x4 触屏体验必须有独立验收用例。"
+	)
+	assert_false(
 		GameplayAcceptanceMatrix.get_case(&"wechat_touch_landscape").is_empty(),
-		"微信触屏横屏必须有独立验收用例。"
+		"微信触屏横屏压力场景必须继续保留独立验收用例。"
+	)
+	var wechat_default: Dictionary = GameplayAcceptanceMatrix.get_case(
+		&"wechat_touch_default"
+	)
+	assert_true(
+		Vector2i(GFVariantData.get_option_vector2(wechat_default, &"viewport_size"))
+		== Vector2i(1280, 720)
+	)
+	assert_true(
+		Vector2i(GFVariantData.get_option_vector2(wechat_default, &"board_bounds"))
+		== Vector2i(4, 4)
+	)
+	assert_true(
+		GFVariantData.get_option_int(wechat_default, &"active_cell_count") == 16
+	)
+	assert_true(
+		GFVariantData.get_option_int(wechat_default, &"vfx_quality")
+		== GameAccessibilityState.VfxQuality.MINIMAL
+	)
+	assert_gte(
+		GFVariantData.get_option_int(wechat_default, &"minimum_samples"),
+		120,
+		"默认微信用例必须收集至少 120 个真机样本。"
 	)
 
 

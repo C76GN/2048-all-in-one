@@ -1,0 +1,516 @@
+{
+  "schema_version": 1,
+  "policy_id": "wechat-minigame-release-resource-closure-v1",
+  "preset_name": "Web Compatibility WeChat Release",
+  "expected_custom_features": [
+    "wechat_minigame_release"
+  ],
+  "enabled_extension_ids": [
+    "gf.action_queue",
+    "gf.asset_metadata",
+    "gf.capability",
+    "gf.content_package",
+    "gf.domain",
+    "gf.feedback",
+    "gf.save",
+    "gf.turn_based"
+  ],
+  "fixed_roots": [
+    "res://addons/gf/extensions/action_queue/extension.gd",
+    "res://addons/gf/extensions/asset_metadata/extension.gd",
+    "res://addons/gf/extensions/capability/extension.gd",
+    "res://addons/gf/extensions/content_package/extension.gd",
+    "res://addons/gf/extensions/domain/extension.gd",
+    "res://addons/gf/extensions/feedback/extension.gd",
+    "res://addons/gf/extensions/save/extension.gd",
+    "res://addons/gf/extensions/turn_based/extension.gd",
+    "res://addons/gf/kernel/core/gf.gd",
+    "res://app/scenes/boot.tscn",
+    "res://app/scripts/boot_runtime.gd",
+    "res://app/scripts/game_architecture_installer.gd",
+    "res://default_bus_layout.tres",
+    "res://icon.svg",
+    "res://shared/assets/fonts/ui_sans_wechat_release.tres",
+    "res://shared/assets/fonts/wechat_release_sans_subset.ttf",
+    "res://shared/assets/translations.en.translation",
+    "res://shared/assets/translations.zh.translation"
+  ],
+  "structure_roots": {
+    "scene_preload_maps": [
+      "res://features/navigation/resources/scene_preload_map.tres"
+    ],
+    "resource_registries": [
+      {
+        "path": "res://features/navigation/resources/registries/ui_route_registry.tres",
+        "expansion": "ui_routes"
+      },
+      {
+        "path": "res://features/gameplay/resources/registries/game_mode_registry.tres",
+        "expansion": "resource_paths"
+      },
+      {
+        "path": "res://features/achievements/resources/registries/achievement_definition_registry.tres",
+        "expansion": "resource_paths"
+      },
+      {
+        "path": "res://features/tile_catalog/resources/registries/tile_definition_registry.tres",
+        "expansion": "resource_paths"
+      }
+    ]
+  },
+  "content_manifests": [
+    "res://features/asset_library/resources/gf_content_package.json",
+    "res://features/themes/resources/gf_content_package.json"
+  ],
+  "raw_includes": [
+    "res://addons/gf/extensions/action_queue/gf_extension.json",
+    "res://addons/gf/extensions/asset_metadata/gf_extension.json",
+    "res://addons/gf/extensions/capability/gf_extension.json",
+    "res://addons/gf/extensions/content_package/gf_extension.json",
+    "res://addons/gf/extensions/domain/gf_extension.json",
+    "res://addons/gf/extensions/feedback/gf_extension.json",
+    "res://addons/gf/extensions/save/gf_extension.json",
+    "res://addons/gf/extensions/turn_based/gf_extension.json",
+    "res://features/asset_library/resources/gf_content_package.json",
+    "res://features/asset_library/resources/licenses/*",
+    "res://features/asset_library/resources/textures/icons/license_lucide.txt",
+    "res://features/themes/resources/gf_content_package.json",
+    "res://shared/assets/fonts/noto_sans_sc_ofl.txt",
+    "res://shared/assets/fonts/ui_sans_wechat_release.tres",
+    "res://shared/assets/fonts/wechat_release_sans_subset.ttf",
+    "res://shared/assets/translations.en.translation",
+    "res://shared/assets/translations.zh.translation"
+  ],
+  "font_remaps": [
+    {
+      "id": "wechat_release_font_subset",
+      "feature": "wechat_minigame_release",
+      "export_plugin_path": "res://addons/wechat_minigame_smoke_export/wechat_minigame_smoke_export_plugin.gd",
+      "source_variation_paths": [
+        "res://shared/assets/fonts/ui_sans_display.tres",
+        "res://shared/assets/fonts/ui_sans_regular.tres"
+      ],
+      "replacement_font_path": "res://shared/assets/fonts/wechat_release_sans_subset.ttf",
+      "project_font_path": "res://shared/assets/fonts/ui_sans_wechat_release.tres",
+      "removed_dependency_paths": [
+        "res://shared/assets/fonts/noto_sans_sc_variable.ttf"
+      ]
+    }
+  ],
+  "script_path_rules": [
+    {
+      "script_path": "res://app/scripts/boot.gd",
+      "constant_name": "_RUNTIME_SCRIPT_PATH",
+      "expected_paths": [
+        "res://app/scripts/boot_runtime.gd"
+      ],
+      "include_features": [
+        "wechat_minigame_release"
+      ]
+    },
+    {
+      "script_path": "res://app/scripts/boot_runtime.gd",
+      "constant_name": "MAIN_MENU_SCENE_PATH",
+      "expected_paths": [
+        "res://features/navigation/scenes/menus/main_menu.tscn"
+      ],
+      "include_features": [
+        "wechat_minigame_release"
+      ]
+    },
+    {
+      "script_path": "res://app/scripts/boot_runtime.gd",
+      "constant_name": "PLATFORM_SMOKE_SCENE_PATH",
+      "expected_paths": [
+        "res://features/platform_runtime/scenes/smoke_test/platform_smoke_test.tscn"
+      ],
+      "include_features": [
+        "platform_smoke"
+      ]
+    },
+    {
+      "script_path": "res://app/scripts/game_architecture_installer.gd",
+      "constant_name": "_DEV_TOOLS_INSTALLER_PATH",
+      "expected_paths": [
+        "res://features/diagnostics/scripts/installers/game_diagnostics_installer.gd"
+      ],
+      "include_features": [
+        "with_dev_tools"
+      ]
+    },
+    {
+      "script_path": "res://features/platform_runtime/scripts/utilities/wechat_release_translation_bootstrap_utility.gd",
+      "constant_name": "TRANSLATION_PATHS",
+      "expected_paths": [
+        "res://shared/assets/translations.en.translation",
+        "res://shared/assets/translations.zh.translation"
+      ],
+      "include_features": [
+        "wechat_minigame_release"
+      ]
+    }
+  ],
+  "allowed_directory_literals": [
+    "res://addons/gf/extensions",
+    "res://features/asset_library/resources",
+    "res://features/themes/resources"
+  ],
+  "runtime_literal_rules": [
+    {
+      "script_path": "res://addons/gf/kernel/core/gf.gd",
+      "literal": "res://",
+      "expected_count": 1,
+      "kind": "path_scheme_sentinel",
+      "reason": "GF validates configured installer paths; this literal is a scheme token, not a load target."
+    },
+    {
+      "script_path": "res://addons/gf/kernel/core/gf_report_value_codec.gd",
+      "literal": "res://",
+      "expected_count": 1,
+      "kind": "path_scheme_sentinel",
+      "reason": "Report encoding classifies values that look like resource paths."
+    },
+    {
+      "script_path": "res://addons/gf/extensions/content_package/runtime/gf_content_package_utility.gd",
+      "literal": "res://",
+      "expected_count": 1,
+      "kind": "path_scheme_sentinel",
+      "reason": "Content package source-root validation compares the resource scheme."
+    },
+    {
+      "script_path": "res://addons/gf/kernel/extension/gf_extension_settings.gd",
+      "literal": "res://",
+      "expected_count": 4,
+      "kind": "path_scheme_sentinel",
+      "reason": "Extension path and preset validators compare exact resource-scheme tokens."
+    },
+    {
+      "script_path": "res://addons/gf/standard/utilities/scene/gf_scene_utility.gd",
+      "literal": "res://",
+      "expected_count": 2,
+      "kind": "path_scheme_sentinel",
+      "reason": "Scene path normalization strips and restores the resource scheme."
+    },
+    {
+      "script_path": "res://addons/gf/standard/utilities/scene/gf_scene_utility.gd",
+      "literal": "res://%s",
+      "expected_count": 1,
+      "kind": "path_normalization_template",
+      "reason": "Scene normalization reattaches the scheme to its already validated input; route targets are rooted by the preload map."
+    },
+    {
+      "script_path": "res://features/navigation/scripts/systems/scene_router_system.gd",
+      "literal": "res://",
+      "expected_count": 1,
+      "kind": "path_scheme_sentinel",
+      "reason": "The project scene router validates route paths against the resource scheme."
+    },
+    {
+      "script_path": "res://addons/gf/standard/utilities/logging/gf_log_utility.gd",
+      "literal": "res://",
+      "expected_count": 1,
+      "kind": "path_scheme_sentinel",
+      "reason": "Log sanitization recognizes resource paths before removing path details."
+    },
+    {
+      "script_path": "res://addons/gf/standard/utilities/assets/gf_resource_resolver_utility.gd",
+      "literal": "res://",
+      "expected_count": 1,
+      "kind": "path_scheme_sentinel",
+      "reason": "The resolver classifies an already resolved string as a resource path."
+    },
+    {
+      "script_path": "res://addons/gf/extensions/content_package/resources/gf_content_package_manifest.gd",
+      "literal": "res://, user:// or package-relative path",
+      "expected_count": 2,
+      "kind": "validation_message",
+      "reason": "This is validation prose embedded in two schema error messages, not a path."
+    },
+    {
+      "script_path": "res://addons/gf/extensions/content_package/resources/gf_content_package_manifest.gd",
+      "literal": "res://",
+      "expected_count": 2,
+      "kind": "path_scheme_sentinel",
+      "reason": "Manifest path validators compare supported resource schemes."
+    },
+    {
+      "script_path": "res://addons/gf/kernel/extension/gf_extension_manifest.gd",
+      "literal": "res://",
+      "expected_count": 1,
+      "kind": "path_scheme_sentinel",
+      "reason": "Extension manifest validation requires installer contributions to be resource paths."
+    },
+    {
+      "script_path": "res://addons/gf/kernel/extension/gf_extension_preset_discovery.gd",
+      "literal": "res://",
+      "expected_count": 1,
+      "kind": "path_scheme_sentinel",
+      "reason": "Preset discovery validates configured preset paths against the resource scheme."
+    },
+    {
+      "script_path": "res://addons/gf/kernel/extension/gf_extension_selection_discovery.gd",
+      "literal": "res://",
+      "expected_count": 1,
+      "kind": "path_scheme_sentinel",
+      "reason": "Selection discovery validates manifest contribution paths."
+    },
+    {
+      "script_path": "res://addons/gf/standard/utilities/assets/gf_resource_registry_tools.gd",
+      "literal": "res://addons",
+      "expected_count": 1,
+      "kind": "scanner_default_exclusion",
+      "reason": "The generic registry builder excludes addons by default; it does not load this directory."
+    },
+    {
+      "script_path": "res://addons/gf/standard/utilities/assets/gf_resource_registry_tools.gd",
+      "literal": "res://",
+      "expected_count": 6,
+      "kind": "tool_api_path_default",
+      "reason": "Generic registry-tool defaults and dependency token parsing; release runtime only calls dependency collection with concrete rooted resources."
+    },
+    {
+      "script_path": "res://addons/gf/standard/utilities/debug/gf_build_info.gd",
+      "literal": "res://addons/gf/plugin.cfg",
+      "expected_count": 1,
+      "kind": "optional_diagnostic_metadata",
+      "reason": "Framework-version diagnostics tolerate this editor plugin metadata being absent from release exports."
+    },
+    {
+      "script_path": "res://addons/gf/extensions/content_package/runtime/gf_content_package_asset_catalog_provider.gd",
+      "literal": "res://",
+      "expected_count": 1,
+      "kind": "path_scheme_sentinel",
+      "reason": "Catalog entry normalization checks whether an already declared path is project-relative."
+    },
+    {
+      "script_path": "res://addons/gf/standard/utilities/io/gf_path_enumeration_tools.gd",
+      "literal": "res://",
+      "expected_count": 2,
+      "kind": "tool_api_path_default",
+      "reason": "Generic enumeration API defaults; release content enumeration uses explicitly declared package roots."
+    },
+    {
+      "script_path": "res://addons/gf/standard/utilities/config/validation/gf_config_resource_path_validation_rule.gd",
+      "literal": "res://",
+      "expected_count": 3,
+      "kind": "path_scheme_sentinel",
+      "reason": "Configuration validation checks and reports the resource-path scheme."
+    }
+  ],
+  "script_class_index_roots": [
+    "res://addons/gf",
+    "res://app",
+    "res://features",
+    "res://shared"
+  ],
+  "forbidden_paths": [
+    {
+      "kind": "prefix",
+      "path": "res://addons/gf/kernel/editor"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://addons/gf/standard/editor"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://addons/gf/standard/foundation/math/editor"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://addons/gf/standard/input/editor"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://addons/gf/standard/state_machine/node/editor"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://addons/gf/tools"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://addons/gut"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://addons/wechat_minigame_smoke_export"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://build"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://features/asset_library/resources/review"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://features/asset_library/resources/source_packs"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://features/asset_library/tools"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://features/diagnostics"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://features/platform_runtime/scenes/smoke_test"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://features/platform_runtime/tools"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://features/themes/tools"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://tests"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://tools"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://addons/gf/extensions/behavior_tree"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://addons/gf/extensions/camera"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://addons/gf/extensions/combat"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://addons/gf/extensions/decision"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://addons/gf/extensions/dialogue"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://addons/gf/extensions/flow"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://addons/gf/extensions/interaction"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://addons/gf/extensions/layered_sprite"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://addons/gf/extensions/network"
+    },
+    {
+      "kind": "prefix",
+      "path": "res://addons/gf/extensions/physics"
+    },
+    {
+      "kind": "exact",
+      "path": "res://addons/gf/gf_builtin_tool_contributions.json"
+    },
+    {
+      "kind": "exact",
+      "path": "res://addons/gf/plugin.cfg"
+    },
+    {
+      "kind": "exact",
+      "path": "res://addons/gf/plugin.gd"
+    },
+    {
+      "kind": "exact",
+      "path": "res://features/platform_runtime/scripts/controllers/platform_smoke_controller.gd"
+    },
+    {
+      "kind": "exact",
+      "path": "res://shared/assets/fonts/noto_sans_sc_variable.ttf"
+    },
+    {
+      "kind": "exact",
+      "path": "res://shared/assets/fonts/ui_sans_wechat_smoke.tres"
+    },
+    {
+      "kind": "exact",
+      "path": "res://shared/assets/fonts/wechat_release_font_coverage.json"
+    },
+    {
+      "kind": "exact",
+      "path": "res://shared/assets/fonts/wechat_release_font_coverage.txt"
+    },
+    {
+      "kind": "exact",
+      "path": "res://shared/assets/fonts/wechat_smoke_sans_subset.ttf"
+    }
+  ],
+  "dependency_extensions": [
+    "bmp",
+    "cfg",
+    "cs",
+    "csv",
+    "ctex",
+    "dae",
+    "exr",
+    "fbx",
+    "gd",
+    "gdshader",
+    "glb",
+    "gltf",
+    "hdr",
+    "jpeg",
+    "jpg",
+    "json",
+    "ktx",
+    "material",
+    "mp3",
+    "obj",
+    "ogg",
+    "opus",
+    "otf",
+    "png",
+    "res",
+    "scn",
+    "shader",
+    "svg",
+    "tga",
+    "translation",
+    "tres",
+    "tscn",
+    "ttf",
+    "txt",
+    "wav",
+    "webp",
+    "woff",
+    "woff2"
+  ],
+  "stable_strategy": {
+    "expected_root_count": 104,
+    "expected_structure_dynamic_count": 44,
+    "expected_content_resource_count": 37,
+    "expected_enabled_extension_count": 8,
+    "max_dependency_depth": 64,
+    "max_dependency_paths": 20000,
+    "max_script_index_paths": 5000,
+    "max_script_index_entries": 50000,
+    "max_script_index_depth": 64,
+    "max_script_scan_paths": 5000,
+    "max_script_file_bytes": 2097152,
+    "max_script_total_bytes": 67108864,
+    "sort_order": "unicode_codepoint_ascending",
+    "duplicate_policy": "dedupe",
+    "unknown_runtime_literal_policy": "error",
+    "preset_paths_must_equal_roots": true,
+    "raw_include_must_equal": true,
+    "dependency_limits_are_errors": true
+  }
+}

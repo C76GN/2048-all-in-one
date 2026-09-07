@@ -12,9 +12,9 @@ const MAIN_PACKAGE_SOFT_LIMIT_BYTES: int = 3_600_000
 const ENGINE_SUBPACKAGE_SOFT_LIMIT_BYTES: int = 18_000_000
 const GAME_DATA_SUBPACKAGE_SOFT_LIMIT_BYTES: int = 18_000_000
 const TOTAL_PACKAGE_SOFT_LIMIT_BYTES: int = 18_000_000
-const EXPORT_REPORT_SCHEMA_VERSION: int = 3
+const EXPORT_REPORT_SCHEMA_VERSION: int = 5
 const ARTIFACT_MANIFEST_SCHEMA_VERSION: int = 1
-const BUILD_IDENTITY_SCHEMA_VERSION: int = 2
+const BUILD_IDENTITY_SCHEMA_VERSION: int = 4
 const INPUT_SNAPSHOT_SCHEMA_VERSION: int = 1
 const REQUIRED_GODOT_VERSION_PREFIX: String = "4.7.2.stable"
 const PACK_RELATIVE_PATH: String = "game_data/2048-all-in-one.bin"
@@ -37,7 +37,10 @@ const _TOOL_IDENTITY_NAMES: PackedStringArray = [
 	"bounded_json_reader",
 	"path_tools",
 	"chunk_loader",
+	"startup_coordinator",
 	"wxmemfs_patch",
+	"release_resource_closure",
+	"release_resource_policy",
 ]
 const _TOOL_IDENTITY_PATHS: Dictionary = {
 	"export_tool": "tools/export_wechat_minigame_smoke.ps1",
@@ -46,8 +49,25 @@ const _TOOL_IDENTITY_PATHS: Dictionary = {
 	"bounded_json_reader": "addons/gf/kernel/core/gf_bounded_json_object_reader.gd",
 	"path_tools": "addons/gf/kernel/core/gf_path_tools.gd",
 	"chunk_loader": "tools/wechat_minigame/chunked_file_loader.js",
+	"startup_coordinator": "tools/wechat_minigame/subpackage_startup_coordinator.js",
 	"wxmemfs_patch": "tools/wechat_minigame/wxmemfs_rename_patch.ps1",
+	"release_resource_closure": "tools/wechat_minigame_release_resource_closure.gd",
+	"release_resource_policy": "tools/wechat_minigame/release_resource_policy.json",
 }
+const _RELEASE_RESOURCE_CLOSURE_SCHEMA_VERSION: int = 1
+const _RELEASE_RESOURCE_CLOSURE_POLICY_ID: String = (
+	"wechat-minigame-release-resource-closure-v1"
+)
+const _RELEASE_RESOURCE_CLOSURE_COUNT_FIELDS: PackedStringArray = [
+	"roots",
+	"structure_dynamic",
+	"content_resources",
+	"raw_dependency_closure",
+	"closure",
+	"raw_include_patterns",
+	"raw_include_files",
+	"issues",
+]
 const _INPUT_INCLUDE_EXACT: PackedStringArray = [
 	"default_bus_layout.tres",
 	"export_presets.cfg",
@@ -87,7 +107,7 @@ const _INPUT_EXCLUDE_CACHE_SUFFIXES: PackedStringArray = [".pyc", ".pyo"]
 const _PACK_LOADER_REFERENCE: String = "/game_data/2048-all-in-one.bin"
 const _CHUNK_LOADER_RELATIVE_PATH: String = "engine/wechat-chunked-file-loader.js"
 const _CHUNK_LOADER_SHA256: String = (
-	"f04b13f34837d9220897aba0e45abe25c0cfd391cea0f283ff99e41288922524"
+	"2caab9872b5886cd823fcb9e9a037163d9c93bd77070ef12e56d6dccf51a0600"
 )
 const _CHUNK_LOADER_IMPORT: String = "import './wechat-chunked-file-loader'"
 const _CHUNK_LOADER_INSTALL: String = "installChunkedLocalFetch"
@@ -95,6 +115,7 @@ const _CHUNK_MANIFEST_PREFIX: String = (
 	"const chunkedResourceBytes = Object.freeze("
 )
 const _CHUNK_BYTES_TOKEN: String = "chunkBytes: 4194304"
+const _CHUNK_MAX_CONCURRENT_RESOURCES_TOKEN: String = "maxConcurrentResources: 2"
 const _WXMEMFS_RENAME_PATCH_MARKER: String = "/*2048-wechat-wxmemfs-rename-v1*/"
 const _WXMEMFS_RENAME_FUNCTION_TOKEN: String = (
 	"rename:function(old_node,new_dir,new_name)"
@@ -104,6 +125,25 @@ const _WXMEMFS_MEMORY_MUTATION_TOKEN: String = (
 	'delete old_node["parent"]["contents"][old_node["name"]]'
 )
 const _WXMEMFS_RENAME_FAILURE_TOKEN: String = 'throw new FS["ErrnoError"](29)'
+const _RUNTIME_RENDER_PATCH_MARKER: String = (
+	"/*2048-wechat-runtime-dpr-cap-v1*/"
+)
+const _RUNTIME_RENDER_METRICS_TOKEN: String = (
+	"let t=window.devicePixelRatio||1,e=window.innerWidth,i=window.innerHeight"
+)
+const _RUNTIME_RENDER_WINDOW_INFO_TOKEN: String = (
+	"r.pixelRatio&&(t=r.pixelRatio),r.windowWidth&&(e=r.windowWidth)," +
+	"r.windowHeight&&(i=r.windowHeight)"
+)
+const _RUNTIME_RENDER_DPR_CAP_TOKEN: String = (
+	"return Math.max(1,Math.min(s,o>0?1280/o:s,h>0?720/h:s))"
+)
+const _RUNTIME_RENDER_CSS_SIZE_TOKEN: String = (
+	"const csw=`${width/scale}px`;const csh=`${height/scale}px`;" +
+	"if(canvas.style.width!==csw||canvas.style.height!==csh||" +
+	"canvas.width!==width||canvas.height!==height){canvas.width=width;" +
+	"canvas.height=height;canvas.style.width=csw;canvas.style.height=csh"
+)
 const _CHUNK_RESOURCE_PATHS: PackedStringArray = [
 	"/engine/godot.wasm.br",
 	_PACK_LOADER_REFERENCE,
@@ -114,15 +154,56 @@ const _GAME_DATA_ENTRY_MARKER: String = (
 const _ENGINE_ENTRY_MARKER: String = (
 	"GameGlobal.__godotEngineSubpackageEntryStarted = true;"
 )
-const _GAME_DATA_LOAD_TOKEN: String = (
-	'loadPackage("game_data","__godotGameDataSubpackageEntryStarted",' +
-	'"game_data/game.js"'
+const _STARTUP_COORDINATOR_RELATIVE_PATH: String = "wechat-startup-coordinator.js"
+const _STARTUP_COORDINATOR_SHA256: String = (
+	"037d3f040e5ef4ecf89910b7435fddba62877123184dd21da246ce9b54969418"
 )
-const _ENGINE_LOAD_TOKEN: String = (
-	'loadPackage("engine","__godotEngineSubpackageEntryStarted",' +
-	'"engine/game.js"'
+const _STARTUP_COORDINATOR_IMPORT: String = "import './wechat-startup-coordinator'"
+const _STARTUP_COORDINATOR_CALL: String = "const startup=coordinator.start({"
+const _STARTUP_PACKAGE_BYTES_REFERENCE: String = (
+	"packageBytes:GameGlobal.__godotStartupPackageBytes"
 )
-const _DATA_PROBE_TOKEN: String = "probeGameData(()=>{"
+const _STARTUP_RUNTIME_OPTION_TOKENS: PackedStringArray = [
+	"packageTimeoutMilliseconds:300000",
+	"probeTimeoutMilliseconds:10000",
+	"starterTimeoutMilliseconds:10000",
+	"engineStartTimeoutMilliseconds:300000",
+]
+const _STARTUP_PACKAGE_BYTES_PREFIX: String = (
+	"GameGlobal.__godotStartupPackageBytes = Object.freeze({engine:"
+)
+const _ENGINE_STARTER_REGISTRATION: String = "registerEngineStarter("
+const _ENGINE_STARTER_CACHE_TOKEN: String = (
+	"if (!GameGlobal.__godotEngineStartPromise) {"
+)
+const _ENGINE_START_DEFERRED_TOKEN: String = (
+	".then(() => GODOTSDK.startGame(exe, pack))"
+)
+const _SERIAL_LOADER_TOKENS: PackedStringArray = [
+	"const loadPackage=",
+	"probeGameData(",
+]
+const _LOADER_RENDER_PATCH_MARKER: String = (
+	"/*2048-wechat-loader-dpr-cap-v1*/"
+)
+const _RENDER_DPR_SOURCE_TOKEN: String = (
+	"i=Number(window.devicePixelRatio)," +
+	"r=Number.isFinite(i)&&i>0?Math.max(1,i):1," +
+	"s=Math.max(t,e),o=Math.min(t,e)"
+)
+const _RENDER_DPR_CAP_TOKEN: String = (
+	"this.dpr=Math.max(1,Math.min(r,s>0?1280/s:r,o>0?720/o:r))"
+)
+const _RENDER_BACKING_STORE_TOKENS: PackedStringArray = [
+	"this.onScreenCanvas.width=t*this.dpr",
+	"this.onScreenCanvas.height=e*this.dpr",
+	"this.offScreenCanvas.width=t*this.dpr",
+	"this.offScreenCanvas.height=e*this.dpr",
+]
+const _RENDER_CSS_SIZE_TOKENS: PackedStringArray = [
+	'this.onScreenCanvas.style.width=`${t}px`',
+	'this.onScreenCanvas.style.height=`${e}px`',
+]
 const _REQUIRED_PACK_INCLUDE_FILES: PackedStringArray = [
 	"engine/godot.wasm.br",
 	PACK_RELATIVE_PATH,
@@ -187,6 +268,7 @@ const _REQUIRED_PATHS: PackedStringArray = [
 	"images/background.png",
 	"images/logo.png",
 	"project.config.json",
+	_STARTUP_COORDINATOR_RELATIVE_PATH,
 	"weapp-adapter.js",
 ]
 const _VOLATILE_LOCAL_SIDECAR_PATH: String = "project.private.config.json"
@@ -278,6 +360,12 @@ func compute_report_build_id(export_report: Dictionary) -> String:
 	var font_policy: Dictionary = _dictionary_value(
 		export_report.get("font_policy", {})
 	)
+	var resource_closure: Dictionary = _dictionary_value(
+		export_report.get("resource_closure", {})
+	)
+	var resource_closure_counts: Dictionary = _dictionary_value(
+		resource_closure.get("counts", {})
+	)
 	var records: PackedStringArray = PackedStringArray([
 		"wechat-candidate-build-v%d" % BUILD_IDENTITY_SCHEMA_VERSION,
 		"scope=%s" % str(export_report.get("scope", "")),
@@ -287,6 +375,54 @@ func compute_report_build_id(export_report: Dictionary) -> String:
 		),
 		"release_font_subset_sha256=%s" % str(
 			font_policy.get("subset_font_sha256", "")
+		),
+		"release_resource_closure_schema_version=%d" % _integer_value(
+			resource_closure.get("schema_version"), 0
+		),
+		"release_resource_closure_policy_id=%s" % str(
+			resource_closure.get("policy_id", "")
+		),
+		"release_resource_closure_policy_path=%s" % str(
+			resource_closure.get("policy_path", "")
+		),
+		"release_resource_closure_policy_sha256=%s" % str(
+			resource_closure.get("policy_sha256", "")
+		),
+		"release_resource_closure_tool_path=%s" % str(
+			resource_closure.get("tool_path", "")
+		),
+		"release_resource_closure_tool_sha256=%s" % str(
+			resource_closure.get("tool_sha256", "")
+		),
+		"release_resource_closure_digest_sha256=%s" % str(
+			resource_closure.get("closure_sha256", "")
+		),
+		"release_resource_closure_full_dependency_scan_count=%d" % _integer_value(
+			resource_closure.get("full_dependency_scan_count"), 0
+		),
+		"release_resource_closure_roots=%d" % _integer_value(
+			resource_closure_counts.get("roots"), 0
+		),
+		"release_resource_closure_structure_dynamic=%d" % _integer_value(
+			resource_closure_counts.get("structure_dynamic"), 0
+		),
+		"release_resource_closure_content_resources=%d" % _integer_value(
+			resource_closure_counts.get("content_resources"), 0
+		),
+		"release_resource_closure_raw_dependency_closure=%d" % _integer_value(
+			resource_closure_counts.get("raw_dependency_closure"), 0
+		),
+		"release_resource_closure_closure=%d" % _integer_value(
+			resource_closure_counts.get("closure"), 0
+		),
+		"release_resource_closure_raw_include_patterns=%d" % _integer_value(
+			resource_closure_counts.get("raw_include_patterns"), 0
+		),
+		"release_resource_closure_raw_include_files=%d" % _integer_value(
+			resource_closure_counts.get("raw_include_files"), 0
+		),
+		"release_resource_closure_issues=%d" % _integer_value(
+			resource_closure_counts.get("issues"), 0
 		),
 		"godot=%s" % str(godot.get("version", "")),
 		"gf_framework_version=%s" % str(gf.get("framework_version", "")),
@@ -355,7 +491,7 @@ func _verify(
 	var files: PackedStringArray = _artifact_files_from(discovered_files)
 	var package: Dictionary = _measure_package(normalized_root, files, issues)
 	_validate_loader(normalized_root, issues)
-	_validate_subpackage_entries(normalized_root, issues)
+	_validate_subpackage_entries(normalized_root, package, issues)
 	_validate_project_config(normalized_root, profile, issues)
 	_validate_game_config(normalized_root, issues)
 	_validate_private_config(normalized_root, issues)
@@ -527,7 +663,11 @@ func _validate_loader(root: String, issues: PackedStringArray) -> void:
 	_validate_wxmemfs_runtime(root, issues)
 
 
-func _validate_subpackage_entries(root: String, issues: PackedStringArray) -> void:
+func _validate_subpackage_entries(
+	root: String,
+	package: Dictionary,
+	issues: PackedStringArray
+) -> void:
 	var data_entry: String = FileAccess.get_file_as_string(
 		root.path_join("game_data/game.js")
 	)
@@ -538,34 +678,91 @@ func _validate_subpackage_entries(root: String, issues: PackedStringArray) -> vo
 	)
 	if not engine_entry.contains(_ENGINE_ENTRY_MARKER):
 		_add_issue(issues, "engine_entry_marker_missing")
+	if (
+		not engine_entry.contains(_ENGINE_STARTER_REGISTRATION)
+		or not engine_entry.contains(_ENGINE_STARTER_CACHE_TOKEN)
+		or not engine_entry.contains(_ENGINE_START_DEFERRED_TOKEN)
+		or engine_entry.count("GODOTSDK.startGame(") != 1
+	):
+		_add_issue(issues, "engine_starter_registration_invalid")
 	var root_loader: String = FileAccess.get_file_as_string(
 		root.path_join("godot-loader.js")
 	)
-	var data_load_index: int = root_loader.find(_GAME_DATA_LOAD_TOKEN)
-	var data_probe_index: int = root_loader.find(_DATA_PROBE_TOKEN)
-	var engine_load_index: int = root_loader.find(_ENGINE_LOAD_TOKEN)
-	if data_load_index < 0:
-		_add_issue(issues, "root_loader_game_data_stage_missing")
-	if engine_load_index < 0:
-		_add_issue(issues, "root_loader_engine_stage_missing")
-	if data_probe_index < 0:
-		_add_issue(issues, "root_loader_data_probe_missing")
-	var load_order_invalid: bool = (
-		data_load_index >= 0
-		and engine_load_index >= 0
-		and data_load_index >= engine_load_index
+	_validate_render_resolution_policy(root_loader, issues)
+	if (
+		not root_loader.contains(_STARTUP_COORDINATOR_CALL)
+		or not root_loader.contains(_STARTUP_PACKAGE_BYTES_REFERENCE)
+	):
+		_add_issue(issues, "root_loader_startup_coordinator_missing")
+	for token: String in _STARTUP_RUNTIME_OPTION_TOKENS:
+		if not root_loader.contains(token):
+			_add_issue(issues, "root_loader_startup_option_missing:%s" % token)
+	for token: String in _SERIAL_LOADER_TOKENS:
+		if root_loader.contains(token):
+			_add_issue(issues, "root_loader_serial_startup_present")
+			break
+	_validate_startup_coordinator(root, package, issues)
+
+
+func _validate_startup_coordinator(
+	root: String,
+	package: Dictionary,
+	issues: PackedStringArray
+) -> void:
+	var coordinator_path: String = root.path_join(_STARTUP_COORDINATOR_RELATIVE_PATH)
+	if FileAccess.file_exists(coordinator_path):
+		var actual_hash: String = FileAccess.get_sha256(coordinator_path).to_lower()
+		if actual_hash != _STARTUP_COORDINATOR_SHA256:
+			_add_issue(issues, "startup_coordinator_hash_mismatch:%s" % actual_hash)
+	var coordinator_text: String = FileAccess.get_file_as_string(coordinator_path)
+	for token: String in PackedStringArray([
+		"const PACKAGE_TIMEOUT_MILLISECONDS = 300000;",
+		"const PROBE_TIMEOUT_MILLISECONDS = 10000;",
+		"const STARTER_TIMEOUT_MILLISECONDS = 10000;",
+		"const ENGINE_START_TIMEOUT_MILLISECONDS = 300000;",
+		"const DOWNLOAD_PROGRESS_WEIGHT = 0.95;",
+		"const PROGRESS_TRACE_STEP_PERCENTAGE = 5;",
+		"const UI_PROGRESS_MIN_STEP = 0.005;",
+		"const TRACE_LIMIT = 64;",
+		"startup.fatal",
+		"startup.barrier_ready",
+		"engine.start_resolved",
+		"engine_start_timeout",
+	]):
+		if not coordinator_text.contains(token):
+			_add_issue(issues, "startup_coordinator_contract_missing:%s" % token)
+	var root_game: String = FileAccess.get_file_as_string(root.path_join("game.js"))
+	if not root_game.contains(_STARTUP_COORDINATOR_IMPORT):
+		_add_issue(issues, "startup_coordinator_import_missing")
+	var expected_weights: String = (
+		_STARTUP_PACKAGE_BYTES_PREFIX
+		+ str(_integer_value(package.get("engine_package_bytes")))
+		+ ",game_data:"
+		+ str(_integer_value(package.get("game_data_package_bytes")))
+		+ "});"
 	)
-	var probe_order_invalid: bool = (
-		data_load_index >= 0
-		and data_probe_index >= 0
-		and engine_load_index >= 0
-		and not (
-			data_load_index < data_probe_index
-			and data_probe_index < engine_load_index
-		)
-	)
-	if load_order_invalid or probe_order_invalid:
-		_add_issue(issues, "root_loader_subpackage_order_invalid")
+	if not root_game.contains(expected_weights):
+		_add_issue(issues, "startup_package_byte_weights_mismatch")
+
+
+func _validate_render_resolution_policy(
+	root_loader: String,
+	issues: PackedStringArray
+) -> void:
+	if (
+		not root_loader.contains(_LOADER_RENDER_PATCH_MARKER)
+		or not root_loader.contains(_RENDER_DPR_SOURCE_TOKEN)
+		or not root_loader.contains(_RENDER_DPR_CAP_TOKEN)
+	):
+		_add_issue(issues, "root_loader_render_dpr_cap_missing")
+	for token: String in _RENDER_BACKING_STORE_TOKENS:
+		if not root_loader.contains(token):
+			_add_issue(issues, "root_loader_render_backing_store_contract_missing")
+			break
+	for token: String in _RENDER_CSS_SIZE_TOKENS:
+		if not root_loader.contains(token):
+			_add_issue(issues, "root_loader_render_css_size_contract_missing")
+			break
 
 
 func _validate_wxmemfs_runtime(root: String, issues: PackedStringArray) -> void:
@@ -588,6 +785,25 @@ func _validate_wxmemfs_runtime(root: String, issues: PackedStringArray) -> void:
 		_add_issue(issues, "wxmemfs_physical_rename_not_before_memory_mutation")
 	if not runtime_text.contains(_WXMEMFS_RENAME_FAILURE_TOKEN):
 		_add_issue(issues, "wxmemfs_rename_failure_not_fail_closed")
+	_validate_runtime_render_resolution_policy(runtime_text, issues)
+
+
+func _validate_runtime_render_resolution_policy(
+	runtime_text: String,
+	issues: PackedStringArray
+) -> void:
+	if (
+		not runtime_text.contains(_RUNTIME_RENDER_PATCH_MARKER)
+		or not runtime_text.contains(_RUNTIME_RENDER_DPR_CAP_TOKEN)
+	):
+		_add_issue(issues, "runtime_render_dpr_cap_missing")
+	if (
+		not runtime_text.contains(_RUNTIME_RENDER_METRICS_TOKEN)
+		or not runtime_text.contains(_RUNTIME_RENDER_WINDOW_INFO_TOKEN)
+	):
+		_add_issue(issues, "runtime_render_window_metrics_missing")
+	if not runtime_text.contains(_RUNTIME_RENDER_CSS_SIZE_TOKEN):
+		_add_issue(issues, "runtime_render_css_size_contract_missing")
 
 
 func _validate_chunk_loader(
@@ -610,6 +826,8 @@ func _validate_chunk_loader(
 		_add_issue(issues, "chunk_loader_install_not_before_start")
 	if not loader_text.contains(_CHUNK_BYTES_TOKEN):
 		_add_issue(issues, "chunk_loader_chunk_bytes_not_4194304")
+	if not loader_text.contains(_CHUNK_MAX_CONCURRENT_RESOURCES_TOKEN):
+		_add_issue(issues, "chunk_loader_max_concurrent_resources_not_2")
 
 	var manifest: Dictionary = _read_chunk_loader_manifest(loader_text, issues)
 	if manifest.is_empty():
@@ -720,7 +938,9 @@ func _validate_pack_include(config: Dictionary, issues: PackedStringArray) -> vo
 			continue
 		var rule: Dictionary = rule_value
 		if str(rule.get("type", "")) == "file":
-			included_files.append(str(rule.get("value", "")))
+			included_files.append_array(PackedStringArray([
+				str(rule.get("value", "")),
+			]))
 	for required_path: String in _REQUIRED_PACK_INCLUDE_FILES:
 		if not included_files.has(required_path):
 			_add_issue(issues, "project_pack_include_missing:%s" % required_path)
@@ -835,6 +1055,9 @@ func _validate_report_binding(
 		return
 	var export_report: Dictionary = _dictionary_value(report_read.get("data"))
 	_validate_report_identity(export_report, issues)
+	_validate_report_render_resolution(export_report, artifact_root, issues)
+	_validate_report_startup(export_report, artifact_root, package, issues)
+	_validate_report_large_file_reader(export_report, artifact_root, issues)
 	_validate_report_artifact(export_report, artifact_root, files, issues)
 	_validate_report_package(export_report, package, files, issues)
 	var declared_build_id: String = str(export_report.get("build_id", ""))
@@ -849,7 +1072,7 @@ func _validate_report_identity(
 	issues: PackedStringArray
 ) -> void:
 	if _integer_value(export_report.get("schema_version")) != EXPORT_REPORT_SCHEMA_VERSION:
-		_add_issue(issues, "export_report_schema_not_3")
+		_add_issue(issues, "export_report_schema_not_5")
 	var ok_value: Variant = export_report.get("ok")
 	if not ok_value is bool:
 		_add_issue(issues, "export_report_not_ok")
@@ -878,6 +1101,7 @@ func _validate_report_identity(
 		_add_issue(issues, "export_report_orientation_invalid")
 	if scope == PROFILE_SCOPE_RELEASE:
 		_validate_release_font_policy(export_report, issues)
+		_validate_release_resource_closure(export_report, issues)
 		_validate_release_limitations(export_report, issues)
 
 	var godot: Dictionary = _dictionary_value(export_report.get("godot", {}))
@@ -967,6 +1191,95 @@ func _validate_release_font_policy(
 		_add_issue(issues, "report_release_font_policy_not_exact")
 
 
+func _validate_release_resource_closure(
+	export_report: Dictionary,
+	issues: PackedStringArray
+) -> void:
+	var declared: Dictionary = _dictionary_value(
+		export_report.get("resource_closure", {})
+	)
+	if declared.is_empty():
+		_add_issue(issues, "report_release_resource_closure_missing")
+		return
+	var expected_field_count: int = 13
+	if declared.size() != expected_field_count:
+		_add_issue(issues, "report_release_resource_closure_not_exact")
+	if (
+		_integer_value(declared.get("schema_version"))
+		!= _RELEASE_RESOURCE_CLOSURE_SCHEMA_VERSION
+	):
+		_add_issue(issues, "report_release_resource_closure_mismatch:schema_version")
+	var ok_value: Variant = declared.get("ok")
+	if not ok_value is bool or not _boolean_value(ok_value):
+		_add_issue(issues, "report_release_resource_closure_not_complete")
+	var partial_value: Variant = declared.get("dependency_partial")
+	var truncated_value: Variant = declared.get("dependency_truncated")
+	if (
+		not partial_value is bool
+		or _boolean_value(partial_value, true)
+		or not truncated_value is bool
+		or _boolean_value(truncated_value, true)
+	):
+		_add_issue(issues, "report_release_resource_closure_not_complete")
+	var declared_issues: Variant = declared.get("issues")
+	if not declared_issues is Array:
+		_add_issue(issues, "report_release_resource_closure_issues_not_empty")
+	else:
+		var declared_issues_array: Array = declared_issues
+		if not declared_issues_array.is_empty():
+			_add_issue(issues, "report_release_resource_closure_issues_not_empty")
+
+	var tool_identity: Dictionary = _dictionary_value(
+		export_report.get("tool_identity", {})
+	)
+	var closure_tool: Dictionary = _dictionary_value(
+		tool_identity.get("release_resource_closure", {})
+	)
+	var closure_policy: Dictionary = _dictionary_value(
+		tool_identity.get("release_resource_policy", {})
+	)
+	var expected_strings: Dictionary = {
+		"policy_id": _RELEASE_RESOURCE_CLOSURE_POLICY_ID,
+		"policy_path": str(_TOOL_IDENTITY_PATHS.get("release_resource_policy", "")),
+		"policy_sha256": str(closure_policy.get("sha256", "")),
+		"tool_path": str(_TOOL_IDENTITY_PATHS.get("release_resource_closure", "")),
+		"tool_sha256": str(closure_tool.get("sha256", "")),
+	}
+	for field_value: Variant in expected_strings.keys():
+		var field: String = str(field_value)
+		if str(declared.get(field, "")) != str(expected_strings[field]):
+			_add_issue(issues, "report_release_resource_closure_mismatch:%s" % field)
+	for hash_field: String in PackedStringArray([
+		"policy_sha256",
+		"tool_sha256",
+		"closure_sha256",
+	]):
+		if not _is_lower_hex(str(declared.get(hash_field, "")), 64):
+			_add_issue(issues, "report_release_resource_closure_mismatch:%s" % hash_field)
+	if _integer_value(declared.get("full_dependency_scan_count")) <= 0:
+		_add_issue(
+			issues,
+			"report_release_resource_closure_mismatch:full_dependency_scan_count"
+		)
+
+	var counts: Dictionary = _dictionary_value(declared.get("counts", {}))
+	if counts.size() != _RELEASE_RESOURCE_CLOSURE_COUNT_FIELDS.size():
+		_add_issue(issues, "report_release_resource_closure_counts_not_exact")
+	for count_field: String in _RELEASE_RESOURCE_CLOSURE_COUNT_FIELDS:
+		var count: int = _integer_value(counts.get(count_field))
+		if count < 0:
+			_add_issue(
+				issues,
+				"report_release_resource_closure_count_invalid:%s" % count_field
+			)
+	if (
+		_integer_value(counts.get("roots")) <= 0
+		or _integer_value(counts.get("closure")) <= 0
+		or _integer_value(counts.get("issues")) != 0
+	):
+		_add_issue(issues, "report_release_resource_closure_not_complete")
+
+
 func _validate_release_limitations(
 	export_report: Dictionary,
 	issues: PackedStringArray
@@ -1050,6 +1363,195 @@ func _validate_report_template(
 		or str(template.get("sha256", "")) != _TEMPLATE_SHA256
 	):
 		_add_issue(issues, "report_template_identity_invalid")
+
+
+func _validate_report_render_resolution(
+	export_report: Dictionary,
+	artifact_root: String,
+	issues: PackedStringArray
+) -> void:
+	var declared: Dictionary = _dictionary_value(
+		export_report.get("render_resolution", {})
+	)
+	var expected_strings: Dictionary = {
+		"policy_id": "wechat-bounded-backing-store-dpr-v1",
+		"loader_patch": "2048-wechat-loader-dpr-cap-v1",
+		"runtime_patch": "2048-wechat-runtime-dpr-cap-v1",
+		"loader_sha256": FileAccess.get_sha256(
+			artifact_root.path_join("godot-loader.js")
+		).to_lower(),
+		"runtime_sha256": FileAccess.get_sha256(
+			artifact_root.path_join("engine/godot.js")
+		).to_lower(),
+	}
+	for field_value: Variant in expected_strings.keys():
+		var field: String = str(field_value)
+		if str(declared.get(field, "")) != str(expected_strings[field]):
+			_add_issue(issues, "report_render_resolution_mismatch:%s" % field)
+	var expected_integers: Dictionary = {
+		"long_edge_target_pixels": 1280,
+		"short_edge_target_pixels": 720,
+		"minimum_dpr": 1,
+	}
+	for field_value: Variant in expected_integers.keys():
+		var field: String = str(field_value)
+		if _integer_value(declared.get(field)) != _integer_value(
+			expected_integers.get(field)
+		):
+			_add_issue(issues, "report_render_resolution_mismatch:%s" % field)
+	for field: String in PackedStringArray([
+		"device_dpr_ceiling",
+		"css_size_preserved",
+		"input_mapping_preserved",
+		"resize_recomputed",
+	]):
+		var value: Variant = declared.get(field)
+		if not value is bool or not value:
+			_add_issue(issues, "report_render_resolution_mismatch:%s" % field)
+	if declared.size() != 12:
+		_add_issue(issues, "report_render_resolution_not_exact")
+
+
+func _validate_report_startup(
+	export_report: Dictionary,
+	artifact_root: String,
+	package: Dictionary,
+	issues: PackedStringArray
+) -> void:
+	var declared: Dictionary = _dictionary_value(export_report.get("startup", {}))
+	var coordinator_path: String = artifact_root.path_join(
+		_STARTUP_COORDINATOR_RELATIVE_PATH
+	)
+	var expected_values: Dictionary = {
+		"schema_version": 1,
+		"strategy": "parallel_subpackages_four_way_barrier",
+		"coordinator_path": _STARTUP_COORDINATOR_RELATIVE_PATH,
+		"coordinator_sha256": FileAccess.get_sha256(coordinator_path).to_lower(),
+		"trace_schema_version": 1,
+		"trace_limit": 64,
+		"package_timeout_ms": 300000,
+		"probe_timeout_ms": 10000,
+		"starter_timeout_ms": 10000,
+		"engine_start_timeout_ms": 300000,
+		"engine_package_bytes": _integer_value(package.get("engine_package_bytes")),
+		"game_data_package_bytes": _integer_value(
+			package.get("game_data_package_bytes")
+		),
+	}
+	for field_value: Variant in expected_values.keys():
+		var field: String = str(field_value)
+		if declared.get(field) != expected_values[field]:
+			_add_issue(issues, "report_startup_mismatch:%s" % field)
+	var progress_weight: Variant = declared.get("download_progress_weight")
+	if not progress_weight is float:
+		_add_issue(issues, "report_startup_mismatch:download_progress_weight")
+	else:
+		var typed_progress_weight: float = progress_weight
+		if not is_equal_approx(typed_progress_weight, 0.95):
+			_add_issue(issues, "report_startup_mismatch:download_progress_weight")
+	if _integer_value(declared.get("progress_trace_step_percentage")) != 5:
+		_add_issue(issues, "report_startup_mismatch:progress_trace_step_percentage")
+	var ui_progress_step: Variant = declared.get("ui_progress_minimum_step")
+	if not ui_progress_step is float:
+		_add_issue(issues, "report_startup_mismatch:ui_progress_minimum_step")
+	else:
+		var typed_ui_progress_step: float = ui_progress_step
+		if not is_equal_approx(typed_ui_progress_step, 0.005):
+			_add_issue(issues, "report_startup_mismatch:ui_progress_minimum_step")
+	if not _string_sequence_equals(declared.get("barrier", []), PackedStringArray([
+		"engine_entry",
+		"engine_starter",
+		"game_data_entry",
+		"game_data_pck_probe",
+	])):
+		_add_issue(issues, "report_startup_mismatch:barrier")
+	for field: String in PackedStringArray([
+		"first_fatal_wins",
+		"late_callbacks_inert",
+		"engine_start_once",
+	]):
+		var value: Variant = declared.get(field)
+		if not value is bool or not value:
+			_add_issue(issues, "report_startup_mismatch:%s" % field)
+	if declared.size() != 19:
+		_add_issue(issues, "report_startup_not_exact")
+
+
+func _validate_report_large_file_reader(
+	export_report: Dictionary,
+	artifact_root: String,
+	issues: PackedStringArray
+) -> void:
+	var declared: Dictionary = _dictionary_value(
+		export_report.get("large_file_reader", {})
+	)
+	var helper_path: String = artifact_root.path_join(_CHUNK_LOADER_RELATIVE_PATH)
+	var helper_sha256: String = (
+		FileAccess.get_sha256(helper_path).to_lower()
+		if FileAccess.file_exists(helper_path)
+		else ""
+	)
+	var expected_values: Dictionary = {
+		"strategy": "async_position_length_chunked_bounded_concurrency",
+		"chunk_bytes": 4_194_304,
+		"max_concurrent_resources": 2,
+		"inflight_deduplication": "resource_path",
+		"helper_path": _CHUNK_LOADER_RELATIVE_PATH,
+		"helper_sha256": helper_sha256,
+	}
+	for field_value: Variant in expected_values.keys():
+		var field: String = str(field_value)
+		if declared.get(field) != expected_values[field]:
+			_add_issue(issues, "report_large_file_reader_mismatch:%s" % field)
+
+	var expected_resource_paths: PackedStringArray = _CHUNK_RESOURCE_PATHS.duplicate()
+	expected_resource_paths.sort()
+	var declared_resource_paths: PackedStringArray = PackedStringArray()
+	var resources_value: Variant = declared.get("resources", [])
+	if not resources_value is Array:
+		_add_issue(issues, "report_large_file_reader_resources_invalid")
+	else:
+		var resources: Array = resources_value
+		for resource_value: Variant in resources:
+			if not resource_value is Dictionary:
+				_add_issue(issues, "report_large_file_reader_resources_invalid")
+				continue
+			var resource: Dictionary = resource_value
+			var resource_path: String = str(resource.get("path", ""))
+			if (
+				resource_path.is_empty()
+				or resource_path in declared_resource_paths
+				or resource_path not in expected_resource_paths
+			):
+				_add_issue(
+					issues,
+					"report_large_file_reader_resource_path_invalid:%s" % resource_path
+				)
+				continue
+			var _path_added: bool = declared_resource_paths.append(resource_path)
+			var artifact_path: String = artifact_root.path_join(
+				resource_path.trim_prefix("/")
+			)
+			var file: FileAccess = FileAccess.open(artifact_path, FileAccess.READ)
+			if file == null:
+				continue
+			var actual_bytes: int = file.get_length()
+			if _integer_value(resource.get("bytes")) != actual_bytes:
+				_add_issue(
+					issues,
+					"report_large_file_reader_resource_bytes_mismatch:%s" % resource_path
+				)
+			var actual_sha256: String = FileAccess.get_sha256(artifact_path).to_lower()
+			if str(resource.get("sha256", "")) != actual_sha256:
+				_add_issue(
+					issues,
+					"report_large_file_reader_resource_hash_mismatch:%s" % resource_path
+				)
+	declared_resource_paths.sort()
+	if declared_resource_paths != expected_resource_paths:
+		_add_issue(issues, "report_large_file_reader_resource_paths_not_exact")
+	if declared.size() != 7:
+		_add_issue(issues, "report_large_file_reader_not_exact")
 
 
 func _validate_report_artifact(

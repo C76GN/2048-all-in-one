@@ -18,7 +18,10 @@ const toolPaths = [
 	"addons/gf/kernel/core/gf_bounded_json_object_reader.gd",
 	"addons/gf/kernel/core/gf_path_tools.gd",
 	"tools/wechat_minigame/chunked_file_loader.js",
+	"tools/wechat_minigame/subpackage_startup_coordinator.js",
 	"tools/wechat_minigame/wxmemfs_rename_patch.ps1",
+	"tools/wechat_minigame_release_resource_closure.gd",
+	"tools/wechat_minigame/release_resource_policy.json",
 ];
 
 function quotePowerShellLiteral(value) {
@@ -99,6 +102,10 @@ function sha256(contents) {
 
 const originalSubpackageLoaderSource = 'class GodotLoader{loadGameEngine(){wx.loadSubpackage({complete:t=>{},name:"engine",success:()=>{this.progress=1,this.updateProgress(this.progress,this.config.textConfig.initText)}}).onProgressUpdate(({progress:t})=>{this.progress=t/100,this.updateProgress(this.progress,this.config.textConfig.downloadingText[0])})}cleanup(){}}';
 let patchedSubpackageLoaderSource = "";
+const originalResizeCanvasesSource = 'class GodotLoader{resizeCanvases(){const t=window.innerWidth,e=window.innerHeight;this.onScreenCanvas.width=t*this.dpr,this.onScreenCanvas.height=e*this.dpr,this.onScreenCanvas.style.width=`${t}px`,this.onScreenCanvas.style.height=`${e}px`,this.offScreenCanvas.width=t*this.dpr,this.offScreenCanvas.height=e*this.dpr,this.gl.viewport(0,0,this.onScreenCanvas.width,this.onScreenCanvas.height),this.render()}}';
+let patchedResizeCanvasesSource = "";
+const originalRuntimePixelRatioSource = 'const GodotDisplayScreen={hidpi:true,getPixelRatio:function(){if(!GodotDisplayScreen.hidpi){return 1}if(typeof wx!=="undefined"&&wx.getWindowInfo){const info=wx.getWindowInfo();if(info&&info.pixelRatio){return info.pixelRatio}}return window.devicePixelRatio||1}};';
+let patchedRuntimePixelRatioSource = "";
 
 function getPatchedSubpackageLoaderSource() {
 	if (patchedSubpackageLoaderSource !== "") {
@@ -117,6 +124,151 @@ function getPatchedSubpackageLoaderSource() {
 	} finally {
 		fs.rmSync(fixtureRoot, {recursive: true, force: true});
 	}
+}
+
+test(
+	"subpackage lifecycle patch is byte-identical across Windows PowerShell and PowerShell 7",
+	{skip: process.platform !== "win32"},
+	() => {
+		const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-loader-shell-parity-"));
+		try {
+			const sourceBase64 = Buffer.from(originalSubpackageLoaderSource, "utf8").toString("base64");
+			const body = [
+				`$source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${sourceBase64}'))`,
+				"$patched = ConvertTo-WeChatSubpackageLifecyclePatchedSource -Source $source",
+				"[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($patched))",
+			].join("\n");
+			const windowsPowerShell = runPowerShell(fixtureRoot, body).stdout.trim();
+			const powerShell7 = runPwsh(fixtureRoot, body).stdout.trim();
+			assert.equal(powerShell7, windowsPowerShell);
+			assert.doesNotMatch(
+				Buffer.from(windowsPowerShell, "base64").toString("utf8"),
+				/\r/,
+			);
+		} finally {
+			fs.rmSync(fixtureRoot, {recursive: true, force: true});
+		}
+	},
+);
+
+function getPatchedResizeCanvasesSource() {
+	if (patchedResizeCanvasesSource !== "") {
+		return patchedResizeCanvasesSource;
+	}
+	const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-render-resolution-"));
+	try {
+		const sourceBase64 = Buffer.from(originalResizeCanvasesSource, "utf8").toString("base64");
+		const result = runPowerShell(fixtureRoot, [
+			`$source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${sourceBase64}'))`,
+			"$patched = ConvertTo-WeChatRenderResolutionPatchedSource -Source $source",
+			"[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($patched))",
+		].join("\n"));
+		patchedResizeCanvasesSource = Buffer.from(result.stdout.trim(), "base64").toString("utf8");
+		return patchedResizeCanvasesSource;
+	} finally {
+		fs.rmSync(fixtureRoot, {recursive: true, force: true});
+	}
+}
+
+function getPatchedRuntimePixelRatioSource() {
+	if (patchedRuntimePixelRatioSource !== "") {
+		return patchedRuntimePixelRatioSource;
+	}
+	const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-runtime-resolution-"));
+	try {
+		const sourceBase64 = Buffer.from(originalRuntimePixelRatioSource, "utf8").toString("base64");
+		const result = runPowerShell(fixtureRoot, [
+			`$source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${sourceBase64}'))`,
+			"$patched = ConvertTo-WeChatRuntimeRenderResolutionPatchedSource -Source $source",
+			"[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($patched))",
+		].join("\n"));
+		patchedRuntimePixelRatioSource = Buffer.from(result.stdout.trim(), "base64").toString("utf8");
+		return patchedRuntimePixelRatioSource;
+	} finally {
+		fs.rmSync(fixtureRoot, {recursive: true, force: true});
+	}
+}
+
+function makeCanvasFixture() {
+	let width = 0;
+	let height = 0;
+	const canvas = {style: {}};
+	Object.defineProperties(canvas, {
+		width: {
+			get: () => width,
+			set: (value) => {
+				width = Math.trunc(Number(value));
+			},
+		},
+		height: {
+			get: () => height,
+			set: (value) => {
+				height = Math.trunc(Number(value));
+			},
+		},
+	});
+	return canvas;
+}
+
+function createRenderResolutionHarness() {
+	const viewports = [];
+	const context = {
+		window: {
+			innerWidth: 1,
+			innerHeight: 1,
+			devicePixelRatio: 1,
+		},
+	};
+	vm.runInNewContext(
+		`${getPatchedResizeCanvasesSource()};globalThis.LoaderForTest=GodotLoader;`,
+		context,
+	);
+	const loader = Object.create(context.LoaderForTest.prototype);
+	loader.dpr = 1;
+	loader.onScreenCanvas = makeCanvasFixture();
+	loader.offScreenCanvas = makeCanvasFixture();
+	loader.gl = {viewport: (...args) => viewports.push(args)};
+	let renderCount = 0;
+	loader.render = () => {
+		renderCount += 1;
+	};
+	return {
+		context,
+		loader,
+		viewports,
+		getRenderCount: () => renderCount,
+		resize(width, height, devicePixelRatio) {
+			context.window.innerWidth = width;
+			context.window.innerHeight = height;
+			context.window.devicePixelRatio = devicePixelRatio;
+			loader.resizeCanvases();
+		},
+	};
+}
+
+function createRuntimeResolutionHarness() {
+	let windowInfo = {windowWidth: 1, windowHeight: 1, pixelRatio: 1};
+	const context = {
+		window: {
+			innerWidth: 1,
+			innerHeight: 1,
+			devicePixelRatio: 1,
+		},
+		wx: {
+			getWindowInfo: () => windowInfo,
+		},
+	};
+	vm.runInNewContext(
+		`${getPatchedRuntimePixelRatioSource()};globalThis.ScreenForTest=GodotDisplayScreen;`,
+		context,
+	);
+	return {
+		context,
+		screen: context.ScreenForTest,
+		setWindowInfo(info) {
+			windowInfo = info;
+		},
+	};
 }
 
 function createSubpackageLoaderHarness(options = {}) {
@@ -218,78 +370,243 @@ function assertSingleVisibleFailure(harness, pattern) {
 	assert.throws(() => harness.runTimer(0), pattern);
 }
 
-test("subpackage loader loads game data before engine and settles each stage once", () => {
-	const harness = createSubpackageLoaderHarness();
-	harness.loader.loadGameEngine();
-	assert.deepEqual(harness.events[0], ["log", "[wechat-subpackage] start", "game_data"]);
-	assert.equal(harness.callbacksByName.has("engine"), false);
-	harness.progressCallbacksByName.get("game_data")({progress: 50});
-	assert.deepEqual(harness.progressUpdates.at(-1), [0.25, "下载中"]);
-	harness.context.GameGlobal.__godotGameDataSubpackageEntryStarted = true;
-	harness.callbacksByName.get("game_data").success({errMsg: "loadSubpackage:ok"});
-	assert.deepEqual(harness.dataProbePaths, ["/game_data/2048-all-in-one.bin"]);
-	assert.equal(harness.callbacksByName.has("engine"), true);
-	harness.progressCallbacksByName.get("engine")({progress: 50});
-	assert.deepEqual(harness.progressUpdates.at(-1), [0.75, "下载中"]);
-	harness.context.GameGlobal.__godotEngineSubpackageEntryStarted = true;
-	harness.callbacksByName.get("engine").success({errMsg: "loadSubpackage:ok"});
-	assert.deepEqual(harness.progressUpdates.at(-1), [1, "初始化"]);
-	harness.callbacksByName.get("engine").complete({errMsg: "loadSubpackage:ok"});
-	harness.callbacksByName.get("engine").fail({errMsg: "late failure"});
-	harness.callbacksByName.get("engine").success({errMsg: "late success"});
-	assert.equal(harness.timerCount(0), 0);
-	assert.equal(harness.progressUpdates.filter(([progress]) => progress === 0).length, 0);
+function createSubpackageDelegationHarness(withCoordinator = true) {
+	const starts = [];
+	const progressUpdates = [];
+	const timers = [];
+	const context = {
+		GameGlobal: {
+			__godotStartupPackageBytes: {engine: 9, game_data: 11},
+		},
+		setTimeout(callback, delay) {
+			timers.push({callback, delay});
+			return timers.length;
+		},
+	};
+	if (withCoordinator) {
+		context.GameGlobal.WeChatSubpackageStartupCoordinator = {
+			start(options) {
+				starts.push(options);
+				return Promise.resolve({status: "started"});
+			},
+		};
+	}
+	vm.runInNewContext(
+		`${getPatchedSubpackageLoaderSource()};globalThis.LoaderForTest=GodotLoader;`,
+		context,
+	);
+	const loader = Object.create(context.LoaderForTest.prototype);
+	loader.progress = 0;
+	loader.config = {textConfig: {
+		loadFailedText: "引擎分包加载失败",
+	}};
+	loader.updateProgress = (...args) => progressUpdates.push(args);
+	return {context, loader, progressUpdates, starts, timers};
+}
+
+test("render resolution patch caps backing stores without changing CSS size", () => {
+	const harness = createRenderResolutionHarness();
+
+	harness.resize(844, 390, 3);
+	assert.ok(Math.abs(harness.loader.dpr - 1280 / 844) < Number.EPSILON * 8);
+	assert.equal(harness.loader.onScreenCanvas.width, 1280);
+	assert.equal(harness.loader.onScreenCanvas.height, 591);
+	assert.equal(harness.loader.offScreenCanvas.width, 1280);
+	assert.equal(harness.loader.offScreenCanvas.height, 591);
+	assert.deepEqual(harness.loader.onScreenCanvas.style, {
+		width: "844px",
+		height: "390px",
+	});
+	assert.deepEqual(harness.viewports.at(-1), [0, 0, 1280, 591]);
+
+	harness.resize(390, 844, 3);
+	assert.ok(Math.abs(harness.loader.dpr - 1280 / 844) < Number.EPSILON * 8);
+	assert.equal(harness.loader.onScreenCanvas.width, 591);
+	assert.equal(harness.loader.onScreenCanvas.height, 1280);
+	assert.deepEqual(harness.loader.onScreenCanvas.style, {
+		width: "390px",
+		height: "844px",
+	});
+
+	harness.resize(640, 360, 1.25);
+	assert.equal(harness.loader.dpr, 1.25);
+	assert.equal(harness.loader.onScreenCanvas.width, 800);
+	assert.equal(harness.loader.onScreenCanvas.height, 450);
+	assert.equal(harness.getRenderCount(), 3);
 });
 
-test("subpackage loader reports a missing entry once and ignores late callbacks", () => {
-	const harness = createSubpackageLoaderHarness();
-	harness.loader.loadGameEngine();
-	harness.callbacksByName.get("game_data").success({errMsg: "loadSubpackage:ok"});
-	harness.context.GameGlobal.__godotGameDataSubpackageEntryStarted = true;
-	harness.callbacksByName.get("game_data").success({errMsg: "late success"});
-	harness.callbacksByName.get("game_data").fail({errMsg: "late failure"});
-	assert.equal(harness.callbacksByName.has("engine"), false);
-	assert.ok(harness.events.some((event) => event[1] === "[wechat-subpackage] entry_missing"));
-	assertSingleVisibleFailure(harness, /game_data\/game\.js did not execute/);
+test("runtime and loader use the same dynamic backing-store DPR cap", () => {
+	const loaderHarness = createRenderResolutionHarness();
+	const runtimeHarness = createRuntimeResolutionHarness();
+
+	loaderHarness.resize(844, 390, 3);
+	runtimeHarness.setWindowInfo({windowWidth: 844, windowHeight: 390, pixelRatio: 3});
+	assert.equal(runtimeHarness.screen.getPixelRatio(), loaderHarness.loader.dpr);
+
+	loaderHarness.resize(390, 844, 3);
+	runtimeHarness.setWindowInfo({windowWidth: 390, windowHeight: 844, pixelRatio: 3});
+	assert.equal(runtimeHarness.screen.getPixelRatio(), loaderHarness.loader.dpr);
+
+	runtimeHarness.setWindowInfo({windowWidth: 640, windowHeight: 360, pixelRatio: 1.25});
+	assert.equal(runtimeHarness.screen.getPixelRatio(), 1.25);
+	runtimeHarness.screen.hidpi = false;
+	assert.equal(runtimeHarness.screen.getPixelRatio(), 1);
+
+	runtimeHarness.screen.hidpi = true;
+	runtimeHarness.context.wx = undefined;
+	runtimeHarness.context.window.innerWidth = 320;
+	runtimeHarness.context.window.innerHeight = 180;
+	runtimeHarness.context.window.devicePixelRatio = 3;
+	assert.equal(runtimeHarness.screen.getPixelRatio(), 3);
 });
 
-test("subpackage loader converts synchronous API and progress-task failures", () => {
-	for (const options of [
-		{syncThrowPackage: "game_data"},
-		{invalidTaskPackage: "game_data"},
-		{progressThrowPackage: "game_data"},
-	]) {
-		const harness = createSubpackageLoaderHarness(options);
-		harness.loader.loadGameEngine();
-		if (harness.callbacksByName.has("game_data")) {
-			harness.context.GameGlobal.__godotGameDataSubpackageEntryStarted = true;
-			harness.callbacksByName.get("game_data").success({errMsg: "late success"});
-		}
-		assert.equal(harness.callbacksByName.has("engine"), false);
-		assertSingleVisibleFailure(harness, /(sync failure|progress task is unavailable|progress failure)/);
+test("render resolution patch keeps DPR at least one and fails closed on template drift", () => {
+	const harness = createRenderResolutionHarness();
+	harness.resize(1920, 1080, 3);
+	assert.equal(harness.loader.dpr, 1);
+	assert.equal(harness.loader.onScreenCanvas.width, 1920);
+	assert.equal(harness.loader.onScreenCanvas.height, 1080);
+
+	harness.resize(320, 180, 0.75);
+	assert.equal(harness.loader.dpr, 1);
+	assert.equal(harness.loader.onScreenCanvas.width, 320);
+	assert.equal(harness.loader.onScreenCanvas.height, 180);
+
+	const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-render-resolution-drift-"));
+	try {
+		const missingTarget = runPowerShell(
+			fixtureRoot,
+			"ConvertTo-WeChatRenderResolutionPatchedSource -Source 'class GodotLoader{}'",
+			false,
+		);
+		assert.match(
+			missingTarget.stderr || missingTarget.stdout,
+			/no longer contains the expected resizeCanvases implementation/,
+		);
+		const sourceBase64 = Buffer.from(
+			originalResizeCanvasesSource + originalResizeCanvasesSource,
+			"utf8",
+		).toString("base64");
+		const duplicateTarget = runPowerShell(
+			fixtureRoot,
+			[
+				`$source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${sourceBase64}'))`,
+				"ConvertTo-WeChatRenderResolutionPatchedSource -Source $source",
+			].join("\n"),
+			false,
+		);
+		assert.match(
+			duplicateTarget.stderr || duplicateTarget.stdout,
+			/contains multiple resizeCanvases patch targets/,
+		);
+	} finally {
+		fs.rmSync(fixtureRoot, {recursive: true, force: true});
 	}
 });
 
-test("subpackage deadline fails visibly and late success cannot continue", () => {
-	const harness = createSubpackageLoaderHarness();
-	harness.loader.loadGameEngine();
-	harness.runTimer(300000);
-	harness.context.GameGlobal.__godotGameDataSubpackageEntryStarted = true;
-	harness.callbacksByName.get("game_data").success({errMsg: "late success"});
-	assert.equal(harness.callbacksByName.has("engine"), false);
-	assert.ok(harness.events.some((event) => event[1] === "[wechat-subpackage] timeout"));
-	assertSingleVisibleFailure(harness, /game_data subpackage load timed out/);
+test("runtime resolution patch fails closed on missing or duplicate targets", () => {
+	const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-runtime-resolution-drift-"));
+	try {
+		const missingTarget = runPowerShell(
+			fixtureRoot,
+			"ConvertTo-WeChatRuntimeRenderResolutionPatchedSource -Source 'const fixture=1'",
+			false,
+		);
+		assert.match(
+			missingTarget.stderr || missingTarget.stdout,
+			/no longer contains the expected getPixelRatio implementation/,
+		);
+		const sourceBase64 = Buffer.from(
+			originalRuntimePixelRatioSource + originalRuntimePixelRatioSource,
+			"utf8",
+		).toString("base64");
+		const duplicateTarget = runPowerShell(
+			fixtureRoot,
+			[
+				`$source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${sourceBase64}'))`,
+				"ConvertTo-WeChatRuntimeRenderResolutionPatchedSource -Source $source",
+			].join("\n"),
+			false,
+		);
+		assert.match(
+			duplicateTarget.stderr || duplicateTarget.stdout,
+			/contains multiple getPixelRatio patch targets/,
+		);
+	} finally {
+		fs.rmSync(fixtureRoot, {recursive: true, force: true});
+	}
 });
 
-test("PCK probe deadline fails visibly and late read cannot start the engine", () => {
-	const harness = createSubpackageLoaderHarness({probeMode: "pending"});
+test("subpackage loader delegates one startup session to the coordinator", () => {
+	const harness = createSubpackageDelegationHarness();
 	harness.loader.loadGameEngine();
-	harness.context.GameGlobal.__godotGameDataSubpackageEntryStarted = true;
-	harness.callbacksByName.get("game_data").success({errMsg: "loadSubpackage:ok"});
-	harness.runTimer(10000);
-	harness.getPendingProbe().success({data: new Uint8Array([0x47]).buffer});
-	assert.equal(harness.callbacksByName.has("engine"), false);
-	assertSingleVisibleFailure(harness, /game_data PCK probe timed out/);
+	assert.equal(harness.starts.length, 1);
+	assert.equal(harness.starts[0].loader, harness.loader);
+	assert.deepEqual(
+		JSON.parse(JSON.stringify(harness.starts[0].packageBytes)),
+		{engine: 9, game_data: 11},
+	);
+	assert.equal(harness.starts[0].pckPath, "/game_data/2048-all-in-one.bin");
+	assert.equal(harness.starts[0].packageTimeoutMilliseconds, 300000);
+	assert.equal(harness.starts[0].probeTimeoutMilliseconds, 10000);
+	assert.equal(harness.starts[0].starterTimeoutMilliseconds, 10000);
+	assert.equal(harness.starts[0].engineStartTimeoutMilliseconds, 300000);
+	assert.equal(harness.timers.length, 0);
+});
+
+test("subpackage loader fails visibly when the coordinator import is absent", () => {
+	const harness = createSubpackageDelegationHarness(false);
+	harness.loader.loadGameEngine();
+	assert.deepEqual(harness.progressUpdates, [[0, "引擎分包加载失败"]]);
+	assert.equal(harness.timers.length, 1);
+	assert.equal(harness.timers[0].delay, 0);
+	assert.throws(
+		() => harness.timers[0].callback(),
+		/startup coordinator is unavailable/,
+	);
+});
+
+test("root game entry imports the coordinator and freezes measured package weights", () => {
+	const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-root-entry-"));
+	try {
+		const original = [
+			"import './weapp-adapter'",
+			"import './godot-loader'",
+			"const config = {};",
+			"GameGlobal.godotLoader = new GodotLoader(canvas, config);",
+		].join("\n");
+		const sourceBase64 = Buffer.from(original, "utf8").toString("base64");
+		const result = runPowerShell(fixtureRoot, [
+			`$source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${sourceBase64}'))`,
+			"$patched = ConvertTo-WeChatStartupCoordinatorGameEntryPatchedSource -Source $source -EnginePackageBytes 9 -GameDataPackageBytes 11",
+			"[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($patched))",
+		].join("\n"));
+		const patched = Buffer.from(result.stdout.trim(), "base64").toString("utf8");
+		assert.match(patched, /import '\.\/wechat-startup-coordinator'\nimport '\.\/godot-loader'/);
+		assert.match(
+			patched,
+			/GameGlobal\.__godotStartupPackageBytes = Object\.freeze\(\{engine:9,game_data:11\}\);/,
+		);
+		assert.equal((patched.match(/new GodotLoader/g) || []).length, 1);
+
+		for (const driftedSource of [
+			"import './godot-loader'",
+			`${original}\n${original}`,
+		]) {
+			const driftBase64 = Buffer.from(driftedSource, "utf8").toString("base64");
+			const drift = runPowerShell(
+				fixtureRoot,
+				[
+					`$source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${driftBase64}'))`,
+					"ConvertTo-WeChatStartupCoordinatorGameEntryPatchedSource -Source $source -EnginePackageBytes 9 -GameDataPackageBytes 11",
+				].join("\n"),
+				false,
+			);
+			assert.match(drift.stderr || drift.stdout, /(no longer contains|contains multiple)/);
+		}
+	} finally {
+		fs.rmSync(fixtureRoot, {recursive: true, force: true});
+	}
 });
 
 function makeSourceFixture() {
@@ -426,17 +743,57 @@ test("candidate build identity uses the documented canonical UTF-8 framing", () 
 		const body = [
 			"$godotIdentity = [ordered]@{ version = '4.7.2.stable.official.abcdef123' }",
 			"$gfIdentity = [ordered]@{ framework_version = '11.0.0-dev.0'; source_commit = ('a' * 40); source_git_tree = ('b' * 40); vendor_tree_sha256 = ('c' * 64); vendor_file_count = 1967; lock_sha256 = ('d' * 64) }",
-			"$toolIdentity = [ordered]@{ export_tool = [ordered]@{ sha256 = ('0' * 64) }; artifact_verifier = [ordered]@{ sha256 = ('1' * 64) }; artifact_check = [ordered]@{ sha256 = ('2' * 64) }; bounded_json_reader = [ordered]@{ sha256 = ('3' * 64) }; path_tools = [ordered]@{ sha256 = ('4' * 64) }; chunk_loader = [ordered]@{ sha256 = ('5' * 64) }; wxmemfs_patch = [ordered]@{ sha256 = ('6' * 64) } }",
+			"$toolIdentity = [ordered]@{ export_tool = [ordered]@{ sha256 = ('0' * 64) }; artifact_verifier = [ordered]@{ sha256 = ('1' * 64) }; artifact_check = [ordered]@{ sha256 = ('2' * 64) }; bounded_json_reader = [ordered]@{ sha256 = ('3' * 64) }; path_tools = [ordered]@{ sha256 = ('4' * 64) }; chunk_loader = [ordered]@{ sha256 = ('5' * 64) }; startup_coordinator = [ordered]@{ sha256 = ('6' * 64) }; wxmemfs_patch = [ordered]@{ sha256 = ('7' * 64) }; release_resource_closure = [ordered]@{ sha256 = ('8' * 64) }; release_resource_policy = [ordered]@{ sha256 = ('9' * 64) } }",
 			"Get-CandidateBuildId -GodotIdentity $godotIdentity -GfIdentity $gfIdentity -InputSnapshotSha256 ('e' * 64) -InputSnapshotFileCount 1234 -ArtifactManifestSha256 ('f' * 64) -ToolIdentity $toolIdentity",
 		].join("\n");
 		const result = runPowerShell(fixtureRoot, body);
 		assert.equal(
 			result.stdout.trim(),
-			"274bffc55db1555d7607d5dd297d99613139b80b9e76a5882ea432caea2521e7",
+			"c49fe442704031e85050b14d3f91232d79928e74354c6eb5756b98cb20535947",
 		);
 	} finally {
 		fs.rmSync(fixtureRoot, {recursive: true, force: true});
 	}
+});
+
+test("release resource closure evidence is exact and bound to frozen tools", () => {
+	withSourceFixture(({fixtureRoot}) => {
+		const evidence = {
+			schema_version: 1,
+			ok: true,
+			policy_id: "wechat-minigame-release-resource-closure-v1",
+			policy_path: "tools/wechat_minigame/release_resource_policy.json",
+			policy_sha256: "",
+			closure_sha256: "7".repeat(64),
+			full_dependency_scan_count: 601,
+			dependency_partial: false,
+			dependency_truncated: false,
+			counts: {
+				roots: 104,
+				structure_dynamic: 44,
+				content_resources: 37,
+				raw_dependency_closure: 794,
+				closure: 793,
+				raw_include_patterns: 17,
+				raw_include_files: 18,
+				issues: 0,
+			},
+			issues: [],
+		};
+		const body = [
+			"$tools = Get-ToolIdentity -Root $ProjectRoot",
+			`$evidence = ${quotePowerShellLiteral(JSON.stringify(evidence))} | ConvertFrom-Json`,
+			"$evidence.policy_sha256 = $tools.release_resource_policy.sha256",
+			"$normalized = Assert-ReleaseResourceClosureEvidence -Evidence $evidence -ToolIdentity $tools",
+			"if ($normalized.tool_sha256 -cne $tools.release_resource_closure.sha256) { throw 'closure tool was not bound' }",
+			"$evidence.policy_sha256 = ('0' * 64)",
+			"$rejected = $false",
+			"try { Assert-ReleaseResourceClosureEvidence -Evidence $evidence -ToolIdentity $tools } catch { $rejected = $true; Write-Output $_.Exception.Message }",
+			"if (-not $rejected) { throw 'closure policy drift was not rejected' }",
+		].join("\n");
+		const result = runPowerShell(fixtureRoot, body);
+		assert.match(result.stdout, /policy changed during its audit/);
+	});
 });
 
 test("package evidence uses host-invariant ordinal file order", () => {
@@ -459,6 +816,7 @@ test("package evidence uses host-invariant ordinal file order", () => {
 			"images/logo.png",
 			"project.config.json",
 			"weapp-adapter.js",
+			"wechat-startup-coordinator.js",
 		];
 		for (const relativePath of [
 			...expectedPackageFiles,
@@ -656,6 +1014,11 @@ test("frozen identity rejects GF lock, vendor, export input, and tool drift", ()
 		{
 			name: "tool",
 			mutation: () => "[IO.File]::WriteAllText((Join-Path $ProjectRoot 'tools\\wechat_minigame_artifact_check.gd'), 'changed-tool', [Text.UTF8Encoding]::new($false))",
+			pattern: /Tool identity changed during WeChat export/,
+		},
+		{
+			name: "resource closure policy",
+			mutation: () => "[IO.File]::WriteAllText((Join-Path $ProjectRoot 'tools\\wechat_minigame\\release_resource_policy.json'), '{}', [Text.UTF8Encoding]::new($false))",
 			pattern: /Tool identity changed during WeChat export/,
 		},
 	];

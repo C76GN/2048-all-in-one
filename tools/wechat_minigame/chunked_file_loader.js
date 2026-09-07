@@ -4,6 +4,8 @@
 	const TAG = "[wechat-chunked-fetch]";
 	const DEFAULT_CHUNK_BYTES = 4 * 1024 * 1024;
 	const DEFAULT_CHUNK_TIMEOUT_MILLISECONDS = 30 * 1000;
+	const DEFAULT_MAX_CONCURRENT_RESOURCES = 2;
+	const MAX_CONCURRENT_RESOURCES = 2;
 	const MAX_DECLARED_RESOURCE_BYTES = 30 * 1000 * 1000;
 	const INSTALL_MARKER = "__wechatChunkedLocalFetchInstalled";
 
@@ -31,6 +33,17 @@
 			throw makeError("invalid_configuration", {detail: `${label}:${value}`});
 		}
 		return value;
+	}
+
+
+	function normalizeMaxConcurrentResources(value) {
+		const normalized = requirePositiveSafeInteger(value, "max_concurrent_resources");
+		if (normalized > MAX_CONCURRENT_RESOURCES) {
+			throw makeError("invalid_configuration", {
+				detail: `max_concurrent_resources_exceeds_limit:${normalized}`,
+			});
+		}
+		return normalized;
 	}
 
 
@@ -94,7 +107,7 @@
 
 	function readChunkInto(
 		fileSystemManager,
-		output,
+		outputState,
 		filePath,
 		chunkIndex,
 		position,
@@ -144,6 +157,14 @@
 									actual: bytes.byteLength,
 								});
 							}
+							const output = outputState.bytes;
+							if (!(output instanceof Uint8Array)) {
+								throw makeError("read_cancelled", {
+									path: filePath,
+									chunk: chunkIndex,
+									offset: position,
+								});
+							}
 							output.set(bytes, position);
 							settle(resolve, bytes.byteLength);
 						} catch (error) {
@@ -181,7 +202,7 @@
 		timeoutMilliseconds,
 		logger,
 	) {
-		const output = new Uint8Array(expectedBytes);
+		const outputState = {bytes: new Uint8Array(expectedBytes)};
 		const chunkCount = Math.ceil(expectedBytes / chunkBytes);
 		let position = 0;
 		let chunkIndex = 0;
@@ -190,14 +211,14 @@
 		function readNext() {
 			if (position === expectedBytes) {
 				writeLog(logger, "info", "complete", {path: filePath, bytes: position, chunks: chunkIndex});
-				return Promise.resolve(output.buffer);
+				return Promise.resolve(outputState.bytes.buffer);
 			}
 			const length = Math.min(chunkBytes, expectedBytes - position);
 			const currentPosition = position;
 			const currentChunkIndex = chunkIndex;
 			return readChunkInto(
 				fileSystemManager,
-				output,
+				outputState,
 				filePath,
 				currentChunkIndex,
 				currentPosition,
@@ -217,12 +238,51 @@
 		}
 
 		return readNext().catch((error) => {
+			outputState.bytes = null;
 			writeLog(logger, "error", "failed", {
 				path: filePath,
 				detail: error && error.message ? error.message : error,
 			});
 			throw error;
 		});
+	}
+
+
+	function createResourceScheduler(maxConcurrentResources, startResourceRead) {
+		let activeResources = 0;
+		const pendingResources = [];
+
+		function drain() {
+			while (activeResources < maxConcurrentResources && pendingResources.length > 0) {
+				const pending = pendingResources.shift();
+				activeResources += 1;
+				let operation;
+				try {
+					operation = startResourceRead(pending.filePath);
+				} catch (error) {
+					operation = Promise.reject(error);
+				}
+				Promise.resolve(operation).then(
+					(value) => {
+						activeResources -= 1;
+						drain();
+						pending.resolve(value);
+					},
+					(error) => {
+						activeResources -= 1;
+						drain();
+						pending.reject(error);
+					},
+				);
+			}
+		}
+
+		return function scheduleResourceRead(filePath) {
+			return new Promise((resolve, reject) => {
+				pendingResources.push({filePath, resolve, reject});
+				drain();
+			});
+		};
 	}
 
 
@@ -253,35 +313,60 @@
 				: options.chunkTimeoutMilliseconds,
 			"chunk_timeout_milliseconds",
 		);
+		const maxConcurrentResources = normalizeMaxConcurrentResources(
+			options.maxConcurrentResources === undefined
+				? DEFAULT_MAX_CONCURRENT_RESOURCES
+				: options.maxConcurrentResources,
+		);
 		const logger = options.logger === undefined ? console : options.logger;
 		const originalLocalFetch = fsUtils.localFetch;
-		let queueTail = Promise.resolve();
-
-		function chunkedLocalFetch(filePath) {
-			if (!Object.prototype.hasOwnProperty.call(manifest, filePath)) {
-				return originalLocalFetch.call(fsUtils, filePath);
-			}
-			const operation = queueTail.then(() => readResourceInChunks(
+		const inFlightByPath = new Map();
+		const scheduleResourceRead = createResourceScheduler(
+			maxConcurrentResources,
+			(filePath) => readResourceInChunks(
 				fileSystemManager,
 				filePath,
 				manifest[filePath],
 				chunkBytes,
 				timeoutMilliseconds,
 				logger,
-			));
-			queueTail = operation.then(() => undefined, () => undefined);
+			),
+		);
+
+		function chunkedLocalFetch(filePath) {
+			if (!Object.prototype.hasOwnProperty.call(manifest, filePath)) {
+				return originalLocalFetch.call(fsUtils, filePath);
+			}
+			if (inFlightByPath.has(filePath)) {
+				writeLog(logger, "info", "deduplicated", {path: filePath});
+				return inFlightByPath.get(filePath);
+			}
+			const operation = scheduleResourceRead(filePath);
+			inFlightByPath.set(filePath, operation);
+			const clearInFlight = () => {
+				if (inFlightByPath.get(filePath) === operation) {
+					inFlightByPath.delete(filePath);
+				}
+			};
+			operation.then(clearInFlight, clearInFlight);
 			return operation;
 		}
 
 		Object.defineProperty(fsUtils, INSTALL_MARKER, {
 			configurable: false,
 			enumerable: false,
-			value: Object.freeze({chunkBytes, manifest, timeoutMilliseconds}),
+			value: Object.freeze({
+				chunkBytes,
+				manifest,
+				maxConcurrentResources,
+				timeoutMilliseconds,
+			}),
 			writable: false,
 		});
 		fsUtils.localFetch = chunkedLocalFetch;
 		writeLog(logger, "info", "installed", {
 			chunk_bytes: chunkBytes,
+			max_concurrent_resources: maxConcurrentResources,
 			resources: Object.keys(manifest).length,
 		});
 		return fsUtils.localFetch;
@@ -291,6 +376,8 @@
 	const api = Object.freeze({
 		DEFAULT_CHUNK_BYTES,
 		DEFAULT_CHUNK_TIMEOUT_MILLISECONDS,
+		DEFAULT_MAX_CONCURRENT_RESOURCES,
+		MAX_CONCURRENT_RESOURCES,
 		installChunkedLocalFetch,
 	});
 	if (typeof GameGlobal === "object" && GameGlobal !== null) {

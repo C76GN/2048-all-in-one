@@ -160,6 +160,185 @@ func test_complete_real_series_reaches_120_samples_and_uses_p95() -> void:
 	architecture.dispose()
 
 
+func test_input_feedback_spans_input_mapping_and_next_presented_frame() -> void:
+	var fixture: Dictionary = await _create_fixture()
+	var diagnostics: GameDiagnosticsUtility = fixture[&"diagnostics"]
+	var trace: GamePerformanceTraceUtility = fixture[&"trace"]
+	var clock: GFManualClock = fixture[&"clock"]
+	assert_true(GFVariantData.get_option_bool(
+		diagnostics.begin_gameplay_acceptance_case(
+			&"steam_keyboard_standard",
+			_steam_standard_observation()
+		),
+		&"accepted"
+	))
+
+	var receipt_id: int = trace.capture_move_input(
+		GameplayInputActions.MOVE_RIGHT,
+		GamePerformanceTraceUtility.MOVE_INPUT_SOURCE_TOUCH
+	)
+	assert_gt(receipt_id, 0)
+	assert_true(clock.advance_msec(3))
+	assert_true(
+		trace.acknowledge_move_input_mapped(GameplayInputActions.MOVE_RIGHT)
+		== receipt_id,
+		"GF action_started 必须认领触控预捕获收据，保留 virtual pulse 前的延迟。"
+	)
+	assert_true(clock.advance_msec(2))
+	var attempt_id: int = trace.begin_move(
+		Vector2i.RIGHT,
+		GameplayInputActions.MOVE_RIGHT
+	)
+	var presentation_id: int = trace.mark_presentation_enqueued(false)
+	assert_true(presentation_id == attempt_id)
+	assert_true(clock.advance_msec(5))
+	trace.mark_primary_feedback_state_committed(presentation_id)
+	trace.complete_move(attempt_id, true)
+	trace.mark_presentation_settled()
+	assert_true(
+		GFVariantData.get_option_int(
+			trace.get_acceptance_measurement_state(),
+			&"input_feedback_sample_count"
+		) == 0,
+		"提交可见状态但尚未绘制时不得提前写入首反馈样本。"
+	)
+	assert_true(clock.advance_msec(16))
+	trace._on_primary_feedback_frame_post_draw(
+		presentation_id,
+		trace._primary_feedback_frame_serial
+	)
+	var bundle: Dictionary = trace.get_acceptance_measurement_bundle()
+	var input_series: GFMetricSeries = bundle[&"input_feedback_ms"]
+	assert_true(input_series.get_sample_count() == 1)
+	assert_true(
+		is_equal_approx(input_series.get_latest_value(), 26.0),
+		"指标必须覆盖输入接收、GF 映射、System 轮询、回合计算和下一次绘制。"
+	)
+
+	# 没有项目入口收据的合成 move 仍可保留阶段诊断，但不能污染验收结论。
+	var synthetic_attempt_id: int = trace.begin_move(Vector2i.LEFT)
+	var synthetic_presentation_id: int = trace.mark_presentation_enqueued(false)
+	trace.mark_primary_feedback_state_committed(synthetic_presentation_id)
+	trace.complete_move(synthetic_attempt_id, true)
+	trace.mark_presentation_settled()
+	assert_true(clock.advance_msec(16))
+	trace._on_primary_feedback_frame_post_draw(
+		synthetic_presentation_id,
+		trace._primary_feedback_frame_serial
+	)
+	assert_true(
+		GFVariantData.get_option_int(
+			trace.get_acceptance_measurement_state(),
+			&"input_feedback_sample_count"
+		) == 1,
+		"缺少真实输入入口的合成动作不得生成可签署样本。"
+	)
+
+	var architecture: GFArchitecture = fixture[&"architecture"]
+	architecture.dispose()
+
+
+func test_new_mapped_input_replaces_same_direction_buffered_receipt() -> void:
+	var fixture: Dictionary = await _create_fixture()
+	var diagnostics: GameDiagnosticsUtility = fixture[&"diagnostics"]
+	var trace: GamePerformanceTraceUtility = fixture[&"trace"]
+	var clock: GFManualClock = fixture[&"clock"]
+	assert_true(GFVariantData.get_option_bool(
+		diagnostics.begin_gameplay_acceptance_case(
+			&"steam_keyboard_standard",
+			_steam_standard_observation()
+		),
+		&"accepted"
+	))
+	var first_receipt_id: int = trace.acknowledge_move_input_mapped(
+		GameplayInputActions.MOVE_RIGHT
+	)
+	assert_gt(first_receipt_id, 0)
+	assert_true(clock.advance_msec(100))
+	var fresh_receipt_id: int = trace.acknowledge_move_input_mapped(
+		GameplayInputActions.MOVE_RIGHT
+	)
+	assert_gt(fresh_receipt_id, first_receipt_id)
+	assert_true(
+		GFVariantData.get_option_int(
+			trace.get_debug_snapshot(),
+			&"pending_input_receipt_count"
+		) == 1,
+		"同方向新输入必须替代已映射的旧收据，不能积压收据。"
+	)
+	assert_true(clock.advance_msec(10))
+	var attempt_id: int = trace.begin_move(
+		Vector2i.RIGHT,
+		GameplayInputActions.MOVE_RIGHT
+	)
+	var presentation_id: int = trace.mark_presentation_enqueued(false)
+	trace.mark_primary_feedback_state_committed(presentation_id)
+	trace.complete_move(attempt_id, true)
+	trace.mark_presentation_settled()
+	assert_true(clock.advance_msec(16))
+	trace._on_primary_feedback_frame_post_draw(
+		presentation_id,
+		trace._primary_feedback_frame_serial
+	)
+	var bundle: Dictionary = trace.get_acceptance_measurement_bundle()
+	var input_series: GFMetricSeries = bundle[&"input_feedback_ms"]
+	assert_true(input_series.get_sample_count() == 1)
+	assert_true(
+		is_equal_approx(input_series.get_latest_value(), 26.0),
+		"键盘/手柄的新 action_started 不得沿用旧缓冲收据而把 26 ms 误记为 126 ms。"
+	)
+	var architecture: GFArchitecture = fixture[&"architecture"]
+	architecture.dispose()
+
+
+func test_pending_presented_frame_is_cancelled_at_scene_lifecycle_boundary() -> void:
+	var fixture: Dictionary = await _create_fixture()
+	var trace: GamePerformanceTraceUtility = fixture[&"trace"]
+	var clock: GFManualClock = fixture[&"clock"]
+	var receipt_id: int = trace.capture_move_input(
+		GameplayInputActions.MOVE_UP,
+		GamePerformanceTraceUtility.MOVE_INPUT_SOURCE_TOUCH
+	)
+	assert_true(
+		trace.acknowledge_move_input_mapped(GameplayInputActions.MOVE_UP)
+		== receipt_id
+	)
+	var attempt_id: int = trace.begin_move(
+		Vector2i.UP,
+		GameplayInputActions.MOVE_UP
+	)
+	var presentation_id: int = trace.mark_presentation_enqueued(false)
+	trace.mark_primary_feedback_state_committed(presentation_id)
+	var late_frame_serial: int = trace._primary_feedback_frame_serial
+	assert_true(
+		GFVariantData.get_option_bool(
+			trace.get_debug_snapshot(),
+			&"primary_feedback_frame_pending"
+		)
+	)
+
+	var _trace_summary: Dictionary = trace.stop_gameplay_trace(&"scene_change")
+	assert_false(
+		GFVariantData.get_option_bool(
+			trace.get_debug_snapshot(),
+			&"primary_feedback_frame_pending"
+		),
+		"场景销毁必须断开全局 RenderingServer 一次性监听。"
+	)
+	assert_true(clock.advance_msec(16))
+	trace._on_primary_feedback_frame_post_draw(attempt_id, late_frame_serial)
+	assert_true(
+		GFVariantData.get_option_int(
+			trace.get_acceptance_measurement_state(),
+			&"input_feedback_sample_count"
+		) == 0,
+		"场景边界后的迟到绘制不得复活已取消尝试。"
+	)
+
+	var architecture: GFArchitecture = fixture[&"architecture"]
+	architecture.dispose()
+
+
 func test_partial_invalidated_and_lifecycle_cleanup_are_explicit() -> void:
 	var fixture: Dictionary = await _create_fixture()
 	var diagnostics: GameDiagnosticsUtility = fixture[&"diagnostics"]
@@ -342,10 +521,24 @@ func _record_effective_move(
 	clock: GFManualClock,
 	input_feedback_ms: int
 ) -> void:
-	var attempt_id: int = trace.begin_move(Vector2i.RIGHT)
+	var _receipt_id: int = trace.capture_move_input(
+		GameplayInputActions.MOVE_RIGHT,
+		GamePerformanceTraceUtility.MOVE_INPUT_SOURCE_MAPPED
+	)
+	var _mapped_receipt_id: int = trace.acknowledge_move_input_mapped(
+		GameplayInputActions.MOVE_RIGHT
+	)
+	var attempt_id: int = trace.begin_move(
+		Vector2i.RIGHT,
+		GameplayInputActions.MOVE_RIGHT
+	)
 	var presentation_id: int = trace.mark_presentation_enqueued(false)
 	assert_true(presentation_id == attempt_id)
 	assert_true(clock.advance_msec(input_feedback_ms))
-	trace.mark_primary_feedback_started(presentation_id)
+	trace.mark_primary_feedback_state_committed(presentation_id)
 	trace.complete_move(attempt_id, true)
 	trace.mark_presentation_settled()
+	trace._on_primary_feedback_frame_post_draw(
+		presentation_id,
+		trace._primary_feedback_frame_serial
+	)

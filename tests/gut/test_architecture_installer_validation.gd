@@ -519,6 +519,44 @@ func test_startup_render_warmup_uses_gf_manifest_and_utility() -> void:
 		)
 
 
+func test_minimal_feedback_budget_filters_only_expensive_startup_shader_roles() -> void:
+	var minimal_state: GameAccessibilityState = GameAccessibilityState.new()
+	minimal_state.vfx_quality = GameAccessibilityState.VfxQuality.MINIMAL
+	minimal_state.shader_effects_enabled = false
+	var minimal_budget: GameFeedbackBudget = GameFeedbackPerformanceMatrix.resolve(
+		minimal_state
+	)
+	var minimal_entries: Array[Dictionary] = (
+		BootRuntime.filter_startup_render_warmup_entries(
+			STARTUP_RENDER_WARMUP_MANIFEST.get_entries(),
+			minimal_budget
+		)
+	)
+	var minimal_roles: Array[StringName] = []
+	for entry: Dictionary in minimal_entries:
+		var metadata: Dictionary = GFVariantData.get_option_dictionary(
+			entry,
+			"metadata"
+		)
+		minimal_roles.append(
+			GFVariantData.get_option_string_name(metadata, "role")
+		)
+
+	assert_false(&"background" in minimal_roles, "MINIMAL 不应再预热持续背景 Shader。")
+	assert_false(&"celebration" in minimal_roles, "MINIMAL 不应再预热庆祝 Shader。")
+	assert_true(&"scene_transition" in minimal_roles, "MINIMAL 仍需预热首轮场景转场。")
+	assert_true(&"ui_focus" in minimal_roles, "MINIMAL 仍需预热首轮 UI 焦点反馈。")
+	assert_true(minimal_entries.size() == 2, "MINIMAL 清单应只保留转场与焦点两项。")
+
+	var full_entries: Array[Dictionary] = (
+		BootRuntime.filter_startup_render_warmup_entries(
+			STARTUP_RENDER_WARMUP_MANIFEST.get_entries(),
+			GameFeedbackPerformanceMatrix.resolve(null)
+		)
+	)
+	assert_true(full_entries.size() == 4, "完整档必须继续预热显式声明的全部 Shader。")
+
+
 func test_gameplay_pause_state_has_one_writable_adapter() -> void:
 	var controller_source: String = _read_text(GAME_PLAY_CONTROLLER_PATH)
 	var flow_source: String = _read_text(GAME_FLOW_SYSTEM_PATH)
@@ -1202,6 +1240,112 @@ func test_save_graph_lifecycle_policy_is_configured_before_registration() -> voi
 	assert_true(
 		save_graph.lifecycle_priority == -100,
 		"GF 11 在模块 init() 前冻结生命周期计划，SaveGraph 优先级必须在构造时生效。"
+	)
+
+
+func test_wechat_release_configures_visual_defaults_and_bounded_save_coalescing() -> void:
+	var installer_source: String = _read_text(PROJECT_INSTALLER_PATH)
+	assert_true(
+		installer_source.contains(
+			'const _WECHAT_RELEASE_FEATURE: String = "wechat_minigame_release"'
+		),
+		"Composition Root 必须只按正式微信 custom feature 应用受限平台策略。"
+	)
+	assert_true(
+		installer_source.contains(
+			"save_graph.profile_save_debounce_seconds = ("
+		),
+		"正式微信构建必须在 SaveGraph 注册前延长高频 section 的合并窗口。"
+	)
+	assert_true(
+		installer_source.contains(
+			"_WECHAT_PROFILE_SAVE_DEBOUNCE_SECONDS: float = 2.5"
+		),
+		"正式微信保存 debounce 应保持为可审计的 2.5 秒空闲窗口。"
+	)
+	assert_true(
+		installer_source.contains(
+			"save_graph.profile_save_max_staleness_seconds = ("
+		)
+		and installer_source.contains(
+			"_WECHAT_PROFILE_SAVE_MAX_STALENESS_SECONDS: float = 12.0"
+		),
+		"正式微信连续操作也必须在 12 秒内提交最新 Profile，避免无限延后。"
+	)
+	assert_true(
+		installer_source.contains(
+			"GameAccessibilityState.VfxQuality.MINIMAL"
+		)
+		and installer_source.contains("not is_wechat_release"),
+		"正式微信首次启动必须默认关闭 Shader 并采用 MINIMAL VFX。"
+	)
+	assert_true(
+		installer_source.contains(
+			'const _WECHAT_SETTINGS_FILE_NAME: String = "settings.wechat.sav"'
+		),
+		"正式微信必须使用独立设置文件，避免开发期旧桌面默认值覆盖平台策略。"
+	)
+	var file_assignment_position: int = installer_source.find(
+		"settings.storage_file_name = ("
+	)
+	var defaults_registration_position: int = installer_source.find(
+		"settings.register_project_defaults("
+	)
+	assert_true(file_assignment_position >= 0, "设置构建策略必须显式选择逻辑文件名。")
+	assert_true(defaults_registration_position >= 0, "设置构建策略必须注册平台表现默认值。")
+	assert_true(
+		file_assignment_position < defaults_registration_position,
+		"设置文件身份必须先于 definitions 注册和 GF 生命周期冻结。"
+	)
+
+
+func test_settings_build_policy_separates_wechat_release_from_desktop_defaults() -> void:
+	var desktop_settings: GameSettingsUtility = GameSettingsUtility.new()
+	assert_true(
+		GameArchitectureInstaller.configure_settings_for_build(
+			desktop_settings,
+			false
+		)
+	)
+	assert_true(
+		desktop_settings.storage_file_name == "settings.sav",
+		"桌面构建必须保留原 settings.sav 身份。"
+	)
+	assert_true(
+		GFVariantData.to_bool(desktop_settings.get_value(
+			GameAccessibilityState.SHADER_EFFECTS_ENABLED_SETTING_KEY
+		)),
+		"桌面构建必须保留完整 Shader 默认值。"
+	)
+	assert_true(
+		GFVariantData.to_int(desktop_settings.get_value(
+			GameAccessibilityState.VFX_QUALITY_SETTING_KEY
+		)) == GameAccessibilityState.VfxQuality.FULL,
+		"桌面构建必须保留完整 VFX 默认档。"
+	)
+
+	var wechat_settings: GameSettingsUtility = GameSettingsUtility.new()
+	assert_true(
+		GameArchitectureInstaller.configure_settings_for_build(
+			wechat_settings,
+			true
+		)
+	)
+	assert_true(
+		wechat_settings.storage_file_name == "settings.wechat.sav",
+		"正式微信必须绕开开发期遗留 settings.sav。"
+	)
+	assert_false(
+		GFVariantData.to_bool(wechat_settings.get_value(
+			GameAccessibilityState.SHADER_EFFECTS_ENABLED_SETTING_KEY
+		)),
+		"正式微信新设置文件必须默认关闭可选 Shader。"
+	)
+	assert_true(
+		GFVariantData.to_int(wechat_settings.get_value(
+			GameAccessibilityState.VFX_QUALITY_SETTING_KEY
+		)) == GameAccessibilityState.VfxQuality.MINIMAL,
+		"正式微信新设置文件必须默认采用 MINIMAL VFX。"
 	)
 
 

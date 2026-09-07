@@ -8,6 +8,11 @@ extends GFInstaller
 const _VERBOSE_LOGGING_FEATURE: String = "verbose_logging"
 const _DEV_TOOLS_FEATURE: String = "with_dev_tools"
 const _PLATFORM_SMOKE_FEATURE: String = "platform_smoke"
+const _WECHAT_RELEASE_FEATURE: String = "wechat_minigame_release"
+const _DEFAULT_SETTINGS_FILE_NAME: String = "settings.sav"
+const _WECHAT_SETTINGS_FILE_NAME: String = "settings.wechat.sav"
+const _WECHAT_PROFILE_SAVE_DEBOUNCE_SECONDS: float = 2.5
+const _WECHAT_PROFILE_SAVE_MAX_STALENESS_SECONDS: float = 12.0
 const _PERFORMANCE_TIMING_META: StringName = &"game_architecture_installer_timing"
 const _DEV_TOOLS_INSTALLER_PATH: String = (
 	"res://features/diagnostics/scripts/installers/game_diagnostics_installer.gd"
@@ -68,6 +73,35 @@ var _installation_timing: Dictionary = {}
 
 
 # --- 公共方法 ---
+
+## 在 GF 生命周期计划冻结前应用当前构建的设置持久化与表现默认策略。
+##
+## 正式微信使用独立逻辑文件，避免开发期旧 settings.sav 覆盖新的平台默认值；
+## 其他构建继续使用 GF 的规范桌面文件名与完整表现档。
+## @param settings: 尚未注册到候选架构的新设置 Utility。
+## @param is_wechat_release: 当前构建是否携带正式微信 custom feature。
+## @return 策略成功应用时返回 true。
+static func configure_settings_for_build(
+	settings: GameSettingsUtility,
+	is_wechat_release: bool
+) -> bool:
+	if settings == null:
+		return false
+	settings.storage_file_name = (
+		_WECHAT_SETTINGS_FILE_NAME
+		if is_wechat_release
+		else _DEFAULT_SETTINGS_FILE_NAME
+	)
+	settings.register_project_defaults(
+		not is_wechat_release,
+		(
+			GameAccessibilityState.VfxQuality.MINIMAL
+			if is_wechat_release
+			else GameAccessibilityState.VfxQuality.FULL
+		)
+	)
+	return true
+
 
 ## 配置 gf.save 扩展已经注册的共享 Storage。
 ##
@@ -614,6 +648,13 @@ func _create_platform_runtime() -> GFPlatformRuntime:
 
 func _create_game_save_graph_utility() -> GameSaveGraphUtility:
 	var save_graph: GameSaveGraphUtility = GameSaveGraphUtility.new()
+	if _is_wechat_release_build():
+		save_graph.profile_save_debounce_seconds = (
+			_WECHAT_PROFILE_SAVE_DEBOUNCE_SECONDS
+		)
+		save_graph.profile_save_max_staleness_seconds = (
+			_WECHAT_PROFILE_SAVE_MAX_STALENESS_SECONDS
+		)
 	var bookmark_data: BookmarkCatalogSaveData = BookmarkCatalogSaveData.new()
 	var bookmark_profile_provider: BookmarkManifestSaveSectionProvider = (
 		BookmarkManifestSaveSectionProvider.new(bookmark_data)
@@ -684,7 +725,11 @@ func _create_project_content_catalog_utility() -> ProjectContentCatalogUtility:
 func _create_settings_utility() -> GameSettingsUtility:
 	var settings: GameSettingsUtility = GameSettingsUtility.new()
 	var _clock_set: bool = settings.set_clock(_clock)
-	settings.register_project_defaults()
+	var is_wechat_release: bool = _is_wechat_release_build()
+	var _settings_configured: bool = configure_settings_for_build(
+		settings,
+		is_wechat_release
+	)
 	return settings
 
 
@@ -728,6 +773,10 @@ func _create_object_pool_utility() -> GFObjectPoolUtility:
 
 func _are_dev_tools_enabled() -> bool:
 	return OS.has_feature(_DEV_TOOLS_FEATURE)
+
+
+func _is_wechat_release_build() -> bool:
+	return OS.has_feature(_WECHAT_RELEASE_FEATURE)
 
 
 func _install_dev_tools(binder: GFBinder, scope: GFAsyncScope) -> void:

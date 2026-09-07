@@ -15,6 +15,9 @@ const _REPORT_PATH: String = _FIXTURE_BUNDLE_ROOT + "/export-report.json"
 const _CHUNK_LOADER_SOURCE_PATH: String = (
 	"res://tools/wechat_minigame/chunked_file_loader.js"
 )
+const _STARTUP_COORDINATOR_SOURCE_PATH: String = (
+	"res://tools/wechat_minigame/subpackage_startup_coordinator.js"
+)
 const _PROJECT_NAME: String = "2048 Chunked Toolchain Smoke"
 const _RELEASE_PROJECT_NAME: String = "2048 Full Game Release Candidate"
 const _REQUIRED_FILES: PackedStringArray = [
@@ -33,6 +36,7 @@ const _REQUIRED_FILES: PackedStringArray = [
 	"images/logo.png",
 	"project.config.json",
 	"weapp-adapter.js",
+	"wechat-startup-coordinator.js",
 ]
 
 
@@ -89,10 +93,13 @@ func test_package_budget_hard_limits_are_inclusive_at_exact_boundaries() -> void
 	))
 	assert_true(GFVariantData.get_option_bool(game_data_exact, "total_hard_limit_ok"))
 
+	var total_half_limit: int = floori(
+		float(ArtifactVerifier.TOTAL_PACKAGE_HARD_LIMIT_BYTES) / 2.0
+	)
 	var total_exact: Dictionary = ArtifactVerifier.evaluate_package_budget(
 		0,
-		ArtifactVerifier.TOTAL_PACKAGE_HARD_LIMIT_BYTES / 2,
-		ArtifactVerifier.TOTAL_PACKAGE_HARD_LIMIT_BYTES / 2
+		total_half_limit,
+		total_half_limit
 	)
 	assert_true(GFVariantData.get_option_bool(total_exact, "total_hard_limit_ok"))
 
@@ -126,8 +133,8 @@ func test_package_budget_hard_limits_are_inclusive_at_exact_boundaries() -> void
 
 	var total_over: Dictionary = ArtifactVerifier.evaluate_package_budget(
 		0,
-		ArtifactVerifier.TOTAL_PACKAGE_HARD_LIMIT_BYTES / 2,
-		ArtifactVerifier.TOTAL_PACKAGE_HARD_LIMIT_BYTES / 2 + 1
+		total_half_limit,
+		total_half_limit + 1
 	)
 	assert_true(GFVariantData.get_option_bool(total_over, "main_hard_limit_ok"))
 	assert_true(GFVariantData.get_option_bool(total_over, "engine_hard_limit_ok"))
@@ -164,13 +171,16 @@ func test_candidate_build_id_uses_the_cross_tool_canonical_framing() -> void:
 			"bounded_json_reader": {"sha256": "3".repeat(64)},
 			"path_tools": {"sha256": "4".repeat(64)},
 			"chunk_loader": {"sha256": "5".repeat(64)},
-			"wxmemfs_patch": {"sha256": "6".repeat(64)},
+			"startup_coordinator": {"sha256": "6".repeat(64)},
+			"wxmemfs_patch": {"sha256": "7".repeat(64)},
+			"release_resource_closure": {"sha256": "8".repeat(64)},
+			"release_resource_policy": {"sha256": "9".repeat(64)},
 		},
 	}
 	var actual_build_id: String = verifier.compute_report_build_id(export_report)
 	assert_true(
 		actual_build_id ==
-			"274bffc55db1555d7607d5dd297d99613139b80b9e76a5882ea432caea2521e7",
+			"c49fe442704031e85050b14d3f91232d79928e74354c6eb5756b98cb20535947",
 		"PowerShell 与 GDScript 必须共享同一 build_id canonical framing。"
 	)
 
@@ -183,6 +193,74 @@ func test_report_bound_fixture_recomputes_the_complete_candidate_identity() -> v
 	assert_true(_get_issues(report).is_empty())
 
 
+func test_report_bound_fixture_rejects_render_resolution_evidence_drift() -> void:
+	var export_report: Dictionary = _make_valid_export_report()
+	var render_resolution: Dictionary = GFVariantData.get_option_dictionary(
+		export_report,
+		"render_resolution"
+	)
+	render_resolution["runtime_sha256"] = "0".repeat(64)
+	export_report["render_resolution"] = render_resolution
+	assert_true(_write_report(export_report))
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	var report: Dictionary = verifier.verify_report_bound(_FIXTURE_ROOT, _REPORT_PATH)
+	assert_false(GFVariantData.get_option_bool(report, "ok", true))
+	assert_true(_has_issue(
+		report,
+		"report_render_resolution_mismatch:runtime_sha256"
+	))
+
+
+func test_report_bound_fixture_rejects_startup_coordinator_evidence_drift() -> void:
+	var export_report: Dictionary = _make_valid_export_report()
+	var startup: Dictionary = GFVariantData.get_option_dictionary(
+		export_report,
+		"startup"
+	)
+	startup["strategy"] = "serial"
+	startup["engine_start_once"] = false
+	startup["engine_start_timeout_ms"] = 1
+	export_report["startup"] = startup
+	export_report["build_id"] = ArtifactVerifier.new().compute_report_build_id(
+		export_report
+	)
+	assert_true(_write_report(export_report))
+	var report: Dictionary = ArtifactVerifier.new().verify_report_bound(
+		_FIXTURE_ROOT,
+		_REPORT_PATH
+	)
+	assert_true(_has_issue(report, "report_startup_mismatch:strategy"))
+	assert_true(_has_issue(report, "report_startup_mismatch:engine_start_once"))
+	assert_true(_has_issue(report, "report_startup_mismatch:engine_start_timeout_ms"))
+
+
+func test_report_bound_fixture_rejects_large_file_reader_concurrency_drift() -> void:
+	var export_report: Dictionary = _make_valid_export_report()
+	var large_file_reader: Dictionary = GFVariantData.get_option_dictionary(
+		export_report,
+		"large_file_reader"
+	)
+	large_file_reader["max_concurrent_resources"] = 3
+	large_file_reader["inflight_deduplication"] = "disabled"
+	export_report["large_file_reader"] = large_file_reader
+	export_report["build_id"] = ArtifactVerifier.new().compute_report_build_id(
+		export_report
+	)
+	assert_true(_write_report(export_report))
+	var report: Dictionary = ArtifactVerifier.new().verify_report_bound(
+		_FIXTURE_ROOT,
+		_REPORT_PATH
+	)
+	assert_true(_has_issue(
+		report,
+		"report_large_file_reader_mismatch:max_concurrent_resources"
+	))
+	assert_true(_has_issue(
+		report,
+		"report_large_file_reader_mismatch:inflight_deduplication"
+	))
+
+
 func test_report_bound_release_profile_requires_exact_font_policy() -> void:
 	var export_report: Dictionary = _make_valid_export_report()
 	assert_true(_write_project_config("", _RELEASE_PROJECT_NAME))
@@ -191,6 +269,9 @@ func test_report_bound_release_profile_requires_exact_font_policy() -> void:
 	export_report["export_preset"] = "Web Compatibility WeChat Release"
 	export_report["project_name"] = _RELEASE_PROJECT_NAME
 	export_report["font_policy"] = _release_font_policy_fixture()
+	export_report["resource_closure"] = _release_resource_closure_fixture(
+		GFVariantData.get_option_dictionary(export_report, "tool_identity")
+	)
 	export_report["limitations"] = [
 		"This candidate contains the full game, but is not a signed production release.",
 		"WeChat login, share, payment, cloud save and open-data capabilities are not enabled.",
@@ -217,6 +298,74 @@ func test_report_bound_release_profile_requires_exact_font_policy() -> void:
 		tampered_report,
 		"report_release_font_policy_mismatch:subset_font_sha256"
 	))
+
+
+func test_report_bound_release_profile_requires_bound_resource_closure() -> void:
+	var export_report: Dictionary = _make_valid_export_report()
+	assert_true(_write_project_config("", _RELEASE_PROJECT_NAME))
+	_refresh_artifact_and_package_evidence(export_report)
+	export_report["scope"] = ArtifactVerifier.PROFILE_SCOPE_RELEASE
+	export_report["export_preset"] = "Web Compatibility WeChat Release"
+	export_report["project_name"] = _RELEASE_PROJECT_NAME
+	export_report["font_policy"] = _release_font_policy_fixture()
+	export_report["limitations"] = [
+		"This candidate contains the full game, but is not a signed production release.",
+		"WeChat login, share, payment, cloud save and open-data capabilities are not enabled.",
+	]
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	export_report["build_id"] = verifier.compute_report_build_id(export_report)
+	assert_true(_write_report(export_report))
+	var missing_report: Dictionary = verifier.verify_report_bound(
+		_FIXTURE_ROOT,
+		_REPORT_PATH
+	)
+	assert_true(_has_issue(
+		missing_report,
+		"report_release_resource_closure_missing"
+	))
+
+	var resource_closure: Dictionary = _release_resource_closure_fixture(
+		GFVariantData.get_option_dictionary(export_report, "tool_identity")
+	)
+	resource_closure["policy_sha256"] = "0".repeat(64)
+	resource_closure["dependency_partial"] = true
+	export_report["resource_closure"] = resource_closure
+	export_report["build_id"] = verifier.compute_report_build_id(export_report)
+	assert_true(_write_report(export_report))
+	var tampered_report: Dictionary = verifier.verify_report_bound(
+		_FIXTURE_ROOT,
+		_REPORT_PATH
+	)
+	assert_true(_has_issue(
+		tampered_report,
+		"report_release_resource_closure_mismatch:policy_sha256"
+	))
+	assert_true(_has_issue(
+		tampered_report,
+		"report_release_resource_closure_not_complete"
+	))
+
+
+func test_candidate_build_id_binds_release_resource_closure_digest_and_counts() -> void:
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	var export_report: Dictionary = _make_valid_export_report()
+	var resource_closure: Dictionary = _release_resource_closure_fixture(
+		GFVariantData.get_option_dictionary(export_report, "tool_identity")
+	)
+	export_report["resource_closure"] = resource_closure
+	var baseline: String = verifier.compute_report_build_id(export_report)
+	resource_closure["closure_sha256"] = "8".repeat(64)
+	export_report["resource_closure"] = resource_closure
+	assert_ne(verifier.compute_report_build_id(export_report), baseline)
+	resource_closure["closure_sha256"] = "7".repeat(64)
+	var counts: Dictionary = GFVariantData.get_option_dictionary(
+		resource_closure,
+		"counts"
+	)
+	counts["closure"] = GFVariantData.get_option_int(counts, "closure") + 1
+	resource_closure["counts"] = counts
+	export_report["resource_closure"] = resource_closure
+	assert_ne(verifier.compute_report_build_id(export_report), baseline)
 
 
 func test_report_binding_ignores_benign_private_configuration_changes() -> void:
@@ -532,31 +681,55 @@ func test_chunk_loader_rejects_wrong_chunk_size_and_manifest_paths() -> void:
 		");\n" +
 		"GameGlobal.WeChatChunkedFileLoader.installChunkedLocalFetch(" +
 		"GameGlobal.fsUtils, wx.getFileSystemManager(), chunkedResourceBytes, " +
-		"{chunkBytes: 10485760});\n" +
+		"{chunkBytes: 10485760, maxConcurrentResources: 3});\n" +
 		"GODOTSDK.startGame('/engine/godot', '/game_data/2048-all-in-one.bin')\n"
 	))
 	var verifier: ArtifactVerifier = ArtifactVerifier.new()
 	var report: Dictionary = verifier.verify_artifact(_FIXTURE_ROOT)
 	assert_true(_has_issue(report, "chunk_loader_chunk_bytes_not_4194304"))
+	assert_true(_has_issue(report, "chunk_loader_max_concurrent_resources_not_2"))
 	assert_true(_has_issue(report, "chunk_loader_manifest_paths_not_exact"))
 
 
-func test_subpackage_entry_markers_and_serial_load_order_are_enforced() -> void:
+func test_subpackage_entries_and_parallel_coordinator_contract_are_enforced() -> void:
 	assert_true(_write_text("game_data/game.js", "fixture"))
 	assert_true(_write_text("engine/game.js", "fixture"))
 	assert_true(_write_text(
 		"godot-loader.js",
-		'loadPackage("engine","__godotEngineSubpackageEntryStarted",' +
-		'"engine/game.js",0.5,()=>{});\n' +
-		'loadPackage("game_data","__godotGameDataSubpackageEntryStarted",' +
-		'"game_data/game.js",0,()=>{});\n'
+		"const loadPackage=()=>{};\nprobeGameData(()=>{});\n"
 	))
+	assert_true(_write_text("wechat-startup-coordinator.js", "modified"))
 	var verifier: ArtifactVerifier = ArtifactVerifier.new()
 	var report: Dictionary = verifier.verify_artifact(_FIXTURE_ROOT)
 	assert_true(_has_issue(report, "game_data_entry_marker_missing"))
 	assert_true(_has_issue(report, "engine_entry_marker_missing"))
-	assert_true(_has_issue(report, "root_loader_data_probe_missing"))
-	assert_true(_has_issue(report, "root_loader_subpackage_order_invalid"))
+	assert_true(_has_issue(report, "engine_starter_registration_invalid"))
+	assert_true(_has_issue(report, "root_loader_startup_coordinator_missing"))
+	assert_true(_has_issue(report, "root_loader_startup_option_missing:"))
+	assert_true(_has_issue(report, "root_loader_serial_startup_present"))
+	assert_true(_has_issue(report, "startup_coordinator_hash_mismatch:"))
+
+
+func test_render_resolution_cap_and_css_size_contract_are_enforced() -> void:
+	var invalid_loader: String = _valid_root_loader_text()
+	invalid_loader = invalid_loader.replace("1280/s", "2560/s")
+	invalid_loader = invalid_loader.replace(
+		"this.offScreenCanvas.height=e*this.dpr",
+		"this.offScreenCanvas.height=e"
+	)
+	invalid_loader = invalid_loader.replace(
+		'this.onScreenCanvas.style.height=`${e}px`',
+		'this.onScreenCanvas.style.height=""'
+	)
+	assert_true(_write_text("godot-loader.js", invalid_loader))
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	var report: Dictionary = verifier.verify_artifact(_FIXTURE_ROOT)
+	assert_true(_has_issue(report, "root_loader_render_dpr_cap_missing"))
+	assert_true(_has_issue(
+		report,
+		"root_loader_render_backing_store_contract_missing"
+	))
+	assert_true(_has_issue(report, "root_loader_render_css_size_contract_missing"))
 
 
 func test_dynamic_binary_files_must_be_forced_into_upload_package() -> void:
@@ -598,6 +771,25 @@ func test_unpatched_or_fail_silent_wxmemfs_rename_is_rejected() -> void:
 		"wxmemfs_physical_rename_not_before_memory_mutation"
 	))
 	assert_true(_has_issue(report, "wxmemfs_rename_failure_not_fail_closed"))
+
+
+func test_runtime_render_resolution_cap_and_css_size_contract_are_enforced() -> void:
+	var invalid_runtime: String = _valid_wxmemfs_runtime_text()
+	invalid_runtime = invalid_runtime.replace("1280/o", "2560/o")
+	invalid_runtime = invalid_runtime.replace(
+		"r.windowHeight&&(i=r.windowHeight)",
+		"r.windowHeight"
+	)
+	invalid_runtime = invalid_runtime.replace(
+		"canvas.style.height=csh",
+		"canvas.style.height=''"
+	)
+	assert_true(_write_text("engine/godot.js", invalid_runtime))
+	var verifier: ArtifactVerifier = ArtifactVerifier.new()
+	var report: Dictionary = verifier.verify_artifact(_FIXTURE_ROOT)
+	assert_true(_has_issue(report, "runtime_render_dpr_cap_missing"))
+	assert_true(_has_issue(report, "runtime_render_window_metrics_missing"))
+	assert_true(_has_issue(report, "runtime_render_css_size_contract_missing"))
 
 
 # --- 私有/辅助方法 ---
@@ -700,6 +892,92 @@ func _make_valid_export_report() -> Dictionary:
 				"ae5bdeb5ba1ce9712d4efc35d337cb5ecbef3ad5bfb0f7d06ae9cb662c1f2d71"
 			),
 		},
+		"render_resolution": {
+			"policy_id": "wechat-bounded-backing-store-dpr-v1",
+			"long_edge_target_pixels": 1280,
+			"short_edge_target_pixels": 720,
+			"minimum_dpr": 1,
+			"device_dpr_ceiling": true,
+			"css_size_preserved": true,
+			"input_mapping_preserved": true,
+			"resize_recomputed": true,
+			"loader_patch": "2048-wechat-loader-dpr-cap-v1",
+			"runtime_patch": "2048-wechat-runtime-dpr-cap-v1",
+			"loader_sha256": FileAccess.get_sha256(
+				ProjectSettings.globalize_path(_FIXTURE_ROOT + "/godot-loader.js")
+			).to_lower(),
+			"runtime_sha256": FileAccess.get_sha256(
+				ProjectSettings.globalize_path(_FIXTURE_ROOT + "/engine/godot.js")
+			).to_lower(),
+		},
+		"startup": {
+			"schema_version": 1,
+			"strategy": "parallel_subpackages_four_way_barrier",
+			"coordinator_path": "wechat-startup-coordinator.js",
+			"coordinator_sha256": FileAccess.get_sha256(
+				ProjectSettings.globalize_path(
+					_FIXTURE_ROOT + "/wechat-startup-coordinator.js"
+				)
+			).to_lower(),
+			"trace_schema_version": 1,
+			"trace_limit": 64,
+			"package_timeout_ms": 300_000,
+			"probe_timeout_ms": 10_000,
+			"starter_timeout_ms": 10_000,
+			"engine_start_timeout_ms": 300_000,
+			"download_progress_weight": 0.95,
+			"progress_trace_step_percentage": 5,
+			"ui_progress_minimum_step": 0.005,
+			"engine_package_bytes": GFVariantData.get_option_int(
+				package,
+				"engine_package_bytes"
+			),
+			"game_data_package_bytes": GFVariantData.get_option_int(
+				package,
+				"game_data_package_bytes"
+			),
+			"barrier": [
+				"engine_entry",
+				"engine_starter",
+				"game_data_entry",
+				"game_data_pck_probe",
+			],
+			"first_fatal_wins": true,
+			"late_callbacks_inert": true,
+			"engine_start_once": true,
+		},
+		"large_file_reader": {
+			"strategy": "async_position_length_chunked_bounded_concurrency",
+			"chunk_bytes": 4_194_304,
+			"max_concurrent_resources": 2,
+			"inflight_deduplication": "resource_path",
+			"helper_path": "engine/wechat-chunked-file-loader.js",
+			"helper_sha256": FileAccess.get_sha256(
+				ProjectSettings.globalize_path(
+					_FIXTURE_ROOT + "/engine/wechat-chunked-file-loader.js"
+				)
+			).to_lower(),
+			"resources": [
+				{
+					"path": "/engine/godot.wasm.br",
+					"bytes": 7,
+					"sha256": FileAccess.get_sha256(
+						ProjectSettings.globalize_path(
+							_FIXTURE_ROOT + "/engine/godot.wasm.br"
+						)
+					).to_lower(),
+				},
+				{
+					"path": "/game_data/2048-all-in-one.bin",
+					"bytes": 7,
+					"sha256": FileAccess.get_sha256(
+						ProjectSettings.globalize_path(
+							_FIXTURE_ROOT + "/game_data/2048-all-in-one.bin"
+						)
+					).to_lower(),
+				},
+			],
+		},
 		"artifact": artifact_manifest,
 		"package": package,
 		"project_name": _PROJECT_NAME,
@@ -748,6 +1026,11 @@ func _create_valid_fixture() -> bool:
 		FileAccess.get_file_as_bytes(_CHUNK_LOADER_SOURCE_PATH)
 	):
 		return false
+	if not _write_bytes(
+		"wechat-startup-coordinator.js",
+		FileAccess.get_file_as_bytes(_STARTUP_COORDINATOR_SOURCE_PATH)
+	):
+		return false
 	if not _write_text("engine/godot.js", _valid_wxmemfs_runtime_text()):
 		return false
 	if not _write_text(
@@ -761,6 +1044,19 @@ func _create_valid_fixture() -> bool:
 	):
 		return false
 	if not _write_text("godot-loader.js", _valid_root_loader_text()):
+		return false
+	var measured: Dictionary = ArtifactVerifier.new().verify_artifact(_FIXTURE_ROOT)
+	var measured_package: Dictionary = GFVariantData.get_option_dictionary(
+		measured,
+		"package"
+	)
+	if not _write_text(
+		"game.js",
+		_valid_root_game_text(
+			GFVariantData.get_option_int(measured_package, "engine_package_bytes"),
+			GFVariantData.get_option_int(measured_package, "game_data_package_bytes")
+		)
+	):
 		return false
 	if not _write_project_config(""):
 		return false
@@ -780,6 +1076,8 @@ func _valid_loader_text(wasm_bytes: int, pack_bytes: int) -> String:
 	return (
 		"GameGlobal.__godotEngineSubpackageEntryStarted = true;\n" +
 		"import './wechat-chunked-file-loader'\n" +
+		"const exe = '/engine/godot';\n" +
+		"const pack = '/game_data/2048-all-in-one.bin';\n" +
 		"const chunkedResourceBytes = Object.freeze(" +
 		JSON.stringify({
 			"/engine/godot.wasm.br": wasm_bytes,
@@ -788,20 +1086,57 @@ func _valid_loader_text(wasm_bytes: int, pack_bytes: int) -> String:
 		");\n" +
 		"GameGlobal.WeChatChunkedFileLoader.installChunkedLocalFetch(" +
 		"GameGlobal.fsUtils, wx.getFileSystemManager(), chunkedResourceBytes, " +
-		"{chunkBytes: 4194304});\n" +
-		"GODOTSDK.startGame('/engine/godot', '/game_data/2048-all-in-one.bin')\n"
+		"{chunkBytes: 4194304, maxConcurrentResources: 2});\n" +
+		"if (!GameGlobal.__godotEngineStarter) {\n" +
+		"  GameGlobal.__godotEngineStarter = () => {\n" +
+		"    if (!GameGlobal.__godotEngineStartPromise) {\n" +
+		"      GameGlobal.__godotEngineStartPromise = Promise.resolve()\n" +
+		"        .then(() => GODOTSDK.startGame(exe, pack));\n" +
+		"    }\n" +
+		"    return GameGlobal.__godotEngineStartPromise;\n" +
+		"  };\n" +
+		"}\n" +
+		"GameGlobal.WeChatSubpackageStartupCoordinator.registerEngineStarter(" +
+		"GameGlobal.__godotEngineStarter);\n"
+	)
+
+
+func _valid_root_game_text(engine_bytes: int, game_data_bytes: int) -> String:
+	return (
+		"import './wechat-startup-coordinator'\n" +
+		"import './godot-loader'\n" +
+		"GameGlobal.__godotStartupPackageBytes = Object.freeze({engine:" +
+		str(engine_bytes) + ",game_data:" + str(game_data_bytes) + "});\n" +
+		"GameGlobal.godotLoader = new GodotLoader(canvas, config);\n"
 	)
 
 
 func _valid_root_loader_text() -> String:
 	return (
-		'loadPackage("game_data","__godotGameDataSubpackageEntryStarted",' +
-		'"game_data/game.js",0,()=>{\n' +
-		"probeGameData(()=>{\n" +
-		'loadPackage("engine","__godotEngineSubpackageEntryStarted",' +
-		'"engine/game.js",0.5,()=>{});\n' +
-		"});\n" +
-		"});\n"
+		"resizeCanvases(){/*2048-wechat-loader-dpr-cap-v1*/" +
+		"const t=window.innerWidth,e=window.innerHeight," +
+		"i=Number(window.devicePixelRatio)," +
+		"r=Number.isFinite(i)&&i>0?Math.max(1,i):1," +
+		"s=Math.max(t,e),o=Math.min(t,e);" +
+		"this.dpr=Math.max(1,Math.min(r,s>0?1280/s:r,o>0?720/o:r))," +
+		"this.onScreenCanvas.width=t*this.dpr," +
+		"this.onScreenCanvas.height=e*this.dpr," +
+		'this.onScreenCanvas.style.width=`${t}px`,' +
+		'this.onScreenCanvas.style.height=`${e}px`,' +
+		"this.offScreenCanvas.width=t*this.dpr," +
+		"this.offScreenCanvas.height=e*this.dpr," +
+		"this.gl.viewport(0,0,this.onScreenCanvas.width," +
+		"this.onScreenCanvas.height),this.render()}\n" +
+		"loadGameEngine(){const coordinator=" +
+		"GameGlobal.WeChatSubpackageStartupCoordinator;" +
+		"const startup=coordinator.start({loader:this," +
+		"packageBytes:GameGlobal.__godotStartupPackageBytes," +
+		"pckPath:\"/game_data/2048-all-in-one.bin\"," +
+		"packageTimeoutMilliseconds:300000," +
+		"probeTimeoutMilliseconds:10000," +
+		"starterTimeoutMilliseconds:10000," +
+		"engineStartTimeoutMilliseconds:300000});" +
+		"startup.catch(()=>{});}\n"
 	)
 
 
@@ -812,7 +1147,24 @@ func _valid_wxmemfs_runtime_text() -> String:
 		'try{}catch(e){throw new FS["ErrnoError"](29)}' +
 		'delete old_node["parent"]["contents"][old_node["name"]];' +
 		"/*2048-wechat-wxmemfs-rename-v1*/" +
-		"},unlink:function(){}"
+		"},unlink:function(){};" +
+		"var GodotDisplayScreen={hidpi:true," +
+		"getPixelRatio:function(){/*2048-wechat-runtime-dpr-cap-v1*/" +
+		"if(!GodotDisplayScreen.hidpi){return 1}" +
+		"let t=window.devicePixelRatio||1,e=window.innerWidth," +
+		"i=window.innerHeight;if(typeof wx!==\"undefined\"&&wx.getWindowInfo){" +
+		"const r=wx.getWindowInfo();" +
+		"r&&(r.pixelRatio&&(t=r.pixelRatio)," +
+		"r.windowWidth&&(e=r.windowWidth)," +
+		"r.windowHeight&&(i=r.windowHeight))}" +
+		"const r=Number(t),s=Number.isFinite(r)&&r>0?Math.max(1,r):1," +
+		"o=Math.max(e,i),h=Math.min(e,i);" +
+		"return Math.max(1,Math.min(s,o>0?1280/o:s,h>0?720/h:s))}," +
+		"updateSize:function(){const width=1,height=1,scale=1;" +
+		"const csw=`${width/scale}px`;const csh=`${height/scale}px`;" +
+		"if(canvas.style.width!==csw||canvas.style.height!==csh||" +
+		"canvas.width!==width||canvas.height!==height){canvas.width=width;" +
+		"canvas.height=height;canvas.style.width=csw;canvas.style.height=csh}}}"
 	)
 
 
@@ -867,6 +1219,25 @@ func _refresh_artifact_and_package_evidence(export_report: Dictionary) -> void:
 		artifact_manifest.get("manifest_sha256", "")
 	)
 	export_report["package"] = package
+	var startup: Dictionary = GFVariantData.get_option_dictionary(
+		export_report,
+		"startup"
+	)
+	if not startup.is_empty():
+		startup["coordinator_sha256"] = FileAccess.get_sha256(
+			ProjectSettings.globalize_path(
+				_FIXTURE_ROOT + "/wechat-startup-coordinator.js"
+			)
+		).to_lower()
+		startup["engine_package_bytes"] = GFVariantData.get_option_int(
+			package,
+			"engine_package_bytes"
+		)
+		startup["game_data_package_bytes"] = GFVariantData.get_option_int(
+			package,
+			"game_data_package_bytes"
+		)
+		export_report["startup"] = startup
 
 
 func _release_font_policy_fixture() -> Dictionary:
@@ -908,6 +1279,41 @@ func _release_font_policy_fixture() -> Dictionary:
 		"license_path": str(license.get("path", "")),
 		"license_spdx": str(license.get("spdx", "")),
 		"license_sha256": str(license.get("sha256", "")),
+	}
+
+
+func _release_resource_closure_fixture(tool_identity: Dictionary) -> Dictionary:
+	var closure_tool: Dictionary = GFVariantData.get_option_dictionary(
+		tool_identity,
+		"release_resource_closure"
+	)
+	var closure_policy: Dictionary = GFVariantData.get_option_dictionary(
+		tool_identity,
+		"release_resource_policy"
+	)
+	return {
+		"schema_version": 1,
+		"ok": true,
+		"policy_id": "wechat-minigame-release-resource-closure-v1",
+		"policy_path": "tools/wechat_minigame/release_resource_policy.json",
+		"policy_sha256": str(closure_policy.get("sha256", "")),
+		"tool_path": "tools/wechat_minigame_release_resource_closure.gd",
+		"tool_sha256": str(closure_tool.get("sha256", "")),
+		"closure_sha256": "7".repeat(64),
+		"full_dependency_scan_count": 601,
+		"dependency_partial": false,
+		"dependency_truncated": false,
+		"counts": {
+			"roots": 104,
+			"structure_dynamic": 44,
+			"content_resources": 37,
+			"raw_dependency_closure": 794,
+			"closure": 793,
+			"raw_include_patterns": 17,
+			"raw_include_files": 18,
+			"issues": 0,
+		},
+		"issues": [],
 	}
 
 

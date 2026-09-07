@@ -144,6 +144,180 @@ func test_swipe_classification_rejects_short_slow_and_ambiguous_tracks() -> void
 	)
 
 
+func test_touch_swipe_commits_on_drag_threshold_and_release_does_not_repeat() -> void:
+	var controller: BoardWorldViewportController = BoardWorldViewportController.new()
+	var manual_clock: GFManualClock = GFManualClock.new(1_000, 1_000_000)
+	var clock_utility: GameClockUtility = GameClockUtility.new()
+	assert_true(clock_utility.set_clock(manual_clock))
+	controller._clock_utility = clock_utility
+
+	assert_true(
+		controller._prepare_touch_action(
+			_make_touch_event(1, true, Vector2(100.0, 100.0))
+		) == &""
+	)
+	assert_true(manual_clock.advance_msec(50))
+	assert_true(
+		controller._prepare_touch_action(
+			_make_drag_event(1, Vector2(160.0, 104.0))
+		) == GameplayInputActions.MOVE_RIGHT,
+		"单指拖动达到滑动阈值时应立即提交，不得等待抬手。"
+	)
+	assert_true(manual_clock.advance_msec(20))
+	assert_true(
+		controller._prepare_touch_action(
+			_make_touch_event(1, false, Vector2(166.0, 104.0))
+		) == &"",
+		"同一触控序列已经在 drag 提交后，release 不得重复出招。"
+	)
+	controller._finish_touch_event(
+		_make_touch_event(1, false, Vector2(166.0, 104.0))
+	)
+
+	clock_utility.dispose()
+	controller.free()
+
+
+func test_touch_swipe_drag_stays_pending_below_threshold_and_multitouch_cancels() -> void:
+	var controller: BoardWorldViewportController = BoardWorldViewportController.new()
+	var manual_clock: GFManualClock = GFManualClock.new(2_000, 1_000_000)
+	var clock_utility: GameClockUtility = GameClockUtility.new()
+	assert_true(clock_utility.set_clock(manual_clock))
+	controller._clock_utility = clock_utility
+
+	assert_true(
+		controller._prepare_touch_action(
+			_make_touch_event(2, true, Vector2(120.0, 120.0))
+		) == &""
+	)
+	assert_true(manual_clock.advance_msec(30))
+	assert_true(
+		controller._prepare_touch_action(
+			_make_drag_event(2, Vector2(138.0, 122.0))
+		) == &"",
+		"未达到距离阈值的 drag 必须保持待定。"
+	)
+	assert_true(
+		controller._prepare_touch_action(
+			_make_touch_event(3, true, Vector2(200.0, 200.0))
+		) == &""
+	)
+	assert_true(manual_clock.advance_msec(20))
+	assert_true(
+		controller._prepare_touch_action(
+			_make_drag_event(2, Vector2(190.0, 122.0))
+		) == &"",
+		"第二指加入后必须取消玩法滑动，保留多指画布手势。"
+	)
+
+	controller._finish_touch_event(
+		_make_touch_event(3, false, Vector2(200.0, 200.0))
+	)
+	controller._finish_touch_event(
+		_make_touch_event(2, false, Vector2(190.0, 122.0))
+	)
+	clock_utility.dispose()
+	controller.free()
+
+
+func test_committed_touch_swipe_locks_out_late_multitouch_navigation() -> void:
+	var controller: BoardWorldViewportController = BoardWorldViewportController.new()
+	var spatial_canvas: GFSpatialCanvas2D = GFSpatialCanvas2D.new()
+	var manual_clock: GFManualClock = GFManualClock.new(3_000, 1_000_000)
+	var clock_utility: GameClockUtility = GameClockUtility.new()
+	assert_true(clock_utility.set_clock(manual_clock))
+	controller._clock_utility = clock_utility
+	controller._spatial_canvas = spatial_canvas
+
+	var primary_press: InputEventScreenTouch = _make_touch_event(
+		4,
+		true,
+		Vector2(100.0, 100.0)
+	)
+	assert_true(controller._prepare_touch_action(primary_press) == &"")
+	assert_true(manual_clock.advance_msec(40))
+	assert_true(
+		controller._prepare_touch_action(
+			_make_drag_event(4, Vector2(164.0, 103.0))
+		) == GameplayInputActions.MOVE_RIGHT
+	)
+	assert_false(
+		spatial_canvas._input_enabled,
+		"玩法动作提交后应清理并锁住 GFSpatialCanvas2D 的当前触控序列。"
+	)
+
+	var late_second_press: InputEventScreenTouch = _make_touch_event(
+		5,
+		true,
+		Vector2(210.0, 180.0)
+	)
+	assert_true(controller._prepare_touch_action(late_second_press) == &"")
+	assert_false(
+		controller._should_reconcile_spatial_input(late_second_press),
+		"同一序列已经提交玩法动作后，迟到的第二指不得再触发画布导航。"
+	)
+	controller._finish_touch_event(
+		_make_touch_event(5, false, Vector2(210.0, 180.0))
+	)
+	assert_false(spatial_canvas._input_enabled)
+	controller._finish_touch_event(
+		_make_touch_event(4, false, Vector2(164.0, 103.0))
+	)
+	assert_true(
+		spatial_canvas._input_enabled,
+		"所有触点释放后应恢复下一序列的 GFSpatialCanvas2D 导航。"
+	)
+
+	clock_utility.dispose()
+	spatial_canvas.free()
+	controller._spatial_canvas = null
+	controller.free()
+
+
+func test_application_lifecycle_clears_orphaned_touch_sequence() -> void:
+	var controller: BoardWorldViewportController = BoardWorldViewportController.new()
+	var spatial_canvas: GFSpatialCanvas2D = GFSpatialCanvas2D.new()
+	var manual_clock: GFManualClock = GFManualClock.new(4_000, 1_000_000)
+	var clock_utility: GameClockUtility = GameClockUtility.new()
+	assert_true(clock_utility.set_clock(manual_clock))
+	controller._clock_utility = clock_utility
+	controller._spatial_canvas = spatial_canvas
+
+	assert_true(
+		controller._prepare_touch_action(
+			_make_touch_event(6, true, Vector2(100.0, 100.0))
+		) == &""
+	)
+	assert_true(manual_clock.advance_msec(40))
+	assert_true(
+		controller._prepare_touch_action(
+			_make_drag_event(6, Vector2(164.0, 102.0))
+		) == GameplayInputActions.MOVE_RIGHT
+	)
+	assert_false(spatial_canvas._input_enabled)
+	assert_true(controller._active_touch_ids.has(6))
+
+	controller._notification(Node.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	assert_true(
+		controller._active_touch_ids.is_empty(),
+		"失焦时即使宿主遗漏 release，也必须清空旧 pointer。"
+	)
+	assert_true(spatial_canvas._input_enabled, "失焦取消后必须恢复画布输入。")
+	assert_true(
+		controller._prepare_touch_action(
+			_make_touch_event(7, true, Vector2(120.0, 120.0))
+		) == &"",
+		"恢复后的第一根触点必须开始全新的单指序列。"
+	)
+	controller._notification(Node.NOTIFICATION_APPLICATION_PAUSED)
+	assert_true(controller._active_touch_ids.is_empty())
+
+	clock_utility.dispose()
+	spatial_canvas.free()
+	controller._spatial_canvas = null
+	controller.free()
+
+
 func test_gameplay_input_actions_map_only_cardinal_directions() -> void:
 	assert_true(
 		GameplayInputActions.action_for_direction(Vector2i.LEFT) == GameplayInputActions.MOVE_LEFT
@@ -311,6 +485,26 @@ func test_board_layers_keep_empty_cells_above_opaque_background() -> void:
 		"场景中的底板层级必须和控制器契约一致。"
 	)
 	scene_root.free()
+
+# --- 私有/辅助方法 ---
+
+func _make_touch_event(
+	index: int,
+	pressed: bool,
+	position: Vector2
+) -> InputEventScreenTouch:
+	var event: InputEventScreenTouch = InputEventScreenTouch.new()
+	event.index = index
+	event.pressed = pressed
+	event.position = position
+	return event
+
+
+func _make_drag_event(index: int, position: Vector2) -> InputEventScreenDrag:
+	var event: InputEventScreenDrag = InputEventScreenDrag.new()
+	event.index = index
+	event.position = position
+	return event
 
 
 # --- 内部类 ---

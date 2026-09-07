@@ -4,6 +4,38 @@ extends GutTest
 
 # --- 测试用例 ---
 
+func test_local_adapter_resolves_release_feature_before_generic_web() -> void:
+	assert_true(
+		LocalPlatformAdapter.resolve_platform_id(
+			false,
+			true,
+			false,
+			true,
+			"Web"
+		) == LocalPlatformAdapter.PLATFORM_WECHAT_MINIGAME,
+		"正式微信构建同时携带 web feature 时仍必须采用微信平台契约。"
+	)
+	assert_true(
+		LocalPlatformAdapter.resolve_platform_id(
+			false,
+			false,
+			false,
+			true,
+			"Web"
+		) == LocalPlatformAdapter.PLATFORM_WEB,
+		"普通 Web 构建不得误判为微信小游戏。"
+	)
+	assert_true(
+		LocalPlatformAdapter.resolve_platform_id(
+			false,
+			false,
+			false,
+			false,
+			"Windows"
+		) == &"windows",
+		"非 Web 宿主应继续规范化 Godot OS 名称。"
+	)
+
 func test_project_adapter_satisfies_gf_descriptor_conformance() -> void:
 	var adapter: FakePlatformAdapter = FakePlatformAdapter.new()
 	assert_true(adapter.prepare(), "测试 Adapter 应冻结 GF 平台身份和契约描述符。")

@@ -374,7 +374,16 @@ func test_gameplay_move_trace_is_bounded_and_exposes_only_phase_metrics() -> voi
 	)
 
 	assert_true(performance_trace.start_gameplay_trace(false))
-	var attempt_id: int = performance_trace.begin_move(Vector2i.RIGHT)
+	var _input_receipt: int = performance_trace.capture_move_input(
+		GameplayInputActions.MOVE_RIGHT
+	)
+	var _mapped_receipt: int = performance_trace.acknowledge_move_input_mapped(
+		GameplayInputActions.MOVE_RIGHT
+	)
+	var attempt_id: int = performance_trace.begin_move(
+		Vector2i.RIGHT,
+		GameplayInputActions.MOVE_RIGHT
+	)
 	var presentation_attempt_id: int = performance_trace.mark_presentation_enqueued(
 		false
 	)
@@ -382,9 +391,14 @@ func test_gameplay_move_trace_is_bounded_and_exposes_only_phase_metrics() -> voi
 		presentation_attempt_id == attempt_id,
 		"表现入队必须返回可绑定真实 execute 起点的移动尝试标识。"
 	)
-	performance_trace.mark_primary_feedback_started(presentation_attempt_id)
-	performance_trace.mark_primary_feedback_started(presentation_attempt_id)
+	performance_trace.mark_primary_feedback_state_committed(presentation_attempt_id)
+	performance_trace.mark_primary_feedback_state_committed(presentation_attempt_id)
 	performance_trace.complete_move(attempt_id, true)
+	performance_trace.call(
+		"_on_primary_feedback_frame_post_draw",
+		attempt_id,
+		performance_trace.get("_primary_feedback_frame_serial")
+	)
 	performance_trace.mark_presentation_settled()
 
 	var events: Array[Dictionary] = session_trace.get_events()
@@ -395,19 +409,22 @@ func test_gameplay_move_trace_is_bounded_and_exposes_only_phase_metrics() -> voi
 		)
 	assert_true(
 		event_ids == PackedStringArray([
+			"move_input_received",
+			"move_input_mapped",
 			"move_requested",
 			"move_presentation_enqueued",
-			"move_primary_feedback_started",
+			"move_primary_feedback_state_committed",
 			"move_command_completed",
+			"move_primary_feedback_presented",
 			"move_presentation_settled",
 		]),
-		"轨迹应保留输入、入队、真实首反馈、命令完成和表现完成的可关联阶段。"
+		"轨迹应保留输入接收、GF 映射、入队、状态提交、实际绘制和表现完成阶段。"
 	)
 	var primary_feedback_event: Dictionary = {}
 	for event: Dictionary in events:
 		if (
 			GFVariantData.get_option_string_name(event, "event_id")
-			== &"move_primary_feedback_started"
+			== &"move_primary_feedback_presented"
 		):
 			primary_feedback_event = event
 			break
@@ -441,20 +458,38 @@ func test_gameplay_move_trace_is_bounded_and_exposes_only_phase_metrics() -> voi
 
 	assert_true(performance_trace.start_gameplay_trace(false))
 	var immediate_event_start: int = session_trace.get_events().size()
-	var immediate_attempt_id: int = performance_trace.begin_move(Vector2i.UP)
+	var _immediate_input_receipt: int = performance_trace.capture_move_input(
+		GameplayInputActions.MOVE_UP
+	)
+	var _immediate_mapped_receipt: int = (
+		performance_trace.acknowledge_move_input_mapped(
+			GameplayInputActions.MOVE_UP
+		)
+	)
+	var immediate_attempt_id: int = performance_trace.begin_move(
+		Vector2i.UP,
+		GameplayInputActions.MOVE_UP
+	)
 	var immediate_presentation_id: int = (
 		performance_trace.mark_presentation_enqueued(false)
 	)
-	performance_trace.mark_primary_feedback_started(immediate_presentation_id)
+	performance_trace.mark_primary_feedback_state_committed(
+		immediate_presentation_id
+	)
 	performance_trace.mark_presentation_settled()
 	assert_true(
 		performance_trace.mark_presentation_enqueued(false)
 		== immediate_attempt_id,
 		"首个同步 drain 后，同一命令的生成批次必须延后完整回合终点。"
 	)
-	performance_trace.mark_primary_feedback_started(immediate_attempt_id)
+	performance_trace.mark_primary_feedback_state_committed(immediate_attempt_id)
 	performance_trace.mark_presentation_settled()
 	performance_trace.complete_move(immediate_attempt_id, true)
+	performance_trace.call(
+		"_on_primary_feedback_frame_post_draw",
+		immediate_attempt_id,
+		performance_trace.get("_primary_feedback_frame_serial")
+	)
 	assert_false(
 		GFVariantData.get_option_bool(
 			performance_trace.get_debug_snapshot(),
@@ -472,13 +507,16 @@ func test_gameplay_move_trace_is_bounded_and_exposes_only_phase_metrics() -> voi
 		)
 	assert_true(
 		immediate_event_ids == PackedStringArray([
+			"move_input_received",
+			"move_input_mapped",
 			"move_requested",
 			"move_presentation_enqueued",
-			"move_primary_feedback_started",
+			"move_primary_feedback_state_committed",
 			"move_command_completed",
 			"move_presentation_settled",
+			"move_primary_feedback_presented",
 		]),
-		"多段同步表现只应记录一个首入队、首反馈和完整回合 settle。"
+		"多段同步表现只应记录一个输入、首入队、绘制反馈和完整回合 settle。"
 	)
 
 	for _index: int in range(80):

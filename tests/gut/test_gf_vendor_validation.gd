@@ -174,14 +174,21 @@ func test_vendor_acceptance_gate_binds_remote_commit_tree_and_success_run() -> v
 	if _get_dictionary_text(vendor_check, "network_access") != "required":
 		_append_string(issues, "gf_vendor 远程 provenance gate 必须声明需要网络。")
 	for required_fragment: String in [
-		"run.head_sha",
-		"run.conclusion",
-		"run.path",
+		"Run.head_sha",
+		"Run.conclusion",
+		"Run.path",
 		"sourceGitTree",
 		"Get-GitBlobSha1",
 		"remoteVendorBlobs",
 		"GF full validation",
 		"GF merge gate",
+		".github/workflows/release.yml",
+		"Build GF release artifacts once",
+		"Create GitHub Release",
+		"Resolve-OfficialAnnotatedTagCommit",
+		"gf-release-artifacts-",
+		"source_revision",
+		"framework archive downloaded SHA-256",
 		"api.github.com/repos/C76GN/gf-framework",
 	]:
 		if not verifier_text.contains(required_fragment):
@@ -192,7 +199,7 @@ func test_vendor_acceptance_gate_binds_remote_commit_tree_and_success_run() -> v
 
 	assert_true(
 		issues.is_empty(),
-		"GF development vendor 必须绑定官方 commit、tree 与绿色 Actions run：\n%s"
+		"GF vendor 必须按渠道绑定官方 commit、tree 与绿色 CI/Release provenance：\n%s"
 		% _join_lines(issues)
 	)
 

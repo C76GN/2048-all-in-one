@@ -33,6 +33,17 @@ const _SOUND_THEME_TYPE_HINT: String = "GameAudioTheme"
 const _ASSET_LOAD_CONCURRENCY: int = 4
 const _DEFAULT_ASSET_SESSION_TIMEOUT_SECONDS: float = 15.0
 const _BACKGROUND_ANIMATION_DRIVER_NODE_NAME: String = "ShaderAnimationDriver"
+const OPTIONAL_SHADER_WARMUP_CACHE_GROUP: StringName = &"game.theme.optional_shaders"
+const OPTIONAL_SHADER_WARMUP_OPERATION_TYPE: StringName = &"game.theme_optional_shader_warmup"
+const _OPTIONAL_SHADER_WARMUP_MANIFEST_ID: StringName = &"runtime.theme_optional_shaders"
+const _OPTIONAL_SHADER_WARMUP_FAILURE_CODE: StringName = &"game_theme_optional_shader_warmup_failed"
+const _OPTIONAL_SHADER_WARMUP_ROLES: Array[StringName] = [
+	&"background",
+	&"celebration",
+]
+const _STARTUP_RENDER_WARMUP_MANIFEST: GFRenderWarmupManifest = preload(
+	"res://features/themes/resources/themes/boot/startup_render_warmup_manifest.tres"
+)
 
 
 # --- 私有变量 ---
@@ -49,6 +60,8 @@ var _mode_visual_profile_registry: GameModeVisualProfileRegistry = null
 var _shader_parameters: GFShaderParameterUtility = null
 var _signal_utility: GFSignalUtility = null
 var _accessibility: GameAccessibilityUtility = null
+var _render_warmup: GFRenderWarmupUtility = null
+var _operation_diagnostics: GFOperationDiagnosticsUtility = null
 var _visual_theme_slot: GFAssetSlot = null
 var _sound_theme_slot: GFAssetSlot = null
 var _active_visual_asset_group_id: StringName = &""
@@ -68,6 +81,9 @@ var _pending_audio_mount_token: int = 0
 var _previous_sound_theme: GameAudioTheme = null
 var _last_visual_activation_report: Dictionary = {}
 var _last_sound_activation_report: Dictionary = {}
+var _optional_shader_enabled_by_role: Dictionary = {}
+var _optional_shader_warmed_roles: Dictionary = {}
+var _last_optional_shader_warmup_report: Dictionary = {}
 var _asset_session_timeout_seconds: float = _DEFAULT_ASSET_SESSION_TIMEOUT_SECONDS
 
 
@@ -91,6 +107,8 @@ func get_required_utilities() -> Array[Script]:
 		GFSettingsUtility,
 		GFShaderParameterUtility,
 		GFSignalUtility,
+		GFRenderWarmupUtility,
+		GFOperationDiagnosticsUtility,
 		GameAccessibilityUtility,
 	]
 
@@ -110,6 +128,13 @@ func ready() -> void:
 	_shader_parameters = _get_shader_parameter_utility()
 	_signal_utility = _get_signal_utility()
 	_accessibility = _get_accessibility_utility()
+	_render_warmup = _get_render_warmup_utility()
+	_operation_diagnostics = _get_operation_diagnostics_utility()
+	_capture_optional_shader_role_state(
+		_accessibility.get_state()
+		if is_instance_valid(_accessibility)
+		else GameAccessibilityState.new()
+	)
 	_connect_settings()
 	_connect_motion_audio_feedback()
 	_connect_accessibility()
@@ -121,6 +146,7 @@ func dispose() -> void:
 	_unmount_current_audio_bank()
 	_release_active_asset_groups()
 	_release_theme_slots()
+	_release_optional_shader_warmup_cache()
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
 	_settings = null
@@ -135,10 +161,13 @@ func dispose() -> void:
 	_shader_parameters = null
 	_signal_utility = null
 	_accessibility = null
+	_render_warmup = null
+	_operation_diagnostics = null
 	_clear_runtime_state()
 
 
 func release_dependencies() -> void:
+	_release_optional_shader_warmup_cache()
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
 	_settings = null
@@ -153,6 +182,8 @@ func release_dependencies() -> void:
 	_shader_parameters = null
 	_signal_utility = null
 	_accessibility = null
+	_render_warmup = null
+	_operation_diagnostics = null
 	super.release_dependencies()
 
 
@@ -469,6 +500,23 @@ func get_debug_snapshot() -> Dictionary:
 		"sound_theme_slot": _get_theme_slot_snapshot(_sound_theme_slot),
 		"visual_activation": _last_visual_activation_report.duplicate(true),
 		"sound_activation": _last_sound_activation_report.duplicate(true),
+		"optional_shader_warmup": {
+			"cache_group": OPTIONAL_SHADER_WARMUP_CACHE_GROUP,
+			"cached_resource_count": (
+				_render_warmup.get_cached_resource_count(
+					OPTIONAL_SHADER_WARMUP_CACHE_GROUP
+				)
+				if is_instance_valid(_render_warmup)
+				else 0
+			),
+			"enabled_roles": _get_optional_shader_roles(
+				_optional_shader_enabled_by_role
+			),
+			"warmed_roles": _get_optional_shader_roles(
+				_optional_shader_warmed_roles
+			),
+			"last_report": _last_optional_shader_warmup_report.duplicate(true),
+		},
 		"board_feedback": (
 			_board_feedback.get_debug_snapshot()
 			if is_instance_valid(_board_feedback)
@@ -1272,6 +1320,9 @@ func _clear_runtime_state() -> void:
 	_clear_pending_sound_activation()
 	_last_visual_activation_report.clear()
 	_last_sound_activation_report.clear()
+	_optional_shader_enabled_by_role.clear()
+	_optional_shader_warmed_roles.clear()
+	_last_optional_shader_warmup_report.clear()
 
 
 func _resolve_mode_visual_profile(profile_id: StringName) -> GameModeVisualProfile:
@@ -1385,6 +1436,227 @@ func _refresh_visual_effect_policy() -> void:
 		)
 
 
+func _capture_optional_shader_role_state(state: GameAccessibilityState) -> void:
+	_optional_shader_enabled_by_role = _resolve_optional_shader_role_state(state)
+
+
+func _collect_newly_enabled_optional_shader_roles(
+	state: GameAccessibilityState
+) -> Array[StringName]:
+	_invalidate_optional_shader_warmup_state_if_cache_was_evicted()
+	var current_role_state: Dictionary = _resolve_optional_shader_role_state(state)
+	var newly_enabled_roles: Array[StringName] = []
+	for role: StringName in _OPTIONAL_SHADER_WARMUP_ROLES:
+		var was_enabled: bool = GFVariantData.to_bool(
+			_optional_shader_enabled_by_role.get(role, false),
+			false
+		)
+		var is_enabled: bool = GFVariantData.to_bool(
+			current_role_state.get(role, false),
+			false
+		)
+		var was_warmed: bool = GFVariantData.to_bool(
+			_optional_shader_warmed_roles.get(role, false),
+			false
+		)
+		if is_enabled and not was_enabled and not was_warmed:
+			newly_enabled_roles.append(role)
+	_optional_shader_enabled_by_role = current_role_state
+	return newly_enabled_roles
+
+
+func _resolve_optional_shader_role_state(state: GameAccessibilityState) -> Dictionary:
+	var budget: GameFeedbackBudget = GameFeedbackPerformanceMatrix.resolve(state)
+	return {
+		&"background": budget.background_shader_enabled,
+		&"celebration": budget.celebration_shader_enabled,
+	}
+
+
+func _warmup_optional_shader_roles_now(roles: Array[StringName]) -> bool:
+	if roles.is_empty():
+		return true
+
+	var operation_id: StringName = &""
+	if is_instance_valid(_operation_diagnostics):
+		operation_id = _operation_diagnostics.begin_operation(
+			OPTIONAL_SHADER_WARMUP_OPERATION_TYPE,
+			{
+				"component": &"GameThemeUtility",
+				"label": "运行时可选 Shader RID 预热",
+				"metadata": {
+					"roles": _pack_optional_shader_roles(roles),
+					"cache_group": OPTIONAL_SHADER_WARMUP_CACHE_GROUP,
+				},
+			}
+		)
+
+	var report: Dictionary = {
+		"ok": false,
+		"roles": _pack_optional_shader_roles(roles),
+		"cache_group": OPTIONAL_SHADER_WARMUP_CACHE_GROUP,
+		"summary": {},
+		"failure_reason": &"",
+	}
+	if not is_instance_valid(_render_warmup):
+		report["failure_reason"] = &"missing_render_warmup_utility"
+		_finish_optional_shader_warmup(report, operation_id)
+		return false
+
+	var manifest: GFRenderWarmupManifest = _build_optional_shader_warmup_manifest(roles)
+	if manifest.get_entry_count() != roles.size():
+		report["failure_reason"] = &"startup_manifest_roles_missing"
+		report["manifest_entry_count"] = manifest.get_entry_count()
+		_finish_optional_shader_warmup(report, operation_id)
+		return false
+
+	var summary: Dictionary = _render_warmup.warmup_manifest_now(
+		manifest,
+		{
+			"touch_mode": GFRenderWarmupUtility.TouchMode.RID_ONLY,
+			"keep_cached": true,
+			"cache_group": OPTIONAL_SHADER_WARMUP_CACHE_GROUP,
+		}
+	)
+	var expected_cache_count: int = _optional_shader_warmed_roles.size() + roles.size()
+	var succeeded: bool = _is_optional_shader_warmup_summary_successful(
+		summary,
+		roles.size(),
+		expected_cache_count
+	)
+	report["ok"] = succeeded
+	report["summary"] = summary.duplicate(true)
+	if succeeded:
+		for role: StringName in roles:
+			_optional_shader_warmed_roles[role] = true
+	else:
+		report["failure_reason"] = &"render_warmup_failed"
+	_finish_optional_shader_warmup(report, operation_id)
+	return succeeded
+
+
+func _is_optional_shader_warmup_summary_successful(
+	summary: Dictionary,
+	expected_count: int,
+	expected_cache_count: int
+) -> bool:
+	if (
+		not GFVariantData.get_option_bool(summary, "ok", false)
+		or GFVariantData.get_option_bool(summary, "stopped_by_budget", false)
+		or GFVariantData.get_option_int(summary, "processed_count", 0) != expected_count
+	):
+		return false
+	var results: Array = GFVariantData.get_option_array(summary, "results")
+	if results.size() != expected_count:
+		return false
+	for result_value: Variant in results:
+		var result: Dictionary = GFVariantData.as_dictionary(result_value)
+		if (
+			not GFVariantData.get_option_bool(result, "ok", false)
+			or GFVariantData.get_option_string_name(result, "kind") != &"shader"
+			or GFVariantData.get_option_int(result, "touched_count", 0) < 1
+			or not GFVariantData.get_option_bool(result, "cache_retained", false)
+			or GFVariantData.get_option_string_name(result, "cache_group")
+				!= OPTIONAL_SHADER_WARMUP_CACHE_GROUP
+		):
+			return false
+	return (
+		is_instance_valid(_render_warmup)
+		and _render_warmup.get_cached_resource_count(
+			OPTIONAL_SHADER_WARMUP_CACHE_GROUP
+		) >= expected_cache_count
+	)
+
+
+func _build_optional_shader_warmup_manifest(
+	roles: Array[StringName]
+) -> GFRenderWarmupManifest:
+	var manifest: GFRenderWarmupManifest = GFRenderWarmupManifest.new()
+	manifest.manifest_id = _OPTIONAL_SHADER_WARMUP_MANIFEST_ID
+	manifest.metadata = {
+		"owner": &"GameThemeUtility",
+		"source_manifest_id": _STARTUP_RENDER_WARMUP_MANIFEST.manifest_id,
+	}
+	var requested_roles: Dictionary = {}
+	for role: StringName in roles:
+		requested_roles[role] = true
+	var appended_roles: Dictionary = {}
+	for entry: Dictionary in _STARTUP_RENDER_WARMUP_MANIFEST.get_entries():
+		var metadata: Dictionary = GFVariantData.get_option_dictionary(entry, "metadata")
+		var role: StringName = GFVariantData.get_option_string_name(metadata, "role")
+		if not requested_roles.has(role) or appended_roles.has(role):
+			continue
+		manifest.entries.append(entry.duplicate(true))
+		appended_roles[role] = true
+	return manifest
+
+
+func _finish_optional_shader_warmup(
+	report: Dictionary,
+	operation_id: StringName
+) -> void:
+	_last_optional_shader_warmup_report = report.duplicate(true)
+	var succeeded: bool = GFVariantData.get_option_bool(report, "ok", false)
+	if is_instance_valid(_operation_diagnostics):
+		if operation_id != &"":
+			var _operation: Dictionary = _operation_diagnostics.finish_operation(
+				operation_id,
+				succeeded,
+				{"metadata": report.duplicate(true)}
+			)
+		if not succeeded:
+			var _incident: Dictionary = _operation_diagnostics.record_incident(
+				GFOperationDiagnosticsUtility.SEVERITY_ERROR,
+				_OPTIONAL_SHADER_WARMUP_FAILURE_CODE,
+				"运行时启用可选 Shader 前的 RID 预热失败。",
+				{
+					"category": &"render_warmup",
+					"component": &"GameThemeUtility",
+					"phase": &"accessibility_enable_edge",
+					"recoverable": true,
+					"suggested_action": "检查 startup render warmup manifest 的 role 和资源路径。",
+					"metadata": report.duplicate(true),
+				}
+			)
+	if not succeeded:
+		_release_optional_shader_warmup_cache()
+		push_error(
+			"[GameThemeUtility] 运行时可选 Shader RID 预热失败：%s"
+			% String(GFVariantData.get_option_string_name(report, "failure_reason"))
+		)
+
+
+func _release_optional_shader_warmup_cache() -> void:
+	if is_instance_valid(_render_warmup):
+		_render_warmup.release_cached_resources(OPTIONAL_SHADER_WARMUP_CACHE_GROUP)
+	_optional_shader_warmed_roles.clear()
+
+
+func _invalidate_optional_shader_warmup_state_if_cache_was_evicted() -> void:
+	if _optional_shader_warmed_roles.is_empty() or not is_instance_valid(_render_warmup):
+		return
+	if (
+		_render_warmup.get_cached_resource_count(OPTIONAL_SHADER_WARMUP_CACHE_GROUP)
+		< _optional_shader_warmed_roles.size()
+	):
+		_optional_shader_warmed_roles.clear()
+
+
+func _get_optional_shader_roles(role_state: Dictionary) -> Array[StringName]:
+	var roles: Array[StringName] = []
+	for role: StringName in _OPTIONAL_SHADER_WARMUP_ROLES:
+		if GFVariantData.to_bool(role_state.get(role, false), false):
+			roles.append(role)
+	return roles
+
+
+func _pack_optional_shader_roles(roles: Array[StringName]) -> PackedStringArray:
+	var packed_roles: PackedStringArray = PackedStringArray()
+	for role: StringName in roles:
+		var _role_appended: bool = packed_roles.append(String(role))
+	return packed_roles
+
+
 func _log_activation_failure(label: String, report: Dictionary) -> void:
 	push_error(
 		"[GameThemeUtility] %s激活失败：%s"
@@ -1421,6 +1693,22 @@ func _get_accessibility_utility() -> GameAccessibilityUtility:
 	if utility_value is GameAccessibilityUtility:
 		var accessibility: GameAccessibilityUtility = utility_value
 		return accessibility
+	return null
+
+
+func _get_render_warmup_utility() -> GFRenderWarmupUtility:
+	var utility_value: Object = get_utility(GFRenderWarmupUtility)
+	if utility_value is GFRenderWarmupUtility:
+		var render_warmup: GFRenderWarmupUtility = utility_value
+		return render_warmup
+	return null
+
+
+func _get_operation_diagnostics_utility() -> GFOperationDiagnosticsUtility:
+	var utility_value: Object = get_utility(GFOperationDiagnosticsUtility)
+	if utility_value is GFOperationDiagnosticsUtility:
+		var operation_diagnostics: GFOperationDiagnosticsUtility = utility_value
+		return operation_diagnostics
 	return null
 
 
@@ -1508,7 +1796,18 @@ func _on_setting_changed(key: StringName, _old_value: Variant, new_value: Varian
 			_set_setting_string_name(SOUND_THEME_SETTING_KEY, get_current_sound_theme_id())
 
 
-func _on_accessibility_state_changed(_state: GameAccessibilityState) -> void:
+func _on_accessibility_state_changed(state: GameAccessibilityState) -> void:
+	var newly_enabled_roles: Array[StringName] = (
+		_collect_newly_enabled_optional_shader_roles(state)
+	)
+	if not newly_enabled_roles.is_empty():
+		var warmed: bool = _warmup_optional_shader_roles_now(newly_enabled_roles)
+		if not warmed:
+			# 预热失败时回退统一 Shader 开关，避免其他表现消费者读取已经启用、
+			# 而主题仍处于冷资源状态的分裂事实。该写入会触发一次禁用态刷新。
+			if is_instance_valid(_accessibility):
+				_accessibility.set_shader_effects_enabled(false)
+			return
 	_refresh_visual_effect_policy()
 
 

@@ -28,10 +28,10 @@ $TemplateDownloadUrl = (
 $TemplateExpectedBytes = 11763895
 $TemplateExpectedSha256 = "AE5BDEB5BA1CE9712D4EFC35D337CB5ECBEF3AD5BFB0F7D06AE9CB662C1F2D71"
 $RequiredGodotVersionPrefix = "4.7.2.stable"
-$ExportReportSchemaVersion = 3
+$ExportReportSchemaVersion = 5
 $ArtifactManifestSchemaVersion = 1
 $InputSnapshotSchemaVersion = 1
-$BuildIdentitySchemaVersion = 2
+$BuildIdentitySchemaVersion = 4
 $IsReleaseProfile = $Profile -eq "Release"
 $ExportPreset = if ($IsReleaseProfile) {
 	"Web Compatibility WeChat Release"
@@ -48,11 +48,26 @@ else {
 $PackFileName = "2048-all-in-one.bin"
 $ChunkLoaderSourceRelativePath = "tools\wechat_minigame\chunked_file_loader.js"
 $ChunkLoaderOutputRelativePath = "engine\wechat-chunked-file-loader.js"
+$StartupCoordinatorSourceRelativePath = (
+	"tools\wechat_minigame\subpackage_startup_coordinator.js"
+)
+$StartupCoordinatorOutputRelativePath = "wechat-startup-coordinator.js"
+$StartupPackageTimeoutMilliseconds = 300000
+$StartupProbeTimeoutMilliseconds = 10000
+$StartupStarterTimeoutMilliseconds = 10000
+$StartupEngineStartTimeoutMilliseconds = 300000
+$StartupTraceLimit = 64
+$StartupDownloadProgressWeight = 0.95
+$StartupProgressTraceStepPercentage = 5
+$StartupUiProgressMinimumStep = 0.005
 $WxMemFsRenamePatchRelativePath = "tools\wechat_minigame\wxmemfs_rename_patch.ps1"
 $TemplateGodotRuntimeSha256 = "CC396C67F410502C958185003EA72F5F67E5ACBCD040774D1AAF5B9622491B15"
-$PatchedGodotRuntimeSha256 = "FD91EA35F0515360BE35AE6FD2425D102CBAF17F30F5B7CCB8688AF635CE3638"
+$WxMemFsPatchedGodotRuntimeSha256 = "FD91EA35F0515360BE35AE6FD2425D102CBAF17F30F5B7CCB8688AF635CE3638"
+$PatchedGodotRuntimeSha256 = "0256C25987171B218FE217E0AFC5DC774A8017754E2B632EA007BCC8A1E71637"
 $TemplateGodotLoaderSha256 = "181E61961CF6527F718E93E132D86DAF4310E091E3B004909076BDCE4D56C99C"
+$PatchedGodotLoaderSha256 = "2511B4DDC4DF446DC4902E551BE0E76807CF78E846BD0B5181AAB9054C2AA9CB"
 $ChunkBytes = 4194304
+$ChunkMaxConcurrentResources = 2
 $WeChatProjectName = if ($IsReleaseProfile) {
 	"2048 Full Game Release Candidate"
 }
@@ -117,6 +132,14 @@ $ReleaseFontSourceRelativePath = (
 	"shared\assets\fonts\noto_sans_sc_variable.ttf"
 )
 $ReleaseFontLicenseRelativePath = "shared\assets\fonts\noto_sans_sc_ofl.txt"
+$ReleaseResourceClosureToolRelativePath = "tools\wechat_minigame_release_resource_closure.gd"
+$ReleaseResourceClosurePolicyRelativePath = (
+	"tools\wechat_minigame\release_resource_policy.json"
+)
+$ReleaseResourceClosurePolicyId = "wechat-minigame-release-resource-closure-v1"
+$ReleaseResourceClosureOutputPrefix = "WECHAT_RELEASE_RESOURCE_CLOSURE="
+$ReleaseResourceClosureSchemaVersion = 1
+$ReleaseResourceClosureOutputMaxCharacters = 1048576
 $ToolIdentityRelativePaths = [ordered]@{
 	export_tool = "tools/export_wechat_minigame_smoke.ps1"
 	artifact_verifier = "tools/wechat_minigame_artifact_verifier.gd"
@@ -124,7 +147,10 @@ $ToolIdentityRelativePaths = [ordered]@{
 	bounded_json_reader = "addons/gf/kernel/core/gf_bounded_json_object_reader.gd"
 	path_tools = "addons/gf/kernel/core/gf_path_tools.gd"
 	chunk_loader = "tools/wechat_minigame/chunked_file_loader.js"
+	startup_coordinator = "tools/wechat_minigame/subpackage_startup_coordinator.js"
 	wxmemfs_patch = "tools/wechat_minigame/wxmemfs_rename_patch.ps1"
+	release_resource_closure = "tools/wechat_minigame_release_resource_closure.gd"
+	release_resource_policy = "tools/wechat_minigame/release_resource_policy.json"
 }
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
@@ -201,140 +227,191 @@ function ConvertTo-WeChatSubpackageLifecyclePatchedSource {
 	)
 	$patched = @'
 loadGameEngine(){
-  const SUBPACKAGE_TIMEOUT_MS=300000;
-  const DATA_PROBE_TIMEOUT_MS=10000;
-  let fatal=false;
-  const asError=(reason,fallback)=>reason instanceof Error
-    ?reason
-    :new Error(reason&&reason.errMsg?reason.errMsg:(reason==null?fallback:String(reason)));
-  const failVisible=error=>{
-    if(fatal){return;}
-    fatal=true;
+  const coordinator=GameGlobal.WeChatSubpackageStartupCoordinator;
+  if(!coordinator||typeof coordinator.start!=="function"){
+    const error=new Error("WeChat subpackage startup coordinator is unavailable");
     this.progress=0;
-    this.updateProgress(this.progress,this.config.textConfig.loadFailedText||"引擎分包加载失败");
+    this.updateProgress(this.progress,this.config.textConfig.loadFailedText||"\u5f15\u64ce\u5206\u5305\u52a0\u8f7d\u5931\u8d25");
     setTimeout(()=>{throw error;},0);
-  };
-  const probeGameData=onSuccess=>{
-    const path="/game_data/2048-all-in-one.bin";
-    let settled=false;
-    let timeoutId=0;
-    const finish=(error,result)=>{
-      if(settled){return;}
-      settled=true;
-      clearTimeout(timeoutId);
-      if(fatal){return;}
-      if(error){
-        console.error("[wechat-subpackage] data_probe_fail",error.message);
-        failVisible(error);
-        return;
-      }
-      const bytes=result&&result.data&&result.data.byteLength;
-      if(bytes!==1){
-        const probeError=new Error("game_data PCK probe returned no byte");
-        console.error("[wechat-subpackage] data_probe_fail",probeError.message);
-        failVisible(probeError);
-        return;
-      }
-      console.log("[wechat-subpackage] data_probe_success",path,bytes);
-      onSuccess();
-    };
-    console.log("[wechat-subpackage] data_probe_start",path);
-    timeoutId=setTimeout(()=>finish(new Error("game_data PCK probe timed out")),DATA_PROBE_TIMEOUT_MS);
-    try{
-      const fileSystem=wx.getFileSystemManager();
-      if(!fileSystem||typeof fileSystem.readFile!=="function"){
-        throw new Error("wx file system readFile is unavailable");
-      }
-      fileSystem.readFile({
-        filePath:path,
-        position:0,
-        length:1,
-        success:result=>finish(null,result),
-        fail:result=>{
-          const detail=result&&result.errMsg?result.errMsg:String(result);
-          finish(new Error("game_data PCK probe failed: "+detail));
-        }
-      });
-    }catch(reason){
-      finish(asError(reason,"game_data PCK probe failed"));
-    }
-  };
-  const loadPackage=(name,marker,entryPath,progressBase,onSuccess)=>{
-    let settled=false;
-    let timeoutId=0;
-    const clearDeadline=()=>clearTimeout(timeoutId);
-    const fail=(event,error)=>{
-      if(settled){return;}
-      settled=true;
-      clearDeadline();
-      if(fatal){return;}
-      console.error(event,name,error.message);
-      failVisible(error);
-    };
-    const succeed=result=>{
-      if(settled||fatal){return;}
-      const detail=result&&result.errMsg?result.errMsg:"loadSubpackage:ok";
-      console.log("[wechat-subpackage] success",name,detail);
-      if(GameGlobal[marker]!==true){
-        fail(
-          "[wechat-subpackage] entry_missing",
-          new Error(entryPath+" did not execute after the "+name+" subpackage loaded")
-        );
-        return;
-      }
-      settled=true;
-      clearDeadline();
-      console.log("[wechat-subpackage] entry_confirmed",name,entryPath);
-      try{onSuccess();}catch(reason){failVisible(asError(reason,name+" continuation failed"));}
-    };
-    GameGlobal[marker]=false;
-    console.log("[wechat-subpackage] start",name);
-    timeoutId=setTimeout(()=>fail(
-      "[wechat-subpackage] timeout",
-      new Error(name+" subpackage load timed out")
-    ),SUBPACKAGE_TIMEOUT_MS);
-    try{
-      const task=wx.loadSubpackage({
-        name:name,
-        success:result=>succeed(result),
-        fail:result=>fail(
-          "[wechat-subpackage] fail",
-          asError(result,name+" subpackage load failed")
-        ),
-        complete:result=>{
-          const detail=result&&result.errMsg?result.errMsg:String(result);
-          console.log("[wechat-subpackage] complete",name,detail);
-        }
-      });
-      if(!task||typeof task.onProgressUpdate!=="function"){
-        throw new Error(name+" subpackage progress task is unavailable");
-      }
-      task.onProgressUpdate(({progress})=>{
-        if(settled||fatal){return;}
-        console.log("[wechat-subpackage] progress",name,progress);
-        this.progress=progressBase+progress/200;
-        this.updateProgress(this.progress,this.config.textConfig.downloadingText[0]);
-      });
-    }catch(reason){
-      fail("[wechat-subpackage] fail",asError(reason,name+" subpackage load failed"));
-    }
-  };
-  loadPackage("game_data","__godotGameDataSubpackageEntryStarted","game_data/game.js",0,()=>{
-    probeGameData(()=>{
-      loadPackage("engine","__godotEngineSubpackageEntryStarted","engine/game.js",0.5,()=>{
-        this.progress=1;
-        this.updateProgress(this.progress,this.config.textConfig.initText);
-      });
+    return;
+  }
+  try{
+    const startup=coordinator.start({
+      loader:this,
+      packageBytes:GameGlobal.__godotStartupPackageBytes,
+      pckPath:"/game_data/2048-all-in-one.bin",
+      packageTimeoutMilliseconds:__PACKAGE_TIMEOUT_MILLISECONDS__,
+      probeTimeoutMilliseconds:__PROBE_TIMEOUT_MILLISECONDS__,
+      starterTimeoutMilliseconds:__STARTER_TIMEOUT_MILLISECONDS__,
+      engineStartTimeoutMilliseconds:__ENGINE_START_TIMEOUT_MILLISECONDS__
     });
-  });
+    if(!startup||typeof startup.catch!=="function"){
+      throw new Error("WeChat subpackage startup coordinator returned no Promise");
+    }
+    startup.catch(()=>{});
+  }catch(reason){
+    const error=reason instanceof Error?reason:new Error(String(reason));
+    this.progress=0;
+    this.updateProgress(this.progress,this.config.textConfig.loadFailedText||"\u5f15\u64ce\u5206\u5305\u52a0\u8f7d\u5931\u8d25");
+    setTimeout(()=>{throw error;},0);
+  }
 }
 '@
+	# Windows PowerShell materializes here-string line breaks as CRLF while
+	# PowerShell 7 preserves the script's LF endings. Normalize only the injected
+	# fragment so the locked loader bytes are identical in both supported hosts.
+	$patched = $patched.Replace("`r`n", "`n").Replace("`r", "`n")
+	$patched = $patched.Replace(
+		"__PACKAGE_TIMEOUT_MILLISECONDS__",
+		[string]$StartupPackageTimeoutMilliseconds
+	).Replace(
+		"__PROBE_TIMEOUT_MILLISECONDS__",
+		[string]$StartupProbeTimeoutMilliseconds
+	).Replace(
+		"__STARTER_TIMEOUT_MILLISECONDS__",
+		[string]$StartupStarterTimeoutMilliseconds
+	).Replace(
+		"__ENGINE_START_TIMEOUT_MILLISECONDS__",
+		[string]$StartupEngineStartTimeoutMilliseconds
+	)
 	$firstIndex = $Source.IndexOf($original, [StringComparison]::Ordinal)
 	if ($firstIndex -lt 0) {
 		throw "Pinned godot-loader.js no longer contains the expected loadGameEngine implementation."
 	}
 	if ($Source.IndexOf($original, $firstIndex + $original.Length, [StringComparison]::Ordinal) -ge 0) {
 		throw "Pinned godot-loader.js contains multiple loadGameEngine patch targets."
+	}
+	return $Source.Replace($original, $patched)
+}
+
+function ConvertTo-WeChatStartupCoordinatorGameEntryPatchedSource {
+	param(
+		[Parameter(Mandatory = $true)]
+		[string]$Source,
+		[Parameter(Mandatory = $true)]
+		[int64]$EnginePackageBytes,
+		[Parameter(Mandatory = $true)]
+		[int64]$GameDataPackageBytes
+	)
+
+	if ($EnginePackageBytes -le 0 -or $GameDataPackageBytes -le 0) {
+		throw "Startup coordinator package byte weights must both be positive."
+	}
+	$originalImport = "import './godot-loader'"
+	$patchedImport = @"
+import './wechat-startup-coordinator'
+import './godot-loader'
+"@.TrimEnd()
+	$patchedImport = $patchedImport.Replace("`r`n", "`n").Replace("`r", "`n")
+	$importIndex = $Source.IndexOf($originalImport, [StringComparison]::Ordinal)
+	if ($importIndex -lt 0) {
+		throw "Pinned game.js no longer contains the expected godot-loader import."
+	}
+	if (
+		$Source.IndexOf(
+			$originalImport,
+			$importIndex + $originalImport.Length,
+			[StringComparison]::Ordinal
+		) -ge 0
+	) {
+		throw "Pinned game.js contains multiple godot-loader import patch targets."
+	}
+	$sourceWithImport = $Source.Replace($originalImport, $patchedImport)
+	$originalConstruction = "GameGlobal.godotLoader = new GodotLoader(canvas, config);"
+	$patchedConstruction = @"
+GameGlobal.__godotStartupPackageBytes = Object.freeze({engine:$EnginePackageBytes,game_data:$GameDataPackageBytes});
+GameGlobal.godotLoader = new GodotLoader(canvas, config);
+"@.TrimEnd()
+	$patchedConstruction = $patchedConstruction.Replace("`r`n", "`n").Replace("`r", "`n")
+	$constructionIndex = $sourceWithImport.IndexOf(
+		$originalConstruction,
+		[StringComparison]::Ordinal
+	)
+	if ($constructionIndex -lt 0) {
+		throw "Pinned game.js no longer contains the expected GodotLoader construction."
+	}
+	if (
+		$sourceWithImport.IndexOf(
+			$originalConstruction,
+			$constructionIndex + $originalConstruction.Length,
+			[StringComparison]::Ordinal
+		) -ge 0
+	) {
+		throw "Pinned game.js contains multiple GodotLoader construction patch targets."
+	}
+	return $sourceWithImport.Replace($originalConstruction, $patchedConstruction)
+}
+
+function ConvertTo-WeChatRenderResolutionPatchedSource {
+	param(
+		[Parameter(Mandatory = $true)]
+		[string]$Source
+	)
+
+	$original = (
+		'resizeCanvases(){const t=window.innerWidth,e=window.innerHeight;' +
+		'this.onScreenCanvas.width=t*this.dpr,this.onScreenCanvas.height=e*this.dpr,' +
+		'this.onScreenCanvas.style.width=`${t}px`,' +
+		'this.onScreenCanvas.style.height=`${e}px`,' +
+		'this.offScreenCanvas.width=t*this.dpr,' +
+		'this.offScreenCanvas.height=e*this.dpr,' +
+		'this.gl.viewport(0,0,this.onScreenCanvas.width,this.onScreenCanvas.height),' +
+		'this.render()}'
+	)
+	$patched = (
+		'resizeCanvases(){/*2048-wechat-loader-dpr-cap-v1*/' +
+		'const t=window.innerWidth,e=window.innerHeight,' +
+		'i=Number(window.devicePixelRatio),' +
+		'r=Number.isFinite(i)&&i>0?Math.max(1,i):1,' +
+		's=Math.max(t,e),o=Math.min(t,e);' +
+		'this.dpr=Math.max(1,Math.min(r,s>0?1280/s:r,o>0?720/o:r)),' +
+		'this.onScreenCanvas.width=t*this.dpr,this.onScreenCanvas.height=e*this.dpr,' +
+		'this.onScreenCanvas.style.width=`${t}px`,' +
+		'this.onScreenCanvas.style.height=`${e}px`,' +
+		'this.offScreenCanvas.width=t*this.dpr,' +
+		'this.offScreenCanvas.height=e*this.dpr,' +
+		'this.gl.viewport(0,0,this.onScreenCanvas.width,this.onScreenCanvas.height),' +
+		'this.render()}'
+	)
+	$firstIndex = $Source.IndexOf($original, [StringComparison]::Ordinal)
+	if ($firstIndex -lt 0) {
+		throw "Pinned godot-loader.js no longer contains the expected resizeCanvases implementation."
+	}
+	if ($Source.IndexOf($original, $firstIndex + $original.Length, [StringComparison]::Ordinal) -ge 0) {
+		throw "Pinned godot-loader.js contains multiple resizeCanvases patch targets."
+	}
+	return $Source.Replace($original, $patched)
+}
+
+function ConvertTo-WeChatRuntimeRenderResolutionPatchedSource {
+	param(
+		[Parameter(Mandatory = $true)]
+		[string]$Source
+	)
+
+	$original = (
+		'getPixelRatio:function(){if(!GodotDisplayScreen.hidpi){return 1}' +
+		'if(typeof wx!=="undefined"&&wx.getWindowInfo){const info=wx.getWindowInfo();' +
+		'if(info&&info.pixelRatio){return info.pixelRatio}}' +
+		'return window.devicePixelRatio||1}'
+	)
+	$patched = (
+		'getPixelRatio:function(){/*2048-wechat-runtime-dpr-cap-v1*/' +
+		'if(!GodotDisplayScreen.hidpi){return 1}' +
+		'let t=window.devicePixelRatio||1,e=window.innerWidth,i=window.innerHeight;' +
+		'if(typeof wx!=="undefined"&&wx.getWindowInfo){const r=wx.getWindowInfo();' +
+		'r&&(r.pixelRatio&&(t=r.pixelRatio),r.windowWidth&&(e=r.windowWidth),' +
+		'r.windowHeight&&(i=r.windowHeight))}' +
+		'const r=Number(t),s=Number.isFinite(r)&&r>0?Math.max(1,r):1,' +
+		'o=Math.max(e,i),h=Math.min(e,i);' +
+		'return Math.max(1,Math.min(s,o>0?1280/o:s,h>0?720/h:s))}'
+	)
+	$firstIndex = $Source.IndexOf($original, [StringComparison]::Ordinal)
+	if ($firstIndex -lt 0) {
+		throw "Pinned godot.js no longer contains the expected getPixelRatio implementation."
+	}
+	if ($Source.IndexOf($original, $firstIndex + $original.Length, [StringComparison]::Ordinal) -ge 0) {
+		throw "Pinned godot.js contains multiple getPixelRatio patch targets."
 	}
 	return $Source.Replace($original, $patched)
 }
@@ -983,6 +1060,237 @@ function Get-ToolIdentity {
 	return $identity
 }
 
+function Assert-ReleaseResourceClosureEvidence {
+	param(
+		[Parameter(Mandatory = $true)][object]$Evidence,
+		[Parameter(Mandatory = $true)][object]$ToolIdentity
+	)
+
+	$requiredFields = @(
+		"schema_version",
+		"ok",
+		"policy_id",
+		"policy_path",
+		"policy_sha256",
+		"closure_sha256",
+		"full_dependency_scan_count",
+		"dependency_partial",
+		"dependency_truncated",
+		"counts",
+		"issues"
+	)
+	$actualFields = @($Evidence.PSObject.Properties.Name)
+	if (@(Compare-Object -ReferenceObject $requiredFields -DifferenceObject $actualFields).Count -ne 0) {
+		throw "Release resource closure evidence fields are not exact."
+	}
+	if ([int]$Evidence.schema_version -ne $ReleaseResourceClosureSchemaVersion) {
+		throw "Release resource closure evidence schema is unsupported."
+	}
+	if ($Evidence.ok -isnot [bool] -or -not [bool]$Evidence.ok) {
+		throw "Release resource closure audit did not complete successfully."
+	}
+	if ($Evidence.dependency_partial -isnot [bool] -or [bool]$Evidence.dependency_partial) {
+		throw "Release resource closure dependency scan is partial."
+	}
+	if (
+		$Evidence.dependency_truncated -isnot [bool] -or
+		[bool]$Evidence.dependency_truncated
+	) {
+		throw "Release resource closure dependency scan is truncated."
+	}
+	if ([string]$Evidence.policy_id -cne $ReleaseResourceClosurePolicyId) {
+		throw "Release resource closure policy identity is invalid."
+	}
+	$expectedPolicyPath = $ReleaseResourceClosurePolicyRelativePath.Replace("\", "/")
+	if ([string]$Evidence.policy_path -cne $expectedPolicyPath) {
+		throw "Release resource closure policy path is invalid."
+	}
+	$policySha256 = [string]$Evidence.policy_sha256
+	$closureSha256 = [string]$Evidence.closure_sha256
+	if ($policySha256 -cnotmatch '^[0-9a-f]{64}$') {
+		throw "Release resource closure policy SHA-256 is invalid."
+	}
+	if ($closureSha256 -cnotmatch '^[0-9a-f]{64}$') {
+		throw "Release resource closure SHA-256 is invalid."
+	}
+	if (
+		$policySha256 -cne
+		[string]$ToolIdentity.release_resource_policy.sha256
+	) {
+		throw "Release resource closure policy changed during its audit."
+	}
+	if (@($Evidence.issues).Count -ne 0) {
+		throw "Release resource closure audit reported issues."
+	}
+
+	$requiredCountFields = @(
+		"roots",
+		"structure_dynamic",
+		"content_resources",
+		"raw_dependency_closure",
+		"closure",
+		"raw_include_patterns",
+		"raw_include_files",
+		"issues"
+	)
+	$actualCountFields = @($Evidence.counts.PSObject.Properties.Name)
+	if (
+		$null -eq $Evidence.counts -or
+		@(
+			Compare-Object `
+				-ReferenceObject $requiredCountFields `
+				-DifferenceObject $actualCountFields
+		).Count -ne 0
+	) {
+		throw "Release resource closure count fields are not exact."
+	}
+	$normalizedCounts = [ordered]@{}
+	foreach ($field in $requiredCountFields) {
+		[int64]$count = 0
+		$countText = [Convert]::ToString(
+			$Evidence.counts.$field,
+			[Globalization.CultureInfo]::InvariantCulture
+		)
+		if (-not [int64]::TryParse(
+			$countText,
+			[Globalization.NumberStyles]::Integer,
+			[Globalization.CultureInfo]::InvariantCulture,
+			[ref]$count
+		) -or $count -lt 0) {
+			throw "Release resource closure count is invalid: $field."
+		}
+		$normalizedCounts[$field] = $count
+	}
+	if ($normalizedCounts.roots -le 0 -or $normalizedCounts.closure -le 0) {
+		throw "Release resource closure contains no releasable resources."
+	}
+	if ($normalizedCounts.issues -ne 0) {
+		throw "Release resource closure issue count is not zero."
+	}
+	[int64]$fullDependencyScanCount = 0
+	if (-not [int64]::TryParse(
+		[Convert]::ToString(
+			$Evidence.full_dependency_scan_count,
+			[Globalization.CultureInfo]::InvariantCulture
+		),
+		[Globalization.NumberStyles]::Integer,
+		[Globalization.CultureInfo]::InvariantCulture,
+		[ref]$fullDependencyScanCount
+	) -or $fullDependencyScanCount -le 0) {
+		throw "Release resource closure full dependency scan count is invalid."
+	}
+
+	return [ordered]@{
+		schema_version = $ReleaseResourceClosureSchemaVersion
+		ok = $true
+		policy_id = $ReleaseResourceClosurePolicyId
+		policy_path = $expectedPolicyPath
+		policy_sha256 = $policySha256
+		tool_path = [string]$ToolIdentity.release_resource_closure.path
+		tool_sha256 = [string]$ToolIdentity.release_resource_closure.sha256
+		closure_sha256 = $closureSha256
+		full_dependency_scan_count = $fullDependencyScanCount
+		dependency_partial = $false
+		dependency_truncated = $false
+		counts = $normalizedCounts
+		issues = @()
+	}
+}
+
+function Invoke-ReleaseResourceClosureAudit {
+	param(
+		[Parameter(Mandatory = $true)][string]$GodotPath,
+		[Parameter(Mandatory = $true)][string]$Root,
+		[Parameter(Mandatory = $true)][object]$ToolIdentity
+	)
+
+	$startInfo = [Diagnostics.ProcessStartInfo]::new()
+	$startInfo.FileName = $GodotPath
+	$startInfo.UseShellExecute = $false
+	$startInfo.CreateNoWindow = $true
+	$startInfo.RedirectStandardOutput = $true
+	$startInfo.RedirectStandardError = $true
+	$arguments = @(
+		"--headless",
+		"--path",
+		$Root,
+		"--script",
+		"res://tools/wechat_minigame_release_resource_closure.gd",
+		"--",
+		"--identity-only"
+	)
+	$quotedArguments = @()
+	foreach ($argument in $arguments) {
+		$quotedArguments += ConvertTo-NativeCommandLineArgument -Argument ([string]$argument)
+	}
+	$startInfo.Arguments = $quotedArguments -join " "
+
+	$process = [Diagnostics.Process]::new()
+	$process.StartInfo = $startInfo
+	try {
+		if (-not $process.Start()) {
+			throw "Release resource closure audit process did not start."
+		}
+		$stdoutTask = $process.StandardOutput.ReadToEndAsync()
+		$stderrTask = $process.StandardError.ReadToEndAsync()
+		if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+			$process.Kill()
+			$process.WaitForExit()
+			throw "Release resource closure audit timed out after $TimeoutSeconds seconds."
+		}
+		$process.WaitForExit()
+		$exitCode = $process.ExitCode
+		$stdout = $stdoutTask.GetAwaiter().GetResult()
+		$stderr = $stderrTask.GetAwaiter().GetResult()
+	}
+	finally {
+		$process.Dispose()
+	}
+	if (
+		$stdout.Length -gt $ReleaseResourceClosureOutputMaxCharacters -or
+		$stderr.Length -gt $ReleaseResourceClosureOutputMaxCharacters
+	) {
+		throw "Release resource closure audit output exceeded its bound."
+	}
+	$markerLines = @(
+		$stdout -split '[\r\n]+' |
+			Where-Object { $_.StartsWith($ReleaseResourceClosureOutputPrefix) }
+	)
+	if ($markerLines.Count -ne 1) {
+		$diagnostic = if (-not [string]::IsNullOrWhiteSpace($stderr)) {
+			$stderr.Trim()
+		}
+		else {
+			$stdout.Trim()
+		}
+		if ($diagnostic.Length -gt 2000) {
+			$diagnostic = $diagnostic.Substring($diagnostic.Length - 2000)
+		}
+		throw "Release resource closure audit returned no unique identity: $diagnostic"
+	}
+	try {
+		$evidence = $markerLines[0].Substring(
+			$ReleaseResourceClosureOutputPrefix.Length
+		) | ConvertFrom-Json
+	}
+	catch {
+		throw "Release resource closure audit returned invalid identity JSON."
+	}
+	if ($exitCode -ne 0) {
+		$issueCodes = @(
+			@($evidence.issues) | ForEach-Object { [string]$_.code }
+		) -join ", "
+		throw (
+			"Release resource closure audit failed (exit {0}): {1}" -f
+			$exitCode,
+			$issueCodes
+		).Trim()
+	}
+	return Assert-ReleaseResourceClosureEvidence `
+		-Evidence $evidence `
+		-ToolIdentity $ToolIdentity
+}
+
 function Get-CandidateBuildId {
 	param(
 		[Parameter(Mandatory = $true)][object]$GodotIdentity,
@@ -994,7 +1302,8 @@ function Get-CandidateBuildId {
 		[string]$Scope = $ReportScope,
 		[string]$Preset = $ExportPreset,
 		[string]$ReleaseFontManifestSha256 = "",
-		[string]$ReleaseFontSubsetSha256 = ""
+		[string]$ReleaseFontSubsetSha256 = "",
+		[object]$ReleaseResourceClosure = $null
 	)
 
 	$records = @(
@@ -1003,6 +1312,22 @@ function Get-CandidateBuildId {
 		"export_preset=$Preset",
 		"release_font_manifest_sha256=$ReleaseFontManifestSha256",
 		"release_font_subset_sha256=$ReleaseFontSubsetSha256",
+		"release_resource_closure_schema_version=$([int]$ReleaseResourceClosure.schema_version)",
+		"release_resource_closure_policy_id=$([string]$ReleaseResourceClosure.policy_id)",
+		"release_resource_closure_policy_path=$([string]$ReleaseResourceClosure.policy_path)",
+		"release_resource_closure_policy_sha256=$([string]$ReleaseResourceClosure.policy_sha256)",
+		"release_resource_closure_tool_path=$([string]$ReleaseResourceClosure.tool_path)",
+		"release_resource_closure_tool_sha256=$([string]$ReleaseResourceClosure.tool_sha256)",
+		"release_resource_closure_digest_sha256=$([string]$ReleaseResourceClosure.closure_sha256)",
+		"release_resource_closure_full_dependency_scan_count=$([int64]$ReleaseResourceClosure.full_dependency_scan_count)",
+		"release_resource_closure_roots=$([int64]$ReleaseResourceClosure.counts.roots)",
+		"release_resource_closure_structure_dynamic=$([int64]$ReleaseResourceClosure.counts.structure_dynamic)",
+		"release_resource_closure_content_resources=$([int64]$ReleaseResourceClosure.counts.content_resources)",
+		"release_resource_closure_raw_dependency_closure=$([int64]$ReleaseResourceClosure.counts.raw_dependency_closure)",
+		"release_resource_closure_closure=$([int64]$ReleaseResourceClosure.counts.closure)",
+		"release_resource_closure_raw_include_patterns=$([int64]$ReleaseResourceClosure.counts.raw_include_patterns)",
+		"release_resource_closure_raw_include_files=$([int64]$ReleaseResourceClosure.counts.raw_include_files)",
+		"release_resource_closure_issues=$([int64]$ReleaseResourceClosure.counts.issues)",
 		"godot=$($GodotIdentity.version)",
 		"gf_framework_version=$($GfIdentity.framework_version)",
 		"gf_source_commit=$($GfIdentity.source_commit)",
@@ -1020,7 +1345,10 @@ function Get-CandidateBuildId {
 		"bounded_json_reader_sha256=$($ToolIdentity.bounded_json_reader.sha256)",
 		"path_tools_sha256=$($ToolIdentity.path_tools.sha256)",
 		"chunk_loader_sha256=$($ToolIdentity.chunk_loader.sha256)",
-		"wxmemfs_patch_sha256=$($ToolIdentity.wxmemfs_patch.sha256)"
+		"startup_coordinator_sha256=$($ToolIdentity.startup_coordinator.sha256)",
+		"wxmemfs_patch_sha256=$($ToolIdentity.wxmemfs_patch.sha256)",
+		"release_resource_closure_sha256=$($ToolIdentity.release_resource_closure.sha256)",
+		"release_resource_policy_sha256=$($ToolIdentity.release_resource_policy.sha256)"
 	)
 	return Get-Utf8Sha256 -Text (($records -join "`n") + "`n")
 }
@@ -1393,6 +1721,7 @@ function Get-PackageEvidence {
 		"images/logo.png",
 		"project.config.json",
 		$VolatileLocalSidecarRelativePath,
+		"wechat-startup-coordinator.js",
 		"weapp-adapter.js"
 	)
 	$files = @(Get-ChildItem -LiteralPath $StageRoot -Recurse -File)
@@ -1619,6 +1948,22 @@ $godotPath = $godotIdentity.executable
 $gfIdentity = Get-GfVendorIdentity -Root $ProjectRoot
 $inputSnapshot = Get-ExportInputSnapshot -Root $ProjectRoot
 $toolIdentity = Get-ToolIdentity -Root $ProjectRoot
+$releaseResourceClosure = if ($IsReleaseProfile) {
+	Invoke-ReleaseResourceClosureAudit `
+		-GodotPath $godotPath `
+		-Root $ProjectRoot `
+		-ToolIdentity $toolIdentity
+}
+else {
+	$null
+}
+# The closure scan can be comparatively long. Recheck every frozen input before
+# creating a staging directory so a concurrent source/policy edit fails closed.
+Assert-FrozenExportIdentity `
+	-Root $ProjectRoot `
+	-ExpectedGfIdentity $gfIdentity `
+	-ExpectedInputSnapshot $inputSnapshot `
+	-ExpectedToolIdentity $toolIdentity
 $preservedAppId = Assert-WeChatAppId `
 	-Value (Get-PreservedAppId -PrivateConfigSnapshot $privateConfigSnapshot) `
 	-Source "preserved project.config.json AppID"
@@ -1672,13 +2017,24 @@ try {
 		$godotRuntimePath,
 		[Text.UTF8Encoding]::new($false)
 	)
-	$patchedGodotRuntimeSource = ConvertTo-WeChatWxMemFsRenamePatchedSource `
+	$wxMemFsPatchedGodotRuntimeSource = ConvertTo-WeChatWxMemFsRenamePatchedSource `
 		-Source $godotRuntimeSource
+	Write-Utf8Text -Path $godotRuntimePath -Text $wxMemFsPatchedGodotRuntimeSource
+	$wxMemFsPatchedGodotRuntimeHash = Get-FileSha256 -Path $godotRuntimePath
+	if ($wxMemFsPatchedGodotRuntimeHash -ne $WxMemFsPatchedGodotRuntimeSha256) {
+		throw (
+			"WXMEMFS-patched WeChat godot.js SHA-256 mismatch: expected {0}, got {1}." -f
+			$WxMemFsPatchedGodotRuntimeSha256,
+			$wxMemFsPatchedGodotRuntimeHash
+		)
+	}
+	$patchedGodotRuntimeSource = ConvertTo-WeChatRuntimeRenderResolutionPatchedSource `
+		-Source $wxMemFsPatchedGodotRuntimeSource
 	Write-Utf8Text -Path $godotRuntimePath -Text $patchedGodotRuntimeSource
 	$godotRuntimeOutputHash = Get-FileSha256 -Path $godotRuntimePath
 	if ($godotRuntimeOutputHash -ne $PatchedGodotRuntimeSha256) {
 		throw (
-			"Patched WeChat godot.js SHA-256 mismatch: expected {0}, got {1}." -f
+			"Fully patched WeChat godot.js SHA-256 mismatch: expected {0}, got {1}." -f
 			$PatchedGodotRuntimeSha256,
 			$godotRuntimeOutputHash
 		)
@@ -1687,7 +2043,8 @@ try {
 		strategy = "physical_rename_before_memfs_mutation"
 		patch = "2048-wechat-wxmemfs-rename-v1"
 		template_runtime_sha256 = $godotRuntimeInputHash
-		patched_runtime_sha256 = $godotRuntimeOutputHash
+		patched_runtime_sha256 = $wxMemFsPatchedGodotRuntimeHash
+		artifact_runtime_sha256 = $godotRuntimeOutputHash
 	}
 
 	foreach ($sampleTree in @("subpackages", "subpacks")) {
@@ -1727,6 +2084,19 @@ try {
 	$gameEntryText = Get-Content -Raw -Encoding UTF8 -LiteralPath $gameEntryPath
 	$gameEntryText = $gameEntryText.Replace("images/background.jpg", "images/background.png")
 	Write-Utf8Text -Path $gameEntryPath -Text $gameEntryText
+	$startupCoordinatorSourcePath = Join-Path `
+		$ProjectRoot `
+		$StartupCoordinatorSourceRelativePath
+	if (-not (Test-Path -LiteralPath $startupCoordinatorSourcePath -PathType Leaf)) {
+		throw "Canonical WeChat startup coordinator was not found: $startupCoordinatorSourcePath"
+	}
+	$startupCoordinatorOutputPath = Join-Path `
+		$stageRoot `
+		$StartupCoordinatorOutputRelativePath
+	Copy-Item `
+		-LiteralPath $startupCoordinatorSourcePath `
+		-Destination $startupCoordinatorOutputPath `
+		-Force
 
 	$godotLoaderPath = Join-Path $stageRoot "godot-loader.js"
 	$godotLoaderSha256 = Get-FileSha256 -Path $godotLoaderPath
@@ -1739,7 +2109,31 @@ try {
 	$godotLoaderSource = Get-Content -Raw -Encoding UTF8 -LiteralPath $godotLoaderPath
 	$godotLoaderSource = ConvertTo-WeChatSubpackageLifecyclePatchedSource `
 		-Source $godotLoaderSource
+	$godotLoaderSource = ConvertTo-WeChatRenderResolutionPatchedSource `
+		-Source $godotLoaderSource
 	Write-Utf8Text -Path $godotLoaderPath -Text $godotLoaderSource
+	$godotLoaderOutputHash = Get-FileSha256 -Path $godotLoaderPath
+	if ($godotLoaderOutputHash -ne $PatchedGodotLoaderSha256) {
+		throw (
+			"Fully patched WeChat godot-loader.js SHA-256 mismatch: expected {0}, got {1}." -f
+			$PatchedGodotLoaderSha256,
+			$godotLoaderOutputHash
+		)
+	}
+	$renderResolutionEvidence = [ordered]@{
+		policy_id = "wechat-bounded-backing-store-dpr-v1"
+		long_edge_target_pixels = 1280
+		short_edge_target_pixels = 720
+		minimum_dpr = 1
+		device_dpr_ceiling = $true
+		css_size_preserved = $true
+		input_mapping_preserved = $true
+		resize_recomputed = $true
+		loader_patch = "2048-wechat-loader-dpr-cap-v1"
+		runtime_patch = "2048-wechat-runtime-dpr-cap-v1"
+		loader_sha256 = $godotLoaderOutputHash.ToLowerInvariant()
+		runtime_sha256 = $godotRuntimeOutputHash.ToLowerInvariant()
+	}
 
 	$gameConfig = [ordered]@{
 		deviceOrientation = $DeviceOrientation
@@ -1844,7 +2238,7 @@ console.log('[wechat-subpackage] entry_started', 'game_data', 'game_data/game.js
 		$largeFileReaderResources += [ordered]@{
 			path = $resource.path
 			bytes = [int64]$resourceItem.Length
-			sha256 = Get-FileSha256 -Path $resource.file
+			sha256 = (Get-FileSha256 -Path $resource.file).ToLowerInvariant()
 		}
 	}
 	$chunkedResourceBytesJson = $chunkedResourceBytes | ConvertTo-Json -Compress
@@ -1862,26 +2256,52 @@ GameGlobal.WeChatChunkedFileLoader.installChunkedLocalFetch(
   GameGlobal.fsUtils,
   wx.getFileSystemManager(),
   chunkedResourceBytes,
-  {chunkBytes: $ChunkBytes}
+  {chunkBytes: $ChunkBytes, maxConcurrentResources: $ChunkMaxConcurrentResources}
 );
-console.log('[wechat-loader] start_game');
-GODOTSDK.startGame(exe, pack)
-  .then(() => console.log('[wechat-loader] start_game_resolved'))
-  .catch((error) => {
-    const detail = error && error.message ? error.message : String(error);
-    console.error('[wechat-loader] start_game_failed', detail);
-    throw error;
-  });
+if (!GameGlobal.__godotEngineStarter) {
+  GameGlobal.__godotEngineStarter = () => {
+    if (!GameGlobal.__godotEngineStartPromise) {
+      console.log('[wechat-loader] start_game');
+      GameGlobal.__godotEngineStartPromise = Promise.resolve()
+        .then(() => GODOTSDK.startGame(exe, pack));
+    }
+    return GameGlobal.__godotEngineStartPromise;
+  };
+}
+if (!GameGlobal.WeChatSubpackageStartupCoordinator.registerEngineStarter(
+  GameGlobal.__godotEngineStarter
+)) {
+  throw new Error('WeChat engine starter registration was rejected');
+}
 "@
 	$largeFileReaderEvidence = [ordered]@{
-		strategy = "async_position_length_chunked"
+		strategy = "async_position_length_chunked_bounded_concurrency"
 		chunk_bytes = $ChunkBytes
+		max_concurrent_resources = $ChunkMaxConcurrentResources
+		inflight_deduplication = "resource_path"
 		helper_path = "engine/wechat-chunked-file-loader.js"
-		helper_sha256 = Get-FileSha256 -Path $chunkLoaderOutputPath
+		helper_sha256 = (
+			Get-FileSha256 -Path $chunkLoaderOutputPath
+		).ToLowerInvariant()
 		resources = $largeFileReaderResources
 	}
 
+	$startupPackageWeights = Get-PackageEvidence -StageRoot $stageRoot
+	$gameEntryText = Get-Content -Raw -Encoding UTF8 -LiteralPath $gameEntryPath
+	$gameEntryText = ConvertTo-WeChatStartupCoordinatorGameEntryPatchedSource `
+		-Source $gameEntryText `
+		-EnginePackageBytes ([int64]$startupPackageWeights.engine_package_bytes) `
+		-GameDataPackageBytes ([int64]$startupPackageWeights.game_data_package_bytes)
+	Write-Utf8Text -Path $gameEntryPath -Text $gameEntryText
 	$packageEvidence = Get-PackageEvidence -StageRoot $stageRoot
+	if (
+		[int64]$packageEvidence.engine_package_bytes -ne `
+			[int64]$startupPackageWeights.engine_package_bytes -or
+		[int64]$packageEvidence.game_data_package_bytes -ne `
+			[int64]$startupPackageWeights.game_data_package_bytes
+	) {
+		throw "Startup coordinator package byte weights changed while patching root game.js."
+	}
 	$engineGameText = Get-Content -Raw -Encoding UTF8 -LiteralPath $engineGamePath
 	if (-not $engineGameText.Contains("/game_data/$PackFileName")) {
 		throw "Generated engine loader does not reference the exported .bin pack."
@@ -1911,6 +2331,34 @@ GODOTSDK.startGame(exe, pack)
 	if (-not $packageEvidence.total_hard_limit_ok) {
 		throw "Generated WeChat package exceeds $TotalPackageHardLimitBytes bytes."
 	}
+	$startupCoordinatorEvidence = [ordered]@{
+		schema_version = 1
+		strategy = "parallel_subpackages_four_way_barrier"
+		coordinator_path = $StartupCoordinatorOutputRelativePath.Replace("\", "/")
+		coordinator_sha256 = (
+			Get-FileSha256 -Path $startupCoordinatorOutputPath
+		).ToLowerInvariant()
+		trace_schema_version = 1
+		trace_limit = $StartupTraceLimit
+		package_timeout_ms = $StartupPackageTimeoutMilliseconds
+		probe_timeout_ms = $StartupProbeTimeoutMilliseconds
+		starter_timeout_ms = $StartupStarterTimeoutMilliseconds
+		engine_start_timeout_ms = $StartupEngineStartTimeoutMilliseconds
+		download_progress_weight = $StartupDownloadProgressWeight
+		progress_trace_step_percentage = $StartupProgressTraceStepPercentage
+		ui_progress_minimum_step = $StartupUiProgressMinimumStep
+		engine_package_bytes = [int64]$packageEvidence.engine_package_bytes
+		game_data_package_bytes = [int64]$packageEvidence.game_data_package_bytes
+		barrier = @(
+			"engine_entry",
+			"engine_starter",
+			"game_data_entry",
+			"game_data_pck_probe"
+		)
+		first_fatal_wins = $true
+		late_callbacks_inert = $true
+		engine_start_once = $true
+	}
 	$artifactManifest = Get-ArtifactManifestEvidence -StageRoot $stageRoot
 	$artifactManifestSha256 = [string]$artifactManifest.manifest_sha256
 	$inputSnapshotSha256 = [string]$inputSnapshot.input_snapshot_sha256
@@ -1938,7 +2386,8 @@ GODOTSDK.startGame(exe, pack)
 			else {
 				""
 			}
-		)
+		) `
+		-ReleaseResourceClosure $releaseResourceClosure
 	$report = [ordered]@{
 		schema_version = $ExportReportSchemaVersion
 		ok = $true
@@ -1967,7 +2416,9 @@ GODOTSDK.startGame(exe, pack)
 		app_id_configured = -not [string]::IsNullOrWhiteSpace($preservedAppId)
 		project_name = $WeChatProjectName
 		device_orientation = $DeviceOrientation
+		render_resolution = $renderResolutionEvidence
 		user_file_system = $wxMemFsRenameEvidence
+		startup = $startupCoordinatorEvidence
 		large_file_reader = $largeFileReaderEvidence
 		package = $packageEvidence
 		limitations = if ($IsReleaseProfile) {
@@ -1987,6 +2438,7 @@ GODOTSDK.startGame(exe, pack)
 	}
 	if ($IsReleaseProfile) {
 		$report.Add("font_policy", $releaseFontPolicy)
+		$report.Add("resource_closure", $releaseResourceClosure)
 	}
 	Write-Utf8Text `
 		-Path $stageReportPath `

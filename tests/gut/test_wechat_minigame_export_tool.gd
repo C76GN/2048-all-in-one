@@ -40,6 +40,9 @@ const _EXPORT_PLUGIN_PATH: String = (
 const _CHUNK_LOADER_SOURCE_PATH: String = (
 	"res://tools/wechat_minigame/chunked_file_loader.js"
 )
+const _STARTUP_COORDINATOR_SOURCE_PATH: String = (
+	"res://tools/wechat_minigame/subpackage_startup_coordinator.js"
+)
 const _WXMEMFS_RENAME_PATCH_PATH: String = (
 	"res://tools/wechat_minigame/wxmemfs_rename_patch.ps1"
 )
@@ -116,11 +119,20 @@ func test_export_tool_installs_the_canonical_chunked_large_file_reader() -> void
 	var source: String = _read_tool_source()
 	assert_true(FileAccess.file_exists(_CHUNK_LOADER_SOURCE_PATH))
 	assert_true(source.contains('$ChunkBytes = 4194304'))
+	assert_true(source.contains('$ChunkMaxConcurrentResources = 2'))
 	assert_true(source.contains('"tools\\wechat_minigame\\chunked_file_loader.js"'))
 	assert_true(source.contains('"engine\\wechat-chunked-file-loader.js"'))
 	assert_true(source.contains("chunkedResourceBytes"))
 	assert_true(source.contains("installChunkedLocalFetch"))
-	assert_true(source.contains('strategy = "async_position_length_chunked"'))
+	assert_true(source.contains(
+		"maxConcurrentResources: $ChunkMaxConcurrentResources"
+	))
+	assert_true(source.contains(
+		'strategy = "async_position_length_chunked_bounded_concurrency"'
+	))
+	assert_true(source.contains(
+		'inflight_deduplication = "resource_path"'
+	))
 	var pack_index: int = source.find("Invoke-GodotPackExport -GodotPath")
 	var loader_write_index: int = source.find(
 		"Write-Utf8Text -Path $engineGamePath",
@@ -149,28 +161,76 @@ func test_export_tool_patches_subpackage_lifecycle_and_confirms_engine_entry() -
 		"181E61961CF6527F718E93E132D86DAF4310E091E3B004909076BDCE4D56C99C"
 	))
 	assert_true(source.contains("ConvertTo-WeChatSubpackageLifecyclePatchedSource"))
-	for lifecycle_event: String in ["start", "progress", "success", "fail", "complete"]:
-		assert_true(source.contains('"[wechat-subpackage] %s"' % lifecycle_event))
+	assert_true(FileAccess.file_exists(_STARTUP_COORDINATOR_SOURCE_PATH))
+	assert_true(source.contains(
+		'"tools\\wechat_minigame\\subpackage_startup_coordinator.js"'
+	))
+	assert_true(source.contains('"wechat-startup-coordinator.js"'))
+	assert_true(source.contains("const startup=coordinator.start({"))
+	assert_true(source.contains(
+		"packageBytes:GameGlobal.__godotStartupPackageBytes"
+	))
+	assert_true(source.contains("engineStartTimeoutMilliseconds:"))
+	assert_true(source.contains("$StartupEngineStartTimeoutMilliseconds = 300000"))
+	assert_true(source.contains(
+		"engine_start_timeout_ms = $StartupEngineStartTimeoutMilliseconds"
+	))
 	assert_true(source.contains("this.config.textConfig.loadFailedText"))
 	assert_true(source.contains("throw error"))
 	assert_true(source.contains("__godotGameDataSubpackageEntryStarted = true"))
 	assert_true(source.contains("__godotEngineSubpackageEntryStarted = true"))
-	assert_true(source.contains('loadPackage("game_data"'))
-	assert_true(source.contains('loadPackage("engine"'))
-	assert_true(source.contains("[wechat-subpackage] entry_confirmed"))
 	assert_true(source.contains("[wechat-subpackage] entry_started"))
-	assert_true(source.contains("[wechat-subpackage] data_probe_success"))
-	assert_true(source.contains('path="/game_data/2048-all-in-one.bin"'))
-	assert_true(source.contains("const SUBPACKAGE_TIMEOUT_MS=300000"))
-	assert_true(source.contains("const DATA_PROBE_TIMEOUT_MS=10000"))
-	assert_true(source.contains("let fatal=false"))
-	assert_true(source.contains("clearTimeout(timeoutId)"))
-	assert_true(source.contains("[wechat-subpackage] timeout"))
+	assert_true(source.contains("GameGlobal.__godotEngineStarter"))
+	assert_true(source.contains("GameGlobal.__godotEngineStartPromise"))
+	assert_true(source.contains("registerEngineStarter("))
+	assert_true(source.contains(
+		"GameGlobal.__godotStartupPackageBytes = Object.freeze("
+	))
+	assert_true(source.contains(
+		'strategy = "parallel_subpackages_four_way_barrier"'
+	))
+	assert_true(source.contains("startup = $startupCoordinatorEvidence"))
+	assert_false(source.contains('loadPackage("game_data"'))
+	assert_false(source.contains('loadPackage("engine"'))
+
+
+func test_export_tool_caps_loader_and_runtime_dpr_without_changing_css_size() -> void:
+	var source: String = _read_tool_source()
+	assert_true(source.contains("ConvertTo-WeChatRenderResolutionPatchedSource"))
+	assert_true(source.contains(
+		"ConvertTo-WeChatRuntimeRenderResolutionPatchedSource"
+	))
+	assert_true(source.contains(
+		"this.dpr=Math.max(1,Math.min(r,s>0?1280/s:r,o>0?720/o:r))"
+	))
+	assert_true(source.contains(
+		"return Math.max(1,Math.min(s,o>0?1280/o:s,h>0?720/h:s))"
+	))
+	assert_true(source.contains(
+		"r=Number.isFinite(i)&&i>0?Math.max(1,i):1"
+	))
+	assert_true(source.contains("2048-wechat-loader-dpr-cap-v1"))
+	assert_true(source.contains("2048-wechat-runtime-dpr-cap-v1"))
+	assert_true(source.contains('this.onScreenCanvas.style.width=`${t}px`'))
+	assert_true(source.contains('this.onScreenCanvas.style.height=`${e}px`'))
+	assert_true(source.contains(
+		"0256C25987171B218FE217E0AFC5DC774A8017754E2B632EA007BCC8A1E71637"
+	))
+	assert_true(source.contains(
+		"2511B4DDC4DF446DC4902E551BE0E76807CF78E846BD0B5181AAB9054C2AA9CB"
+	))
+	assert_true(source.contains(
+		"Pinned godot-loader.js contains multiple resizeCanvases patch targets."
+	))
+	assert_true(source.contains(
+		"Pinned godot.js contains multiple getPixelRatio patch targets."
+	))
+	assert_true(source.contains("render_resolution = $renderResolutionEvidence"))
 
 
 func test_export_tool_enforces_conservative_wechat_package_budgets() -> void:
 	var source: String = _read_tool_source()
-	assert_true(source.contains('$ExportReportSchemaVersion = 3'))
+	assert_true(source.contains('$ExportReportSchemaVersion = 5'))
 	assert_true(source.contains('$MainPackageHardLimitBytes = 4000000'))
 	assert_true(source.contains('$TotalPackageHardLimitBytes = 20000000'))
 	assert_true(source.contains('$MainPackageSoftLimitBytes = 3600000'))
@@ -277,6 +337,7 @@ func test_export_tool_freezes_source_tool_and_complete_artifact_identity() -> vo
 	assert_true(source.contains("function Get-ToolIdentity"))
 	assert_true(source.contains("function Assert-FrozenExportIdentity"))
 	assert_true(source.contains("function Get-CandidateBuildId"))
+	assert_true(source.contains("$BuildIdentitySchemaVersion = 4"))
 	assert_true(source.contains('"wechat-artifact-manifest-v$ArtifactManifestSchemaVersion"'))
 	assert_true(source.contains('schema_version = $ExportReportSchemaVersion'))
 	assert_true(source.contains('artifact_manifest_sha256 = $artifactManifestSha256'))
@@ -291,6 +352,26 @@ func test_export_tool_freezes_source_tool_and_complete_artifact_identity() -> vo
 	assert_true(source.contains(
 		'path_tools = "addons/gf/kernel/core/gf_path_tools.gd"'
 	))
+	assert_true(source.contains(
+		'startup_coordinator = "tools/wechat_minigame/subpackage_startup_coordinator.js"'
+	))
+	assert_true(source.contains(
+		'release_resource_closure = "tools/wechat_minigame_release_resource_closure.gd"'
+	))
+	assert_true(source.contains(
+		'release_resource_policy = "tools/wechat_minigame/release_resource_policy.json"'
+	))
+	assert_true(source.contains("function Invoke-ReleaseResourceClosureAudit"))
+	assert_true(source.contains("function Assert-ReleaseResourceClosureEvidence"))
+	assert_true(source.contains('$report.Add("resource_closure", $releaseResourceClosure)'))
+	var closure_gate_index: int = source.find(
+		"$releaseResourceClosure = if ($IsReleaseProfile)"
+	)
+	var stage_creation_index: int = source.find(
+		'$stageCandidateRoot = Assert-SafeBuildChildPath'
+	)
+	assert_true(closure_gate_index >= 0)
+	assert_true(stage_creation_index > closure_gate_index)
 	assert_true(source.contains('"--report-path"'))
 	var verifier_source: String = FileAccess.get_file_as_string(
 		"res://tools/wechat_minigame_artifact_verifier.gd"

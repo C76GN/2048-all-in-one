@@ -12,19 +12,19 @@
 
 ### P0-01 在正式工具链复跑目标平台产物
 
-- **当前状态**：当前工作站已由 `tools/export_wechat_minigame_release.ps1` 生成无 `platform_smoke` 的完整游戏候选。最终 build ID 为 `749f6ff3c9ea0c396dc8a9b3e82546312b4e924533063b7cce664189ce3ef0ce`；report schema 3 记录主包 88,331 bytes、engine 分包 8,901,332 bytes、game_data 分包 8,916,808 bytes、总包 17,906,471 bytes，全部预算与隔离门禁通过。正式预览计量为 17,693,596 bytes。微信模拟器已经启动横屏中文主菜单，main→game_data→engine、4 MiB chunk、PCK 探针、WASM 与 GF 均取得成功终态；当前唯一运行告警是内容目录同步刷新 116 ms。Android/iOS 真机矩阵、玩家手势与长时游玩、音频、前后台恢复和重启存档仍待签字。
-- **结果**：由 `tools/check_platform_readiness.ps1` 完成真实 Web release export；由同一事务核心分别生成 `toolchain_smoke` 与 `full_game_release_candidate`。正式候选必须通过字体闭包、包内无完整字体引用、精确双分包白名单、main→game_data→engine 串行入口、4 MiB 分块读取、各包与总包预算及 schema 3 原子报告校验。微信 release 禁用 ICU，并由 Boot/Composition Root 在 GF 架构创建前调用唯一的平台启动 Utility，注册随包 en/zh Translation。
+- **当前状态**：项目已锁定 GF 11.0.0 stable 正式发布快照，`addons/gf/plugin.cfg` 与 `.gf/vendor.lock.json` 一致且离线 vendor 校验通过；源码与自动门禁已升级到 report schema 5 / build identity 4。正式预设使用精确资源闭包；根包同一轮请求 engine 与 game_data，四路 barrier 收敛后只启动一次 Godot，首错终止且迟到回调失效；两个大资源各自按 4 MiB 顺序读取，跨资源最多并发 2，同路径请求复用在途 Promise。启动时间线、按实测包字节加权的单调进度、DPR backing-store 上限、微信默认 `MINIMAL`/Shader 关闭和保存 debounce 均已有项目侧实现与自动测试。本轮正式候选已通过隔离产物门禁：build ID `bd0754137f76c7dcbe374e2b9a57bb875b1265e47beb9f503eb4d1972be5cc44`，主包 / engine / game_data / 总包分别为 105,577 / 8,904,251 / 6,874,296 / 15,884,124 bytes；资源闭包 identity 为 `142564146f7280e732f228ca759d337c9de731a1ed1e93afd644a92a23c30a48`，artifact manifest 为 `e384a19de705d2d9fbbd65d9fa6dca952477416186ec64ab34855ac7a8cf5da5`。同运行时代码的候选已在微信模拟器进入完整主菜单，日志确认双包同轮请求、四路 barrier 与分块读取；一次刷新中 engine.start_begin → engine.start_resolved 约 19.1 秒，另有 117 ms 目录刷新告警，尚不能认为启动性能达标。官方 automator 的 systemInfo 与 evaluate 均返回 timeout waiting for automator response，因此玩家手势与长时游玩、帧时、首反馈、峰值内存、音频、前后台恢复和重启存档仍待 Android/iOS 真机签字。
+- **结果**：由 `tools/check_platform_readiness.ps1` 完成真实 Web release export；由同一事务核心分别生成 `toolchain_smoke` 与 `full_game_release_candidate`。正式候选必须通过字体闭包、包内无完整字体引用、精确 release 资源闭包、双分包白名单、engine/game_data 并发请求与四路启动屏障、4 MiB 分块读取、DPR policy、各包与总包预算及 schema 5 原子报告校验。`resource_closure` 必须绑定 policy/tool/closure SHA-256、完整依赖扫描终态与审计计数；build identity 4 必须再绑定闭包、coordinator、实际双包字节权重、超时、首错优先、单次启动、有界时间线、字体、GF/Godot、工具与输入快照。微信 release 禁用 ICU，并由 Boot/Composition Root 在 GF 架构创建前调用唯一平台启动 Utility 注册随包 en/zh Translation。
 - **边界**：静态配置扫描不得冒充成功产物；临时验证不得修改项目 release 输出或把生成物提交为规范。
-- **验收**：环境报告中的 `web_export.status` 为 `passed`、临时产物已清理；微信候选保存明确的 build identity、CLI/skill 版本、包体与字体证据。模拟器启动与 console 已完成，仍须取得 Android/iOS 真机、玩家输入、长时运行、音频、前后台与重启存档终态后才能关闭本项。
+- **验收**：环境报告中的 `web_export.status` 为 `passed`、临时产物已清理；本轮微信候选以 schema 5 报告保存 build identity 4、资源闭包、CLI/skill、包体、字体与工具证据，并通过隔离产物验证。随后取得微信开发者工具以及 Android/iOS 真机的启动、玩家输入、长时运行、性能、内存、音频、前后台与重启存档终态后才能关闭本项；历史模拟器结果不得替代本轮签字。
 
 ## P1：目标设备证据
 
 ### P1-01 补齐真机性能与表现预算
 
-- **当前状态**：项目已有 `GFMetricSeries` 驱动的 6 模式 × 3 拓扑 checkpoint 基准、生命周期 plateau、回放 `GFExecutionBudget` 和三档截图矩阵；开发工具还提供显式同意后启动的真实玩法采样入口，以两条独立有界 `GFMetricSeries` 记录单调帧时与输入到首反馈，只有运行条件精确匹配且每项至少 120 个样本时才进入评估。当前仍没有目标 Windows、Web 或低端移动设备的合格实测结果，共享开发机结果只用于阻止数量级回退。
-- **结果**：在目标 Windows、Web 和低端移动设备采集输入到首反馈、帧时间、全屏背景 Shader、长回放定位与页面切换的 P50/P95/P99。
+- **当前状态**：项目已有 `GFMetricSeries` 驱动的 6 模式 × 3 拓扑 checkpoint 基准、经典 4×4 同步完整回合分阶段基准、生命周期 plateau、回放 `GFExecutionBudget` 和三档截图矩阵。真实玩法采样在玩家显式同意后，分别记录帧时以及“项目接收有效抽象移动输入 → 可见状态提交后匹配的 `RenderingServer.frame_post_draw`”；触控包含 virtual pulse 与 PlayerInputSystem 轮询，Action execute 或音频启动不单独结束视觉指标。只有平台、输入、视口、布局、棋盘和渲染档精确匹配且每项至少 120 个真实样本时才评估。当前仍没有目标 Windows、Web、微信 Android/iOS 或低端移动设备的合格实测结果；headless 与共享开发机结果只用于阻止数量级回退。
+- **结果**：在目标 Windows、Web、微信 Android/iOS 和低端移动设备采集端到端首个已绘制反馈、帧时间、全屏背景 Shader、长回放定位与页面切换的 P50/P95/P99，并记录并发读取 WASM/PCK 时的峰值内存与 memory warning。
 - **边界**：平台、渲染档位、样本量和截断状态必须进入报告；目标表与实测值分开，不把 headless 耗时当成玩家帧预算。
-- **验收**：核心操作符合 `.gf/project_contract.json` 的 60 FPS 与 50 ms 首反馈目标；不合格项附带同 seed、同主题、同视口的前后证据。
+- **验收**：精确矩阵的 P95 帧时上限为桌面 16.667 ms、Web 20 ms、微信和普通移动 25 ms、低端移动 33.3 ms；真实输入到已绘制首反馈 P95 小于 50 ms。不合格项附带同 seed、同主题、同视口和同渲染档的前后证据。
 
 ## P2：证据驱动优化
 

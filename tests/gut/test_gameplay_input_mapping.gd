@@ -68,6 +68,61 @@ func test_keyboard_view_actions_are_part_of_gameplay_context() -> void:
 	)
 
 
+func test_move_action_started_marks_keyboard_and_gamepad_receipts_before_poll() -> void:
+	var input_mapping: GFInputMappingUtility = GFInputMappingUtility.new()
+	input_mapping.enable_context(GAMEPLAY_INPUT_CONTEXT, 100)
+	var signal_utility: GFSignalUtility = GFSignalUtility.new()
+	var trace: RecordingPerformanceTraceUtility = (
+		RecordingPerformanceTraceUtility.new()
+	)
+	var input_system: PlayerInputSystem = PlayerInputSystem.new()
+	input_system._performance_trace_utility = trace
+	input_system._is_active = true
+	input_system._is_playing = true
+	var connection: GFSignalConnection = signal_utility.connect_signal(
+		input_mapping.action_started,
+		Callable(input_system, &"_on_input_action_started"),
+		input_system
+	)
+
+	input_mapping.handle_input_event(_make_key_event(KEY_D, KEY_D))
+	input_mapping.handle_input_event(_make_joy_button_event(JOY_BUTTON_DPAD_UP))
+
+	assert_true(connection != null and connection.is_active())
+	assert_true(
+		trace.acknowledged_actions == [
+			GameplayInputActions.MOVE_RIGHT,
+			GameplayInputActions.MOVE_UP,
+		],
+		"键盘和手柄动作必须在 PlayerInputSystem 轮询前冻结同一 GF 映射入口时间。"
+	)
+	signal_utility.disconnect_owner(input_system)
+
+
+func test_unconsumable_move_tick_explicitly_discards_latency_receipt() -> void:
+	var input_mapping: GFInputMappingUtility = GFInputMappingUtility.new()
+	input_mapping.enable_context(GAMEPLAY_INPUT_CONTEXT, 100)
+	var input_assist: GFInputAssistUtility = GFInputAssistUtility.new()
+	input_assist.init()
+	var trace: RecordingPerformanceTraceUtility = (
+		RecordingPerformanceTraceUtility.new()
+	)
+	var input_system: PlayerInputSystem = PlayerInputSystem.new()
+	input_system._input_mapping = input_mapping
+	input_system._input_assist = input_assist
+	input_system._performance_trace_utility = trace
+	input_system._is_active = true
+	input_system._is_playing = true
+
+	input_system.tick(PlayerInputSystem._MOVE_INTENT_BUFFER_SECONDS + 0.01)
+
+	assert_true(
+		trace.discard_reasons == [&"move_intent_not_consumable"],
+		"GF 的 180 ms 意图窗口为空或失效时，不得把旧输入收据留给以后动作。"
+	)
+	input_assist.dispose()
+
+
 func test_invalid_move_feedback_uses_gf_notification_queue() -> void:
 	var input_system: PlayerInputSystem = PlayerInputSystem.new()
 	var notifications: GFNotificationUtility = GFNotificationUtility.new()
@@ -157,6 +212,43 @@ func test_blocked_animation_buffers_only_latest_move_intent_and_consumes_once() 
 	assert_true(
 		input_system.executed_directions.size() == 1,
 		"已消费的 GF 输入缓冲不得在后续帧重复执行。"
+	)
+	input_system.dispose()
+	input_assist.dispose()
+
+
+func test_fresh_same_direction_replaces_buffered_move_without_duplicate_execution() -> void:
+	var input_mapping: GFInputMappingUtility = GFInputMappingUtility.new()
+	input_mapping.enable_context(GAMEPLAY_INPUT_CONTEXT, 100)
+	var input_assist: GFInputAssistUtility = GFInputAssistUtility.new()
+	input_assist.init()
+	var animation: ProbeBlockingAnimationUtility = ProbeBlockingAnimationUtility.new()
+	var input_system: RecordingPlayerInputSystem = RecordingPlayerInputSystem.new()
+	input_system._input_mapping = input_mapping
+	input_system._input_assist = input_assist
+	input_system._board_animation_utility = animation
+	input_system._is_active = true
+	input_system._is_playing = true
+
+	input_mapping.handle_input_event(_make_key_event(KEY_D, KEY_D))
+	input_system.tick(0.016)
+	assert_true(input_assist.has_buffered_action(GameplayInputActions.MOVE_RIGHT))
+	var key_release: InputEventKey = _make_key_event(KEY_D, KEY_D)
+	key_release.pressed = false
+	input_mapping.handle_input_event(key_release)
+	animation.block_moves = false
+	input_mapping.handle_input_event(_make_key_event(KEY_D, KEY_D))
+	input_system.tick(0.016)
+	assert_false(
+		input_assist.has_buffered_action(GameplayInputActions.MOVE_RIGHT),
+		"新输入被接纳时必须取代旧的同方向意图，诊断收据保留不能保留玩法缓冲。"
+	)
+	await get_tree().process_frame
+	input_system.tick(0.016)
+	await get_tree().process_frame
+	assert_true(
+		input_system.executed_directions == [Vector2i.RIGHT],
+		"动画锁解除时的新同方向输入只应执行一次，旧缓冲不得在下一帧补执行。"
 	)
 	input_system.dispose()
 	input_assist.dispose()
@@ -573,6 +665,14 @@ func _make_key_event(keycode: Key, physical_keycode: Key = KEY_NONE) -> InputEve
 	return event
 
 
+func _make_joy_button_event(button_index: JoyButton) -> InputEventJoypadButton:
+	var event: InputEventJoypadButton = InputEventJoypadButton.new()
+	event.button_index = button_index
+	event.pressed = true
+	event.pressure = 1.0
+	return event
+
+
 # --- 内部类 ---
 
 class ProbeBlockingAnimationUtility:
@@ -594,3 +694,23 @@ class RecordingPlayerInputSystem:
 		_trace_attempt_id: int = 0
 	) -> void:
 		executed_directions.append(direction)
+
+
+class RecordingPerformanceTraceUtility:
+	extends GamePerformanceTraceUtility
+
+	var acknowledged_actions: Array[StringName] = []
+	var discard_reasons: Array[StringName] = []
+
+	## @param action_id: 测试桩记录的 GF 抽象移动动作。
+	func acknowledge_move_input_mapped(action_id: StringName) -> int:
+		acknowledged_actions.append(action_id)
+		return acknowledged_actions.size()
+
+	## @param reason: 测试桩记录的输入收据丢弃原因。
+	## @param _preserved_action_id: 测试桩忽略但保留签名兼容的动作。
+	func discard_pending_move_inputs(
+		reason: StringName,
+		_preserved_action_id: StringName = &""
+	) -> void:
+		discard_reasons.append(reason)

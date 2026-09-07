@@ -21,6 +21,7 @@ const _MOVE_ACTIONS: Array[StringName] = [
 
 var _input_mapping: GFInputMappingUtility
 var _input_assist: GFInputAssistUtility
+var _signal_utility: GFSignalUtility
 var _notifications: GFNotificationUtility
 var _pause_utility: GamePauseUtility
 var _board_animation_utility: GameBoardAnimationUtility
@@ -40,6 +41,7 @@ func get_required_utilities() -> Array[Script]:
 		GFInputAssistUtility,
 		GFInputMappingUtility,
 		GFNotificationUtility,
+		GFSignalUtility,
 	]
 
 
@@ -52,14 +54,23 @@ func init() -> void:
 func ready() -> void:
 	_input_mapping = _get_input_mapping_utility()
 	_input_assist = _get_input_assist_utility()
+	_signal_utility = _get_signal_utility()
 	_notifications = _get_notification_utility()
 	_pause_utility = _get_pause_utility()
 	_board_animation_utility = _get_board_animation_utility()
 	_performance_trace_utility = _get_performance_trace_utility()
 	if is_instance_valid(_input_mapping):
 		_input_mapping.enable_context(GAMEPLAY_INPUT_CONTEXT, 100)
+		if is_instance_valid(_signal_utility):
+			var _input_started_connection: GFSignalConnection = _signal_utility.connect_signal(
+				_input_mapping.action_started,
+				Callable(self, &"_on_input_action_started"),
+				self
+			)
 	else:
 		push_error("[PlayerInputSystem] 缺少 GFInputMappingUtility，玩法输入不可用。")
+	if not is_instance_valid(_signal_utility):
+		push_error("[PlayerInputSystem] 缺少 GFSignalUtility，输入延迟收据不可用。")
 	if not is_instance_valid(_input_assist):
 		push_error("[PlayerInputSystem] 缺少 GFInputAssistUtility，移动意图缓冲不可用。")
 	if not is_instance_valid(_notifications):
@@ -77,10 +88,13 @@ func ready() -> void:
 
 func dispose() -> void:
 	_clear_move_intent_buffer()
+	if is_instance_valid(_signal_utility):
+		_signal_utility.disconnect_owner(self)
 	if is_instance_valid(_input_mapping):
 		_input_mapping.disable_context(GAMEPLAY_INPUT_CONTEXT)
 	_input_mapping = null
 	_input_assist = null
+	_signal_utility = null
 	_notifications = null
 	_pause_utility = null
 	_board_animation_utility = null
@@ -133,6 +147,13 @@ func tick(_delta: float) -> void:
 	var buffered_move_action: StringName = _peek_buffered_move_action()
 	if buffered_move_action != &"":
 		_process_move_action(buffered_move_action, true)
+		return
+	# GFInputAssist 已没有可消费的意图，说明对应 180 ms 窗口已经失效；
+	# 同步收掉诊断收据，不能留给后来同方向输入误认领。
+	if is_instance_valid(_performance_trace_utility):
+		_performance_trace_utility.discard_pending_move_inputs(
+			&"move_intent_not_consumable"
+		)
 
 
 # --- 私有/辅助方法 ---
@@ -201,26 +222,35 @@ func _process_move_action(action_id: StringName, from_buffer: bool) -> void:
 			return
 	else:
 		# 新输入一旦被接受就取代任何尚未执行的旧意图。
-		_clear_move_intent_buffer()
+		_clear_move_intent_buffer(action_id)
 
 	var trace_attempt_id: int = 0
 	if is_instance_valid(_performance_trace_utility):
-		trace_attempt_id = _performance_trace_utility.begin_move(direction)
+		trace_attempt_id = _performance_trace_utility.begin_move(
+			direction,
+			action_id
+		)
 	call_deferred(&"_execute_move_command", direction, trace_attempt_id)
 
 
 func _buffer_single_move_intent(action_id: StringName) -> void:
 	if not is_instance_valid(_input_assist):
 		return
-	_clear_move_intent_buffer()
+	_clear_move_intent_buffer(action_id)
 	_input_assist.buffer_action(action_id, _MOVE_INTENT_BUFFER_SECONDS)
 
 
-func _clear_move_intent_buffer() -> void:
-	if not is_instance_valid(_input_assist):
-		return
-	for action_id: StringName in _MOVE_ACTIONS:
-		_input_assist.clear_buffered_action(action_id)
+func _clear_move_intent_buffer(
+	preserved_action_id: StringName = &""
+) -> void:
+	if is_instance_valid(_input_assist):
+		for action_id: StringName in _MOVE_ACTIONS:
+			_input_assist.clear_buffered_action(action_id)
+	if is_instance_valid(_performance_trace_utility):
+		_performance_trace_utility.discard_pending_move_inputs(
+			&"player_input_buffer_cleared",
+			preserved_action_id
+		)
 
 
 func _get_move_direction(action_id: StringName) -> Vector2i:
@@ -277,6 +307,14 @@ func _get_input_assist_utility() -> GFInputAssistUtility:
 	return null
 
 
+func _get_signal_utility() -> GFSignalUtility:
+	var utility_value: Object = get_utility(GFSignalUtility)
+	if utility_value is GFSignalUtility:
+		var signal_utility: GFSignalUtility = utility_value
+		return signal_utility
+	return null
+
+
 func _get_command_history_utility() -> GFCommandHistoryUtility:
 	var utility_value: Object = get_utility(GFCommandHistoryUtility)
 	if utility_value is GFCommandHistoryUtility:
@@ -320,6 +358,29 @@ func _get_performance_trace_utility() -> GamePerformanceTraceUtility:
 func _complete_move_trace(attempt_id: int, effective: bool) -> void:
 	if is_instance_valid(_performance_trace_utility):
 		_performance_trace_utility.complete_move(attempt_id, effective)
+
+
+func _on_input_action_started(
+	action_id: StringName,
+	_value: Variant
+) -> void:
+	if action_id not in _MOVE_ACTIONS or not is_instance_valid(_performance_trace_utility):
+		return
+	if (
+		not _is_active
+		or not _is_playing
+		or (
+			is_instance_valid(_pause_utility)
+			and _pause_utility.is_paused()
+		)
+	):
+		_performance_trace_utility.discard_pending_move_inputs(
+			&"player_input_not_admitted"
+		)
+		return
+	var _receipt_id: int = (
+		_performance_trace_utility.acknowledge_move_input_mapped(action_id)
+	)
 
 
 # --- 信号处理函数 ---

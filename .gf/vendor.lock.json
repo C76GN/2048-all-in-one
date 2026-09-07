@@ -1,14 +1,14 @@
 {
   "schema_version": 2,
-  "framework_version": "11.0.0-dev.0",
+  "framework_version": "11.0.0",
   "source_kind": "vendored_git_snapshot",
   "source_repository": "https://github.com/C76GN/gf-framework.git",
-  "source_ref": "refs/heads/main",
-  "channel": "development",
-  "source_commit": "4488c65f58813306a7dbae0f7132b4303c92d11c",
-  "source_git_tree": "a7bcb938345ed6eac404dd5aecaa26457bbbe777",
-  "upstream_ci_run": "https://github.com/C76GN/gf-framework/actions/runs/32993250973",
+  "source_ref": "refs/tags/11.0.0",
+  "channel": "stable",
+  "source_commit": "e88ea3470acdbc4af0e2d5a1d144af9104f5fc13",
+  "source_git_tree": "72bffa2a0f06aee1b7963d21c63be71b73ffb88d",
+  "upstream_ci_run": "https://github.com/C76GN/gf-framework/actions/runs/33381283504",
   "vendor_file_count": 2011,
-  "vendor_tree_sha256": "3e592ea8a187fe5de89f180496f946c4ab285e2b7b2dbcd2d5a484af30e3bb1c",
+  "vendor_tree_sha256": "667028587fbab99f3cf3cb042c3442c97d417f57d27ef1e3e7217f33da8bbe75",
   "hash_record_format": "relative_path<TAB>file_sha256<LF>"
 }

@@ -75,6 +75,7 @@ const PLATFORM_PROBE_EXCEPTIONS: Dictionary = {
 	"res://app/scripts/game_architecture_installer.gd": {
 		"allowed_fragments": [
 			"OS.has_feature(_PLATFORM_SMOKE_FEATURE)",
+			"OS.has_feature(_WECHAT_RELEASE_FEATURE)",
 			"OS.has_feature(_DEV_TOOLS_FEATURE)",
 			"OS.has_feature(_VERBOSE_LOGGING_FEATURE)",
 		],

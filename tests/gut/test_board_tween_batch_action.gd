@@ -135,14 +135,20 @@ func test_animation_utility_starts_first_idle_visual_action_without_frame_gate()
 	queue_root.dispose()
 
 
-func test_board_animation_action_reports_primary_feedback_only_when_execute_starts() -> void:
+func test_board_animation_action_commits_feedback_only_after_visual_batch_is_prepared() -> void:
 	var board: GameBoardController = GameBoardController.new()
 	autofree(board)
+	var tile: ProbeFeedbackTile = ProbeFeedbackTile.new()
+	autofree(tile)
 	var performance_trace: RecordingPerformanceTraceUtility = (
 		RecordingPerformanceTraceUtility.new()
 	)
 	var action: BoardAnimationAction = BoardAnimationAction.new(
-		[{&"type": &"PROBE"}],
+		[{
+			&"type": &"MOVE",
+			&"tile": tile,
+			&"to_pos": Vector2(32.0, 0.0),
+		}],
 		board
 	)
 	action.configure_primary_feedback_trace(performance_trace, 73)
@@ -154,12 +160,12 @@ func test_board_animation_action_reports_primary_feedback_only_when_execute_star
 	var _first_result: Variant = action.execute()
 	assert_true(
 		performance_trace.marked_attempt_ids == [73],
-		"BoardAnimationAction.execute 起点必须记录一次首反馈。"
+		"视觉批次完成属性提交后必须只通知一次待绘制反馈。"
 	)
 	var _second_result: Variant = action.execute()
 	assert_true(
 		performance_trace.marked_attempt_ids == [73],
-		"首反馈记录必须保持一次性，重复执行不得重复采样。"
+		"反馈提交记录必须保持一次性，重复执行不得重复挂接绘制监听。"
 	)
 
 
@@ -295,6 +301,19 @@ class ProbePaintAction extends BoardTweenBatchAction:
 		return null
 
 
+class ProbeFeedbackTile extends Tile:
+	## @param new_position: 要立即写入测试方块的目标位置。
+	## @param _motion_profile: 为保持 Tile 覆写契约而接收的移动表现配置；探针不消费。
+	## @param _feedback_budget: 为保持 Tile 覆写契约而接收的反馈预算；探针不消费。
+	func animate_move(
+		new_position: Vector2,
+		_motion_profile: GameTileMotionProfile = null,
+		_feedback_budget: GameFeedbackBudget = null
+	) -> Tween:
+		position = new_position
+		return null
+
+
 class ProbeReparentBoard extends GameBoardController:
 	func _ready() -> void:
 		pass
@@ -311,5 +330,5 @@ class RecordingPerformanceTraceUtility extends GamePerformanceTraceUtility:
 	var marked_attempt_ids: Array[int] = []
 
 	## @param attempt_id: 要记录的测试移动尝试标识。
-	func mark_primary_feedback_started(attempt_id: int) -> void:
+	func mark_primary_feedback_state_committed(attempt_id: int) -> void:
 		marked_attempt_ids.append(attempt_id)

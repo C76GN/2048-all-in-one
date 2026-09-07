@@ -120,6 +120,8 @@ var _touch_sequence_start: Vector2 = Vector2.ZERO
 var _touch_sequence_last: Vector2 = Vector2.ZERO
 var _touch_sequence_started_msec: int = 0
 var _touch_sequence_cancelled: bool = false
+var _touch_sequence_action_emitted: bool = false
+var _spatial_input_suppressed_by_touch_action: bool = false
 
 
 # --- Godot 生命周期方法 ---
@@ -150,6 +152,17 @@ func _exit_tree() -> void:
 	if is_instance_valid(_signal_utility):
 		_signal_utility.disconnect_owner(self)
 	super._exit_tree()
+
+
+func _notification(what: int) -> void:
+	if (
+		what == NOTIFICATION_APPLICATION_FOCUS_OUT
+		or what == NOTIFICATION_APPLICATION_PAUSED
+	):
+		# 微信切后台、系统弹窗或失焦时可能不再补发 ScreenTouch release。
+		# 主动清理整个序列，避免旧 pointer 永久把后续首指判成多指，或让
+		# 已提交滑动后的 GFSpatialCanvas2D 一直保持禁用。
+		_reset_touch_sequence()
 
 
 func _process(_delta: float) -> void:
@@ -766,6 +779,7 @@ func _prepare_touch_action(event: InputEvent) -> StringName:
 				_touch_sequence_last = touch.position
 				_touch_sequence_started_msec = _clock_utility.get_tick_msec()
 				_touch_sequence_cancelled = false
+				_touch_sequence_action_emitted = false
 			else:
 				_touch_sequence_cancelled = true
 			return &""
@@ -774,20 +788,12 @@ func _prepare_touch_action(event: InputEvent) -> StringName:
 			return &""
 		if touch.index == _touch_sequence_primary_id:
 			_touch_sequence_last = touch.position
-			if _active_touch_ids.size() == 1 and not _touch_sequence_cancelled:
-				var duration_seconds: float = maxf(
-					float(_clock_utility.get_tick_msec() - _touch_sequence_started_msec) / 1000.0,
-					0.0
-				)
-				var direction: Vector2i = classify_swipe(
-					_touch_sequence_start,
-					_touch_sequence_last,
-					duration_seconds,
-					swipe_minimum_distance,
-					swipe_maximum_duration,
-					swipe_axis_dominance_ratio
-				)
-				return GameplayInputActions.action_for_direction(direction)
+			if (
+				_active_touch_ids.size() == 1
+				and not _touch_sequence_cancelled
+				and not _touch_sequence_action_emitted
+			):
+				return _try_commit_touch_swipe()
 		_touch_sequence_cancelled = true
 		return &""
 
@@ -799,7 +805,33 @@ func _prepare_touch_action(event: InputEvent) -> StringName:
 			_touch_sequence_last = drag.position
 		if _active_touch_ids.size() >= 2:
 			_touch_sequence_cancelled = true
+		elif (
+			drag.index == _touch_sequence_primary_id
+			and not _touch_sequence_cancelled
+			and not _touch_sequence_action_emitted
+		):
+			return _try_commit_touch_swipe()
 	return &""
+
+
+func _try_commit_touch_swipe() -> StringName:
+	var duration_seconds: float = maxf(
+		float(_clock_utility.get_tick_msec() - _touch_sequence_started_msec) / 1000.0,
+		0.0
+	)
+	var direction: Vector2i = classify_swipe(
+		_touch_sequence_start,
+		_touch_sequence_last,
+		duration_seconds,
+		swipe_minimum_distance,
+		swipe_maximum_duration,
+		swipe_axis_dominance_ratio
+	)
+	var action_id: StringName = GameplayInputActions.action_for_direction(direction)
+	if action_id != &"":
+		_touch_sequence_action_emitted = true
+		_suppress_spatial_input_for_committed_touch_action()
+	return action_id
 
 
 func _finish_touch_event(event: InputEvent) -> void:
@@ -820,12 +852,47 @@ func _reset_touch_sequence() -> void:
 	_touch_sequence_last = Vector2.ZERO
 	_touch_sequence_started_msec = 0
 	_touch_sequence_cancelled = false
+	_touch_sequence_action_emitted = false
+	_restore_spatial_input_after_touch_action()
+
+
+func _suppress_spatial_input_for_committed_touch_action() -> void:
+	if (
+		_spatial_input_suppressed_by_touch_action
+		or not is_instance_valid(_spatial_canvas)
+	):
+		return
+	_spatial_input_suppressed_by_touch_action = true
+	# GFSpatialCanvas2D 会同时清理已经追踪的首指瞬态状态。这样玩法滑动一旦
+	# 提交，同一触控序列后来加入的第二指也不能再把它改解释为画布导航。
+	_spatial_canvas.set_input_enabled(false)
+
+
+func _restore_spatial_input_after_touch_action() -> void:
+	if not _spatial_input_suppressed_by_touch_action:
+		return
+	_spatial_input_suppressed_by_touch_action = false
+	if is_instance_valid(_spatial_canvas):
+		_spatial_canvas.set_input_enabled(true)
 
 
 func _inject_touch_action(action_id: StringName) -> void:
 	if action_id == &"" or not is_instance_valid(_touch_action_pulse):
 		return
+	var input_receipt_id: int = 0
+	if is_instance_valid(_performance_trace_utility):
+		# 先冻结项目接收触控的时刻，再进入 GF virtual pulse；指标因此包含
+		# 脉冲注入、PlayerInputSystem 轮询与同步回合计算，而非从命令入口起算。
+		input_receipt_id = _performance_trace_utility.capture_move_input(
+			action_id,
+			GamePerformanceTraceUtility.MOVE_INPUT_SOURCE_TOUCH
+		)
 	if not _touch_action_pulse.pulse(action_id, self, _TOUCH_ACTION_HOLD_SECONDS):
+		if is_instance_valid(_performance_trace_utility):
+			_performance_trace_utility.cancel_move_input_receipt(
+				input_receipt_id,
+				&"virtual_pulse_rejected"
+			)
 		push_warning("[BoardWorldViewportController] 无法注入触控动作：%s。" % action_id)
 
 
@@ -845,6 +912,8 @@ func _should_reconcile_spatial_input(event: InputEvent) -> bool:
 		var mouse_motion: InputEventMouseMotion = event
 		return (mouse_motion.button_mask & MOUSE_BUTTON_MASK_MIDDLE) != 0
 	if event is InputEventScreenTouch or event is InputEventScreenDrag:
+		if _spatial_input_suppressed_by_touch_action:
+			return false
 		return _active_touch_ids.size() >= 2
 	return event is InputEventMagnifyGesture or event is InputEventPanGesture
 

@@ -157,7 +157,15 @@ func save_settings(file_name: String = "") -> Error:
 
 
 ## 注册项目设置定义。
-func register_project_defaults() -> void:
+## @param shader_effects_enabled_default: 当前构建首次启动时的 Shader 表现默认值。
+## @param vfx_quality_default: 当前构建首次启动时的 VFX 档位默认值。
+func register_project_defaults(
+	shader_effects_enabled_default: bool = true,
+	vfx_quality_default: int = GameAccessibilityState.VfxQuality.FULL
+) -> void:
+	var normalized_vfx_quality_default: int = (
+		GameAccessibilityState.normalize_vfx_quality(vfx_quality_default)
+	)
 	var _locale_setting: GFSettingDefinition = register_setting(
 		GFDisplaySettingsUtility.LOCALE_KEY,
 		DEFAULT_LOCALE,
@@ -240,14 +248,14 @@ func register_project_defaults() -> void:
 	)
 	var _shader_effects_setting: GFSettingDefinition = register_setting(
 		GameAccessibilityState.SHADER_EFFECTS_ENABLED_SETTING_KEY,
-		true,
+		shader_effects_enabled_default,
 		GFSettingDefinition.ValueType.BOOL,
 		true,
 		{"group": "accessibility", "label": "SHADER_EFFECTS_LABEL"}
 	)
 	var _vfx_quality_setting: GFSettingDefinition = register_setting(
 		GameAccessibilityState.VFX_QUALITY_SETTING_KEY,
-		GameAccessibilityState.VfxQuality.FULL,
+		normalized_vfx_quality_default,
 		GFSettingDefinition.ValueType.INT,
 		true,
 		{"group": "accessibility", "label": "VFX_QUALITY_LABEL"}

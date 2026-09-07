@@ -54,10 +54,10 @@ func execute() -> Variant:
 	if not is_instance_valid(_game_board) or _instructions.is_empty():
 		return null
 
-	_notify_primary_feedback_started()
 	_pending_consumed_tiles.clear()
 	_play_turn_feedback()
 	var tweens: Array[Tween] = []
+	var visible_feedback_state_committed: bool = false
 	for instruction: Dictionary in _instructions:
 		var tile: Tile
 		var target_pos: Vector2
@@ -68,6 +68,7 @@ func execute() -> Variant:
 				
 				target_pos = _get_vector2(instruction, &"to_pos", Vector2.ZERO)
 				if is_instance_valid(tile):
+					visible_feedback_state_committed = true
 					_append_tween(
 						tweens,
 						tile.animate_move(
@@ -84,6 +85,7 @@ func execute() -> Variant:
 				var target_data: Dictionary = _get_dictionary(instruction, &"target_setup_data")
 
 				if is_instance_valid(consumed):
+					visible_feedback_state_committed = true
 					# 确保被消耗的方块平滑移动到目标点后再消失
 					var release_token: RefCounted = RefCounted.new()
 					consumed.set_meta(RELEASE_TOKEN_META, release_token)
@@ -102,6 +104,7 @@ func execute() -> Variant:
 						_release_consumed_tile(consumed, release_token)
 
 				if is_instance_valid(merged):
+					visible_feedback_state_committed = true
 					# merged 方块可能在同一帧收到了 MOVE 指令（已在上面处理）
 					# 如果它的目标位置已经改变，或者尚未开始移动动画，则触发移动。
 					# animate_move 内部自带了 is_equal_approx 检查，所以这里直接调用是安全的。
@@ -147,6 +150,7 @@ func execute() -> Variant:
 			&"SPAWN":
 				var spawn_tile: Tile = _get_tile(instruction, &"tile")
 				if is_instance_valid(spawn_tile):
+					visible_feedback_state_committed = true
 					_append_tween(
 						tweens,
 						spawn_tile.animate_spawn(_tile_motion_profile, _feedback_budget)
@@ -157,6 +161,7 @@ func execute() -> Variant:
 				tile = _get_tile(instruction, &"tile")
 				var transform_data: Dictionary = _get_dictionary(instruction, &"target_setup_data")
 				if is_instance_valid(tile) and not transform_data.is_empty():
+					visible_feedback_state_committed = true
 					_apply_target_setup_data(tile, transform_data)
 					var transform_delay: float = 0.0
 					if _get_bool(transform_data, &"do_merge", false):
@@ -187,6 +192,8 @@ func execute() -> Variant:
 			_:
 				continue
 
+	if visible_feedback_state_committed:
+		_notify_primary_feedback_state_committed()
 	return _wait_for_tweens(tweens, _game_board)
 
 
@@ -204,7 +211,7 @@ func finish() -> void:
 
 # --- 私有/辅助方法 ---
 
-func _notify_primary_feedback_started() -> void:
+func _notify_primary_feedback_state_committed() -> void:
 	var performance_trace_utility: GamePerformanceTraceUtility = (
 		_performance_trace_utility
 	)
@@ -212,7 +219,7 @@ func _notify_primary_feedback_started() -> void:
 	_performance_trace_utility = null
 	_primary_feedback_attempt_id = 0
 	if is_instance_valid(performance_trace_utility) and attempt_id > 0:
-		performance_trace_utility.mark_primary_feedback_started(attempt_id)
+		performance_trace_utility.mark_primary_feedback_state_committed(attempt_id)
 
 func _release_consumed_tile(consumed: Tile, release_token: RefCounted) -> void:
 	if not is_instance_valid(consumed):

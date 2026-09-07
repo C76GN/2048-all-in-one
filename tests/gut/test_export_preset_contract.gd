@@ -5,6 +5,7 @@ extends GutTest
 # --- 常量 ---
 
 const _EXPORT_CONFIG_PATH: String = "res://export_presets.cfg"
+const _WECHAT_RELEASE_PRESET_NAME: String = "Web Compatibility WeChat Release"
 const _RUNTIME_MANIFEST_PATHS: Array[String] = [
 	"res://features/asset_library/resources/gf_content_package.json",
 	"res://features/themes/resources/gf_content_package.json",
@@ -46,10 +47,23 @@ func test_every_release_preset_uses_the_project_export_filters() -> void:
 
 	for section: String in preset_sections:
 		var preset_name: String = str(config.get_value(section, "name", section))
-		assert_true(
-			str(config.get_value(section, "export_filter", "")) == "all_resources",
-			"%s 应从完整运行时资源集合开始过滤。" % preset_name
-		)
+		var export_filter: String = str(config.get_value(section, "export_filter", ""))
+		if preset_name == _WECHAT_RELEASE_PRESET_NAME:
+			assert_true(
+				export_filter == "resources",
+				"%s 应使用经过审计的显式资源根集合。" % preset_name
+			)
+			var export_files: PackedStringArray = config.get_value(
+				section,
+				"export_files",
+				PackedStringArray()
+			)
+			assert_false(export_files.is_empty(), "%s 的显式资源根集合不得为空。" % preset_name)
+		else:
+			assert_true(
+				export_filter == "all_resources",
+				"%s 应从完整运行时资源集合开始过滤。" % preset_name
+			)
 		var include_filters: PackedStringArray = _parse_filter_list(
 			str(config.get_value(section, "include_filter", ""))
 		)
