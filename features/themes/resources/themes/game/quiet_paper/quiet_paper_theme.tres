@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="GameTheme" load_steps=13 format=3]
+
+[ext_resource type="Script" path="res://features/themes/scripts/data/game_theme.gd" id="1_theme"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/quiet_paper/board_theme.tres" id="2_board"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/quiet_paper/classic_tile_colors.tres" id="3_classic"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/quiet_paper/red_tile_colors.tres" id="4_red"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/quiet_paper/ui_palette.tres" id="5_palette"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/quiet_paper/cover_transition.tres" id="7_cover"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/quiet_paper/reveal_transition.tres" id="8_reveal"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/quiet_paper/background_profile.tres" id="9_background"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/quiet_paper/celebration_theme.tres" id="10_celebration"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/quiet_paper/tile_visual_theme.tres" id="11_tile_visuals"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/quiet_paper/board_feedback_profile.tres" id="12_feedback"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/quiet_paper/ui_motion_profile.tres" id="13_ui_motion"]
+
+[resource]
+script = ExtResource("1_theme")
+theme_id = &"quiet_paper"
+display_name_key = "THEME_QUIET_PAPER"
+description_key = "THEME_QUIET_PAPER_DESC"
+board_theme = ExtResource("2_board")
+color_schemes = {
+0: ExtResource("3_classic"),
+1: ExtResource("4_red")
+}
+tile_visual_theme = ExtResource("11_tile_visuals")
+ui_palette = ExtResource("5_palette")
+ui_motion_profile = ExtResource("13_ui_motion")
+background_shader_profile = ExtResource("9_background")
+board_feedback_profile = ExtResource("12_feedback")
+celebration_vfx_theme = ExtResource("10_celebration")
+scene_transition_cover_effect = ExtResource("7_cover")
+scene_transition_reveal_effect = ExtResource("8_reveal")

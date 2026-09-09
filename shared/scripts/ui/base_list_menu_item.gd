@@ -19,14 +19,15 @@ signal item_selected(data: Resource)
 
 # --- 常量 ---
 
-const _SELECTED_SURFACE_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.70)
-const _SELECTED_BORDER_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
+const _SELECTED_SURFACE_COLOR: Color = Color(0.898039, 0.933333, 0.890196, 1.0)
+const _SELECTED_BORDER_COLOR: Color = Color(0.196078, 0.403922, 0.34902, 1.0)
 
 
 # --- 私有变量 ---
 
 var _item_data: Resource
 var _is_selected_manually: bool = false
+var _selection_style: StyleBoxFlat
 
 
 # --- @onready 变量 (节点引用) ---
@@ -44,6 +45,14 @@ func _ready() -> void:
 
 
 # --- 公共方法 ---
+
+## 应用当前主题的选中表面，保留独立的键盘焦点环与选择状态。
+## @param style: 调用方从主题生成的选中表面样式。
+func apply_selection_style(style: StyleBoxFlat) -> void:
+	_selection_style = style
+	if is_node_ready():
+		_apply_selection_highlight_style()
+
 
 ## 设置此列表项关联的数据并刷新显示。
 ## @param new_data: 关联的数据资源。
@@ -102,12 +111,15 @@ func _apply_selection_highlight_style() -> void:
 	if not _selection_highlight is Panel:
 		return
 	var selection_panel: Panel = _selection_highlight
+	if _selection_style != null:
+		selection_panel.add_theme_stylebox_override("panel", _selection_style)
+		return
 
 	var style: StyleBoxFlat = StyleBoxFlat.new()
 	style.bg_color = _SELECTED_SURFACE_COLOR
 	style.border_color = _SELECTED_BORDER_COLOR
-	style.set_border_width_all(3)
-	style.set_corner_radius_all(4)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(8)
 	style.shadow_color = Color.TRANSPARENT
 	style.shadow_size = 0
 	selection_panel.add_theme_stylebox_override("panel", style)

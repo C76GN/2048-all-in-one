@@ -11,6 +11,8 @@ extends VBoxContainer
 @export var surface_color: Color = Color(1.0, 0.972549, 0.9098039, 0.86)
 @export var border_color: Color = Color(0.18431373, 0.1882353, 0.21568628, 0.76)
 @export_range(0, 24, 1) var corner_radius: int = 4
+@export_range(0, 4, 1) var border_width: int = 2
+@export_range(0, 4, 1) var top_rule_width: int = 0
 @export var outward_padding: Vector2 = Vector2(18.0, 14.0)
 
 @export_group("Raised Print Surface")
@@ -67,7 +69,8 @@ func _draw() -> void:
 func _sync_surface_style() -> void:
 	_surface_style.bg_color = surface_color
 	_surface_style.border_color = border_color
-	_surface_style.set_border_width_all(2)
+	_surface_style.set_border_width_all(border_width)
+	_surface_style.border_width_top = maxi(border_width, top_rule_width)
 	_surface_style.set_corner_radius_all(corner_radius)
 	_surface_style.shadow_color = Color.TRANSPARENT
 	_surface_style.shadow_size = 0

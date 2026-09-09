@@ -5,6 +5,8 @@ param(
 	[string]$ProjectRoot = ".",
 	[string]$ExpectedOutputPattern = "",
 	[switch]$Rendering,
+	[ValidateSet("", "forward_plus", "mobile", "gl_compatibility")]
+	[string]$RenderingMethod = "",
 	[ValidateRange(1, 3600)]
 	[int]$TimeoutSeconds = 300,
 	[ValidateRange(50, 5000)]
@@ -85,7 +87,8 @@ function Get-CombinedOutput {
 }
 
 $resolvedProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
-$runRoot = Join-Path ([IO.Path]::GetTempPath()) (
+$originalTempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')
+$runRoot = Join-Path $originalTempRoot (
 	"2048-project-tool-{0}-{1}" -f (Get-Date -Format "yyyyMMdd-HHmmss"), ([guid]::NewGuid().ToString("N").Substring(0, 8))
 )
 $appData = Join-Path $runRoot "appdata"
@@ -114,6 +117,9 @@ try {
 	if (-not $Rendering) {
 		$arguments += "--headless"
 	}
+	if (-not [string]::IsNullOrWhiteSpace($RenderingMethod)) {
+		$arguments += @("--rendering-method", $RenderingMethod)
+	}
 	$arguments += @(
 		"--log-file", $logFile,
 		"--path", $resolvedProjectRoot,
@@ -131,19 +137,31 @@ try {
 		-RedirectStandardError $stderrFile `
 		-WindowStyle Hidden `
 		-PassThru
+	# Retain the native process handle before it exits. On Windows, a detached
+	# Process object can otherwise lose its exit code after the polling loop.
+	$processHandle = $process.Handle
 
 	$deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 	$lastObservedActivity = Get-Date
 	do {
 		Start-Sleep -Milliseconds $PollIntervalMilliseconds
 		$process.Refresh()
-		$derivedProcesses = @(
-			Get-GodotToolRunProcesses $process.Id $logFile $ScriptPath
-		)
+		$derivedProcesses = @()
+		if ($process.HasExited) {
+			# A launcher may hand off to a child, but an active primary process
+			# already keeps this run alive. Avoid polling every Windows process
+			# through WMI during the actual game or performance measurement.
+			$derivedProcesses = @(
+				Get-GodotToolRunProcesses $process.Id $logFile $ScriptPath
+			)
+		}
 		if (-not $process.HasExited -or $derivedProcesses.Count -gt 0) {
 			$lastObservedActivity = Get-Date
 		}
 		if ((Get-Date) -gt $deadline) {
+			$derivedProcesses = @(
+				Get-GodotToolRunProcesses $process.Id $logFile $ScriptPath
+			)
 			foreach ($derivedProcess in $derivedProcesses) {
 				Stop-Process -Id ([int]$derivedProcess.ProcessId) -Force -ErrorAction SilentlyContinue
 			}
@@ -162,6 +180,12 @@ try {
 	if (-not [string]::IsNullOrWhiteSpace($combinedOutput)) {
 		Write-Host $combinedOutput.Trim()
 	}
+	$process.WaitForExit()
+	$processExitCode = $process.ExitCode
+	Write-Host "Godot project tool exit code: $processExitCode"
+	if ($null -eq $processExitCode) {
+		throw "Godot project tool exit code is unavailable. Logs kept at: $runRoot"
+	}
 	if (
 		-not [string]::IsNullOrWhiteSpace($ExpectedOutputPattern) `
 		-and $combinedOutput.IndexOf(
@@ -171,19 +195,11 @@ try {
 	) {
 		throw "Godot project tool did not emit its completion marker '$ExpectedOutputPattern'. Logs kept at: $runRoot"
 	}
-	$diagnosticPattern = '(?im)SCRIPT ERROR|Parse Error:|ERROR: Failed to load script|GDScript::reload:|UNSAFE_|SHADOWED_|RETURN_VALUE_DISCARDED|MISSING_AWAIT|remove_child\(\) can''t be called|Parent node is busy adding/removing children'
+	$diagnosticPattern = '(?im)SCRIPT ERROR|Parse Error:|ERROR: Failed to load script|GDScript::reload:|UNSAFE_|SHADOWED_|RETURN_VALUE_DISCARDED|MISSING_AWAIT|remove_child\(\) can''t be called|Parent node is busy (?:adding/removing|setting up) children'
 	if ($combinedOutput -match $diagnosticPattern) {
 		throw "Godot project tool reported script diagnostics. Logs kept at: $runRoot"
 	}
-	$processExitCode = $null
-	if ($process.HasExited) {
-		try {
-			$processExitCode = $process.ExitCode
-		} catch {
-			$processExitCode = $null
-		}
-	}
-	if ($null -ne $processExitCode -and [int]$processExitCode -ne 0) {
+	if ([int]$processExitCode -ne 0) {
 		throw "Godot project tool exited with code $processExitCode. Logs kept at: $runRoot"
 	}
 	$completedSuccessfully = $true
@@ -193,6 +209,23 @@ finally {
 		[Environment]::SetEnvironmentVariable($name, $originalEnvironment[$name], "Process")
 	}
 	if ($completedSuccessfully -and (Test-Path -LiteralPath $runRoot)) {
-		Remove-Item -LiteralPath $runRoot -Recurse -Force
+		$resolvedRunRoot = [IO.Path]::GetFullPath($runRoot).TrimEnd('\')
+		if (
+			-not [string]::Equals(
+				[IO.Path]::GetDirectoryName($resolvedRunRoot),
+				$originalTempRoot,
+				[System.StringComparison]::OrdinalIgnoreCase
+			) -or [IO.Path]::GetFileName($resolvedRunRoot) -notmatch '^2048-project-tool-\d{8}-\d{6}-[a-f0-9]{8}$'
+		) {
+			throw "Refusing cleanup outside the exact generated tool directory: $resolvedRunRoot"
+		}
+		# Godot shader-cache paths can exceed MAX_PATH. Native .NET deletion with
+		# an extended path avoids PowerShell 5's truncated recursive enumeration.
+		$extendedRunRoot = if ($resolvedRunRoot.StartsWith('\\')) {
+			'\\?\UNC\' + $resolvedRunRoot.Substring(2)
+		} else {
+			'\\?\' + $resolvedRunRoot
+		}
+		[IO.Directory]::Delete($extendedRunRoot, $true)
 	}
 }

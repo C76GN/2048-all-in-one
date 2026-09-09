@@ -73,3 +73,27 @@ test("font generator pins deterministic FontTools inputs and options", () => {
 	assert.match(source, /--font \$stagedFont/);
 	assert.ok(fs.existsSync(fontCoverageValidator));
 });
+
+test("print display keeps the release-remapped CJK fallback and ships its OFL", () => {
+	const variation = fs.readFileSync(
+		path.join(projectRoot, "shared/assets/fonts/ui_print_display.tres"), "utf8",
+	);
+	const policy = JSON.parse(fs.readFileSync(
+		path.join(projectRoot, "tools/wechat_minigame/release_resource_policy.json"), "utf8",
+	));
+	assert.match(variation, /path="res:\/\/shared\/assets\/fonts\/dm_serif_display_regular\.ttf" id="1_print"/);
+	assert.match(variation, /base_font = ExtResource\("1_print"\)/);
+	assert.match(variation, /path="res:\/\/shared\/assets\/fonts\/ui_sans_display\.tres" id="2_cjk"/);
+	assert.match(variation, /fallbacks = Array\[Font\]\(\[ExtResource\("2_cjk"\)\]\)/);
+	assert.ok(policy.font_remaps.some((remap) => (
+		remap.source_variation_paths.includes("res://shared/assets/fonts/ui_sans_display.tres")
+		&& remap.replacement_font_path === "res://shared/assets/fonts/wechat_release_sans_subset.ttf"
+	)), "the print font's CJK fallback must follow the release subset remap");
+	assert.ok(policy.raw_includes.includes("res://shared/assets/fonts/dm_serif_display_ofl.txt"));
+	assert.match(fs.readFileSync(
+		path.join(projectRoot, "shared/assets/fonts/dm_serif_display_ofl.txt"), "utf8",
+	), /SIL OPEN FONT LICENSE Version 1\.1/);
+	assert.equal(sha256File(path.join(
+		projectRoot, "shared/assets/fonts/dm_serif_display_regular.ttf",
+	)), "8cc3643535edf039aa5d95440a8542735e9197e4f4b8d9303e980fefbf5ab616");
+});

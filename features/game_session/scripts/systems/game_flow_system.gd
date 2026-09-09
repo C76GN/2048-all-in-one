@@ -39,6 +39,7 @@ var _is_settling_move_turn: bool = false
 var _persistence_epoch: int = 0
 var _persistence_owner_active: bool = false
 var _bookmark_save_in_progress: bool = false
+var _return_to_menu_in_progress: bool = false
 var _section_settlement_waiters: Array[GameSaveSectionSettlementWaiter] = []
 
 ## 核心状态机。
@@ -92,6 +93,7 @@ func ready() -> void:
 	_persistence_epoch += 1
 	_persistence_owner_active = true
 	_bookmark_save_in_progress = false
+	_return_to_menu_in_progress = false
 	_grid_model = _get_grid_model()
 	_game_status_model = _get_game_status_model()
 	_clock = _get_clock_utility()
@@ -126,6 +128,7 @@ func dispose() -> void:
 	_persistence_epoch += 1
 	_persistence_owner_active = false
 	_bookmark_save_in_progress = false
+	_return_to_menu_in_progress = false
 	for waiter: GameSaveSectionSettlementWaiter in (
 		_section_settlement_waiters.duplicate()
 	):
@@ -343,7 +346,8 @@ func finalize_turn_result(turn_result: TurnResult) -> ReplayCheckpoint:
 		step_index,
 		_get_full_game_state(),
 		ruleset_fingerprint,
-		turn_result
+		turn_result,
+		_grid_model.topology if is_instance_valid(_grid_model) else null
 	)
 	if checkpoint == null:
 		push_error("[GameFlowSystem] 无法生成第 %d 步确定性检查点。" % step_index)
@@ -783,6 +787,7 @@ func _handle_game_over() -> void:
 func _on_game_ready(data: GameReadyData) -> void:
 	_persistence_epoch += 1
 	_bookmark_save_in_progress = false
+	_return_to_menu_in_progress = false
 	_is_replay_mode = data.is_replay_mode
 	_is_game_state_tainted = false
 	_session_metadata = (
@@ -1340,6 +1345,45 @@ func _can_redo_player_move(command_history: GFCommandHistoryUtility) -> bool:
 	return last_cmd_value is GFUndoableCommand
 
 
+func _make_current_bookmark(current_state_for_comparison: Dictionary) -> BookmarkData:
+	var new_bookmark: BookmarkData = BookmarkData.new()
+	new_bookmark.timestamp = _get_unix_timestamp()
+	new_bookmark.mode_config_path = _mode_config_path
+	if not new_bookmark.configure_ruleset(_mode_config, _get_determinism_utility()):
+		_log_persistence_error("freeze bookmark ruleset", ERR_INVALID_DATA)
+		return null
+
+	var seed_utility: GFSeedUtility = _get_seed_utility()
+	if is_instance_valid(seed_utility):
+		new_bookmark.initial_seed = seed_utility.get_global_seed()
+	if _session_metadata == null:
+		_log_persistence_error("freeze bookmark session metadata", ERR_INVALID_DATA)
+		return null
+	new_bookmark.session_metadata = _session_metadata.to_dict()
+
+	new_bookmark.score = GFVariantData.to_int(current_state_for_comparison.get(&"score", 0), 0)
+	new_bookmark.move_count = GFVariantData.to_int(current_state_for_comparison.get(&"move_count", 0), 0)
+	new_bookmark.ratio_resolutions = GFVariantData.to_int(current_state_for_comparison.get(&"ratio_resolutions", 0), 0)
+	new_bookmark.highest_tile = GFVariantData.to_int(current_state_for_comparison.get(&"highest_tile", 0), 0)
+	new_bookmark.target_tile_value = GFVariantData.to_int(current_state_for_comparison.get(&"target_tile_value", 0), 0)
+	new_bookmark.target_reached = GFVariantData.to_bool(current_state_for_comparison.get(&"target_reached", false), false)
+	var extra_stats: Dictionary = GFVariantData.to_dictionary(current_state_for_comparison.get(&"extra_stats", {}))
+	new_bookmark.extra_stats = extra_stats.duplicate(true)
+	new_bookmark.rng_full_state = GFVariantData.to_dictionary(current_state_for_comparison.get(&"rng_full_state", {}))
+	new_bookmark.board_snapshot = GFVariantData.to_dictionary(current_state_for_comparison.get(&"board_snapshot", {}))
+	new_bookmark.rules_states = GFVariantData.to_dictionary(
+		current_state_for_comparison.get(&"rules_states", {})
+	)
+
+	var command_history: GFCommandHistoryUtility = _get_command_history_utility()
+	if is_instance_valid(command_history):
+		new_bookmark.game_state_history = command_history.serialize_full_history()
+	new_bookmark.replay_actions = _player_actions.duplicate()
+	new_bookmark.replay_checkpoints = _turn_checkpoints.duplicate()
+
+	return new_bookmark
+
+
 func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 	if _fsm.current_state_name != EventNames.STATE_PLAYING:
 		return
@@ -1373,40 +1417,9 @@ func _on_save_bookmark_requested(_payload: Variant = null) -> void:
 		)
 		return
 
-	var new_bookmark: BookmarkData = BookmarkData.new()
-	new_bookmark.timestamp = _get_unix_timestamp()
-	new_bookmark.mode_config_path = _mode_config_path
-	if not new_bookmark.configure_ruleset(_mode_config, _get_determinism_utility()):
-		_log_persistence_error("freeze bookmark ruleset", ERR_INVALID_DATA)
+	var new_bookmark: BookmarkData = _make_current_bookmark(current_state_for_comparison)
+	if new_bookmark == null:
 		return
-
-	var seed_utility: GFSeedUtility = _get_seed_utility()
-	if is_instance_valid(seed_utility):
-		new_bookmark.initial_seed = seed_utility.get_global_seed()
-	if _session_metadata == null:
-		_log_persistence_error("freeze bookmark session metadata", ERR_INVALID_DATA)
-		return
-	new_bookmark.session_metadata = _session_metadata.to_dict()
-
-	new_bookmark.score = GFVariantData.to_int(current_state_for_comparison.get(&"score", 0), 0)
-	new_bookmark.move_count = GFVariantData.to_int(current_state_for_comparison.get(&"move_count", 0), 0)
-	new_bookmark.ratio_resolutions = GFVariantData.to_int(current_state_for_comparison.get(&"ratio_resolutions", 0), 0)
-	new_bookmark.highest_tile = GFVariantData.to_int(current_state_for_comparison.get(&"highest_tile", 0), 0)
-	new_bookmark.target_tile_value = GFVariantData.to_int(current_state_for_comparison.get(&"target_tile_value", 0), 0)
-	new_bookmark.target_reached = GFVariantData.to_bool(current_state_for_comparison.get(&"target_reached", false), false)
-	var extra_stats: Dictionary = GFVariantData.to_dictionary(current_state_for_comparison.get(&"extra_stats", {}))
-	new_bookmark.extra_stats = extra_stats.duplicate(true)
-	new_bookmark.rng_full_state = GFVariantData.to_dictionary(current_state_for_comparison.get(&"rng_full_state", {}))
-	new_bookmark.board_snapshot = GFVariantData.to_dictionary(current_state_for_comparison.get(&"board_snapshot", {}))
-	new_bookmark.rules_states = GFVariantData.to_dictionary(
-		current_state_for_comparison.get(&"rules_states", {})
-	)
-
-	var command_history: GFCommandHistoryUtility = _get_command_history_utility()
-	if is_instance_valid(command_history):
-		new_bookmark.game_state_history = command_history.serialize_full_history()
-	new_bookmark.replay_actions = _player_actions.duplicate()
-	new_bookmark.replay_checkpoints = _turn_checkpoints.duplicate()
 
 	var bookmark_system: BookmarkSystem = _get_bookmark_system()
 	if not is_instance_valid(bookmark_system):
@@ -1479,6 +1492,8 @@ func _on_ui_pause_requested(_payload: Variant = null) -> void:
 
 
 func _on_resume_game_requested(_payload: Variant = null) -> void:
+	if _return_to_menu_in_progress:
+		return
 	var _context_changed: bool = set_target_reached_modal_active(false)
 	var pause_utility: GamePauseUtility = _get_pause_utility()
 	if not is_instance_valid(pause_utility) or not pause_utility.resume():
@@ -1486,16 +1501,63 @@ func _on_resume_game_requested(_payload: Variant = null) -> void:
 
 
 func _on_restart_game_requested(_payload: Variant = null) -> void:
+	if _return_to_menu_in_progress:
+		return
 	_target_reached_modal_active = false
 	restart_game()
 
 
 func _on_return_to_main_menu_from_game(_payload: Variant = null) -> void:
+	if _return_to_menu_in_progress:
+		return
+	_return_to_menu_in_progress = true
+	var owner_epoch: int = _persistence_epoch
 	_target_reached_modal_active = false
 	var pause_utility: GamePauseUtility = _get_pause_utility()
-	if not is_instance_valid(pause_utility) or not pause_utility.resume():
+	if not is_instance_valid(pause_utility):
+		_return_to_menu_in_progress = false
+		return
+	if (
+		not _is_replay_mode
+		and not _is_game_state_tainted
+		and _fsm != null
+		and _fsm.current_state_name == EventNames.STATE_PLAYING
+	):
+		if not pause_utility.pause():
+			_return_to_menu_in_progress = false
+			return
+		var bookmark: BookmarkData = _make_current_bookmark(_get_bookmark_comparison_state())
+		var bookmark_system: BookmarkSystem = _get_bookmark_system()
+		var operation: GameSaveSectionOperation = null
+		if bookmark != null and is_instance_valid(bookmark_system):
+			operation = bookmark_system.request_save_resume_game(bookmark)
+		_push_gameplay_notification(
+			tr("RESUME_SAVE_PENDING"), 3.0, GFNotificationUtility.Level.INFO,
+			"gameplay.resume_save_pending"
+		)
+		var initial_result: GameSaveSectionResult = (
+			await operation.await_result() if operation != null else null
+		)
+		if owner_epoch != _persistence_epoch:
+			return
+		var outcome: GameSaveSectionSettlementResult = await _await_section_operation_settlement(
+			operation, initial_result
+		)
+		if owner_epoch != _persistence_epoch:
+			return
+		if not outcome.is_candidate_persisted():
+			_return_to_menu_in_progress = false
+			var _resumed_after_failure: bool = pause_utility.resume()
+			_push_gameplay_notification(
+				tr("RESUME_SAVE_FAILED"), 5.0, GFNotificationUtility.Level.ERROR,
+				"gameplay.resume_save_failed"
+			)
+			return
+	if not pause_utility.resume():
+		_return_to_menu_in_progress = false
 		push_error("[GameFlowSystem] 无法恢复对局时间，拒绝返回主界面。")
 		return
+	_return_to_menu_in_progress = false
 	var router: GameSceneRouterPort = _get_scene_router_system()
 	if is_instance_valid(router):
 		router.return_to_main_menu()

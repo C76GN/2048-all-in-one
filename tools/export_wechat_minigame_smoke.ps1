@@ -21,12 +21,12 @@ param(
 $ErrorActionPreference = "Stop"
 
 $TemplateRelease = "4.7"
-$TemplateAssetName = "minigame4.7.tpz"
+$TemplateAssetName = "minigame4.7.0.7.tpz"
 $TemplateDownloadUrl = (
-	"https://github.com/godothub/godot-minigame/releases/download/4.7/minigame4.7.tpz"
+	"https://github.com/godothub/godot-minigame/releases/download/4.7/minigame4.7.0.7.tpz"
 )
-$TemplateExpectedBytes = 11763895
-$TemplateExpectedSha256 = "AE5BDEB5BA1CE9712D4EFC35D337CB5ECBEF3AD5BFB0F7D06AE9CB662C1F2D71"
+$TemplateExpectedBytes = 11767131
+$TemplateExpectedSha256 = "A4792ABE2EF3217A18C1690DAC67F71402AF87A43222150F3635D136DE5A4710"
 $RequiredGodotVersionPrefix = "4.7.2.stable"
 $ExportReportSchemaVersion = 5
 $ArtifactManifestSchemaVersion = 1
@@ -61,11 +61,11 @@ $StartupDownloadProgressWeight = 0.95
 $StartupProgressTraceStepPercentage = 5
 $StartupUiProgressMinimumStep = 0.005
 $WxMemFsRenamePatchRelativePath = "tools\wechat_minigame\wxmemfs_rename_patch.ps1"
-$TemplateGodotRuntimeSha256 = "CC396C67F410502C958185003EA72F5F67E5ACBCD040774D1AAF5B9622491B15"
-$WxMemFsPatchedGodotRuntimeSha256 = "FD91EA35F0515360BE35AE6FD2425D102CBAF17F30F5B7CCB8688AF635CE3638"
-$PatchedGodotRuntimeSha256 = "0256C25987171B218FE217E0AFC5DC774A8017754E2B632EA007BCC8A1E71637"
-$TemplateGodotLoaderSha256 = "181E61961CF6527F718E93E132D86DAF4310E091E3B004909076BDCE4D56C99C"
-$PatchedGodotLoaderSha256 = "2511B4DDC4DF446DC4902E551BE0E76807CF78E846BD0B5181AAB9054C2AA9CB"
+$TemplateGodotRuntimeSha256 = "E1D74102F9C9EAD075B8FF3589530A4D4AFE7FE9076F01CC2EFFCFC696488475"
+$WxMemFsPatchedGodotRuntimeSha256 = "DE036950932C3DF59EBCD302440D02F2A4AE5811CCBAD9093D4D874A04171F1A"
+$PatchedGodotRuntimeSha256 = "D2C561D522646A105CCD6FFDD7D25AEF1A811E9FC0F0C07CB89B45E62B663640"
+$TemplateGodotLoaderSha256 = "0E6BDE33B9A63D3F452209838F0EF110A33890DF8BC97FDEDF25728BF00C03A4"
+$PatchedGodotLoaderSha256 = "46C8CC231CCF27C8BA5A278F826A24566775817F87B98C6C724205AD9BF80479"
 $ChunkBytes = 4194304
 $ChunkMaxConcurrentResources = 2
 $WeChatProjectName = if ($IsReleaseProfile) {
@@ -218,13 +218,30 @@ function ConvertTo-WeChatSubpackageLifecyclePatchedSource {
 		[string]$Source
 	)
 
-	$original = (
-		'loadGameEngine(){wx.loadSubpackage({complete:t=>{},name:"engine",' +
-		'success:()=>{this.progress=1,this.updateProgress(this.progress,' +
-		'this.config.textConfig.initText)}}).onProgressUpdate(({progress:t})=>{' +
-		'this.progress=t/100,this.updateProgress(this.progress,' +
-		'this.config.textConfig.downloadingText[0])})}'
-	)
+	# Exact source from the audited 4.7.0.7 revision. Keep the unique-target gate;
+	# a later upstream loader change requires another review, not fuzzy matching.
+	$original = @'
+loadGameEngine() {
+            if (!wxApi || typeof wxApi.loadSubpackage !== "function") {
+                return;
+            }
+
+            const task = wxApi.loadSubpackage({
+                name: "engine",
+                success: () => {
+                    this.progress = 1;
+                    this.updateProgress(this.progress, this.config.textConfig.initText);
+                },
+            });
+
+            if (task && typeof task.onProgressUpdate === "function") {
+                task.onProgressUpdate(({ progress }) => {
+                    this.updateProgress(progress, this.config.textConfig.downloadingText[0]);
+                });
+            }
+        }
+'@
+	$original = $original.Replace("`r`n", "`n").Replace("`r", "`n")
 	$patched = @'
 loadGameEngine(){
   const coordinator=GameGlobal.WeChatSubpackageStartupCoordinator;
@@ -348,20 +365,32 @@ function ConvertTo-WeChatRenderResolutionPatchedSource {
 		[string]$Source
 	)
 
-	$original = (
-		'resizeCanvases(){const t=window.innerWidth,e=window.innerHeight;' +
-		'this.onScreenCanvas.width=t*this.dpr,this.onScreenCanvas.height=e*this.dpr,' +
-		'this.onScreenCanvas.style.width=`${t}px`,' +
-		'this.onScreenCanvas.style.height=`${e}px`,' +
-		'this.offScreenCanvas.width=t*this.dpr,' +
-		'this.offScreenCanvas.height=e*this.dpr,' +
-		'this.gl.viewport(0,0,this.onScreenCanvas.width,this.onScreenCanvas.height),' +
-		'this.render()}'
-	)
+	$original = @'
+resizeCanvases() {
+            const viewport = this.getViewportSize();
+            const width = viewport.width;
+            const height = viewport.height;
+
+            this.dpr = this.getDevicePixelRatio();
+            this.onScreenCanvas.width = width * this.dpr;
+            this.onScreenCanvas.height = height * this.dpr;
+            this.onScreenCanvas.style.width = width + "px";
+            this.onScreenCanvas.style.height = height + "px";
+            this.offScreenCanvas.width = width * this.dpr;
+            this.offScreenCanvas.height = height * this.dpr;
+
+            if (this.gl) {
+                this.gl.viewport(0, 0, this.onScreenCanvas.width, this.onScreenCanvas.height);
+            }
+
+            this.render();
+        }
+'@
+	$original = $original.Replace("`r`n", "`n").Replace("`r", "`n")
 	$patched = (
 		'resizeCanvases(){/*2048-wechat-loader-dpr-cap-v1*/' +
-		'const t=window.innerWidth,e=window.innerHeight,' +
-		'i=Number(window.devicePixelRatio),' +
+		'const {width:t,height:e}=this.getViewportSize(),' +
+		'i=Number(this.getDevicePixelRatio()),' +
 		'r=Number.isFinite(i)&&i>0?Math.max(1,i):1,' +
 		's=Math.max(t,e),o=Math.min(t,e);' +
 		'this.dpr=Math.max(1,Math.min(r,s>0?1280/s:r,o>0?720/o:r)),' +
@@ -369,8 +398,8 @@ function ConvertTo-WeChatRenderResolutionPatchedSource {
 		'this.onScreenCanvas.style.width=`${t}px`,' +
 		'this.onScreenCanvas.style.height=`${e}px`,' +
 		'this.offScreenCanvas.width=t*this.dpr,' +
-		'this.offScreenCanvas.height=e*this.dpr,' +
-		'this.gl.viewport(0,0,this.onScreenCanvas.width,this.onScreenCanvas.height),' +
+		'this.offScreenCanvas.height=e*this.dpr;' +
+		'if(this.gl)this.gl.viewport(0,0,this.onScreenCanvas.width,this.onScreenCanvas.height);' +
 		'this.render()}'
 	)
 	$firstIndex = $Source.IndexOf($original, [StringComparison]::Ordinal)
@@ -985,8 +1014,13 @@ function Get-GodotIdentity {
 	$versionExitCode = $null
 	$extension = [IO.Path]::GetExtension($godotPath)
 	if ($extension -in @(".cmd", ".bat")) {
-		$versionOutput = (& $godotPath --version | Select-Object -First 1).Trim()
+		# Drain the native process before selecting a line. Select-Object -First
+		# stops its pipeline early and can turn a valid wrapper into a failed run.
+		$versionLines = @(& $godotPath --version)
 		$versionExitCode = $LASTEXITCODE
+		if ($versionLines.Count -gt 0) {
+			$versionOutput = ([string]$versionLines[0]).Trim()
+		}
 	}
 	else {
 		$startInfo = [Diagnostics.ProcessStartInfo]::new()
@@ -1454,7 +1488,7 @@ function Resolve-TemplateArchive {
 		}
 		throw (
 			"Unable to download the pinned WeChat template. Pass -TemplateArchivePath " +
-			"with a verified minigame4.7.tpz. $($_.Exception.Message)"
+			"with a verified $TemplateAssetName. $($_.Exception.Message)"
 		)
 	}
 	return Assert-TemplateArchive -Path $cachedArchive

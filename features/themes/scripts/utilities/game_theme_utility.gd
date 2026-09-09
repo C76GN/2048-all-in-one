@@ -1391,7 +1391,14 @@ func _apply_background_to_color_rect(
 	)
 	if is_instance_valid(driver):
 		var _captured_material: ShaderMaterial = driver.capture_current_material()
-		driver.set_animation_enabled(not _should_use_static_visuals(), true)
+		var static_visuals: bool = _should_use_static_visuals()
+		var profile: GFShaderParameterProfile = theme.background_shader_profile
+		var has_ambient_motion: bool = (
+			GFVariantData.to_float(profile.get_parameter(&"grid_strength", 0.0)) > 0.001
+			or GFVariantData.to_float(profile.get_parameter(&"cloud_strength", 0.0)) > 0.001
+			or GFVariantData.to_float(profile.get_parameter(&"pulse_speed", 0.0)) > 0.001
+		)
+		driver.set_animation_enabled(not static_visuals and has_ambient_motion, static_visuals)
 
 
 func _ensure_background_animation_driver(
@@ -1658,9 +1665,25 @@ func _pack_optional_shader_roles(roles: Array[StringName]) -> PackedStringArray:
 
 
 func _log_activation_failure(label: String, report: Dictionary) -> void:
+	var details: PackedStringArray = PackedStringArray()
+	for issue_value: Variant in GFVariantData.get_option_array(report, "issues"):
+		if not issue_value is Dictionary:
+			continue
+		var issue: Dictionary = issue_value
+		var _detail_added: bool = details.append(
+			"%s: %s (%s)" % [
+				GFVariantData.get_option_string(issue, "kind", "unknown"),
+				GFVariantData.get_option_string(issue, "message", ""),
+				GFVariantData.to_text(issue.get("key", "")),
+			]
+		)
 	push_error(
-		"[GameThemeUtility] %s激活失败：%s"
-		% [label, GFVariantData.get_option_string(report, "summary", "unknown error")]
+		"[GameThemeUtility] %s激活失败：%s\n%s"
+		% [
+			label,
+			GFVariantData.get_option_string(report, "summary", "unknown error"),
+			"\n".join(details),
+		]
 	)
 
 

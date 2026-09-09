@@ -45,7 +45,7 @@ const _STACKED_SURFACE_OVERFLOW_MARGINS: Dictionary = {
 ## 960×540 仍能承载紧凑的双栏主任务；更窄或竖屏才按顺序堆叠。
 const _COMPACT_TWO_PANE_MINIMUM_WIDTH: float = 920.0
 const _COMPACT_TWO_PANE_HORIZONTAL_MARGIN: float = 24.0
-const _COMPACT_TWO_PANE_SEPARATION: float = 18.0
+const _COMPACT_TWO_PANE_SEPARATION: float = 40.0
 const _COMPACT_TWO_PANE_SCROLLBAR_RESERVE: float = 14.0
 const _COMPACT_RIGHT_COLUMN_RATIO: float = 0.38
 const _COMPACT_RIGHT_COLUMN_MINIMUM_WIDTH: float = 300.0
@@ -68,6 +68,7 @@ const _MODE_ITEMS_PER_PAGE: int = 6
 
 # --- 私有变量 ---
 
+var _theme_signal_utility: GFSignalUtility = null
 var _selected_mode_config: GameModeConfig = null
 var _mode_config_paths: PackedStringArray = PackedStringArray()
 var _current_board_topology: BoardTopology = null
@@ -129,6 +130,7 @@ var _mode_card_slots: Array[ModeCard] = []
 
 func _ready() -> void:
 	_viewport_utility = _get_viewport_utility()
+	_bind_visual_theme_changes()
 	_page_scroll = GameTaskPageLayoutUtility.ensure_vertical_scroll_parent(
 		_columns_container,
 		&"ModeSelectionScroll"
@@ -176,6 +178,12 @@ func _ready() -> void:
 	_set_advanced_settings_visible(false)
 	_update_ui_text()
 	_refresh_mode_page_and_focus(true)
+
+
+func _exit_tree() -> void:
+	if is_instance_valid(_theme_signal_utility):
+		_theme_signal_utility.disconnect_owner(self)
+	_theme_signal_utility = null
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -269,7 +277,17 @@ func _apply_responsive_layout() -> void:
 		right_panel_width = compact_widths.y
 		column_separation = roundi(_COMPACT_TWO_PANE_SEPARATION)
 	_columns_container.add_theme_constant_override("separation", column_separation)
-	_center_column.add_theme_constant_override("separation", 12 if compact else 5)
+	_columns_container.alignment = (
+		BoxContainer.ALIGNMENT_CENTER
+		if _is_compact_two_pane_layout()
+		else BoxContainer.ALIGNMENT_BEGIN
+	)
+	_center_column.size_flags_horizontal = (
+		Control.SIZE_SHRINK_CENTER
+		if _is_compact_two_pane_layout()
+		else Control.SIZE_EXPAND_FILL
+	)
+	_center_column.add_theme_constant_override("separation", 12 if compact else 24)
 	_center_content_vbox.add_theme_constant_override(
 		"separation",
 		12 if compact else roundi(_CENTER_SECTION_SEPARATION)
@@ -313,6 +331,15 @@ func _apply_responsive_layout() -> void:
 		)
 		extra_margins[&"left"] = desktop_horizontal_margin
 		extra_margins[&"right"] = desktop_horizontal_margin
+		extra_margins[&"top"] = maxf(54.0, (size.y - 520.0) * 0.5)
+		extra_margins[&"bottom"] = 40.0
+	elif _is_compact_two_pane_layout():
+		# 物理窗口用于断点，容器仍使用 EXPAND 后的逻辑坐标。
+		# 把两栏作为一个居中的整体，避免标题与窄网格分离及纸面贴边。
+		extra_margins[&"left"] = 32.0
+		extra_margins[&"right"] = 32.0
+		extra_margins[&"top"] = maxf(54.0, (size.y - 440.0) * 0.5)
+		extra_margins[&"bottom"] = 40.0
 	if not _side_by_side_layout_active:
 		extra_margins = _STACKED_SAFE_AREA_MARGINS.duplicate(true)
 	_apply_safe_area_margins(extra_margins)
@@ -418,10 +445,10 @@ func _set_right_panel_stacked(stacked: bool) -> void:
 		stack_margin.visible = true
 		if _right_panel_container.get_parent() != stack_margin:
 			_reparent_preserving_scene_owner(_right_panel_container, stack_margin)
-		_center_column.move_child(
-			stack_margin,
-			_center_content_holder.get_index() + 1
-		)
+		var target_index: int = _center_content_holder.get_index()
+		if stack_margin.get_index() < target_index:
+			target_index -= 1
+		_center_column.move_child(stack_margin, target_index)
 		return
 	if _right_panel_container.get_parent() != _columns_container:
 		_reparent_preserving_scene_owner(_right_panel_container, _columns_container)
@@ -437,16 +464,15 @@ func _set_right_panel_stacked(stacked: bool) -> void:
 func _place_back_button_for_layout(stacked: bool) -> void:
 	if not is_instance_valid(_back_button) or not is_instance_valid(_center_column):
 		return
-	var target_parent: Node = _center_column if stacked else _center_content_vbox
+	_back_button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_back_button.custom_minimum_size.x = 92.0
+	var target_parent: Node = _center_column
 	if _back_button.get_parent() != target_parent:
 		_reparent_preserving_scene_owner(_back_button, target_parent)
 	if stacked:
 		_center_column.move_child(_back_button, 1)
 	else:
-		_center_content_vbox.move_child(
-			_back_button,
-			_center_content_vbox.get_child_count() - 1
-		)
+		_center_column.move_child(_back_button, 1)
 
 func _ensure_right_panel_stack_margin() -> MarginContainer:
 	if is_instance_valid(_right_panel_stack_margin):
@@ -513,9 +539,8 @@ static func _get_compact_two_pane_widths(viewport_width: float) -> Vector2:
 	return Vector2(maxf(available_width - right_width, 0.0), right_width)
 
 
-static func _get_mode_grid_columns(viewport_width: float, target_layout_mode: int) -> int:
-	if target_layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT:
-		return 1
+static func _get_mode_grid_columns(viewport_width: float, _target_layout_mode: int) -> int:
+	# Portrait keeps six illustrated rules in three rows; truly narrow windows use one column.
 	return 2 if viewport_width >= 600.0 else 1
 
 
@@ -538,15 +563,15 @@ func _apply_responsive_typography() -> void:
 		)
 	if compact_two_pane:
 		for card: ModeCard in _get_mode_cards():
-			card.custom_minimum_size.y = 82.0
+			card.custom_minimum_size.y = 118.0
 		_grid_size_option_button.custom_minimum_size.y = 48.0
-		_start_game_button.custom_minimum_size.y = 52.0
+		_start_game_button.custom_minimum_size.y = 60.0
 		_advanced_settings_button.custom_minimum_size.y = 46.0
 	else:
 		for card: ModeCard in _get_mode_cards():
-			card.custom_minimum_size.y = 72.0
+			card.custom_minimum_size.y = 118.0
 		_grid_size_option_button.custom_minimum_size.y = 44.0
-		_start_game_button.custom_minimum_size.y = 48.0
+		_start_game_button.custom_minimum_size.y = 64.0
 		_advanced_settings_button.custom_minimum_size.y = 44.0
 
 func _apply_safe_area_margins(extra_margins: Dictionary) -> void:
@@ -600,7 +625,7 @@ func _refresh_mode_page_and_focus(is_initial_load: bool = false) -> void:
 			_get_ui_style_utility(),
 			_get_rule_proof_descriptor(mode_config.ruleset_id)
 		)
-		card.custom_minimum_size.y = 82.0 if _is_compact_two_pane_layout() else 72.0
+		card.custom_minimum_size.y = 118.0
 
 	_setup_focus_neighbors()
 
@@ -726,6 +751,10 @@ func _apply_mode_focus_graph(cards: Array[Control]) -> void:
 	# 焦点图必须消费本轮物理安全区已经解析出的布局状态，不能再用
 	# EXPAND 后的逻辑 Control.size 重算一次断点。
 	var stacked: bool = not _side_by_side_layout_active
+	if stacked:
+		for detail_control: Control in _get_visible_configuration_controls():
+			if is_instance_valid(detail_control):
+				vertical_order.append(detail_control)
 	for card: Control in cards:
 		vertical_order.append(card)
 		card.focus_neighbor_right = (
@@ -743,7 +772,6 @@ func _apply_mode_focus_graph(cards: Array[Control]) -> void:
 		for detail_control: Control in _get_visible_configuration_controls():
 			if not is_instance_valid(detail_control):
 				continue
-			vertical_order.append(detail_control)
 			detail_control.focus_neighbor_left = NodePath("")
 	elif not cards.is_empty():
 		var first_card: Control = cards[0]
@@ -777,7 +805,7 @@ func _wire_mode_grid_directional_focus(cards: Array[Control], stacked: bool) -> 
 	if cards.is_empty():
 		return
 	var column_count: int = maxi(_mode_list_container.columns, 1)
-	var stacked_exit_control: Control = _grid_size_option_button
+	var stacked_exit_control: Control = _back_button
 	if (
 		stacked
 		and is_instance_valid(_pagination_container)
@@ -808,7 +836,7 @@ func _wire_mode_grid_directional_focus(cards: Array[Control], stacked: bool) -> 
 		card.focus_neighbor_top = (
 			card.get_path_to(cards[up_index])
 			if up_index >= 0
-			else card.get_path_to(_back_button)
+			else card.get_path_to(_advanced_settings_button if stacked else _back_button)
 		)
 		card.focus_neighbor_bottom = (
 			card.get_path_to(cards[down_index])
@@ -874,6 +902,7 @@ func _update_ui_for_selection(animate_detail: bool = true) -> void:
 
 	_right_panel_container.visible = true
 
+	_config_header_label.text = tr(_selected_mode_config.mode_name)
 	_populate_right_panel()
 	_populate_rule_preview()
 	if animate_detail:
@@ -907,7 +936,10 @@ func _update_ui_text() -> void:
 	if is_instance_valid(_advanced_settings_button):
 		_advanced_settings_button.text = tr("BTN_ADVANCED_SETTINGS")
 	if is_instance_valid(_config_header_label):
-		_config_header_label.text = tr("LABEL_START_SETUP")
+		_config_header_label.text = (
+			tr(_selected_mode_config.mode_name) if is_instance_valid(_selected_mode_config)
+			else tr("TITLE_MODE_SELECTION")
+		)
 	if is_instance_valid(_grid_size_label):
 		_grid_size_label.text = tr("LABEL_GRID_SIZE")
 	if is_instance_valid(_seed_label):
@@ -1194,6 +1226,19 @@ func _create_mode_card() -> ModeCard:
 	return null
 
 
+func _bind_visual_theme_changes() -> void:
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	var signal_value: Object = _find_optional_utility(GFSignalUtility)
+	if not is_instance_valid(theme_utility) or not signal_value is GFSignalUtility:
+		return
+	_theme_signal_utility = signal_value
+	var _connection: GFSignalConnection = _theme_signal_utility.connect_signal(
+		theme_utility.visual_theme_changed,
+		_on_visual_theme_changed,
+		self
+	)
+
+
 func _get_game_ui_motion_utility() -> GameUiMotionUtility:
 	var utility_value: Object = _get_ui_motion_utility()
 	if utility_value is GameUiMotionUtility:
@@ -1408,6 +1453,22 @@ func _start_selected_game(seed_source: StringName) -> void:
 
 
 # --- 信号处理函数 ---
+
+func _on_visual_theme_changed(_theme: GameTheme) -> void:
+	if not is_node_ready():
+		return
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	if is_instance_valid(theme_utility):
+		var _styled_count: int = theme_utility.apply_current_theme_to_tree(self)
+	_apply_mode_selection_visual_system()
+	for card: ModeCard in _get_mode_cards():
+		card.set_selected(
+			is_instance_valid(_selected_mode_config)
+			and card.get_config_path() == _selected_mode_config.resource_path
+		)
+	_populate_rule_preview()
+	_queue_layout_update()
+
 
 func _on_back_button_pressed() -> void:
 	var router: SceneRouterSystem = _get_scene_router_system()

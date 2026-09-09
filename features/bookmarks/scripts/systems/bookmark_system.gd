@@ -6,6 +6,12 @@ class_name BookmarkSystem
 extends GFSystem
 
 
+# --- 常量 ---
+
+## 自动续玩与玩家手动书签使用独立 Profile section，不占用收藏容量。
+const RESUME_SECTION_ID: StringName = &"resume_game"
+
+
 # --- 私有变量 ---
 
 var _save_graph: GameSaveGraphUtility = null
@@ -45,6 +51,43 @@ func dispose() -> void:
 
 
 # --- 公共方法 ---
+
+## 保存离开对局时的单个自动续玩状态，替换该账号之前的续玩槽。
+## @param bookmark_data: 已冻结的当前对局状态，沿用严格书签 codec。
+func request_save_resume_game(bookmark_data: BookmarkData) -> GameSaveSectionOperation:
+	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	if save_graph == null:
+		return null
+	if bookmark_data == null:
+		return save_graph.make_rejected_section_operation(RESUME_SECTION_ID, ERR_INVALID_PARAMETER)
+	if bookmark_data.bookmark_id.is_empty():
+		bookmark_data.bookmark_id = GFUuid.generate_v7()
+	var envelope: Dictionary = bookmark_data.to_persisted_candidate_envelope()
+	if not BookmarkData.is_persisted_envelope_lightweight_valid(envelope):
+		return save_graph.make_rejected_section_operation(RESUME_SECTION_ID, ERR_INVALID_DATA)
+	var candidate: Dictionary = {&"items": [envelope]}
+	var operation: GameSaveSectionOperation = save_graph.request_replace_section_data_taking_ownership(
+		RESUME_SECTION_ID,
+		candidate,
+		{&"feature_operation": "save_resume_game"}
+	)
+	envelope = {}
+	candidate = {}
+	return operation
+
+
+## 返回当前已激活账号的自动续玩副本；没有已保存对局时返回 null。
+func load_resume_game() -> BookmarkData:
+	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	if save_graph == null or not save_graph.is_profile_loaded():
+		return null
+	var snapshot: Dictionary = save_graph.get_section_runtime_cache_snapshot(RESUME_SECTION_ID)
+	var items: Array = GFVariantData.get_option_array(snapshot, &"items")
+	if items.size() != 1 or not items[0] is BookmarkData:
+		return null
+	var bookmark: BookmarkData = items[0]
+	return bookmark
+
 
 ## 异步将一个 BookmarkData 原子写入统一玩家 Profile。
 ## @param bookmark_data: 要保存的 BookmarkData 资源。

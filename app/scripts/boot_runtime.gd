@@ -121,7 +121,7 @@ func _run_startup_sequence() -> void:
 		_complete_startup_failure("Translation initialization failed")
 		return
 
-	_set_startup_task_progress(_PROGRESS_TASK_ARCHITECTURE, 0.25, "初始化 GF 架构")
+	_set_startup_task_progress(_PROGRESS_TASK_ARCHITECTURE, 0.25, "准备游戏")
 	await _await_startup_frame(true)
 	var architecture_started_usec: int = Time.get_ticks_usec()
 	var architecture: GFArchitecture = Gf.create_architecture()

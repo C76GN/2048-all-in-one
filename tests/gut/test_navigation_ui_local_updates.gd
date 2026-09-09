@@ -58,18 +58,23 @@ func test_main_menu_board_motif_keeps_semantic_response_in_reduced_motion() -> v
 
 
 func test_main_menu_keeps_micro_board_in_compact_layouts() -> void:
-	assert_true(
-		MainMenu._get_board_preview_minimum_size(
-			GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE
-		) == Vector2(224.0, 128.0),
-		"紧凑横屏仍应保留可识别的微缩棋盘，而不是退化为按钮页。"
+	var landscape_minimum: Vector2 = MainMenu._get_board_preview_minimum_size(
+		GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE
 	)
 	assert_true(
-		MainMenu._get_board_preview_minimum_size(
-			GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
-		) == Vector2(240.0, 164.0),
-		"竖屏应保留棋盘工坊主物件。"
+		landscape_minimum.x >= 240.0 and landscape_minimum.y >= 240.0,
+		"紧凑横屏双栏应保留可识别的完整棋盘。"
 	)
+	assert_true(
+		landscape_minimum.x <= 960.0 * 0.4 and landscape_minimum.y <= 540.0 * 0.6,
+		"棋盘应为同屏导航与品牌信息保留足够空间。"
+	)
+	var portrait_minimum: Vector2 = MainMenu._get_board_preview_minimum_size(
+		GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
+	)
+	assert_true(portrait_minimum.x == portrait_minimum.y)
+	assert_gte(portrait_minimum.y, 240.0, "竖屏封面棋盘应有清楚的完整格位。")
+	assert_lte(portrait_minimum.y, 960.0 * 0.35, "棋盘应为标题和主要操作保留高度。")
 
 
 func test_mode_selection_switches_only_the_detail_surface() -> void:

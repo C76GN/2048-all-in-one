@@ -25,6 +25,7 @@ const _WARMUP_COLORS: Array[Color] = [
 
 var _primed: bool = false
 var _tile_visual_theme: TileVisualTheme
+var _numeric_font: Font
 var _feedback_profile: GameBoardFeedbackProfile
 var _feedback_budget: GameFeedbackBudget
 var _transition_materials: Array[ShaderMaterial] = []
@@ -46,6 +47,7 @@ func configure(
 	):
 		return false
 	_tile_visual_theme = theme.tile_visual_theme
+	_numeric_font = theme.ui_palette.numeric_font if theme.ui_palette != null else null
 	_feedback_profile = theme.board_feedback_profile
 	_feedback_budget = feedback_budget
 	if _feedback_budget == null or not _feedback_budget.is_valid_budget():
@@ -95,7 +97,8 @@ func prime() -> void:
 			_INK_COLOR if index < 4 else _PAPER_COLOR,
 			style.family_id,
 			layers,
-			style
+			style,
+			_numeric_font
 		)
 
 	var feedback_canvas: BoardFeedbackCanvas = BoardFeedbackCanvas.new()

@@ -68,8 +68,8 @@ func test_default_profile_exposes_existing_and_forward_semantic_presets() -> voi
 	)
 	assert_between(
 		_HALFTONE_MOTION_PROFILE.piece_assembly_duration,
+		0.12,
 		0.18,
-		0.22,
 		"纸片组装应在一次短促交接内完成。"
 	)
 	assert_lte(
@@ -100,7 +100,7 @@ func test_piece_assembly_keeps_a_visible_first_frame_and_settles_cleanly() -> vo
 	var pieces: Array[Control] = [first, second]
 	assert_true(motion.play_piece_assembly(pieces, 0.014, 0.14) == 2)
 	assert_gt(first.modulate.a, 0.0, "首块应提供可见脚点，首个揭示帧不能全空。")
-	assert_almost_eq(second.modulate.a, 0.0, 0.001)
+	assert_almost_eq(second.modulate.a, 1.0, 0.001, "印刷风纸片从首帧即可读，不逐项淡入。")
 	assert_true(first.scale.x < 1.0 and second.scale.x < 1.0)
 	assert_lte(absf(first.rotation), 0.015)
 

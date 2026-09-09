@@ -112,9 +112,8 @@ func get_high_score(mode_id: String, board_key: String) -> int:
 	if mode_id.is_empty() or board_key.is_empty():
 		return 0
 
-	var save_data: Dictionary = _get_save_data()
-	var stats_entry: Dictionary = _get_stats_entry(save_data, mode_id, board_key)
-	return maxi(GFVariantData.get_option_int(stats_entry, _STAT_BEST_SCORE, 0), 0)
+	var projection: Dictionary = _get_stats_projection(&"high_score", mode_id, board_key)
+	return maxi(GFVariantData.get_option_int(projection, _STAT_BEST_SCORE, 0), 0)
 
 
 ## 获取某个模式和棋盘拓扑的轻量统计。
@@ -124,8 +123,7 @@ func get_game_stats(mode_id: String, board_key: String) -> Dictionary:
 	if mode_id.is_empty() or board_key.is_empty():
 		return _make_default_stats()
 
-	var save_data: Dictionary = _get_save_data()
-	return _normalize_stats_entry(_get_stats_entry(save_data, mode_id, board_key))
+	return _normalize_stats_entry(_get_stats_projection(&"stats_entry", mode_id, board_key))
 
 
 ## 设置或更新一个模式在特定棋盘拓扑下的最高分。
@@ -136,17 +134,27 @@ func set_high_score(mode_id: String, board_key: String, score: int) -> Error:
 	if mode_id.is_empty() or board_key.is_empty():
 		return ERR_INVALID_PARAMETER
 
-	var save_data: Dictionary = _get_save_data()
-	var entry: Dictionary = _normalize_stats_entry(_get_stats_entry(save_data, mode_id, board_key))
 	var normalized_score: int = maxi(score, 0)
-	if normalized_score <= GFVariantData.get_option_int(entry, _STAT_BEST_SCORE, 0):
+	if normalized_score <= get_high_score(mode_id, board_key):
 		return OK
 
+	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	if save_graph == null:
+		return ERR_UNCONFIGURED
+	var entry: Dictionary = get_game_stats(mode_id, board_key)
 	entry[_STAT_BEST_SCORE] = normalized_score
-	_set_stats_entry(save_data, mode_id, board_key, entry)
-	var save_error: Error = _queue_game_data(save_data)
+	var save_error: Error = save_graph.queue_section_update(
+		GameSaveGraphUtility.PROGRESS_SECTION_ID,
+		{
+			&"mode_id": mode_id,
+			&"board_key": board_key,
+			&"stats_entry": entry,
+		}
+	)
 	if save_error == OK and is_instance_valid(_log):
 		_log.info(_LOG_TAG, "新纪录: mode=%s, board=%s, score=%d" % [mode_id, board_key, normalized_score])
+	elif save_error != OK and is_instance_valid(_log):
+		_log.error(_LOG_TAG, "排队统计 Profile section 失败，错误码: %d" % save_error)
 	return save_error
 
 
@@ -1477,19 +1485,6 @@ func _disconnect_reconciliation_callback() -> void:
 	_reconciliation_connection = null
 
 
-func _queue_game_data(save_data: Dictionary) -> Error:
-	var save_graph: GameSaveGraphUtility = _get_save_graph()
-	if save_graph == null:
-		return ERR_UNCONFIGURED
-	var error: Error = save_graph.queue_section_data(
-		GameSaveGraphUtility.PROGRESS_SECTION_ID,
-		save_data
-	)
-	if error != OK and is_instance_valid(_log):
-		_log.error(_LOG_TAG, "排队统计 Profile section 失败，错误码: %d" % error)
-	return error
-
-
 func _get_save_data() -> Dictionary:
 	var save_graph: GameSaveGraphUtility = _get_save_graph()
 	var save_data: Dictionary = {}
@@ -1497,6 +1492,21 @@ func _get_save_data() -> Dictionary:
 		save_data = save_graph.get_section_data(GameSaveGraphUtility.PROGRESS_SECTION_ID)
 	_ensure_game_data_defaults(save_data)
 	return save_data
+
+
+func _get_stats_projection(
+	projection_id: StringName,
+	mode_id: String,
+	board_key: String
+) -> Dictionary:
+	var save_graph: GameSaveGraphUtility = _get_save_graph()
+	if save_graph == null:
+		return {}
+	return save_graph.get_section_projection(
+		GameSaveGraphUtility.PROGRESS_SECTION_ID,
+		projection_id,
+		{&"mode_id": mode_id, &"board_key": board_key}
+	)
 
 
 func _ensure_game_data_defaults(save_data: Dictionary) -> void:

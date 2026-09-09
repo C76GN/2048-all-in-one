@@ -12,6 +12,41 @@ const _RULESET_FINGERPRINT: String = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 # --- 测试用例 ---
 
+func test_high_score_hot_path_does_not_copy_or_replace_full_progress_history() -> void:
+	var provider: CountingProgressSaveData = CountingProgressSaveData.new()
+	var history: Array[Dictionary] = []
+	for index: int in range(GameStatsSaveData.MAX_RECENT_RESULTS):
+		history.append(_make_result(128, 4, 16, 1000 + index).to_dict())
+	var setup: Dictionary = await _create_save_architecture({
+		"stats": {_MODE_ID: {_BOARD_KEY: {"best_score": 1024, "plays": 128}}},
+		"results": history,
+		"leaderboards": {},
+	}, "", provider)
+	var progress: ProgressStatsSystem = _get_progress_stats_system(setup)
+	var save_graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var queued_signals: Array[int] = []
+	var on_queued: Callable = func() -> void: queued_signals.append(1)
+	var connection_error: int = save_graph.profile_save_queued.connect(on_queued)
+	assert_true(connection_error == OK)
+	provider.gather_calls = 0
+	provider.replace_calls = 0
+	for index: int in range(120):
+		assert_true(progress.get_high_score(_MODE_ID, _BOARD_KEY) == 1024)
+		assert_true(progress.set_high_score(_MODE_ID, _BOARD_KEY, index) == OK)
+	assert_true(queued_signals.is_empty(), "未破纪录不得排队写盘或推进脏状态。")
+	for index: int in range(120):
+		assert_true(progress.set_high_score(_MODE_ID, _BOARD_KEY, 2048 + index) == OK)
+	assert_true(provider.gather_calls == 0, "最高分热路径不得读取完整的 128 条结果历史。")
+	assert_true(provider.replace_calls == 0, "破纪录应只更新统计路径，不重建完整 progress section。")
+	assert_true(queued_signals.size() == 120)
+	assert_true(progress.get_high_score(_MODE_ID, _BOARD_KEY) == 2167)
+	assert_true(_get_stat_int(progress.get_game_stats(_MODE_ID, _BOARD_KEY), "plays") == 128)
+	var data: Dictionary = provider.get_section_data()
+	assert_true(GFVariantData.get_option_array(data, "results") == history)
+	save_graph.profile_save_queued.disconnect(on_queued)
+	_dispose_setup(setup)
+
+
 func test_device_progress_account_catalog_snapshot_is_strict_and_copy_isolated() -> void:
 	var account_id: String = GFUuid.generate_v7(1_000_000)
 	var descriptors: Array[Dictionary] = [{
@@ -611,11 +646,12 @@ func _make_result(
 
 func _create_save_architecture(
 	initial_save_data: Dictionary = {},
-	save_dir_name: String = ""
+	save_dir_name: String = "",
+	progress_provider: GameStatsSaveData = null
 ) -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var storage: GFStorageUtility = GFStorageUtility.new()
-	var save_graph: GameSaveGraphUtility = _make_game_save_graph()
+	var save_graph: GameSaveGraphUtility = _make_game_save_graph(progress_provider)
 	var progress_stats_system: ProgressStatsSystem = ProgressStatsSystem.new()
 	var account_catalog: LocalAccountCatalogUtility = (
 		LocalAccountCatalogUtility.new()
@@ -720,11 +756,11 @@ func _create_save_architecture(
 	}
 
 
-func _make_game_save_graph() -> GameSaveGraphUtility:
+func _make_game_save_graph(progress_provider: GameStatsSaveData = null) -> GameSaveGraphUtility:
 	var save_graph: GameSaveGraphUtility = GameSaveGraphUtility.new()
 	var progress_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.PROGRESS_SECTION_ID,
-		GameStatsSaveData.new(),
+		progress_provider if progress_provider != null else GameStatsSaveData.new(),
 		GameSaveGraphUtility.SectionOrder.EARLY
 	)
 	var bookmarks_registered: bool = save_graph.register_section(
@@ -835,3 +871,20 @@ func _get_stat_int(stats: Dictionary, key: String) -> int:
 
 func _get_stat_bool(stats: Dictionary, key: String) -> bool:
 	return GFVariantData.get_option_bool(stats, key)
+
+
+# --- 内部类 ---
+
+class CountingProgressSaveData extends GameStatsSaveData:
+	var gather_calls: int = 0
+	var replace_calls: int = 0
+
+
+	func _gather_section_data() -> Dictionary:
+		gather_calls += 1
+		return super._gather_section_data()
+
+
+	func _replace_section_data(data: Dictionary) -> Error:
+		replace_calls += 1
+		return super._replace_section_data(data)

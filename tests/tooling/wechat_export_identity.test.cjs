@@ -100,9 +100,46 @@ function sha256(contents) {
 	return crypto.createHash("sha256").update(contents).digest("hex");
 }
 
-const originalSubpackageLoaderSource = 'class GodotLoader{loadGameEngine(){wx.loadSubpackage({complete:t=>{},name:"engine",success:()=>{this.progress=1,this.updateProgress(this.progress,this.config.textConfig.initText)}}).onProgressUpdate(({progress:t})=>{this.progress=t/100,this.updateProgress(this.progress,this.config.textConfig.downloadingText[0])})}cleanup(){}}';
+// Exact method bodies from the reviewed minigame4.7.0.7.tpz loader.
+const originalSubpackageLoaderSource = `class GodotLoader{loadGameEngine() {
+            if (!wxApi || typeof wxApi.loadSubpackage !== "function") {
+                return;
+            }
+
+            const task = wxApi.loadSubpackage({
+                name: "engine",
+                success: () => {
+                    this.progress = 1;
+                    this.updateProgress(this.progress, this.config.textConfig.initText);
+                },
+            });
+
+            if (task && typeof task.onProgressUpdate === "function") {
+                task.onProgressUpdate(({ progress }) => {
+                    this.updateProgress(progress, this.config.textConfig.downloadingText[0]);
+                });
+            }
+        }cleanup(){}}`;
 let patchedSubpackageLoaderSource = "";
-const originalResizeCanvasesSource = 'class GodotLoader{resizeCanvases(){const t=window.innerWidth,e=window.innerHeight;this.onScreenCanvas.width=t*this.dpr,this.onScreenCanvas.height=e*this.dpr,this.onScreenCanvas.style.width=`${t}px`,this.onScreenCanvas.style.height=`${e}px`,this.offScreenCanvas.width=t*this.dpr,this.offScreenCanvas.height=e*this.dpr,this.gl.viewport(0,0,this.onScreenCanvas.width,this.onScreenCanvas.height),this.render()}}';
+const originalResizeCanvasesSource = `class GodotLoader{resizeCanvases() {
+            const viewport = this.getViewportSize();
+            const width = viewport.width;
+            const height = viewport.height;
+
+            this.dpr = this.getDevicePixelRatio();
+            this.onScreenCanvas.width = width * this.dpr;
+            this.onScreenCanvas.height = height * this.dpr;
+            this.onScreenCanvas.style.width = width + "px";
+            this.onScreenCanvas.style.height = height + "px";
+            this.offScreenCanvas.width = width * this.dpr;
+            this.offScreenCanvas.height = height * this.dpr;
+
+            if (this.gl) {
+                this.gl.viewport(0, 0, this.onScreenCanvas.width, this.onScreenCanvas.height);
+            }
+
+            this.render();
+        }}`;
 let patchedResizeCanvasesSource = "";
 const originalRuntimePixelRatioSource = 'const GodotDisplayScreen={hidpi:true,getPixelRatio:function(){if(!GodotDisplayScreen.hidpi){return 1}if(typeof wx!=="undefined"&&wx.getWindowInfo){const info=wx.getWindowInfo();if(info&&info.pixelRatio){return info.pixelRatio}}return window.devicePixelRatio||1}};';
 let patchedRuntimePixelRatioSource = "";
@@ -225,6 +262,11 @@ function createRenderResolutionHarness() {
 	);
 	const loader = Object.create(context.LoaderForTest.prototype);
 	loader.dpr = 1;
+	loader.getViewportSize = () => ({
+		width: context.window.innerWidth,
+		height: context.window.innerHeight,
+	});
+	loader.getDevicePixelRatio = () => context.window.devicePixelRatio;
 	loader.onScreenCanvas = makeCanvasFixture();
 	loader.offScreenCanvas = makeCanvasFixture();
 	loader.gl = {viewport: (...args) => viewports.push(args)};
@@ -460,6 +502,27 @@ test("runtime and loader use the same dynamic backing-store DPR cap", () => {
 	assert.equal(runtimeHarness.screen.getPixelRatio(), 3);
 });
 
+test("loader preserves native viewport getters and the absent-GL resize path", () => {
+	const harness = createRenderResolutionHarness();
+	let nativeViewport = {width: 844, height: 390};
+	let nativeRatio = 3;
+	harness.loader.getViewportSize = () => nativeViewport;
+	harness.loader.getDevicePixelRatio = () => nativeRatio;
+	// The template's wx-derived values take precedence over a stale DOM window.
+	harness.resize(1, 1, 1);
+	assert.equal(harness.loader.onScreenCanvas.width, 1280);
+	assert.equal(harness.loader.onScreenCanvas.style.width, "844px");
+	nativeViewport = {width: 390, height: 844};
+	nativeRatio = 1.25;
+	harness.loader.gl = null;
+	harness.resize(1, 1, 1);
+	assert.equal(harness.loader.dpr, 1.25);
+	assert.equal(harness.loader.onScreenCanvas.width, 487);
+	assert.equal(harness.loader.onScreenCanvas.height, 1055);
+	assert.equal(harness.loader.onScreenCanvas.style.height, "844px");
+	assert.equal(harness.getRenderCount(), 2);
+});
+
 test("render resolution patch keeps DPR at least one and fails closed on template drift", () => {
 	const harness = createRenderResolutionHarness();
 	harness.resize(1920, 1080, 3);
@@ -688,6 +751,34 @@ test("Godot preflight rejects 4.7.1 and accepts the exact 4.7.2 stable line", ()
 	}
 });
 
+test("batch Godot preflight drains diagnostics and honors the final exit code", () => {
+	const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), "wechat-godot-batch-exit-"));
+	try {
+		for (const exitCode of [0, 17]) {
+			const wrapperPath = path.join(fixtureRoot, `godot-wrapper-${exitCode}.cmd`);
+			fs.writeFileSync(wrapperPath, [
+				"@echo off",
+				"echo 4.7.2.stable.official.wrapper",
+				"for /L %%i in (1,1,128) do echo wrapper-diagnostic-%%i",
+				`exit /b ${exitCode}`,
+				"",
+			].join("\r\n"), "utf8");
+			const result = runPowerShell(
+				fixtureRoot,
+				`(Get-GodotIdentity -Executable ${quotePowerShellLiteral(wrapperPath)}).version`,
+				exitCode === 0,
+			);
+			if (exitCode === 0) {
+				assert.equal(result.stdout.trim(), "4.7.2.stable.official.wrapper");
+			} else {
+				assert.match(`${result.stderr}\n${result.stdout}`, /Godot version preflight failed/);
+			}
+		}
+	} finally {
+		fs.rmSync(fixtureRoot, {recursive: true, force: true});
+	}
+});
+
 test(
 	"Godot preflight captures a Windows GUI-subsystem executable",
 	{skip: process.platform !== "win32"},
@@ -749,7 +840,7 @@ test("candidate build identity uses the documented canonical UTF-8 framing", () 
 		const result = runPowerShell(fixtureRoot, body);
 		assert.equal(
 			result.stdout.trim(),
-			"c49fe442704031e85050b14d3f91232d79928e74354c6eb5756b98cb20535947",
+			"633efda4f5f4118281674c5282f9ac4002ee9de62d8726dcf6f6d886f204d099",
 		);
 	} finally {
 		fs.rmSync(fixtureRoot, {recursive: true, force: true});
@@ -769,13 +860,13 @@ test("release resource closure evidence is exact and bound to frozen tools", () 
 			dependency_partial: false,
 			dependency_truncated: false,
 			counts: {
-				roots: 104,
+				roots: 106,
 				structure_dynamic: 44,
-				content_resources: 37,
-				raw_dependency_closure: 794,
-				closure: 793,
-				raw_include_patterns: 17,
-				raw_include_files: 18,
+				content_resources: 39,
+				raw_dependency_closure: 813,
+				closure: 812,
+				raw_include_patterns: 18,
+				raw_include_files: 19,
 				issues: 0,
 			},
 			issues: [],

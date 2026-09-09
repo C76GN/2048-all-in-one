@@ -28,6 +28,8 @@ const MAX_TEXT_CHARACTERS: int = 16 * 1024
 var _stats: Dictionary = {}
 var _results: Array[Dictionary] = []
 var _leaderboards: Dictionary = {}
+var _section_measurement: Dictionary = {}
+var _stats_mode_measurements: Dictionary = {}
 
 
 # --- Godot 生命周期方法 ---
@@ -38,6 +40,88 @@ func _init() -> void:
 
 
 # --- 可重写钩子 ---
+
+## 读取分数或指定棋盘的隔离统计投影。
+## @param projection_id: high_score 或 stats_entry 投影标识。
+## @param arguments: mode_id 与 board_key 查询键。
+func get_section_projection(projection_id: StringName, arguments: Dictionary) -> Dictionary:
+	var mode_id: String = GFVariantData.get_option_string(arguments, &"mode_id")
+	var board_key: String = GFVariantData.get_option_string(arguments, &"board_key")
+	var mode_stats: Dictionary = GFVariantData.as_dictionary(_stats.get(mode_id))
+	var entry: Dictionary = GFVariantData.as_dictionary(mode_stats.get(board_key))
+	match projection_id:
+		&"high_score":
+			return {&"best_score": GFVariantData.get_option_int(entry, "best_score", 0)}
+		&"stats_entry":
+			return GFVariantData.as_dictionary(GFVariantData.duplicate_variant(entry, true, false))
+	return {}
+
+
+## 校验容量并原子替换单个棋盘的统计项。
+## @param update: 含 mode_id、board_key 和 stats_entry 的严格候选。
+func apply_section_update(update: Dictionary) -> Error:
+	if (
+		update.size() != 3
+		or not GFVariantData.get_option_value(update, &"mode_id") is String
+		or not GFVariantData.get_option_value(update, &"board_key") is String
+		or not GFVariantData.get_option_value(update, &"stats_entry") is Dictionary
+	):
+		return ERR_INVALID_DATA
+	var mode_id: String = GFVariantData.get_option_string(update, &"mode_id")
+	var board_key: String = GFVariantData.get_option_string(update, &"board_key")
+	if (
+		mode_id.is_empty() or board_key.is_empty()
+		or mode_id.length() > MAX_TEXT_CHARACTERS
+		or board_key.length() > MAX_TEXT_CHARACTERS
+		or (not _stats.has(mode_id) and _stats.size() >= MAX_STATS_MODE_COUNT)
+	):
+		return ERR_INVALID_DATA
+	var previous_mode: Dictionary = GFVariantData.as_dictionary(_stats.get(mode_id))
+	if not previous_mode.has(board_key) and previous_mode.size() >= MAX_STATS_BOARD_ENTRIES_PER_MODE:
+		return ERR_INVALID_DATA
+	var entry: Dictionary = GFVariantData.as_dictionary(GFVariantData.get_option_value(update, &"stats_entry"))
+	var entry_measurement: Dictionary = _measure_bounded_value(entry, 3)
+	if (
+		entry_measurement.is_empty()
+		or GFVariantData.get_option_int(entry_measurement, &"node_count") > MAX_SNAPSHOT_UNIT_VALUE_NODES
+		or GFVariantData.get_option_int(entry_measurement, &"byte_count") > MAX_SNAPSHOT_UNIT_APPROX_BYTES
+	):
+		return ERR_INVALID_DATA
+	var next_mode: Dictionary = previous_mode.duplicate()
+	next_mode[board_key] = GFVariantData.duplicate_variant(entry, true, false)
+	var next_mode_measurement: Dictionary = _measure_bounded_value(next_mode, 2)
+	if (
+		next_mode_measurement.is_empty()
+		or GFVariantData.get_option_int(next_mode_measurement, &"node_count") > MAX_SNAPSHOT_UNIT_VALUE_NODES
+		or GFVariantData.get_option_int(next_mode_measurement, &"byte_count") > MAX_SNAPSHOT_UNIT_APPROX_BYTES
+	):
+		return ERR_INVALID_DATA
+	if _section_measurement.is_empty():
+		_refresh_budget_measurements()
+	var previous_measurement: Dictionary = GFVariantData.as_dictionary(_stats_mode_measurements.get(mode_id))
+	var added_mode: bool = not _stats.has(mode_id)
+	var next_nodes: int = (
+		GFVariantData.get_option_int(_section_measurement, &"node_count")
+		- GFVariantData.get_option_int(previous_measurement, &"node_count")
+		+ GFVariantData.get_option_int(next_mode_measurement, &"node_count")
+		+ (1 if added_mode else 0)
+	)
+	var next_bytes: int = (
+		GFVariantData.get_option_int(_section_measurement, &"byte_count")
+		- GFVariantData.get_option_int(previous_measurement, &"byte_count")
+		+ GFVariantData.get_option_int(next_mode_measurement, &"byte_count")
+		+ (16 + mode_id.to_utf8_buffer().size() if added_mode else 0)
+	)
+	if next_nodes > MAX_SECTION_VALUE_NODES or next_bytes > MAX_SECTION_APPROX_BYTES:
+		return ERR_INVALID_DATA
+	# 保存快照可跨帧持有旧根；这里只替换统计路径，结果和榜单保持不可变。
+	var next_stats: Dictionary = _stats.duplicate()
+	next_stats[mode_id] = next_mode
+	_stats = next_stats
+	_stats_mode_measurements[mode_id] = next_mode_measurement
+	_section_measurement = {&"node_count": next_nodes, &"byte_count": next_bytes}
+	return OK
+
 
 func _begin_save_snapshot(
 	_context: Dictionary = {}
@@ -98,9 +182,9 @@ func _validate_section_data_boundary(data: Dictionary) -> Error:
 
 func _gather_section_data() -> Dictionary:
 	return {
-		"stats": _stats.duplicate(true),
-		"results": _results.duplicate(true),
-		"leaderboards": _leaderboards.duplicate(true),
+		"stats": _stats,
+		"results": _results,
+		"leaderboards": _leaderboards,
 	}
 
 
@@ -148,10 +232,28 @@ func _replace_section_data(data: Dictionary) -> Error:
 	_stats = next_stats
 	_results = next_results
 	_leaderboards = next_leaderboards
+	_refresh_budget_measurements()
 	return OK
 
 
 # --- 私有/辅助方法 ---
+
+func _refresh_budget_measurements() -> void:
+	_section_measurement = _measure_bounded_value(_gather_section_data())
+	_stats_mode_measurements = {}
+	for mode_id: String in _stats:
+		_stats_mode_measurements[mode_id] = _measure_bounded_value(_stats[mode_id], 2)
+
+
+static func _measure_bounded_value(value: Variant, depth: int = 0) -> Dictionary:
+	var state: Dictionary = {
+		&"node_count": 0,
+		&"byte_count": 0,
+		&"max_nodes": MAX_SECTION_VALUE_NODES,
+		&"max_bytes": MAX_SECTION_APPROX_BYTES,
+	}
+	return state if _scan_bounded_value(value, state, depth, []) else {}
+
 
 static func _are_stats_valid(stats: Dictionary) -> bool:
 	if stats.size() > MAX_STATS_MODE_COUNT:

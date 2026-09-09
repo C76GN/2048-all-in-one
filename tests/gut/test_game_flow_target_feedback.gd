@@ -517,7 +517,9 @@ func test_departing_gameplay_does_not_publish_stale_playing_summary() -> void:
 		func(summary: GameAccessibilitySummary) -> void:
 			published.append(summary)
 	) as Error
-	var flow_system: TestGameFlowSystemSpy = TestGameFlowSystemSpy.new()
+	var flow_system: TestDepartureFlowSystem = TestDepartureFlowSystem.new()
+	flow_system.bookmarks = TestImmediateResumeBookmarks.new()
+	track_gf_system(flow_system.bookmarks)
 	var router: TestSceneRouterSystemSpy = TestSceneRouterSystemSpy.new()
 	await _register_board_summary_dependencies(architecture)
 	await architecture.register_model(GridModel, grid_model)
@@ -558,6 +560,9 @@ func test_departing_gameplay_does_not_publish_stale_playing_summary() -> void:
 	architecture.send_simple_event(
 		EventNames.RETURN_TO_MAIN_MENU_FROM_GAME_REQUESTED
 	)
+	assert_true(flow_system.bookmarks.request_count == 1, "正常离开必须经过续玩持久化成功路径。")
+	assert_true(router.return_to_main_menu_count == 1, "续玩保存完成后才允许路由主菜单。")
+	assert_true(flow_system.notification_keys == ["gameplay.resume_save_pending"])
 	assert_true(
 		published.is_empty(),
 		"返回主菜单离开当前对局时不得先播报旧棋盘的 playing 摘要。"
@@ -924,6 +929,63 @@ func _assert_published_session(
 
 
 # --- 内部类 ---
+
+class TestImmediateResumeBookmarks extends BookmarkSystem:
+	var request_count: int = 0
+
+
+	## 模拟正常对局续玩已经持久化的终态。
+	## @param _bookmark_data: 当前对局冻结的书签候选。
+	func request_save_resume_game(_bookmark_data: BookmarkData) -> GameSaveSectionOperation:
+		request_count += 1
+		var operation: GameSaveSectionOperation = GameSaveSectionOperation.new()
+		var _operation_configured: bool = operation.configure_for_utility(
+			request_count, &"test.profile", PackedStringArray([String(RESUME_SECTION_ID)])
+		)
+		var result: GameSaveSectionResult = GameSaveSectionResult.new()
+		var _result_configured: bool = result.configure_for_utility(
+			operation.get_transaction_id(), operation.get_profile_id(), operation.get_section_ids(),
+			GameSaveSectionResult.STATUS_PERSISTED, OK, true, false
+		)
+		var _completed: bool = operation.complete_for_utility(result)
+		return operation
+
+
+class TestDepartureFlowSystem extends TestGameFlowSystemSpy:
+	var bookmarks: TestImmediateResumeBookmarks = null
+	var notification_keys: Array[String] = []
+
+
+	func _get_bookmark_system() -> BookmarkSystem:
+		return bookmarks
+
+
+	func _get_bookmark_comparison_state() -> Dictionary:
+		return _grid_model.get_snapshot()
+
+
+	func _make_current_bookmark(current_state_for_comparison: Dictionary) -> BookmarkData:
+		var bookmark: BookmarkData = BookmarkData.new()
+		bookmark.board_snapshot = current_state_for_comparison.duplicate(true)
+		return bookmark
+
+
+	func _await_section_operation_settlement(
+		_operation: GameSaveSectionOperation,
+		observed_result: GameSaveSectionResult = null
+	) -> GameSaveSectionSettlementResult:
+		return GameSaveSectionSettlementResult.from_section_result(observed_result)
+
+
+	func _push_gameplay_notification(
+		_message: String,
+		_duration_seconds: float,
+		_level: GFNotificationUtility.Level,
+		key: String,
+		_priority: int = -1
+	) -> void:
+		notification_keys.append(key)
+
 
 class TestPendingProgressStatsSystem:
 	extends ProgressStatsSystem

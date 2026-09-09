@@ -338,3 +338,58 @@ func test_hud_exposes_stable_summary_and_collapsible_details() -> void:
 	)
 
 	hud_root.free()
+
+
+func test_details_toggle_opens_a_bounded_scroll_panel_in_compact_and_portrait() -> void:
+	var scene_root: Node = _HUD_SCENE.instantiate()
+	var hud: Hud = scene_root as Hud
+	hud.set_script(QuietHud)
+	var hud_control: Control = scene_root as Control
+	hud_control.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	add_child_autofree(hud)
+	for viewport_size: Vector2 in [Vector2(360.0, 640.0), Vector2(390.0, 844.0), Vector2(960.0, 540.0)]:
+		hud_control.size = viewport_size
+		hud.set_compact_mode(true)
+		hud.set_portrait_mode(viewport_size.y > viewport_size.x)
+		await get_tree().process_frame
+		hud._apply_hud_layout()
+		hud._details_toggle_button.pressed.emit()
+		await get_tree().process_frame
+		assert_true(hud._details_panel.visible, "详情按钮必须在紧凑和竖屏真实展开。")
+		assert_true(hud._details_panel.get_node("Scroll") is ScrollContainer)
+		assert_lte(hud._details_panel.get_rect().end.x, hud._safe_area.size.x + 1.0)
+		assert_lte(hud._details_panel.get_rect().end.y, hud._safe_area.size.y + 1.0)
+		hud._apply_hud_layout()
+		hud._apply_details_visibility()
+		assert_true(hud._details_panel.visible, "重排布局不得丢弃玩家刚刚展开的状态。")
+		if viewport_size.y > viewport_size.x:
+			assert_false(hud._control_hint_panel.get_rect().intersects(hud._action_panel.get_rect()),
+				"方向键与工具按钮必须拥有独立命中区域。")
+			assert_true(hud._d_pad.columns == 4)
+			hud._hint_result_panel.show()
+			hud._apply_hint_rail_visibility()
+			assert_lte(hud._hint_result_panel.get_rect().end.y, hud._control_hint_panel.position.y,
+				"提示结果不能遮住方向按钮。")
+			assert_false(hud._feedback_rail.visible, "提示占用保留区域时不得与回合字幕重叠。")
+			hud._hide_hint_result()
+			assert_true(hud._feedback_rail.visible, "提示失效后恢复反馈区域。")
+		hud._details_toggle_button.pressed.emit()
+		assert_false(hud._details_panel.visible)
+
+
+# --- 内部类 ---
+
+class QuietHud extends Hud:
+	func _ready() -> void:
+		_safe_area = get_node("SafeArea") as Control
+		_details_panel = get_node("SafeArea/DetailsPanel") as Control
+		_details_toggle_button = get_node("SafeArea/DetailsToggleButton") as Button
+		_top_score_panel = get_node("SafeArea/TopScorePanel") as PanelContainer
+		_control_hint_panel = get_node("SafeArea/ControlHintPanel") as PanelContainer
+		_d_pad = get_node("SafeArea/ControlHintPanel/Margin/Content/DPad") as GridContainer
+		_hints = get_node("SafeArea/ControlHintPanel/Margin/Content/Hints") as VBoxContainer
+		_action_panel = get_node("SafeArea/ActionPanel") as PanelContainer
+		_hint_result_panel = get_node("SafeArea/HintResultPanel") as PanelContainer
+		_hint_result_label = get_node("SafeArea/HintResultPanel/Margin/HintResultLabel") as RichTextLabel
+		_feedback_rail = get_node("SafeArea/FeedbackRail") as VBoxContainer
+		var _connected: int = _details_toggle_button.pressed.connect(_on_details_toggle_pressed)

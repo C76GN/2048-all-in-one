@@ -4,9 +4,13 @@
 
 [resource]
 script = ExtResource("1_d4myl")
-game_background_color = Color(0.95686275, 0.92941177, 0.8666667, 1)
-board_panel_color = Color(0.9607843, 0.92941177, 0.827451, 0.88)
-board_border_color = Color(0.18431373, 0.1882353, 0.21568628, 0.62)
-board_highlight_color = Color(0.8745098, 0.29411766, 0.6039216, 0.42)
-empty_cell_color = Color(0.5882353, 0.5764706, 0.49411765, 0.76)
-empty_cell_border_color = Color(0.28627452, 0.2784314, 0.2509804, 0.56)
+game_background_color = Color(0.94901961, 0.91372549, 0.81176471, 1)
+board_panel_color = Color(0.88235294, 0.83137255, 0.69803922, 1)
+board_border_color = Color(0.14509804, 0.13725490, 0.12156863, 1)
+board_highlight_color = Color(0.94901961, 0.91372549, 0.81176471, 0)
+empty_cell_color = Color(0.93725490, 0.89803922, 0.78431373, 1)
+empty_cell_border_color = Color(0.72549020, 0.66666667, 0.52549020, 1)
+board_corner_radius = 0
+board_border_width = 2
+empty_cell_corner_radius = 0
+empty_cell_border_width = 0

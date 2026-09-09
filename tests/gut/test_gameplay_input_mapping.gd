@@ -521,9 +521,9 @@ func test_settings_scene_exposes_timing_and_binding_controls() -> void:
 	assert_not_null(scene_root.get_node_or_null("%InputBindingsContainer"))
 	assert_not_null(scene_root.get_node_or_null("%ResetBindingsButton"))
 	assert_not_null(scene_root.get_node_or_null("%BackButton"))
-	assert_null(scene_root.get_node_or_null("%VisualThemeOptionButton"))
+	assert_not_null(scene_root.get_node_or_null("%VisualThemeOptionButton"))
 	assert_null(scene_root.get_node_or_null("%SoundThemeOptionButton"))
-	assert_null(scene_root.find_child("VisualThemeContainer", true, false))
+	assert_not_null(scene_root.find_child("VisualThemeContainer", true, false))
 	assert_null(scene_root.find_child("SoundThemeContainer", true, false))
 	var bgm_volume_row: Node = scene_root.find_child(
 		"BgmVolumeContainer",

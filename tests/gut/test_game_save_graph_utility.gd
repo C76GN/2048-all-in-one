@@ -177,6 +177,115 @@ func test_manifest_backed_bookmarks_commit_and_reload_through_chunk_profiles() -
 	_dispose_setup(reloaded)
 
 
+func test_resume_slot_replaces_independently_of_full_manual_catalog_and_reloads_per_account() -> void:
+	var save_dir_name: String = "gut_resume_slot_%s" % GFUuid.generate_v4().replace("-", "")
+	var setup: Dictionary = await _create_persistence_architecture(
+		save_dir_name, true, PackedByteArray(), null, null, true
+	)
+	var graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var bookmarks: BookmarkSystem = _get_bookmark_system(setup)
+	assert_true(await _await_chunk_cleanup_idle(setup), "自动续玩测试必须先等首次空目录的尾块清理完成。")
+	assert_null(bookmarks.load_resume_game())
+	var manual_items: Array[Dictionary] = []
+	for index: int in range(BookmarkCatalogSaveData.MAX_BOOKMARK_COUNT):
+		var manual: BookmarkData = _make_bookmark(800 + index, 128 + index)
+		manual.bookmark_id = GFUuid.generate_v7()
+		manual_items.append(manual.to_dict())
+	var manual_result: GameSaveSectionResult = await _await_section_operation(
+		graph.request_replace_section_data(GameSaveGraphUtility.BOOKMARKS_SECTION_ID, {&"items": manual_items}), setup
+	)
+	assert_true(manual_result != null and manual_result.is_successful(), "手动目录保存: %s" % String(manual_result.get_status() if manual_result != null else &"null"))
+	assert_true(await _await_chunk_cleanup_idle(setup))
+	var manual_baseline: Dictionary = graph.get_section_data(GameSaveGraphUtility.BOOKMARKS_SECTION_ID)
+	var capacity_baseline: Dictionary = bookmarks.get_capacity_snapshot()
+	assert_true(GFVariantData.get_option_bool(capacity_baseline, &"is_full"))
+	_dispose_setup(setup, false)
+	setup = await _create_persistence_architecture(
+		save_dir_name, true, PackedByteArray(), null, null, true, false, null, null, true
+	)
+	graph = _get_save_graph(setup)
+	bookmarks = _get_bookmark_system(setup)
+	assert_null(bookmarks.load_resume_game(), "旧七节 Profile 新增续玩 section 后应默认为空。")
+	assert_true(graph.get_section_data(GameSaveGraphUtility.BOOKMARKS_SECTION_ID) == manual_baseline, "增加续玩 section 不得重置旧手动书签。")
+	var upgraded_preview: GFSaveDocument = GFSaveDocument.from_dict(graph.preview_profile_payload())
+	assert_not_null(upgraded_preview, "尚未写入可选续玩 Manifest 时，旧 Profile 的诊断预览仍须有效。")
+	assert_true(upgraded_preview != null and not upgraded_preview.has_section(BookmarkSystem.RESUME_SECTION_ID))
+	assert_true(await _await_chunk_cleanup_idle(setup))
+	var first_resume: BookmarkData = _make_bookmark(900, 2048)
+	var first_result: GameSaveSectionResult = await _await_section_operation(bookmarks.request_save_resume_game(first_resume), setup)
+	assert_true(first_result != null and first_result.is_successful(), "首次续玩保存: %s" % String(first_result.get_status() if first_result != null else &"null"))
+	assert_true(await _await_chunk_cleanup_idle(setup))
+	var latest_resume: BookmarkData = _make_bookmark(901, 4096)
+	var latest_result: GameSaveSectionResult = await _await_section_operation(bookmarks.request_save_resume_game(latest_resume), setup)
+	assert_true(latest_result != null and latest_result.is_successful(), "替换续玩保存: %s" % String(latest_result.get_status() if latest_result != null else &"null"))
+	var resume: BookmarkData = bookmarks.load_resume_game()
+	assert_true(resume != null and resume.bookmark_id == latest_resume.bookmark_id and resume.score == 4096)
+	assert_true(GFVariantData.get_option_array(graph.get_section_data(BookmarkSystem.RESUME_SECTION_ID), &"items").size() == 1)
+	assert_true(graph.get_section_data(GameSaveGraphUtility.BOOKMARKS_SECTION_ID) == manual_baseline)
+	assert_true(bookmarks.get_capacity_snapshot() == capacity_baseline, "自动续玩不能挤占或替换手动书签容量。")
+	if resume != null:
+		resume.score = 999
+		assert_true(bookmarks.load_resume_game().score == 4096, "续玩读取必须隔离调用方资源修改。")
+	_dispose_setup(setup, false)
+	var reloaded: Dictionary = await _create_persistence_architecture(
+		save_dir_name, true, PackedByteArray(), null, null, true, false, null, null, true
+	)
+	var reloaded_graph: GameSaveGraphUtility = _get_save_graph(reloaded)
+	var reloaded_bookmarks: BookmarkSystem = _get_bookmark_system(reloaded)
+	var restored: BookmarkData = reloaded_bookmarks.load_resume_game()
+	assert_true(restored != null and restored.bookmark_id == latest_resume.bookmark_id and restored.score == 4096)
+	assert_true(reloaded_graph.get_section_data(GameSaveGraphUtility.BOOKMARKS_SECTION_ID) == manual_baseline)
+	var original_profile_name: String = reloaded_graph.get_profile_file_name()
+	var other_profile_name: String = LocalAccountCatalogUtility.make_profile_file_name(GFUuid.generate_v7())
+	var switch_error: Error = await GameSaveProfileOperationTestSupport.activate_profile(
+		reloaded_graph, other_profile_name, false, _get_architecture(reloaded), get_tree(), _get_storage(reloaded)
+	)
+	assert_true(switch_error == OK)
+	assert_null(reloaded_bookmarks.load_resume_game(), "空账号不得读取上一账号的自动续玩。")
+	assert_true(reloaded_bookmarks.load_bookmarks().is_empty())
+	var restore_error: Error = await GameSaveProfileOperationTestSupport.activate_profile(
+		reloaded_graph, original_profile_name, false, _get_architecture(reloaded), get_tree(), _get_storage(reloaded)
+	)
+	assert_true(restore_error == OK)
+	var returned: BookmarkData = reloaded_bookmarks.load_resume_game()
+	assert_true(returned != null and returned.bookmark_id == latest_resume.bookmark_id)
+	_dispose_setup(reloaded)
+
+
+func test_optional_resume_does_not_allow_missing_required_bookmark_or_replay_manifests() -> void:
+	var setup: Dictionary = await _create_persistence_architecture(
+		"", false, PackedByteArray(), null, null, true, true, null, null, true
+	)
+	var graph: GameSaveGraphUtility = _get_save_graph(setup)
+	var storage: GFStorageUtility = _get_storage(setup)
+	assert_true(await _await_chunk_cleanup_idle(setup))
+	var original_profile_name: String = graph.get_profile_file_name()
+	var target_profile_name: String = LocalAccountCatalogUtility.make_profile_file_name(GFUuid.generate_v7())
+	assert_true(await GameSaveProfileOperationTestSupport.activate_profile(
+		graph, target_profile_name, false, _get_architecture(setup), get_tree(), storage
+	) == OK)
+	assert_true(await _await_chunk_cleanup_idle(setup))
+	var valid_target: Dictionary = graph.preview_profile_payload()
+	assert_true(await GameSaveProfileOperationTestSupport.activate_profile(
+		graph, original_profile_name, false, _get_architecture(setup), get_tree(), storage
+	) == OK)
+	for required_id: StringName in [GameSaveGraphUtility.BOOKMARKS_SECTION_ID, GameSaveGraphUtility.REPLAYS_SECTION_ID]:
+		var damaged: GFSaveDocument = GFSaveDocument.from_dict(valid_target)
+		assert_not_null(damaged)
+		if damaged == null:
+			continue
+		assert_true(damaged.remove_section(required_id))
+		assert_true(storage.save_data(target_profile_name, damaged.to_dict()) == OK)
+		var activate_error: Error = await GameSaveProfileOperationTestSupport.activate_profile(
+			graph, target_profile_name, false, _get_architecture(setup), get_tree(), storage
+		)
+		assert_true(activate_error == ERR_INVALID_DATA, "缺失必须的 %s Manifest 仍须拒绝加载。" % String(required_id))
+		assert_true(graph.get_profile_file_name() == original_profile_name)
+		assert_true(storage.save_data(target_profile_name, valid_target) == OK)
+	assert_true(storage.delete_file(target_profile_name) == OK)
+	_dispose_setup(setup)
+
+
 func test_manifest_backed_replays_commit_and_reload_through_chunk_profiles() -> void:
 	var save_dir_name: String = "gut_chunked_replays_%s" % (
 		GFUuid.generate_v4().replace("-", "")
@@ -1360,6 +1469,11 @@ func test_async_section_replace_serializes_global_immediate_lane() -> void:
 		)
 	)
 	_get_architecture(setup).tick(0.0)
+	var pending_progress: Dictionary = save_graph.get_section_data(GameSaveGraphUtility.PROGRESS_SECTION_ID)
+	assert_true(save_graph.queue_section_update(GameSaveGraphUtility.PROGRESS_SECTION_ID, {
+		&"mode_id": "classic", &"board_key": "board", &"stats_entry": {"best_score": 4096},
+	}) == ERR_BUSY, "增量更新必须服从正在等待持久化的同 section 事务锁。")
+	assert_true(save_graph.get_section_data(GameSaveGraphUtility.PROGRESS_SECTION_ID) == pending_progress)
 	var second: GameSaveSectionOperation = (
 		save_graph.request_replace_section_data(
 			GameSaveGraphUtility.BOOKMARKS_SECTION_ID,
@@ -4103,7 +4217,8 @@ func _create_persistence_architecture(
 	use_chunked_bookmarks: bool = false,
 	use_chunked_replays: bool = false,
 	chunk_utility_override: ChunkProfileUtility = null,
-	progress_provider_override: GameSaveSectionData = null
+	progress_provider_override: GameSaveSectionData = null,
+	include_resume: bool = false
 ) -> Dictionary:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var storage: GFStorageUtility = (
@@ -4114,7 +4229,8 @@ func _create_persistence_architecture(
 	var save_graph: GameSaveGraphUtility = _make_game_save_graph(
 		use_chunked_bookmarks,
 		use_chunked_replays,
-		progress_provider_override
+		progress_provider_override,
+		include_resume
 	)
 	var platform: GamePlatformUtility = _TEST_PLATFORM_STUB_SCRIPT.new()
 	var account_catalog: LocalAccountCatalogUtility = (
@@ -4240,7 +4356,8 @@ func _create_persistence_architecture(
 func _make_game_save_graph(
 	use_chunked_bookmarks: bool = false,
 	use_chunked_replays: bool = false,
-	progress_provider_override: GameSaveSectionData = null
+	progress_provider_override: GameSaveSectionData = null,
+	include_resume: bool = false
 ) -> GameSaveGraphUtility:
 	var save_graph: GameSaveGraphUtility = GameSaveGraphUtility.new()
 	var progress_provider: GameSaveSectionData = progress_provider_override
@@ -4269,6 +4386,13 @@ func _make_game_save_graph(
 		GameSaveGraphUtility.SectionOrder.NORMAL,
 		bookmark_profile_provider
 	)
+	if include_resume:
+		var resume_data: BookmarkCatalogSaveData = BookmarkCatalogSaveData.new()
+		var resume_provider: BookmarkManifestSaveSectionProvider = BookmarkManifestSaveSectionProvider.new(resume_data, BookmarkSystem.RESUME_SECTION_ID)
+		resume_provider.required_on_load = false
+		assert_true(save_graph.register_section(
+			BookmarkSystem.RESUME_SECTION_ID, resume_data, GameSaveGraphUtility.SectionOrder.NORMAL, resume_provider
+		))
 	var custom_boards_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.CUSTOM_BOARDS_SECTION_ID,
 		CustomBoardCatalogSaveData.new(),

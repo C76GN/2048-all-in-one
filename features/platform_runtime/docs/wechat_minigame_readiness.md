@@ -42,12 +42,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/export_wechat_minigame
 正式入口是零策略薄包装；模板、身份冻结、AppID 清洗、4 MiB 分块读取、精确 release 资源闭包、包体预算、隔离验证和原子发布仍由同一导出核心拥有。二者不得复制或分叉组装事务。
 
 脚本只接受版本字符串为 `4.7.2.stable` 或以 `4.7.2.stable.` 开头的 Godot，可执行文件版本、项目当前合约与 4.7 模板必须一致。它把已校验的社区 `godothub/godot-minigame` 4.7 模板与 Godot
-`--export-pack` 产物组装为 `build/wechat_minigame_smoke/wxgame`。模板必须精确为
-11,763,895 bytes、SHA-256
-`AE5BDEB5BA1CE9712D4EFC35D337CB5ECBEF3AD5BFB0F7D06AE9CB662C1F2D71`；导出器会删除
+`--export-pack` 产物组装为 `build/wechat_minigame_smoke/wxgame`。固定下载带修订名的
+`minigame4.7.0.7.tpz`，避免随上游更新的 `minigame4.7.tpz` 别名；模板必须精确为
+11,767,131 bytes、SHA-256
+`A4792ABE2EF3217A18C1690DAC67F71402AF87A43222150F3635D136DE5A4710`；导出器会删除
 示例 PCK、示例分包、示例 AppID 和 private config，将项目 PCK 改为微信允许的 `.bin`，
 放入 `game_data/`。根包同一轮请求 `engine` 与 `game_data`；只有 engine 入口、幂等 starter、game_data 入口和 1-byte PCK 探针四项全部就绪，coordinator 才能启动一次 Godot。首个致命错误终止本次会话，随后迟到的进度、成功或失败回调均不得恢复会话。模板默认缓存在 `build/wechat_toolchain/4.7/`，也可通过
 `-TemplateArchivePath` 传入同一份已校验归档。模板是社区工具链，不是 Godot 或微信官方支持的导出器。
+该修订的 loader 保留上游微信窗口尺寸与 DPR 查询、WXGLX/WebGL 选择、图像后备及帧提交逻辑；项目只替换精确匹配的 engine 子包启动和 backing-store DPR 方法。运行时的 WXMEMFS rename 与 DPR 补丁仍分别校验完整输入、中间产物和最终 SHA-256。归档、loader 或 runtime 的未知漂移都会拒绝导出，不能仅放宽尺寸或 hash 校验。该构建检查不替代开发者工具或真机验收。
 导出开始前会冻结当前内容而不是 Git HEAD：精确纳入 `project.godot`、`export_presets.cfg`、默认音频总线、图标及其 import 描述，并递归纳入 `addons/`、`app/`、`features/`、`shared/`；`.git/`、`.godot/`、`build/`、`tests/`、非导出文档及普通 `tools/` 不进入内容快照。真正参与组装、闭包、验证或隔离验证的项目工具和 policy 会单独记录路径与 SHA-256。GF 的 `.gf/vendor.lock.json`、`source_commit`、`source_git_tree`、锁文件 hash 与 `addons/gf` 实际全树 hash/文件数会在导出前后重算；其中任一项、导出内容快照、闭包或工具内容在组装期间漂移都会终止。正式候选还会在冻结前验证字体 coverage manifest、子集、OFL 和对应 hash；任一证据漂移都失败关闭。
 
 发布 stage 固定为同一候选根下的 `{wxgame/, export-report.json}`。schema 5 报告位于 `wxgame` 外，因此产物清单不会自引用；它包含除 `project.private.config.json` 本机 sidecar 外，按 ordinal path 排序的每个可发布文件 `path/bytes/sha256`、canonical manifest hash、输入快照 hash、build ID，main、engine、game_data 与 total 四组包体证据，以及 Godot、GF、模板、字体、DPR、启动协调器、分块读取器和工具身份。正式报告的 `resource_closure` 还绑定 policy/tool/closure SHA-256、完整依赖扫描终态与当次审计计数；build identity 4 将这些闭包证据纳入 build ID。替换时整候选根先备份再一次发布，任一注入或 I/O 失败都恢复旧报告和旧 `wxgame` 的同一 build ID，不会留下新报告配旧产物。
@@ -112,7 +114,7 @@ Web 冒烟预设名为 `Web Compatibility Smoke`，并固定：
 
 该预设会由 Boot 路由到 `platform_smoke_test.tscn`，验证安全区、生命周期、手势、本地存储、HTTPS、音频用户手势和代表性 Shader。
 
-完整游戏预设名为 `Web Compatibility WeChat Release`，固定 custom feature `wechat_minigame_release`，明确不包含 `platform_smoke`，因此 Boot 走正式入口场景。它复用相同 Web Compatibility、单线程、关闭 extension support、移动纹理压缩和虚拟键盘选项，并禁用 ICU；Boot/Composition Root 在 GF 架构创建与正式场景路由前调用唯一的平台启动 Utility，注册随包 en/zh Translation，Boot 不得自行读取翻译文件，业务与 UI 不得复制 locale 状态。资源定制插件会把常规/展示字体变体映射到 445,076-byte 的 `wechat_release_sans_subset.ttf`；其 SHA-256 为 `B9BD519D1A5CEE5647C976B21153726035ADC848A563F0E8AF2D612E56FD265F`，policy 为 `wechat-release-shipped-literals-v1`。该确定性子集覆盖随包运行时字符串字面量及基础 ASCII，禁用系统 fallback；`release_font_coverage.py --check`、GUT 和 Node 测试使用 FontTools 4.59.1 并共同验证源 Noto Sans SC、OFL-1.1、coverage、子集 hash 与所有声明码点。任意新增运行时文案都必须先重新生成并审查字体证据：
+完整游戏预设名为 `Web Compatibility WeChat Release`，固定 custom feature `wechat_minigame_release`，明确不包含 `platform_smoke`，因此 Boot 走正式入口场景。它复用相同 Web Compatibility、单线程、关闭 extension support、移动纹理压缩和虚拟键盘选项，并禁用 ICU；Boot/Composition Root 在 GF 架构创建与正式场景路由前调用唯一的平台启动 Utility，注册随包 en/zh Translation，Boot 不得自行读取翻译文件，业务与 UI 不得复制 locale 状态。资源定制插件会把常规/展示字体变体映射到 `wechat_release_sans_subset.ttf`，policy 为 `wechat-release-shipped-literals-v1`。码点数量、字节数与 SHA-256 以 `shared/assets/fonts/wechat_release_font_coverage.json` 的当次生成结果为准，由固定版本生成器核对，更新产物验证器的已审查身份常量后再绑定到候选报告。该确定性子集覆盖随包运行时字符串字面量及基础 ASCII，禁用系统 fallback；`release_font_coverage.py --check`、GUT 和 Node 测试使用 FontTools 4.59.1 并共同验证源 Noto Sans SC、OFL-1.1、coverage、子集 hash 与所有声明码点。任意新增运行时文案都必须先重新生成并审查字体证据：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass `

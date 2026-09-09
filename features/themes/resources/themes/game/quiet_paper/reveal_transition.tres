@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="GFScreenTransitionEffect" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://addons/gf/standard/utilities/scene/gf_screen_transition_effect.gd" id="1_effect"]
+[ext_resource type="Shader" path="res://features/asset_library/resources/shaders/transition/halftone_wipe_transition.gdshader" id="2_shader"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_reveal"]
+shader = ExtResource("2_shader")
+shader_parameter/base_color = Color(0.960784, 0.952941, 0.921569, 1)
+shader_parameter/ink_color = Color(0.141176, 0.207843, 0.184314, 1)
+shader_parameter/accent_color = Color(0.196078, 0.403922, 0.34902, 1)
+shader_parameter/grain_strength = 0.004
+shader_parameter/band_strength = 0.025
+shader_parameter/shape_influence = 0.04
+shader_parameter/registration_offset = 0.0
+shader_parameter/edge_strength = 0.18
+shader_parameter/reverse_progress = true
+
+[resource]
+script = ExtResource("1_effect")
+duration_seconds = 0.10
+from_alpha = 1.0
+to_alpha = 1.0
+layer = 1024
+block_input = true
+easing_mode = 4
+shader_material = SubResource("ShaderMaterial_reveal")
+progress_parameter = &"factor"
+metadata = {
+"phase": &"reveal",
+"theme_id": &"halftone_atlas"
+}

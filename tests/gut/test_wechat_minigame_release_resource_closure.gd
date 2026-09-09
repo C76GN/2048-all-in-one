@@ -44,7 +44,7 @@ func test_release_closure_and_preset_are_exact_and_complete() -> void:
 
 	var counts: Dictionary = report.get("counts", {})
 	assert_true(
-		_int_value(counts.get("roots", -1), -1) == 104,
+		_int_value(counts.get("roots", -1), -1) == 106,
 		"资源闭包根数量必须保持稳定。"
 	)
 	assert_true(
@@ -52,23 +52,23 @@ func test_release_closure_and_preset_are_exact_and_complete() -> void:
 		"动态结构资源数量必须保持稳定。"
 	)
 	assert_true(
-		_int_value(counts.get("content_resources", -1), -1) == 37,
+		_int_value(counts.get("content_resources", -1), -1) == 39,
 		"内容资源数量必须保持稳定。"
 	)
 	assert_true(
-		_int_value(counts.get("raw_dependency_closure", -1), -1) == 794,
+		_int_value(counts.get("raw_dependency_closure", -1), -1) == 813,
 		"原始依赖闭包数量必须保持稳定。"
 	)
 	assert_true(
-		_int_value(counts.get("closure", -1), -1) == 793,
+		_int_value(counts.get("closure", -1), -1) == 812,
 		"正式资源闭包数量必须保持稳定。"
 	)
 	assert_true(
-		_int_value(counts.get("raw_include_patterns", -1), -1) == 17,
+		_int_value(counts.get("raw_include_patterns", -1), -1) == 18,
 		"原始 include pattern 数量必须保持稳定。"
 	)
 	assert_true(
-		_int_value(counts.get("raw_include_files", -1), -1) == 18,
+		_int_value(counts.get("raw_include_files", -1), -1) == 19,
 		"原始 include file 数量必须保持稳定。"
 	)
 	assert_true(
@@ -85,6 +85,8 @@ func test_release_closure_and_preset_are_exact_and_complete() -> void:
 	assert_true(roots.has("res://app/scripts/boot_runtime.gd"))
 	assert_true(roots.has("res://features/navigation/resources/scene_preload_map.tres"))
 	assert_true(roots.has("res://features/themes/resources/themes/game/halftone_atlas_theme.tres"))
+	assert_true(roots.has("res://features/themes/resources/themes/game/quiet_paper/quiet_paper_theme.tres"))
+	assert_true(roots.has("res://features/asset_library/resources/shaders/transition/print_sheet_transition.gdshader"))
 	assert_false(roots.has("res://features/platform_runtime/scenes/smoke_test/platform_smoke_test.tscn"))
 
 	var closure: PackedStringArray = _to_strings(report.get("closure", []))
@@ -92,6 +94,8 @@ func test_release_closure_and_preset_are_exact_and_complete() -> void:
 	assert_true(closure.has("res://shared/assets/fonts/ui_sans_display.tres"))
 	assert_true(closure.has("res://shared/assets/fonts/ui_sans_wechat_release.tres"))
 	assert_true(closure.has("res://shared/assets/fonts/wechat_release_sans_subset.ttf"))
+	assert_true(closure.has("res://shared/assets/fonts/ui_print_display.tres"))
+	assert_true(closure.has("res://shared/assets/fonts/dm_serif_display_regular.ttf"))
 	assert_false(closure.has("res://shared/assets/fonts/noto_sans_sc_variable.ttf"))
 	for path: String in closure:
 		assert_false(path.begins_with("res://tests/"), "测试资源不得进入正式闭包：%s" % path)
@@ -104,6 +108,7 @@ func test_release_closure_and_preset_are_exact_and_complete() -> void:
 	assert_true(raw_includes.has("res://addons/gf/extensions/save/gf_extension.json"))
 	assert_true(raw_includes.has("res://features/themes/resources/gf_content_package.json"))
 	assert_true(raw_includes.has("res://features/asset_library/resources/licenses/*"))
+	assert_true(raw_includes.has("res://shared/assets/fonts/dm_serif_display_ofl.txt"))
 
 	var preset: Dictionary = report.get("preset", {})
 	assert_true(_bool_value(preset.get("ok", false)))
@@ -124,11 +129,11 @@ func test_release_closure_and_preset_are_exact_and_complete() -> void:
 		"运行时字面量允许目录数量必须保持稳定。"
 	)
 	assert_true(
-		_int_value(literal_evidence.get("observed_literal_count", -1), -1) == 304,
+		_int_value(literal_evidence.get("observed_literal_count", -1), -1) == 306,
 		"运行时字面量观测数量必须保持稳定。"
 	)
 	assert_true(
-		_int_value(literal_evidence.get("literal_count", -1), -1) == 304,
+		_int_value(literal_evidence.get("literal_count", -1), -1) == 306,
 		"运行时资源字面量数量必须保持稳定。"
 	)
 	assert_true(

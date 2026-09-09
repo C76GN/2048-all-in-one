@@ -2,7 +2,7 @@
   "schema_version": 1,
   "package_id": "game.theme_pack.halftone_atlas",
   "display_name": "Halftone Atlas Theme Pack",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "content_types": [
     "game_theme",
     "visual_theme",
@@ -25,6 +25,19 @@
         "display_name_key": "THEME_HALFTONE_ATLAS",
         "description_key": "THEME_HALFTONE_ATLAS_DESC",
         "is_default": true,
+        "catalog_role": "visual_theme"
+      }
+    },
+    {
+      "key": "game.theme.quiet_paper",
+      "path": "themes/game/quiet_paper/quiet_paper_theme.tres",
+      "type_hint": "Resource",
+      "priority": 90,
+      "metadata": {
+        "theme_id": "quiet_paper",
+        "display_name_key": "THEME_QUIET_PAPER",
+        "description_key": "THEME_QUIET_PAPER_DESC",
+        "is_default": false,
         "catalog_role": "visual_theme"
       }
     },

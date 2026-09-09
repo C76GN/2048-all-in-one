@@ -87,9 +87,8 @@ func _validate_turn_recipe(
 	_validate_recipe(report, semantic_id, recipe)
 	if recipe == null:
 		return
-	if recipe.shake_preset == null:
-		_add_error(report, &"missing_shake_preset", semantic_id)
-	elif recipe.shake_preset.get_duration_seconds() <= 0.0:
+	# A theme can omit camera shake while keeping local tile and haptic feedback.
+	if recipe.shake_preset != null and recipe.shake_preset.get_duration_seconds() <= 0.0:
 		_add_error(report, &"invalid_shake_duration", semantic_id)
 	if recipe.haptic_preset == null:
 		_add_error(report, &"missing_haptic_preset", semantic_id)

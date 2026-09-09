@@ -76,6 +76,7 @@
     "res://features/asset_library/resources/textures/icons/license_lucide.txt",
     "res://features/themes/resources/gf_content_package.json",
     "res://shared/assets/fonts/noto_sans_sc_ofl.txt",
+    "res://shared/assets/fonts/dm_serif_display_ofl.txt",
     "res://shared/assets/fonts/ui_sans_wechat_release.tres",
     "res://shared/assets/fonts/wechat_release_sans_subset.ttf",
     "res://shared/assets/translations.en.translation",
@@ -494,9 +495,9 @@
     "woff2"
   ],
   "stable_strategy": {
-    "expected_root_count": 104,
+    "expected_root_count": 106,
     "expected_structure_dynamic_count": 44,
-    "expected_content_resource_count": 37,
+    "expected_content_resource_count": 39,
     "expected_enabled_extension_count": 8,
     "max_dependency_depth": 64,
     "max_dependency_paths": 20000,

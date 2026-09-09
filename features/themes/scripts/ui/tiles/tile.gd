@@ -14,8 +14,6 @@ const _TEXT_CONTENT_INSETS: Vector4 = Vector4(10.0, 6.0, 10.0, 6.0)
 const _MIN_FONT_SIZE: int = 12
 const _MAX_FONT_SIZE: int = 48
 
-const _STYLE_OUTLINE_LIGHT: Color = Color(1.0, 0.972549, 0.9098039, 0.66)
-const _STYLE_OUTLINE_DARK: Color = Color(0.0, 0.0, 0.0, 0.35)
 const _FLASH_MERGE_COLOR: Color = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
 const _FLASH_TRANSFORM_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 1.0)
 
@@ -85,6 +83,7 @@ func _ready() -> void:
 ## @param new_visual_family_id: 方块定义提供的稳定视觉家族 ID。
 ## @param new_visual_layer_ids: 当前 Recipe 组合提供的视觉标记层。
 ## @param new_visual_style: 当前主题中对应视觉家族的配置。
+## @param numeric_font: 当前主题的数字字体；留空时恢复场景继承字体。
 func setup(
 	new_value: int,
 	new_definition_id: StringName,
@@ -92,7 +91,8 @@ func setup(
 	font_color: Color,
 	new_visual_family_id: StringName,
 	new_visual_layer_ids: Array[StringName],
-	new_visual_style: TileVisualFamilyStyle
+	new_visual_style: TileVisualFamilyStyle,
+	numeric_font: Font = null
 ) -> void:
 	self.value = new_value
 	definition_id = new_definition_id
@@ -104,8 +104,11 @@ func setup(
 	_apply_background_style(bg_color)
 	_apply_pattern_style(bg_color)
 	value_label.add_theme_color_override("font_color", font_color)
-	value_label.add_theme_color_override("font_outline_color", _get_label_outline_color(bg_color))
-	value_label.add_theme_constant_override("outline_size", 2)
+	value_label.add_theme_constant_override("outline_size", 0)
+	if numeric_font != null:
+		value_label.add_theme_font_override("font", numeric_font)
+	else:
+		value_label.remove_theme_font_override("font")
 	_fit_value_text()
 
 
@@ -275,12 +278,11 @@ func animate_move(
 	motion_profile: GameTileMotionProfile = null,
 	feedback_budget: GameFeedbackBudget = null
 ) -> Tween:
-	if position.is_equal_approx(new_position):
-		return null
-
 	if is_instance_valid(_active_move_tween) and _active_move_tween.is_valid():
 		_active_move_tween.kill()
 	_active_move_tween = null
+	if position.is_equal_approx(new_position):
+		return null
 
 	var profile: GameTileMotionProfile = _resolve_motion_profile(motion_profile)
 	if not profile.is_motion_enabled(feedback_budget):
@@ -314,6 +316,10 @@ func animate_merge(
 	if is_instance_valid(_active_scale_tween) and _active_scale_tween.is_valid():
 		_active_scale_tween.kill()
 	_active_scale_tween = null
+	# Spawn and transform share this channel; neither may keep writing scale after collision.
+	if is_instance_valid(_active_rotation_tween) and _active_rotation_tween.is_valid():
+		_active_rotation_tween.kill()
+	_active_rotation_tween = null
 
 	var profile: GameTileMotionProfile = _resolve_motion_profile(motion_profile)
 	rotation_degrees = 0.0
@@ -340,7 +346,7 @@ func animate_merge(
 	var scale_up_tweener: PropertyTweener = _active_scale_tween.tween_property(
 		self,
 		"scale",
-		Vector2.ONE * profile.get_merge_peak_scale(feedback_budget),
+		profile.get_merge_impact_scale(feedback_budget),
 		pulse_duration
 	)
 	var _scale_up_transition: Tweener = scale_up_tweener.set_trans(Tween.TRANS_BACK).set_ease(
@@ -627,15 +633,6 @@ static func _resolve_motion_profile(
 	motion_profile: GameTileMotionProfile
 ) -> GameTileMotionProfile:
 	return motion_profile if motion_profile != null else _default_motion_profile
-
-
-func _get_label_outline_color(bg_color: Color) -> Color:
-	var luminance: float = (
-		bg_color.r * 0.299
-		+ bg_color.g * 0.587
-		+ bg_color.b * 0.114
-	)
-	return _STYLE_OUTLINE_LIGHT if luminance < 0.50 else _STYLE_OUTLINE_DARK
 
 
 func _play_flash(color: Color, duration: float, label_peak_scale: float) -> void:

@@ -3,35 +3,54 @@
 [ext_resource type="Script" path="res://features/themes/scripts/data/game_ui_palette.gd" id="1_palette"]
 [ext_resource type="Resource" path="res://features/themes/resources/themes/game/ui/halftone_atlas_focus_ring_profile.tres" id="2_focus"]
 [ext_resource type="FontVariation" path="res://shared/assets/fonts/ui_sans_regular.tres" id="3_body_font"]
-[ext_resource type="FontVariation" path="res://shared/assets/fonts/ui_sans_display.tres" id="4_display_font"]
+[ext_resource type="FontVariation" path="res://shared/assets/fonts/ui_print_display.tres" id="4_display_font"]
 
 [resource]
 script = ExtResource("1_palette")
-text_primary_color = Color(0.13725491, 0.15294118, 0.16862746, 1)
-text_secondary_color = Color(0.23529412, 0.25490198, 0.26666668, 1)
-text_shadow_color = Color(0.29411766, 0.7411765, 0.77254903, 0.34)
+text_primary_color = Color(0.14509804, 0.13725490, 0.12156863, 1)
+text_secondary_color = Color(0.43921569, 0.41176471, 0.32941176, 1)
+text_shadow_color = Color(0.14509804, 0.13725490, 0.12156863, 0)
 body_font = ExtResource("3_body_font")
 display_font = ExtResource("4_display_font")
 numeric_font = ExtResource("4_display_font")
-button_normal_color = Color(0.96862745, 0.95686275, 0.9254902, 0.98)
-button_hover_color = Color(0.8156863, 0.9254902, 0.9137255, 1)
-button_pressed_color = Color(0.94509804, 0.8392157, 0.5882353, 1)
-button_focus_border_color = Color(0.13725491, 0.15294118, 0.16862746, 1)
-button_disabled_color = Color(0.9137255, 0.9019608, 0.8627451, 0.48)
-button_font_color = Color(0.13725491, 0.15294118, 0.16862746, 1)
-button_font_disabled_color = Color(0.13725491, 0.15294118, 0.16862746, 0.42)
-primary_button_color = Color(0.78039217, 0.23921569, 0.4627451, 1)
-primary_button_hover_color = Color(0.8745098, 0.29411766, 0.6039216, 1)
-primary_button_pressed_color = Color(0.94509804, 0.8392157, 0.5882353, 1)
-quiet_button_hover_color = Color(0.13725491, 0.15294118, 0.16862746, 0.08)
-field_surface_color = Color(0.9843137, 0.9764706, 0.9529412, 0.96)
-field_focus_surface_color = Color(0.8156863, 0.9254902, 0.9137255, 0.94)
-field_border_color = Color(0.13725491, 0.15294118, 0.16862746, 0.72)
-field_focus_border_color = Color(0.8745098, 0.29411766, 0.6039216, 1)
-panel_surface_color = Color(0.9843137, 0.9764706, 0.9529412, 1)
-selected_surface_color = Color(0.61960787, 0.85882354, 0.8352941, 0.82)
-selected_border_color = Color(0.29411766, 0.7411765, 0.77254903, 1)
-slider_track_color = Color(0.94509804, 0.8392157, 0.5882353, 0.5)
-slider_grabber_color = Color(0.29411766, 0.7411765, 0.77254903, 0.96)
-slider_grabber_highlight_color = Color(0.8745098, 0.29411766, 0.6039216, 0.92)
+button_normal_color = Color(0.94901961, 0.91372549, 0.81176471, 1)
+button_hover_color = Color(0.90980392, 0.85098039, 0.71764706, 1)
+button_pressed_color = Color(0.87450980, 0.77647059, 0.63529412, 1)
+button_focus_border_color = Color(0.14509804, 0.23529412, 0.58823529, 1)
+button_disabled_color = Color(0.90196078, 0.86666667, 0.76078431, 1)
+button_font_color = Color(0.14509804, 0.13725490, 0.12156863, 1)
+button_font_disabled_color = Color(0.58823529, 0.56470588, 0.49019608, 1)
+primary_button_color = Color(0.80000000, 0.23137255, 0.18431373, 1)
+primary_button_hover_color = Color(0.70980392, 0.18431373, 0.14509804, 1)
+primary_button_pressed_color = Color(0.61176471, 0.15686275, 0.12156863, 1)
+quiet_button_hover_color = Color(0.80000000, 0.23137255, 0.18431373, 0.08)
+field_surface_color = Color(0.97254902, 0.94509804, 0.86666667, 1)
+field_focus_surface_color = Color(0.97254902, 0.94509804, 0.86666667, 1)
+field_border_color = Color(0.61176471, 0.56078431, 0.43529412, 1)
+field_focus_border_color = Color(0.14509804, 0.23529412, 0.58823529, 1)
+panel_surface_color = Color(0.94901961, 0.91372549, 0.81176471, 1)
+selected_surface_color = Color(0.92156863, 0.83529412, 0.70980392, 1)
+selected_border_color = Color(0.80000000, 0.23137255, 0.18431373, 1)
+slider_track_color = Color(0.78823529, 0.73333333, 0.59607843, 1)
+slider_grabber_color = Color(0.80000000, 0.23137255, 0.18431373, 1)
+slider_grabber_highlight_color = Color(0.14509804, 0.13725490, 0.12156863, 1)
 button_focus_shader_profile = ExtResource("2_focus")
+primary_button_font_color = Color(1.00000000, 0.97254902, 0.90980392, 1)
+button_corner_radius = 0
+field_corner_radius = 0
+panel_corner_radius = 0
+shell_corner_radius = 0
+tab_corner_radius = 0
+shell_outline_width = 0
+button_border_width = 1
+primary_button_border_width = 2
+primary_button_uses_ink_outline = true
+primary_button_shadow_offset = Vector2(0, 0)
+primary_button_shadow_opacity = 0.0
+secondary_button_rule_width = 1
+field_bottom_rule_width = 2
+shell_top_rule_width = 2
+shell_shadow_offset = Vector2(0, 0)
+shell_shadow_opacity = 0.0
+tab_selected_uses_ink = true
+print_marks_enabled = true

@@ -66,6 +66,8 @@ var return_to_main_menu_on_back: bool = true
 
 var _form_binder: GFFormBinder
 var _settings_utility: GameSettingsUtility
+var _theme_utility: GameThemeUtility
+var _theme_switch_pending: bool = false
 var _input_profile: GameInputProfileUtility
 var _accessibility: GameAccessibilityUtility
 var _input_detector: GFInputDetector
@@ -106,6 +108,8 @@ var _dragging_audio_buses: Dictionary = {}
 @onready var _accessibility_title: Label = %AccessibilityTitle
 @onready var _calibration_preview: SettingsCalibrationPreview = %CalibrationPreview
 @onready var _language_option: OptionButton = %LanguageOptionButton
+@onready var _visual_theme_option: OptionButton = %VisualThemeOptionButton
+@onready var _visual_theme_status: Label = %VisualThemeStatus
 @onready var _window_mode_option: OptionButton = %WindowModeOptionButton
 @onready var _vsync_option: OptionButton = %VSyncOptionButton
 @onready var _vfx_quality_option: OptionButton = %VfxQualityOptionButton
@@ -132,6 +136,9 @@ var _dragging_audio_buses: Dictionary = {}
 
 ## 语言选项标签。
 @onready var _language_label: Label = _get_sibling_label(_language_option)
+
+## 当前可切换的完整视觉与动效主题。
+@onready var _visual_theme_label: Label = _get_sibling_label(_visual_theme_option)
 
 ## 窗口模式标签。
 @onready var _window_mode_label: Label = _get_sibling_label(_window_mode_option)
@@ -188,6 +195,18 @@ func set_route_params(params: Dictionary) -> void:
 
 func _ready() -> void:
 	_settings_utility = _get_settings_utility()
+	var theme_value: Object = get_utility(GameThemeUtility)
+	if theme_value is GameThemeUtility:
+		_theme_utility = theme_value
+		var _theme_started_connection: int = _theme_utility.visual_theme_activation_started.connect(
+			_on_visual_theme_activation_started
+		)
+		var _theme_finished_connection: int = _theme_utility.visual_theme_activation_finished.connect(
+			_on_visual_theme_activation_finished
+		)
+	var _theme_selected_connection: int = _visual_theme_option.item_selected.connect(
+		_on_visual_theme_selected
+	)
 	_input_profile = _get_input_profile_utility()
 	_accessibility = _get_accessibility_utility()
 	_viewport_utility = _get_viewport_utility()
@@ -354,6 +373,7 @@ func _apply_safe_area_margins(extra_margins: Dictionary) -> void:
 
 func _apply_field_widths() -> void:
 	var labels: Array[Label] = [
+		_visual_theme_label,
 		_language_label,
 		_window_mode_label,
 		_vsync_label,
@@ -377,6 +397,7 @@ func _apply_field_widths() -> void:
 				else _DESKTOP_FIELD_LABEL_WIDTH
 			)
 	var option_controls: Array[Control] = [
+		_visual_theme_option,
 		_language_option,
 		_window_mode_option,
 		_vsync_option,
@@ -501,6 +522,7 @@ func _apply_semantic_styles() -> void:
 	style.style_label(_audio_section_title, GameUiStyleUtility.TextRole.DISPLAY)
 	style.style_label(_controls_section_title, GameUiStyleUtility.TextRole.DISPLAY)
 	style.style_label(_auto_save_label, GameUiStyleUtility.TextRole.SECONDARY)
+	style.style_label(_visual_theme_status, GameUiStyleUtility.TextRole.SECONDARY)
 	style.style_label(_accessibility_title, GameUiStyleUtility.TextRole.SECONDARY)
 	style.style_label(_input_bindings_header, GameUiStyleUtility.TextRole.SECONDARY)
 	for volume_label: Label in [
@@ -516,11 +538,68 @@ func _apply_semantic_styles() -> void:
 	style.style_button(_reset_bindings_button, GameUiStyleUtility.ButtonRole.SECONDARY)
 
 func _setup_setting_options() -> void:
+	_setup_visual_theme_options()
 	_setup_language_options()
 	_setup_window_mode_options()
 	_setup_vsync_options()
 	_setup_vfx_quality_options()
 	_setup_input_timing_options()
+
+
+func _setup_visual_theme_options() -> void:
+	var items: Array[Dictionary] = []
+	if is_instance_valid(_theme_utility):
+		for descriptor: GameThemeDescriptor in _theme_utility.get_visual_theme_descriptors():
+			items.append(_make_option_item(
+				descriptor.get_display_text(), descriptor.theme_id, items.size()
+			))
+	_write_option_items(_visual_theme_option, items)
+	_sync_visual_theme_controls()
+
+
+func _sync_visual_theme_controls() -> void:
+	_visual_theme_option.disabled = _theme_switch_pending or not is_instance_valid(_theme_utility)
+	if not is_instance_valid(_theme_utility):
+		return
+	_visual_theme_option.select(_get_option_index_for_string_name(
+		_visual_theme_option, _theme_utility.get_current_visual_theme_id()
+	))
+	if _theme_switch_pending:
+		_visual_theme_status.text = tr("VISUAL_THEME_APPLYING")
+		return
+	var visual_theme: GameTheme = _theme_utility.get_current_visual_theme()
+	_visual_theme_status.text = (
+		tr(visual_theme.description_key) if is_instance_valid(visual_theme) else ""
+	)
+
+
+func _on_visual_theme_selected(index: int) -> void:
+	if _theme_switch_pending or not is_instance_valid(_theme_utility):
+		return
+	var theme_id: StringName = _get_string_name_for_index(_visual_theme_option, index, &"")
+	if theme_id == &"" or theme_id == _theme_utility.get_current_visual_theme_id():
+		return
+	# The utility owns loading, cancellation, activation and setting persistence.
+	# This view observes terminal signals and never owns an awaiting activation.
+	@warning_ignore("missing_await", "return_value_discarded")
+	_theme_utility.set_current_visual_theme_id(theme_id)
+
+
+func _on_visual_theme_activation_started(_theme_id: StringName) -> void:
+	_theme_switch_pending = true
+	_sync_visual_theme_controls()
+
+
+func _on_visual_theme_activation_finished(_theme_id: StringName, succeeded: bool) -> void:
+	_theme_switch_pending = false
+	_sync_visual_theme_controls()
+	if succeeded and is_node_ready() and is_instance_valid(_theme_utility):
+		var _restyled_count: int = _theme_utility.apply_current_theme_to_tree(self)
+		_apply_semantic_styles()
+		_apply_responsive_layout()
+	_sync_calibration_preview()
+	if not succeeded:
+		_visual_theme_status.text = tr("VISUAL_THEME_APPLY_FAILED")
 
 
 func _setup_vfx_quality_options() -> void:
@@ -649,6 +728,7 @@ func _setup_form_binder() -> void:
 
 
 func _sync_controls_from_settings() -> void:
+	_sync_visual_theme_controls()
 	if is_instance_valid(_language_option):
 		_language_option.select(_get_locale_index(_get_current_locale()))
 	if is_instance_valid(_window_mode_option):
@@ -717,6 +797,10 @@ func _sync_controls_from_settings() -> void:
 func _sync_calibration_preview() -> void:
 	if not is_instance_valid(_calibration_preview):
 		return
+	var theme_utility_value: Object = get_utility(GameThemeUtility)
+	if theme_utility_value is GameThemeUtility:
+		var theme_utility: GameThemeUtility = theme_utility_value
+		_calibration_preview.configure_theme(theme_utility.get_current_visual_theme())
 	var vfx_quality: int = GameAccessibilityState.VfxQuality.FULL
 	if is_instance_valid(_vfx_quality_option):
 		vfx_quality = GFVariantData.to_int(
@@ -843,6 +927,8 @@ func _update_volume_value_label(value_label: Label, value: float) -> void:
 func _update_ui_text() -> void:
 	if not is_node_ready():
 		return
+	_visual_theme_label.text = tr("VISUAL_THEME_LABEL")
+	_setup_visual_theme_options()
 	if is_instance_valid(_page_title):
 		_page_title.text = tr("SETTINGS_TITLE")
 	if is_instance_valid(_back_button):

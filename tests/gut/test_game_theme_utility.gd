@@ -37,7 +37,7 @@ func test_theme_catalog_discovers_and_validates_default_theme_pack() -> void:
 	assert_true(report.is_ok(), "默认主题内容包及全部主题资源应通过 GFValidationReport。")
 	assert_true(catalog.get_default_visual_theme_id() == &"halftone_atlas", "默认视觉主题应来自 manifest metadata。")
 	assert_true(catalog.get_default_sound_theme_id() == &"printworks", "默认音效主题应来自 manifest metadata。")
-	assert_true(catalog.get_visual_theme_descriptors().size() == 1, "视觉主题列表应由轻量描述符构成。")
+	assert_true(catalog.get_visual_theme_descriptors().size() == 2, "印刷和素纸应通过两个轻量描述符按需加载。")
 	assert_true(catalog.get_sound_theme_descriptors().size() == 1, "音效主题列表应由轻量描述符构成。")
 
 	var theme: GameTheme = catalog.load_visual_theme(catalog.get_default_visual_theme_id())
@@ -60,9 +60,18 @@ func test_theme_catalog_discovers_and_validates_default_theme_pack() -> void:
 	if theme.ui_palette.display_font is FontVariation:
 		var display_variation: FontVariation = theme.ui_palette.display_font
 		assert_true(
-			display_variation.variation_opentype.has(weight_tag),
-			"展示可变字体必须使用 TextServer OpenType tag 配置字重。"
+			display_variation.base_font.resource_path
+			== "res://shared/assets/fonts/dm_serif_display_regular.ttf",
+			"印刷展示数字必须使用随包 DM Serif 字体。"
 		)
+		assert_true(display_variation.fallbacks.size() == 1)
+		if display_variation.fallbacks.size() == 1:
+			var cjk_fallback: Font = display_variation.fallbacks[0]
+			assert_true(cjk_fallback is FontVariation)
+			if cjk_fallback is FontVariation:
+				var cjk_variation: FontVariation = cjk_fallback
+				assert_true(cjk_variation.variation_opentype.has(weight_tag))
+				assert_true(cjk_variation.has_char("中".unicode_at(0)))
 	assert_true(is_instance_valid(theme.ui_palette.button_focus_shader_profile), "UI 色板应引用按钮焦点 GF Profile。")
 	assert_true(theme.ui_palette.button_focus_shader_profile.get_parameter_names().size() == 5, "按钮焦点 Profile 应声明 5 个静态样式参数。")
 	assert_true(is_instance_valid(theme.background_shader_profile), "主题应引用 GF 背景 Shader 参数 Profile。")
@@ -322,6 +331,69 @@ func test_game_settings_utility_registers_theme_settings_and_theme_utility_resol
 		"音效主题显示文本应由主题 Utility 提供。"
 	)
 
+	await _dispose_architecture(architecture)
+
+
+func test_print_and_quiet_switch_as_complete_themes_and_commit_the_selected_id() -> void:
+	var setup: Dictionary = await _create_theme_architecture()
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var themes: GameThemeUtility = _get_theme_utility(setup)
+	var settings: GFSettingsUtility = _get_settings(setup)
+	var print_theme: GameTheme = themes.get_current_visual_theme()
+	_asset_tick_architecture = architecture
+
+	assert_true(await themes.set_current_visual_theme_id(&"quiet_paper"))
+	var quiet_theme: GameTheme = themes.get_current_visual_theme()
+	assert_true(quiet_theme.theme_id == &"quiet_paper")
+	assert_true(quiet_theme.ui_palette != print_theme.ui_palette)
+	assert_true(quiet_theme.ui_motion_profile != print_theme.ui_motion_profile)
+	assert_true(quiet_theme.board_theme != print_theme.board_theme)
+	assert_true(quiet_theme.tile_visual_theme != print_theme.tile_visual_theme)
+	assert_true(
+		GFVariantData.to_string_name(settings.get_value(GameThemeUtility.VISUAL_THEME_SETTING_KEY))
+		== &"quiet_paper",
+		"成功切换的稳定主题 ID 必须提交给持久化设置 owner。"
+	)
+	assert_true(await themes.set_current_visual_theme_id(&"halftone_atlas"))
+	assert_true(themes.get_current_visual_theme() == print_theme)
+	assert_true(
+		GFVariantData.to_string_name(settings.get_value(GameThemeUtility.VISUAL_THEME_SETTING_KEY))
+		== &"halftone_atlas"
+	)
+	await _dispose_architecture(architecture)
+
+
+func test_settings_picker_uses_catalog_and_observes_owned_theme_activation() -> void:
+	var setup: Dictionary = await _create_theme_architecture()
+	var architecture: GFArchitecture = _get_architecture(setup)
+	var themes: GameThemeUtility = _get_theme_utility(setup)
+	var scene: PackedScene = load("res://features/settings/scenes/menus/settings_menu.tscn")
+	var page: SettingsMenu = scene.instantiate()
+	autofree(page)
+	page._theme_utility = themes
+	page._visual_theme_option = page.get_node("%VisualThemeOptionButton")
+	page._visual_theme_status = page.get_node("%VisualThemeStatus")
+	page._setup_visual_theme_options()
+	assert_true(page._visual_theme_option.item_count == 2)
+	var _started_connection: int = themes.visual_theme_activation_started.connect(
+		page._on_visual_theme_activation_started
+	)
+	var _finished_connection: int = themes.visual_theme_activation_finished.connect(
+		page._on_visual_theme_activation_finished
+	)
+	_asset_tick_architecture = architecture
+	var quiet_index: int = page._get_option_index_for_string_name(
+		page._visual_theme_option, &"quiet_paper"
+	)
+	page._on_visual_theme_selected(quiet_index)
+	for _frame: int in range(240):
+		if not page._theme_switch_pending:
+			break
+		await get_tree().process_frame
+	assert_false(page._theme_switch_pending, "设置页必须消费主题切换的终态。")
+	assert_false(page._visual_theme_option.disabled)
+	assert_true(themes.get_current_visual_theme_id() == &"quiet_paper")
+	assert_true(page._visual_theme_option.selected == quiet_index)
 	await _dispose_architecture(architecture)
 
 
@@ -756,7 +828,7 @@ func test_game_theme_utility_resolves_board_and_tile_schemes() -> void:
 	)
 	theme_utility.apply_background_to_color_rect(background_rect)
 	assert_true(
-		is_equal_approx(GFVariantData.to_float(background_material.get_shader_parameter(&"grain_strength")), 0.038),
+		is_zero_approx(GFVariantData.to_float(background_material.get_shader_parameter(&"grain_strength"))),
 		"GameThemeUtility 应通过 GFShaderParameterUtility 应用背景 Profile。"
 	)
 	assert_true(
@@ -784,9 +856,26 @@ func test_game_theme_utility_resolves_board_and_tile_schemes() -> void:
 		theme_utility.apply_background_to_color_rect(background_rect)
 		assert_true(background_rect.material == background_material, "重新启用 Shader 应恢复主题材质。")
 		assert_true(
-			background_rect.process_mode == Node.PROCESS_MODE_INHERIT,
-			"动态背景应恢复普通场景处理策略。"
+			background_rect.process_mode == Node.PROCESS_MODE_DISABLED,
+			"默认静态纸纹恢复材质后仍不应推进背景时间。"
 		)
+		var active_theme: GameTheme = GameTheme.new()
+		active_theme.board_theme = resolved_board
+		active_theme.background_shader_profile = GFShaderParameterProfile.new()
+		active_theme.background_shader_profile.parameters = (
+			theme_utility.get_current_visual_theme().background_shader_profile.parameters.duplicate(true)
+		)
+		var _active_profile: GFShaderParameterProfile = active_theme.background_shader_profile.set_parameter(
+			&"cloud_strength", 0.02
+		)
+		theme_utility._apply_background_to_color_rect(background_rect, active_theme)
+		assert_true(
+			background_rect.process_mode == Node.PROCESS_MODE_INHERIT,
+			"显式启用环境动态的其他主题仍应恢复时间 Driver。"
+		)
+		if driver_node is GameShaderAnimationDriver:
+			var active_driver: GameShaderAnimationDriver = driver_node
+			assert_true(active_driver.is_animation_enabled())
 	else:
 		assert_true(false, "测试 setup 应提供 GameAccessibilityUtility。")
 	background_rect.material = null

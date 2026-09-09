@@ -91,7 +91,7 @@ var _active_notification_id: int = 0
 var _last_display_values: Dictionary = {}
 var _is_compact_mode: bool = false
 var _is_portrait_mode: bool = false
-var _details_expanded: bool = true
+var _details_expanded: bool = false
 var _input_mapping: GFInputMappingUtility
 var _realtime_timer: GameRealtimeTimerUtility
 var _hud_input_source: GFVirtualInputSource
@@ -262,10 +262,6 @@ func _notification(what: int) -> void:
 ## 切换移动端紧凑状态；紧凑状态默认折叠低频详情。
 ## @param enabled: 是否启用紧凑状态。
 func set_compact_mode(enabled: bool) -> void:
-	if enabled and not _is_compact_mode:
-		_details_expanded = false
-	elif not enabled and _is_compact_mode and not _is_portrait_mode:
-		_details_expanded = _safe_area.size.x >= _WIDE_SIDE_CARD_MINIMUM_WIDTH
 	_is_compact_mode = enabled
 	_apply_hud_layout()
 	_apply_details_visibility()
@@ -532,6 +528,8 @@ func _update_ui_text() -> void:
 func _apply_semantic_styles() -> void:
 	if not is_instance_valid(_ui_style_utility):
 		return
+	for rail: PanelContainer in [_top_score_panel, _action_panel, _control_hint_panel]:
+		_ui_style_utility.style_panel_container(rail, GameUiStyleUtility.SurfaceRole.SHELL)
 	_ui_style_utility.style_label(_title_label, GameUiStyleUtility.TextRole.DISPLAY)
 	for caption: Label in [
 		_score_caption_label,
@@ -607,10 +605,6 @@ func _apply_hud_layout() -> void:
 		and not _is_portrait_mode
 		and safe_width >= _WIDE_SIDE_CARD_MINIMUM_WIDTH
 	)
-	if not show_wide_side_cards:
-		# 1280 宽度仍是主流窗口尺寸；详细卡片与棋盘共存会挤压棋盘，
-		# 让主棋盘优先保持完整，宽屏再恢复编辑部式双侧卡片。
-		_details_expanded = false
 	if is_instance_valid(_control_hint_panel):
 		_control_hint_panel.visible = _is_portrait_mode
 	if is_instance_valid(_board_info_panel):
@@ -621,41 +615,60 @@ func _apply_hud_layout() -> void:
 		_d_pad.visible = _is_portrait_mode
 
 	if is_instance_valid(_top_score_panel):
-		var score_half_width: float = (
-			174.0
-			if _is_portrait_mode
-			else (190.0 if safe_width < 1100.0 else 230.0)
-		)
-		_top_score_panel.offset_left = -score_half_width
+		_top_score_panel.anchor_left = 0.0 if _is_portrait_mode else 0.5
+		_top_score_panel.anchor_right = 1.0 if _is_portrait_mode else 0.5
+		var score_half_width: float = 190.0 if safe_width < 1100.0 else 230.0
+		_top_score_panel.offset_left = 52.0 if _is_portrait_mode else -score_half_width
+		_top_score_panel.offset_right = 0.0 if _is_portrait_mode else score_half_width
 		_top_score_panel.offset_top = 8.0 if _is_portrait_mode else 12.0
-		_top_score_panel.offset_right = score_half_width
 		_top_score_panel.offset_bottom = 68.0 if _is_portrait_mode else 78.0
 
 	if is_instance_valid(_details_toggle_button):
 		_details_toggle_button.offset_left = 0.0 if _is_portrait_mode else 18.0
-		_details_toggle_button.offset_top = 76.0 if _is_portrait_mode else 18.0
+		_details_toggle_button.offset_top = 16.0 if _is_portrait_mode else 18.0
 		_details_toggle_button.offset_right = 44.0 if _is_portrait_mode else 62.0
-		_details_toggle_button.offset_bottom = 120.0 if _is_portrait_mode else 62.0
+		_details_toggle_button.offset_bottom = 60.0 if _is_portrait_mode else 62.0
+		_details_toggle_button.z_index = 21
 	if is_instance_valid(_details_panel):
-		_details_panel.offset_left = 0.0 if _is_portrait_mode else 18.0
-		_details_panel.offset_top = 124.0 if _is_portrait_mode else 66.0
-		_details_panel.offset_right = 300.0 if _is_portrait_mode else 358.0
-		_details_panel.offset_bottom = 532.0 if _is_portrait_mode else 520.0
+		var safe_height: float = _safe_area.size.y if is_instance_valid(_safe_area) else 720.0
+		var panel_left: float = 0.0 if _is_portrait_mode else 18.0
+		var panel_top: float = 76.0
+		_details_panel.offset_left = panel_left
+		_details_panel.offset_top = panel_top
+		_details_panel.offset_right = minf(panel_left + 340.0, safe_width)
+		_details_panel.offset_bottom = panel_top + clampf(safe_height - panel_top - 140.0, 120.0, 380.0)
+		_details_panel.z_index = 20
 	_apply_feedback_rail_layout()
 
 	if is_instance_valid(_control_hint_panel) and _is_portrait_mode:
-		_control_hint_panel.offset_left = 0.0
-		_control_hint_panel.offset_top = -108.0
-		_control_hint_panel.offset_right = 152.0
-		_control_hint_panel.offset_bottom = 0.0
+		_control_hint_panel.anchor_left = 0.5
+		_control_hint_panel.anchor_right = 0.5
+		_control_hint_panel.offset_left = -118.0
+		_control_hint_panel.offset_top = -124.0
+		_control_hint_panel.offset_right = 118.0
+		_control_hint_panel.offset_bottom = -66.0
+		if is_instance_valid(_d_pad):
+			_d_pad.columns = 4
+			for spacer_name: String in ["SpacerTopLeft", "SpacerTopRight"]:
+				var spacer_node: Node = _d_pad.get_node_or_null(NodePath(spacer_name))
+				if spacer_node is Control:
+					var spacer: Control = spacer_node
+					spacer.hide()
+			var direction_index: int = 0
+			for direction_name: String in ["MoveLeftButton", "MoveUpButton", "MoveDownButton", "MoveRightButton"]:
+				var direction_button: Node = _d_pad.get_node_or_null(NodePath(direction_name))
+				if is_instance_valid(direction_button):
+					_d_pad.move_child(direction_button, direction_index)
+					direction_index += 1
 	if is_instance_valid(_action_panel):
+		_action_panel.anchor_left = 0.5 if _is_portrait_mode else 1.0
+		_action_panel.anchor_right = 0.5 if _is_portrait_mode else 1.0
 		_action_panel.offset_left = (
-			-264.0
-			if _is_portrait_mode
+			-136.0 if _is_portrait_mode
 			else (-282.0 if use_narrow_landscape_actions else -342.0)
 		)
 		_action_panel.offset_top = -60.0 if _is_portrait_mode else -78.0
-		_action_panel.offset_right = 0.0 if _is_portrait_mode else -18.0
+		_action_panel.offset_right = 136.0 if _is_portrait_mode else -18.0
 		_action_panel.offset_bottom = 0.0 if _is_portrait_mode else -18.0
 	if is_instance_valid(_hint_result_panel):
 		_hint_result_panel.offset_left = (
@@ -663,15 +676,16 @@ func _apply_hud_layout() -> void:
 			if _is_portrait_mode
 			else (-282.0 if use_narrow_landscape_actions else -378.0)
 		)
-		_hint_result_panel.offset_top = -174.0 if _is_portrait_mode else -190.0
+		_hint_result_panel.offset_top = -264.0 if _is_portrait_mode else -190.0
 		_hint_result_panel.offset_right = 0.0 if _is_portrait_mode else -18.0
-		_hint_result_panel.offset_bottom = -68.0 if _is_portrait_mode else -86.0
+		_hint_result_panel.offset_bottom = -132.0 if _is_portrait_mode else -86.0
 	if is_instance_valid(_hint_result_label):
 		_hint_result_label.custom_minimum_size.x = (
 			296.0
 			if _is_portrait_mode
 			else (240.0 if use_narrow_landscape_actions else 336.0)
 		)
+	_apply_hint_rail_visibility()
 	for action_name: String in [
 		"%PauseButton",
 		"%UndoButton",
@@ -703,9 +717,9 @@ func _apply_feedback_rail_layout() -> void:
 		_feedback_rail.anchor_right = 0.5
 		_feedback_rail.anchor_bottom = 1.0
 		_feedback_rail.offset_left = -rail_width * 0.5
-		_feedback_rail.offset_top = -268.0
+		_feedback_rail.offset_top = -276.0
 		_feedback_rail.offset_right = rail_width * 0.5
-		_feedback_rail.offset_bottom = -116.0
+		_feedback_rail.offset_bottom = -132.0
 		if is_instance_valid(_notification_slot) and _notification_slot.visible:
 			_reset_notification_surface_layout()
 		return
@@ -1324,7 +1338,7 @@ func _inject_hud_action(action_id: StringName) -> void:
 
 func _apply_details_visibility() -> void:
 	if is_instance_valid(_details_panel):
-		_details_panel.visible = _details_expanded and not _is_compact_mode and not _is_portrait_mode
+		_details_panel.visible = _details_expanded
 	if is_instance_valid(_details_toggle_button):
 		_details_toggle_button.visible = true
 	_update_details_toggle_button()
@@ -1333,7 +1347,7 @@ func _apply_details_visibility() -> void:
 func _update_details_toggle_button() -> void:
 	if not is_instance_valid(_details_toggle_button):
 		return
-	_details_toggle_button.text = "-" if _details_expanded else "+"
+	_details_toggle_button.text = "×" if _details_expanded else "i"
 	var tooltip_key: String = "HUD_DETAILS_COLLAPSE" if _details_expanded else "HUD_DETAILS_EXPAND"
 	var fallback: String = "收起详细状态" if _details_expanded else "展开详细状态"
 	var translated_tooltip: String = tr(tooltip_key)
@@ -1439,6 +1453,7 @@ func _show_hint_result(result: GameHintResultType) -> void:
 	_hint_snapshot_id = result.snapshot_id
 	_hint_result_label.text = _format_hint_result(result)
 	_hint_result_panel.visible = true
+	_apply_hint_rail_visibility()
 	_pulse_control(_hint_result_panel)
 
 
@@ -1448,6 +1463,16 @@ func _hide_hint_result() -> void:
 		_hint_result_label.text = ""
 	if is_instance_valid(_hint_result_panel):
 		_hint_result_panel.visible = false
+	_apply_hint_rail_visibility()
+
+
+func _apply_hint_rail_visibility() -> void:
+	if is_instance_valid(_feedback_rail):
+		_feedback_rail.visible = not (
+			_is_portrait_mode
+			and is_instance_valid(_hint_result_panel)
+			and _hint_result_panel.visible
+		)
 
 
 func _cancel_hint_query(reason: StringName) -> void:

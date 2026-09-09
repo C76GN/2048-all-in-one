@@ -287,6 +287,21 @@
       }
     },
     {
+      "key": "asset.shader.transition.print_sheet",
+      "path": "shaders/transition/print_sheet_transition.gdshader",
+      "type_hint": "Shader",
+      "priority": 100,
+      "metadata": {
+        "tags": ["shader", "transition", "printworks"],
+        "asset_kind": "shader",
+        "category": "transition",
+        "origin": "project",
+        "author": "2048-all-in-one",
+        "source": "Project shader",
+        "license": "project"
+      }
+    },
+    {
       "key": "asset.shader.ui.button_focus_dash",
       "path": "shaders/ui/button_focus_dash.gdshader",
       "type_hint": "Shader",

@@ -63,11 +63,13 @@ func create_checkpoint(
 ## @param full_state: 当前完整玩法状态快照。
 ## @param ruleset_fingerprint: 对局开始时冻结的规则集内容指纹。
 ## @param turn_result: 可选的当前回合结算结果。
+## @param known_topology: 可选复用提示，仅严格匹配快照时使用。
 func create_checkpoint_for_session(
 	step_index: int,
 	full_state: Dictionary,
 	ruleset_fingerprint: String,
-	turn_result: TurnResult = null
+	turn_result: TurnResult = null,
+	known_topology: BoardTopology = null
 ) -> ReplayCheckpoint:
 	if (
 		step_index <= 0
@@ -75,16 +77,14 @@ func create_checkpoint_for_session(
 		or ruleset_fingerprint.is_empty()
 	):
 		return null
-	var board_snapshot: Dictionary = GFVariantData.get_option_dictionary(
-		full_state,
-		&"board_snapshot"
+	var board_snapshot: Dictionary = GFVariantData.as_dictionary(
+		GFVariantData.get_option_value(full_state, &"board_snapshot")
 	)
-	var normalized_board: Dictionary = normalize_board_snapshot(board_snapshot)
+	var normalized_board: Dictionary = normalize_board_snapshot(board_snapshot, known_topology)
 	if normalized_board.is_empty():
 		return null
-	var rng_state: Dictionary = GFVariantData.get_option_dictionary(
-		full_state,
-		&"rng_full_state"
+	var rng_state: Dictionary = GFVariantData.as_dictionary(
+		GFVariantData.get_option_value(full_state, &"rng_full_state")
 	)
 	var result: ReplayCheckpoint = ReplayCheckpoint.new()
 	result.step_index = step_index
@@ -161,11 +161,15 @@ func calculate_board_checksum(board_snapshot: Dictionary) -> String:
 
 ## 移除运行时 UUID，只保留决定玩法状态的方块语义，并稳定排序。
 ## @param board_snapshot: `GridModel` 当前严格快照。
-func normalize_board_snapshot(board_snapshot: Dictionary) -> Dictionary:
-	if not GridModel.is_snapshot_envelope_valid(board_snapshot):
+## @param known_topology: 可选复用提示，仅严格匹配快照时使用。
+func normalize_board_snapshot(
+	board_snapshot: Dictionary,
+	known_topology: BoardTopology = null
+) -> Dictionary:
+	if not GridModel.is_snapshot_envelope_valid(board_snapshot, known_topology):
 		return {}
 	var semantic_tiles: Array[Dictionary] = []
-	for tile_value: Variant in GFVariantData.get_option_array(board_snapshot, &"tiles"):
+	for tile_value: Variant in GFVariantData.as_array(GFVariantData.get_option_value(board_snapshot, &"tiles")):
 		if not tile_value is Dictionary:
 			return {}
 		var tile: Dictionary = tile_value

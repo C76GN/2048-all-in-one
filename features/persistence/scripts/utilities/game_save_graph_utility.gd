@@ -445,6 +445,19 @@ func get_section_data(section_id: StringName) -> Dictionary:
 	return provider.get_section_data() if provider != null else {}
 
 
+## 读取 Feature 提供的小型投影，避免高频查询复制整个 section。
+## @param section_id: 已注册的业务 section 标识。
+## @param projection_id: Provider 支持的投影标识。
+## @param arguments: 当前查询的只读参数。
+func get_section_projection(
+	section_id: StringName,
+	projection_id: StringName,
+	arguments: Dictionary
+) -> Dictionary:
+	var provider: GameSaveSectionData = _get_section_provider(section_id)
+	return provider.get_section_projection(projection_id, arguments) if provider != null else {}
+
+
 ## 返回 Feature provider 的隔离运行时缓存快照；该数据不进入持久化文档。
 ##
 ## 调用方拥有返回值，可安全修改或跨帧缓存，不会改写 provider 权威状态。
@@ -911,6 +924,34 @@ func queue_section_data(section_id: StringName, data: Dictionary) -> Error:
 	return queue_sections_data({String(section_id): data})
 
 
+## 经同一 Profile 准入和保存静默窗口提交 Feature 的原子增量更新。
+## Provider 必须自行验证更新并保证失败无副作用；本入口不接受多节部分提交。
+## @param section_id: 已注册的业务 section 标识。
+## @param update: Provider 校验并隔离的增量候选数据。
+func queue_section_update(section_id: StringName, update: Dictionary) -> Error:
+	if _disposed or _disposing or _quiescing:
+		return ERR_UNAVAILABLE
+	var sections: Dictionary = {String(section_id): update}
+	if (
+		_is_profile_transition_in_progress()
+		or is_section_reconciliation_pending()
+		or _has_pending_section_conflict(sections)
+	):
+		return ERR_BUSY
+	if not _is_configured() or not _loaded:
+		return ERR_UNCONFIGURED
+	var provider: GameSaveSectionData = _get_section_provider(section_id)
+	if provider == null:
+		return ERR_DOES_NOT_EXIST
+	var update_error: Error = provider.apply_section_update(update)
+	if update_error != OK:
+		return update_error
+	_mark_profile_sections_changed([String(section_id)])
+	_arm_profile_save_pending()
+	profile_save_queued.emit()
+	return OK
+
+
 ## 合并多个高频 section 更新。
 ## @param sections: section 标识到完整业务数据的映射。
 func queue_sections_data(sections: Dictionary) -> Error:
@@ -953,6 +994,8 @@ func preview_profile_payload() -> Dictionary:
 				section = manifest_provider.make_section(
 					active_manifest.to_dict()
 				)
+			elif not manifest_provider.required_on_load:
+				continue
 		else:
 			section = provider.capture_section({
 				&"reason": "preview",
@@ -2690,6 +2733,8 @@ func _prepare_chunk_load_context_async(
 	)
 	for manifest_provider: ManifestBackedSaveSectionProvider in manifest_providers:
 		if not document.has_section(manifest_provider.section_id):
+			if not manifest_provider.required_on_load:
+				continue
 			return {
 				&"ok": false,
 				&"error_code": ERR_INVALID_DATA,

@@ -156,7 +156,9 @@ func play_turn_feedback(
 	var direction_vector: Vector2 = Vector2(direction).normalized()
 	_play_root_impulse(root, direction_vector, recipe, budget)
 	var uses_emphasis_channels: bool = (
-		tier != FeedbackTier.MOVE and budget.motion_scale > 0.0
+		tier != FeedbackTier.MOVE
+		and budget.motion_scale > 0.0
+		and recipe.background_energy > 0.0
 	)
 	if uses_emphasis_channels:
 		_play_background_impulse(background, direction_vector, recipe, budget)
@@ -241,7 +243,11 @@ func _play_root_impulse(
 	_kill_tracked_tween(_root_tweens, root_id)
 	var base_value: Variant = root.get_meta(_BASE_POSITION_META, root.position)
 	var base_position: Vector2 = base_value if base_value is Vector2 else root.position
-	if budget.motion_scale <= 0.0:
+	if budget.motion_scale <= 0.0 or (
+		is_zero_approx(recipe.root_impulse)
+		and is_zero_approx(recipe.root_rotation_degrees)
+		and is_zero_approx(recipe.root_compression)
+	):
 		root.position = base_position
 		root.rotation_degrees = 0.0
 		root.scale = Vector2.ONE

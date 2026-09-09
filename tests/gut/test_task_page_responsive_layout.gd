@@ -79,7 +79,7 @@ func test_mode_selection_keeps_960x540_two_pane_after_density_reduction() -> voi
 	assert_gte(column_widths.x, 500.0, "紧凑横屏模式列表仍应保持可读宽度。")
 	assert_gte(column_widths.y, 300.0, "紧凑横屏配置栏应容纳完整关键操作。")
 	assert_true(
-		is_equal_approx(column_widths.x + column_widths.y + 56.0, 960.0),
+		is_equal_approx(column_widths.x + column_widths.y + 78.0, 960.0),
 		"双栏、栏距和安全留白不得产生横向溢出。"
 	)
 
@@ -148,8 +148,26 @@ func test_mode_selection_physical_960x540_focus_graph_matches_two_pane_layout() 
 	)
 	menu._apply_responsive_layout()
 	await get_tree().process_frame
+	await get_tree().process_frame
 
 	assert_true(menu._layout_reference_size == Vector2(960.0, 540.0))
+	assert_almost_eq(
+		menu._page_title.get_global_rect().position.x,
+		menu._mode_list_container.get_global_rect().position.x,
+		0.5,
+		"缩放后的紧凑横屏标题必须与模式卡左边缘对齐。"
+	)
+	var safe_page_rect: Rect2 = menu.get_global_rect().grow(-20.0)
+	assert_gte(
+		menu._right_panel_container.get_global_rect().position.x
+		- menu._mode_list_container.get_global_rect().end.x,
+		32.0,
+		"两栏间距必须容纳配置表面的外扩边缘并留下可见空隙。"
+	)
+	assert_true(
+		safe_page_rect.encloses(menu._right_panel_container.get_global_rect()),
+		"紧凑横屏配置面板必须留出完整边缘，不能贴住窗口右侧或顶部。"
+	)
 	assert_true(
 		menu._side_by_side_layout_active,
 		"960×540 物理窗口必须把视觉布局和焦点图统一解析为紧凑双栏。"
@@ -355,7 +373,7 @@ func test_mode_selection_1280x720_preserves_relaxed_two_pane_desktop() -> void:
 	)
 
 
-func test_mode_selection_grid_switches_only_for_portrait() -> void:
+func test_mode_selection_portrait_keeps_rule_grid_below_visible_launch_ticket() -> void:
 	var landscape: _ModeSelectionLayoutProbe = _make_mode_selection_layout_probe(
 		Vector2i(1152, 648),
 		Vector2(1152.0, 648.0)
@@ -374,12 +392,12 @@ func test_mode_selection_grid_switches_only_for_portrait() -> void:
 		portrait._layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
 	)
 	assert_true(
-		portrait._mode_list_container.columns == 1,
-		"竖屏必须把六个模式改为单列阅读。"
+		portrait._mode_list_container.columns == 2,
+		"竖屏必须让六个模式保持两列可读索引。"
 	)
 	assert_true(
 		portrait._right_panel_container.get_parent() is MarginContainer,
-		"竖屏应在模式列表后堆叠一张完整作业单。"
+		"竖屏应把当前规则和开始操作堆叠在页面内。"
 	)
 	assert_same(
 		portrait._back_button.get_parent(),
@@ -394,8 +412,28 @@ func test_mode_selection_grid_switches_only_for_portrait() -> void:
 		"竖屏不得把规则示例拆成第二张堆叠纸面。"
 	)
 
+	assert_lt(
+		portrait._right_panel_container.get_parent().get_index(),
+		portrait._center_content_holder.get_index(),
+		"当前选择与开始必须出现在规则牌之前。"
+	)
+	for _layout_pass: int in range(3):
+		portrait._apply_responsive_layout()
+		await get_tree().process_frame
+		assert_lt(
+			portrait._right_panel_container.get_parent().get_index(),
+			portrait._center_content_holder.get_index(),
+			"重复布局和主题刷新不能让当前规则与模式列表交替换位。"
+		)
+	await get_tree().process_frame
+	assert_lte(
+		portrait._start_game_button.get_global_rect().end.y,
+		portrait.size.y,
+		"竖屏开始按钮必须无需滚动即可看见。"
+	)
 
-func test_mode_selection_stacked_grid_exits_down_into_start_job_sheet() -> void:
+
+func test_mode_selection_stacked_grid_wraps_to_header_after_launch_ticket_moves_above() -> void:
 	for layout_case: Dictionary in [
 		{
 			&"physical_size": Vector2i(720, 960),
@@ -427,8 +465,8 @@ func test_mode_selection_stacked_grid_exits_down_into_start_job_sheet() -> void:
 			var card: ModeCard = cards[index]
 			assert_same(
 				card.get_node_or_null(card.focus_neighbor_bottom),
-				menu._grid_size_option_button,
-				"堆叠模式网格末行向下必须进入棋盘大小，不能回到返回按钮。"
+				menu._back_button,
+				"规则牌末行向下回到页首，开始区域现在位于网格之前。"
 			)
 
 
@@ -464,6 +502,62 @@ func test_mode_selection_keeps_six_modes_on_one_page_and_folds_advanced_settings
 			"高级功能必须保留，但统一归入折叠容器。"
 		)
 	assert_true(menu._advanced_settings_button.is_visible_in_tree())
+
+
+func test_navigation_rule_cards_show_actual_mode_examples() -> void:
+	var expected: Array[String] = [
+		"2 + 2 = 4", "2 + 3 = 5", "1 + 3 = 4",
+		"1024 + 1024 = 2048", "2 · · → · 2 ·", "8 ÷ 2 = 4",
+	]
+	for index: int in range(expected.size()):
+		assert_true(
+			ModeCard._get_rule_sample(ModeSelection.MODE_RULE_PROOF_DESCRIPTORS[index])
+			== expected[index]
+		)
+
+
+func test_home_composition_keeps_primary_play_separate_from_compact_library_rail() -> void:
+	var scene: PackedScene = load("res://features/navigation/scenes/menus/main_menu.tscn")
+	var menu: Node = scene.instantiate()
+	autofree(menu)
+	var play: Button = menu.find_child("StartGameButton", true, false) as Button
+	var rail: GridContainer = menu.find_child("LibraryRail", true, false) as GridContainer
+	var motif: Control = menu.find_child("BoardMotif", true, false) as Control
+	assert_not_null(play)
+	assert_not_null(rail)
+	assert_not_null(motif)
+	assert_false(rail.is_ancestor_of(play))
+	assert_true(rail.get_child_count() == 6)
+	assert_gte(play.custom_minimum_size.y, 64.0)
+	assert_gte(
+		MainMenu._get_board_preview_minimum_size(GameTaskPageLayoutUtility.LayoutMode.PORTRAIT).y,
+		240.0,
+		"竖屏棋盘封面不再缩成 164px 的附属图标。"
+	)
+
+
+func test_home_responsive_axis_keeps_play_visible_below_poster_hero() -> void:
+	var scene: PackedScene = load("res://features/navigation/scenes/menus/main_menu.tscn")
+	for viewport_size: Vector2i in [Vector2i(1280, 720), Vector2i(720, 960)]:
+		var node: Node = scene.instantiate()
+		node.set_script(_MainMenuLayoutProbe)
+		var menu: _MainMenuLayoutProbe = node as _MainMenuLayoutProbe
+		menu.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		add_child_autoqfree(menu)
+		menu.size = Vector2(viewport_size)
+		menu._viewport_utility = _PhysicalViewportUtility.new(viewport_size)
+		menu._apply_responsive_layout()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		assert_true(menu._content.vertical)
+		assert_true(menu._hero_row.vertical == (viewport_size.y > viewport_size.x))
+		assert_false(
+			menu._start_game_button.get_global_rect().intersects(
+				menu._board_preview_frame.get_global_rect()
+			)
+		)
+		assert_lte(menu._start_game_button.get_global_rect().end.y, menu.size.y)
+		assert_lte(menu._library_rail.get_global_rect().end.x, menu.size.x)
 
 
 func test_mode_selection_center_holder_preserves_centered_axis() -> void:
@@ -1135,6 +1229,11 @@ func _make_mode_selection_layout_probe(
 
 
 # --- 内部类 ---
+
+class _MainMenuLayoutProbe extends MainMenu:
+	func _ready() -> void:
+		pass
+
 
 class _ModeSelectionLayoutProbe extends ModeSelection:
 	var viewport_probe: GFViewportUtility = null

@@ -24,6 +24,7 @@ extends Resource
 @export_range(0.5, 1.5, 0.01) var spawn_start_scale: float = 1.12
 @export_range(0.0, 20.0, 0.1) var spawn_start_rotation_degrees: float = 12.0
 @export_range(1.0, 2.0, 0.01) var merge_peak_scale: float = 1.19
+@export_range(0.0, 0.25, 0.01) var merge_stamp_compression: float = 0.0
 @export_range(0.0, 12.0, 0.1) var merge_peak_rotation_degrees: float = 4.5
 @export_range(0.0, 1.0, 0.01) var despawn_end_scale: float = 0.28
 @export_range(0.0, 15.0, 0.1) var transform_peak_rotation_degrees: float = 4.0
@@ -51,6 +52,8 @@ func is_valid_profile() -> bool:
 		and spawn_start_scale <= 1.5
 		and spawn_start_rotation_degrees >= 0.0
 		and merge_peak_scale >= 1.0
+		and merge_stamp_compression >= 0.0
+		and merge_stamp_compression <= 0.25
 		and merge_peak_rotation_degrees >= 0.0
 		and despawn_end_scale >= 0.0
 		and despawn_end_scale <= 1.0
@@ -169,6 +172,15 @@ func get_spawn_start_rotation_degrees(budget: GameFeedbackBudget) -> float:
 ## @param budget: 当前无障碍反馈预算快照。
 func get_merge_peak_scale(budget: GameFeedbackBudget) -> float:
 	return scale_from_neutral(1.0, merge_peak_scale, budget)
+
+
+## 获取合并落印时的局部形变；未启用压印时保持原有等比脉冲。
+## @param budget: 当前无障碍反馈预算快照。
+func get_merge_impact_scale(budget: GameFeedbackBudget) -> Vector2:
+	var peak: float = get_merge_peak_scale(budget)
+	if is_zero_approx(merge_stamp_compression):
+		return Vector2.ONE * peak
+	return Vector2(peak, scale_from_neutral(1.0, 1.0 - merge_stamp_compression, budget))
 
 
 ## 获取合并落定动画的预算化峰值旋转角。

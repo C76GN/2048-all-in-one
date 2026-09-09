@@ -179,6 +179,25 @@ func resolve_cancel() -> void:
 
 # --- 私有/辅助方法 ---
 
+## 让设置下方持续存在的弹层刷新当前主题，保留内容、焦点与语义样式 metadata。
+func _bind_live_theme_refresh() -> void:
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	var signal_value: Object = _find_optional_utility(GFSignalUtility)
+	if not is_instance_valid(theme_utility) or not signal_value is GFSignalUtility:
+		return
+	var signals: GFSignalUtility = signal_value
+	var _theme_connection: GFSignalConnection = signals.connect_signal(
+		theme_utility.visual_theme_changed,
+		_on_live_theme_changed,
+		self
+	)
+	var _exit_connection: GFSignalConnection = signals.connect_once(
+		tree_exiting,
+		signals.disconnect_owner.bind(self),
+		self
+	)
+
+
 func _apply_default_ui_motion() -> void:
 	if not is_inside_tree():
 		return
@@ -445,3 +464,13 @@ func _find_modal_surface() -> Control:
 			var control: Control = node
 			return control
 	return null
+
+
+# --- 信号回调函数 ---
+
+func _on_live_theme_changed(_visual_theme: GameTheme) -> void:
+	if not is_inside_tree() or not is_node_ready():
+		return
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	if is_instance_valid(theme_utility):
+		var _refreshed_count: int = theme_utility.apply_current_theme_to_tree(self)

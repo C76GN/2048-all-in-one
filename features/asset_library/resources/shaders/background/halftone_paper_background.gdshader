@@ -116,6 +116,13 @@ float pixel_cloud_mask(vec2 uv) {
 }
 
 void fragment() {
+	if (grid_strength <= 0.001 && cloud_strength <= 0.001) {
+		float quiet_grain = 0.0;
+		if (grain_strength > 0.001) {
+			quiet_grain = (hash(floor(FRAGCOORD.xy)) - 0.5) * grain_strength;
+		}
+		COLOR = vec4(base_color.rgb + vec3(quiet_grain), base_color.a);
+	} else {
 	vec2 uv = clamp(UV + interaction_offset, vec2(0.0), vec2(1.0));
 	vec2 centered_uv = uv - vec2(0.5);
 
@@ -194,4 +201,5 @@ void fragment() {
 	color *= 1.0 - vignette * vignette_strength;
 
 	COLOR = vec4(color, base_color.a);
+	}
 }

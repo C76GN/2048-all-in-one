@@ -63,11 +63,14 @@ Binary 是契约的一部分。玩家数据包含严格 `int`、`float`、`Vecto
 | --- | --- | --- | --- |
 | `EARLY` | `progress` | `GameStatsSaveData` | 同业务 Provider |
 | `NORMAL` | `bookmarks` | `BookmarkCatalogSaveData`（schema 9） | `BookmarkManifestSaveSectionProvider`（schema 10） |
+| `NORMAL` | `resume_game` | 独立的 `BookmarkCatalogSaveData`（schema 9） | 独立的 `BookmarkManifestSaveSectionProvider`（schema 10） |
 | `NORMAL` | `custom_boards` | `CustomBoardCatalogSaveData` | 同业务 Provider |
 | `NORMAL` | `discoveries` | `TileDiscoverySaveData` | 同业务 Provider |
 | `NORMAL` | `tile_blueprints` | `TileLabSaveData` | 同业务 Provider |
 | `LATE` | `achievements` | `AchievementSaveData` | 同业务 Provider |
 | `LATE` | `replays` | `ReplayCatalogSaveData`（schema 6） | `ReplayManifestSaveSectionProvider`（schema 8） |
+
+自动续玩槽 `resume_game` 由 bookmarks Feature 拥有，沿用严格书签 codec 和分块持久化，每个账号保留一局，独立于 16 个手动书签。正常对局从暂停菜单返回主页时先冻结并确认保存，失败则保留对局并显示重试反馈；回放或已污染的调试局不覆盖续玩槽。主页“继续游戏”优先解析自动槽，无有效自动槽时兼容已有手动书签。旧 Profile 缺少该可选 section 时从空槽开始，无需修改已有 section schema。此入口不承诺强制结束进程时保存，也不在每回合增加同步存档。
 
 每个 Provider 实现统一的项目 envelope，供业务入口、诊断和工具使用：
 
@@ -202,7 +205,7 @@ Replays 是第二个分块持久化生产 tracer。业务 `ReplayCatalogSaveData
 
 ## 当前已知限制
 
-- 分块链路当前接入 `bookmarks` 与 `replays`；其他 Section 仍按原有主 Profile typed section 保存。后续迁移必须由对应 Feature 提供自己的流式 codec、增量物化钩子和独立 schema 升级，不能复用书签或回放的业务格式。
+- 分块链路当前接入 `bookmarks`、`resume_game` 与 `replays`；其他 Section 仍按原有主 Profile typed section 保存。后续迁移必须由对应 Feature 提供自己的流式 codec、增量物化钩子和独立 schema 升级，不能复用书签或回放的业务格式。
 - `request_load_profile()` 的立即句柄入口不会自行执行异步 chunk preflight；带分块 Section 的正常加载只支持启动和账号激活流程。若未来需要运行期“重载当前 Profile”，应先增加返回 typed completion 的异步入口，而不是把旧业务内存或未校验 chunks 塞进 context。
 - 当前是未发布开发基线，schema 13 采用备份后重置而非兼容迁移。此策略不适用于已有用户数据的发布版本；首次发布后任何破坏性 schema 变化都必须重新决策并提供可验证的一次性迁移方案。
 

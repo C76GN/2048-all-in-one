@@ -6,25 +6,26 @@
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_main_background"]
 shader = ExtResource("2_background_shader")
-shader_parameter/base_color = Color(0.95686275, 0.92941177, 0.8666667, 1)
+shader_parameter/base_color = Color(0.96078431, 0.95294118, 0.92156863, 1)
 shader_parameter/accent_color = Color(0.61960787, 0.85882354, 0.8352941, 1)
 shader_parameter/secondary_color = Color(0.9372549, 0.81960785, 0.3647059, 1)
 shader_parameter/warm_color = Color(0.9607843, 0.6392157, 0.7882353, 1)
-shader_parameter/grid_strength = 0.05
+shader_parameter/grid_strength = 0.0
+shader_parameter/cloud_strength = 0.0
 shader_parameter/glow_strength = 0.0
 shader_parameter/vignette_strength = 0.045
 shader_parameter/pulse_speed = 0.0
-shader_parameter/grain_strength = 0.018
-shader_parameter/stipple_strength = 0.006
+shader_parameter/grain_strength = 0.006
+shader_parameter/stipple_strength = 0.0
 shader_parameter/flow_scale = 1.35
 shader_parameter/scanline_strength = 0.0
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_preview"]
-bg_color = Color(0.9843137, 0.9764706, 0.9529412, 0.58)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
+bg_color = Color(1, 1, 1, 0)
+border_width_left = 0
+border_width_top = 0
+border_width_right = 0
+border_width_bottom = 0
 border_color = Color(0.13725491, 0.15294118, 0.16862746, 0.78)
 corner_radius_top_left = 4
 corner_radius_top_right = 4
@@ -56,9 +57,10 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.95686275, 0.92941177, 0.8666667, 1)
+color = Color(0.96078431, 0.95294118, 0.92156863, 1)
 
 [node name="RegistrationRule" type="Panel" parent="."]
+visible = false
 layout_mode = 1
 anchors_preset = 10
 anchor_right = 1.0
@@ -75,78 +77,82 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 56
-theme_override_constants/margin_top = 44
-theme_override_constants/margin_right = 56
-theme_override_constants/margin_bottom = 42
+theme_override_constants/margin_left = 48
+theme_override_constants/margin_top = 28
+theme_override_constants/margin_right = 48
+theme_override_constants/margin_bottom = 28
 
-[node name="Content" type="BoxContainer" parent="SafeMargin"]
+[node name="Content" type="VBoxContainer" parent="SafeMargin"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 20
+alignment = 1
+
+[node name="HeroRow" type="BoxContainer" parent="SafeMargin/Content"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 56
+alignment = 1
 
-[node name="Showcase" type="VBoxContainer" parent="SafeMargin/Content"]
+[node name="Showcase" type="VBoxContainer" parent="SafeMargin/Content/HeroRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(520, 0)
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-theme_override_constants/separation = 10
-
-[node name="KickerLabel" type="Label" parent="SafeMargin/Content/Showcase"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_font_sizes/font_size = 15
-text = "无限合并实验室"
-
-[node name="BrandRow" type="HBoxContainer" parent="SafeMargin/Content/Showcase"]
-layout_mode = 2
-theme_override_constants/separation = 22
-
-[node name="TitleLabel" type="Label" parent="SafeMargin/Content/Showcase/BrandRow"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_font_sizes/font_size = 104
-text = "2048"
-vertical_alignment = 1
-
-[node name="EditionStack" type="VBoxContainer" parent="SafeMargin/Content/Showcase/BrandRow"]
+custom_minimum_size = Vector2(500, 0)
 layout_mode = 2
 size_flags_vertical = 4
-theme_override_constants/separation = 2
+theme_override_constants/separation = 0
+alignment = 1
 
-[node name="EditionLabel" type="Label" parent="SafeMargin/Content/Showcase/BrandRow/EditionStack"]
+[node name="KickerLabel" type="Label" parent="SafeMargin/Content/HeroRow/Showcase"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
-text = "ALL IN ONE"
+theme_override_font_sizes/font_size = 16
+text = "无限合并实验室"
+horizontal_alignment = 1
 
-[node name="SubtitleLabel" type="Label" parent="SafeMargin/Content/Showcase/BrandRow/EditionStack"]
+[node name="TitleLabel" type="Label" parent="SafeMargin/Content/HeroRow/Showcase"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(220, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 164
+text = "2048"
+horizontal_alignment = 1
+
+[node name="TitleRule" type="ColorRect" parent="SafeMargin/Content/HeroRow/Showcase"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(360, 3)
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+
+[node name="EditionLabel" type="Label" parent="SafeMargin/Content/HeroRow/Showcase"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 25
+text = "ALL IN ONE"
+horizontal_alignment = 1
+
+[node name="SubtitleLabel" type="Label" parent="SafeMargin/Content/HeroRow/Showcase"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
 text = "规则会组合，棋盘会生长"
-autowrap_mode = 3
+horizontal_alignment = 1
 
-[node name="BoardPreviewFrame" type="Panel" parent="SafeMargin/Content/Showcase"]
+[node name="BoardPreviewFrame" type="Panel" parent="SafeMargin/Content/HeroRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(440, 378)
+custom_minimum_size = Vector2(336, 336)
 layout_mode = 2
 size_flags_horizontal = 4
-size_flags_vertical = 3
+size_flags_vertical = 4
 mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_preview")
 
-[node name="BoardMotif" type="Control" parent="SafeMargin/Content/Showcase/BoardPreviewFrame"]
+[node name="BoardMotif" type="Control" parent="SafeMargin/Content/HeroRow/BoardPreviewFrame"]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 18.0
-offset_top = 18.0
-offset_right = -18.0
-offset_bottom = -18.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
@@ -154,30 +160,43 @@ script = ExtResource("3_motif")
 
 [node name="MenuColumn" type="VBoxContainer" parent="SafeMargin/Content"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(360, 0)
 layout_mode = 2
-size_flags_vertical = 4
-theme_override_constants/separation = 10
+theme_override_constants/separation = 8
+alignment = 1
 
 [node name="MenuKickerLabel" type="Label" parent="SafeMargin/Content/MenuColumn"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
-text = "PLAY"
 
-[node name="StartGameButton" type="Button" parent="SafeMargin/Content/MenuColumn"]
+[node name="CollectionLabel" type="Label" parent="SafeMargin/Content/MenuColumn"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 68)
+visible = false
 layout_mode = 2
-theme_override_font_sizes/font_size = 24
+
+[node name="SystemLabel" type="Label" parent="SafeMargin/Content/MenuColumn"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="PrimaryActions" type="BoxContainer" parent="SafeMargin/Content/MenuColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="StartGameButton" type="Button" parent="SafeMargin/Content/MenuColumn/PrimaryActions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(460, 76)
+layout_mode = 2
+theme_override_font_sizes/font_size = 30
 text = "开始游戏"
 
-[node name="ContinueGameButton" type="Button" parent="SafeMargin/Content/MenuColumn"]
+[node name="ContinueGameButton" type="Button" parent="SafeMargin/Content/MenuColumn/PrimaryActions"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 54)
+custom_minimum_size = Vector2(208, 56)
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
-disabled = true
+theme_override_font_sizes/font_size = 19
 text = "继续游戏"
 
 [node name="ContinueHintLabel" type="Label" parent="SafeMargin/Content/MenuColumn"]
@@ -188,89 +207,79 @@ text = "没有可继续的有效存档"
 horizontal_alignment = 1
 autowrap_mode = 2
 
-[node name="LoadBookmarkButton" type="Button" parent="SafeMargin/Content/MenuColumn"]
+[node name="LibraryRule" type="ColorRect" parent="SafeMargin/Content/MenuColumn"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 54)
+visible = false
+custom_minimum_size = Vector2(760, 1)
 layout_mode = 2
-theme_override_font_sizes/font_size = 18
+size_flags_horizontal = 4
+mouse_filter = 2
+
+[node name="LibraryRail" type="GridContainer" parent="SafeMargin/Content/MenuColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 2
+columns = 6
+
+[node name="LoadBookmarkButton" type="Button" parent="SafeMargin/Content/MenuColumn/LibraryRail"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(112, 44)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
 text = "读取存档"
 
-[node name="CollectionLabel" type="Label" parent="SafeMargin/Content/MenuColumn"]
+[node name="ReplaysButton" type="Button" parent="SafeMargin/Content/MenuColumn/LibraryRail"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(112, 44)
 layout_mode = 2
-theme_override_font_sizes/font_size = 14
-text = "收藏与记录"
-
-[node name="CollectionRow" type="HBoxContainer" parent="SafeMargin/Content/MenuColumn"]
-layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="ReplaysButton" type="Button" parent="SafeMargin/Content/MenuColumn/CollectionRow"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 50)
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 17
+theme_override_font_sizes/font_size = 16
 text = "回放"
 
-[node name="TileCatalogButton" type="Button" parent="SafeMargin/Content/MenuColumn/CollectionRow"]
+[node name="TileCatalogButton" type="Button" parent="SafeMargin/Content/MenuColumn/LibraryRail"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 50)
+custom_minimum_size = Vector2(112, 44)
 layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 17
+theme_override_font_sizes/font_size = 16
 text = "图鉴"
 
-[node name="TileLabButton" type="Button" parent="SafeMargin/Content/MenuColumn/CollectionRow"]
+[node name="TileLabButton" type="Button" parent="SafeMargin/Content/MenuColumn/LibraryRail"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 50)
+custom_minimum_size = Vector2(112, 44)
 layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 17
+theme_override_font_sizes/font_size = 16
 text = "试验台"
 
-[node name="ProfileRow" type="HBoxContainer" parent="SafeMargin/Content/MenuColumn"]
-layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="PlayerProfileButton" type="Button" parent="SafeMargin/Content/MenuColumn/ProfileRow"]
+[node name="PlayerProfileButton" type="Button" parent="SafeMargin/Content/MenuColumn/LibraryRail"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 50)
+custom_minimum_size = Vector2(112, 44)
 layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 17
+theme_override_font_sizes/font_size = 16
 text = "玩家档案"
 
-[node name="AchievementsButton" type="Button" parent="SafeMargin/Content/MenuColumn/ProfileRow"]
+[node name="AchievementsButton" type="Button" parent="SafeMargin/Content/MenuColumn/LibraryRail"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 50)
+custom_minimum_size = Vector2(112, 44)
 layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 17
+theme_override_font_sizes/font_size = 16
 text = "成就"
-
-[node name="SystemLabel" type="Label" parent="SafeMargin/Content/MenuColumn"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_font_sizes/font_size = 14
-text = "系统"
 
 [node name="SystemRow" type="HBoxContainer" parent="SafeMargin/Content/MenuColumn"]
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 32
+alignment = 1
 
 [node name="SettingsButton" type="Button" parent="SafeMargin/Content/MenuColumn/SystemRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 50)
+custom_minimum_size = Vector2(96, 44)
 layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 17
+theme_override_font_sizes/font_size = 16
 text = "设置"
 
 [node name="QuitButton" type="Button" parent="SafeMargin/Content/MenuColumn/SystemRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 50)
+custom_minimum_size = Vector2(96, 44)
 layout_mode = 2
-size_flags_horizontal = 3
-theme_override_font_sizes/font_size = 17
+theme_override_font_sizes/font_size = 16
 text = "退出"

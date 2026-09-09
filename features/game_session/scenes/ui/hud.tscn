@@ -73,6 +73,7 @@ grow_vertical = 2
 mouse_filter = 2
 
 [node name="TopScorePanel" type="PanelContainer" parent="SafeArea"]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 10
 anchor_left = 0.5
@@ -98,7 +99,7 @@ layout_mode = 2
 theme_override_constants/separation = 10
 
 [node name="ScoreMetric" type="VBoxContainer" parent="SafeArea/TopScorePanel/Margin/SummaryBar"]
-custom_minimum_size = Vector2(96, 0)
+custom_minimum_size = Vector2(0, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 0
@@ -107,7 +108,7 @@ theme_override_constants/separation = 0
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.34901962, 0.2901961, 0.27058825, 0.82)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "分数"
 horizontal_alignment = 1
 
@@ -115,12 +116,12 @@ horizontal_alignment = 1
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 30
 text = "0"
 horizontal_alignment = 1
 
 [node name="MovesMetric" type="VBoxContainer" parent="SafeArea/TopScorePanel/Margin/SummaryBar"]
-custom_minimum_size = Vector2(96, 0)
+custom_minimum_size = Vector2(0, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 0
@@ -129,7 +130,7 @@ theme_override_constants/separation = 0
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.34901962, 0.2901961, 0.27058825, 0.82)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "步数"
 horizontal_alignment = 1
 
@@ -137,12 +138,12 @@ horizontal_alignment = 1
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 30
 text = "0"
 horizontal_alignment = 1
 
 [node name="HighestTileMetric" type="VBoxContainer" parent="SafeArea/TopScorePanel/Margin/SummaryBar"]
-custom_minimum_size = Vector2(96, 0)
+custom_minimum_size = Vector2(0, 0)
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 0
@@ -151,7 +152,7 @@ theme_override_constants/separation = 0
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.34901962, 0.2901961, 0.27058825, 0.82)
-theme_override_font_sizes/font_size = 11
+theme_override_font_sizes/font_size = 12
 text = "最大方块"
 horizontal_alignment = 1
 
@@ -159,7 +160,7 @@ horizontal_alignment = 1
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
-theme_override_font_sizes/font_size = 24
+theme_override_font_sizes/font_size = 30
 text = "0"
 horizontal_alignment = 1
 
@@ -262,33 +263,39 @@ offset_right = 318.0
 offset_bottom = 350.0
 theme_override_styles/panel = SubResource("StyleBoxFlat_hud_panel")
 
-[node name="Margin" type="MarginContainer" parent="SafeArea/DetailsPanel"]
+[node name="Scroll" type="ScrollContainer" parent="SafeArea/DetailsPanel"]
 layout_mode = 2
+horizontal_scroll_mode = 0
+follow_focus = true
+
+[node name="Margin" type="MarginContainer" parent="SafeArea/DetailsPanel/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/margin_left = 14
 theme_override_constants/margin_top = 12
 theme_override_constants/margin_right = 14
 theme_override_constants/margin_bottom = 12
 
-[node name="DetailsContent" type="VBoxContainer" parent="SafeArea/DetailsPanel/Margin"]
+[node name="DetailsContent" type="VBoxContainer" parent="SafeArea/DetailsPanel/Scroll/Margin"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="TitleLabel" type="Label" parent="SafeArea/DetailsPanel/Margin/DetailsContent"]
+[node name="TitleLabel" type="Label" parent="SafeArea/DetailsPanel/Scroll/Margin/DetailsContent"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
 text = "游戏状态"
 
-[node name="StatsContainer" type="VBoxContainer" parent="SafeArea/DetailsPanel/Margin/DetailsContent"]
+[node name="StatsContainer" type="VBoxContainer" parent="SafeArea/DetailsPanel/Scroll/Margin/DetailsContent"]
 unique_name_in_owner = true
 layout_mode = 2
 
-[node name="BoardSummarySeparator" type="HSeparator" parent="SafeArea/DetailsPanel/Margin/DetailsContent"]
+[node name="BoardSummarySeparator" type="HSeparator" parent="SafeArea/DetailsPanel/Scroll/Margin/DetailsContent"]
 layout_mode = 2
 
-[node name="BoardSummaryLabel" type="RichTextLabel" parent="SafeArea/DetailsPanel/Margin/DetailsContent"]
+[node name="BoardSummaryLabel" type="RichTextLabel" parent="SafeArea/DetailsPanel/Scroll/Margin/DetailsContent"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(264, 112)
+custom_minimum_size = Vector2(0, 112)
 layout_mode = 2
 mouse_filter = 2
 bbcode_enabled = false
@@ -297,7 +304,7 @@ scroll_active = false
 autowrap_mode = 3
 text = "展开后显示当前棋盘摘要。"
 
-[node name="CopyBoardSummaryButton" type="Button" parent="SafeArea/DetailsPanel/Margin/DetailsContent"]
+[node name="CopyBoardSummaryButton" type="Button" parent="SafeArea/DetailsPanel/Scroll/Margin/DetailsContent"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
@@ -346,9 +353,9 @@ theme_override_styles/panel = SubResource("StyleBoxFlat_hint_panel")
 [node name="Margin" type="MarginContainer" parent="SafeArea/ControlHintPanel"]
 layout_mode = 2
 theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 8
+theme_override_constants/margin_top = 7
 theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 8
+theme_override_constants/margin_bottom = 7
 
 [node name="Content" type="VBoxContainer" parent="SafeArea/ControlHintPanel/Margin"]
 layout_mode = 2

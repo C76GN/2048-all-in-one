@@ -102,6 +102,26 @@ func test_gaps_split_movement_lanes() -> void:
 		assert_true(second_lane_matches, "空洞右侧 lane 应从移动前沿向后排列。")
 
 
+func test_move_lane_cache_is_isolated_and_invalidated_by_topology_changes() -> void:
+	var topology: BoardTopology = BoardTopology.create_rectangle(Vector2i(3, 1))
+	var first_read: Array = topology.get_move_lanes(Vector2i.LEFT)
+	var expected: Array = first_read.duplicate(true)
+	var exposed_lane: Array = first_read[0]
+	exposed_lane.clear()
+	first_read.clear()
+	assert_true(topology.get_move_lanes(Vector2i.LEFT) == expected, "调用方不得修改缓存中的 lane。")
+	assert_true(topology.is_playable())
+	topology.active_cells = [Vector2i.ZERO, Vector2i(2, 0)]
+	assert_true(topology.get_move_lanes(Vector2i.LEFT) == [[Vector2i.ZERO], [Vector2i(2, 0)]])
+	assert_true(topology.is_playable())
+	topology.topology_id = &""
+	assert_false(topology.is_playable(), "清空 ID 必须失效此前成功的校验。")
+	topology.topology_id = &"board.test.revalidated"
+	assert_true(topology.is_playable(), "修复 ID 必须失效此前失败的校验。")
+	topology.active_cells = [Vector2i.ZERO, Vector2i(10000, 10000)]
+	assert_false(topology.is_playable(), "替换坐标必须重新应用可玩预算。")
+
+
 func test_sparse_topology_queries_only_cells_inside_visible_rect() -> void:
 	var topology: BoardTopology = BoardTopology.create_custom(
 		[

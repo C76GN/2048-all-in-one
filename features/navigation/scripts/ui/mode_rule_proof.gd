@@ -6,15 +6,6 @@ class_name ModeRuleProof
 extends VBoxContainer
 
 
-# --- 常量 ---
-
-const _ACCENT_COLORS: Array[Color] = [
-	Color(0.29411766, 0.7411765, 0.77254903, 0.72),
-	Color(0.8745098, 0.29411766, 0.6039216, 0.72),
-	Color(0.9372549, 0.81960785, 0.3647059, 0.72),
-]
-
-
 # --- 私有变量 ---
 
 var _descriptor: ModeRuleProofDescriptor = null
@@ -82,16 +73,15 @@ func _update_values() -> void:
 	_source_b_tag.text = _descriptor.source_b_tag
 	_result_value.text = _descriptor.result
 	_result_tag.text = _descriptor.result_tag
-	var accent_index: int = clampi(int(_descriptor.accent_role), 0, _ACCENT_COLORS.size() - 1)
-	_accent_bar.color = _ACCENT_COLORS[accent_index]
+
 
 
 func _apply_style() -> void:
 	if not is_node_ready() or not is_instance_valid(_style_utility):
 		return
-	_style_utility.style_label(_source_a_value, GameUiStyleUtility.TextRole.NUMERIC, 21)
-	_style_utility.style_label(_source_b_value, GameUiStyleUtility.TextRole.NUMERIC, 21)
-	_style_utility.style_label(_result_value, GameUiStyleUtility.TextRole.NUMERIC, 23)
+	_style_utility.style_label(_source_a_value, GameUiStyleUtility.TextRole.NUMERIC, 26)
+	_style_utility.style_label(_source_b_value, GameUiStyleUtility.TextRole.NUMERIC, 26)
+	_style_utility.style_label(_result_value, GameUiStyleUtility.TextRole.NUMERIC, 28)
 	_style_utility.style_label(_source_a_tag, GameUiStyleUtility.TextRole.MUTED, 9)
 	_style_utility.style_label(_source_b_tag, GameUiStyleUtility.TextRole.MUTED, 9)
 	_style_utility.style_label(_result_tag, GameUiStyleUtility.TextRole.MUTED, 9)
@@ -109,6 +99,13 @@ func _apply_style() -> void:
 		GameUiStyleUtility.BorderRole.SELECTED,
 		1
 	)
+
+	var result_style: StyleBox = _result_plate.get_theme_stylebox("panel")
+	if result_style is StyleBoxFlat:
+		var flat_style: StyleBoxFlat = result_style
+		_accent_bar.color = flat_style.border_color
+	else:
+		_accent_bar.color = _result_value.get_theme_color("font_color")
 
 
 ## 模式卡仍以同一份规则词汇表生成一行差异文案；样张自身不显示该文案。

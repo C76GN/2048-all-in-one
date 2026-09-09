@@ -21,6 +21,7 @@ extends Resource
 @export var accent_color: Color = Color(0.61960787, 0.85882354, 0.8352941, 1.0)
 @export_range(0.0, 0.5, 0.01) var motif_opacity: float = 0.14
 @export var shadow_offset: Vector2 = Vector2(2.0, 2.0)
+@export_range(0.0, 0.5, 0.01) var shadow_opacity: float = 0.07
 
 
 # --- 公共方法 ---

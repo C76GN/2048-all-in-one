@@ -105,6 +105,7 @@ var _ui_motion_utility: GameUiMotionUtility
 
 ## 标记是否已完成清理。
 var _is_cleaned_up: bool = false
+var _visual_tree_exiting: bool = false
 
 ## 棋盘扩展动画版本号，用于丢弃旧 Tween 的延迟回调。
 var _expansion_token: int = 0
@@ -129,6 +130,11 @@ var _pending_reveal_generation: int = 0
 
 
 # --- Godot 生命周期方法 ---
+
+func _enter_tree() -> void:
+	_visual_tree_exiting = false
+	super._enter_tree()
+
 
 func _ready() -> void:
 	model = _get_grid_model()
@@ -158,6 +164,7 @@ func _notification(what: int) -> void:
 
 
 func _exit_tree() -> void:
+	_visual_tree_exiting = true
 	# BoardWorld 会在首帧挂到 GFSpatialCanvasContent。reparent 也会触发
 	# _exit_tree；仅临时离树延后一帧复核，明确删除仍同步释放运行时绑定。
 	if is_queued_for_deletion():
@@ -246,7 +253,7 @@ func sync_visible_region() -> void:
 
 ## 取消旧动画后原地校准可见方块，不经过整盘释放与重新获取。
 ##
-## 该入口只用于实时输入重定向：模型已经提交，表现节点需要立即吸附到模型事实。
+## 该入口用于跳过表现的批处理结束；实时输入使用保留当前位置的 retarget 入口。
 func snap_visuals_to_model_state() -> void:
 	if _is_rebuilding_visuals:
 		return
@@ -256,6 +263,35 @@ func snap_visuals_to_model_state() -> void:
 	var visible_cells: Array[Vector2i] = _get_visible_cells()
 	_sync_grid_cells(visible_cells)
 	_sync_visual_tiles(visible_cells, true)
+	_is_rebuilding_visuals = false
+
+
+## 接管被中断的表现，同时保留当前像素位置并校准已经提交的身份与数值。
+##
+## 没有参与下一次有效移动的方块仍继续到达原目标，避免无效方向把它们留在格间。
+func retarget_visuals_to_model_state() -> void:
+	if _is_rebuilding_visuals or not is_instance_valid(model) or model.topology == null:
+		return
+	_is_rebuilding_visuals = true
+	var visible_cells: Array[Vector2i] = _get_visible_cells()
+	_sync_grid_cells(visible_cells)
+	_sync_visual_tiles(visible_cells)
+	var feedback: GameBoardFeedbackUtility = _get_board_feedback_utility()
+	var motion_profile: GameTileMotionProfile = (
+		feedback.get_tile_motion_profile() if is_instance_valid(feedback) else null
+	)
+	var budget: GameFeedbackBudget = (
+		feedback.get_current_budget() if is_instance_valid(feedback) else null
+	)
+	for cell: Vector2i in visible_cells:
+		var tile_data: TileState = model.get_tile(cell)
+		var tile: Tile = _get_visual_tile(tile_data)
+		if not is_instance_valid(tile):
+			continue
+		_apply_visual_tile_state(tile, tile_data)
+		var _continuation: Tween = tile.animate_move(
+			_grid_to_pixel_center(cell), motion_profile, budget
+		)
 	_is_rebuilding_visuals = false
 
 
@@ -620,6 +656,8 @@ func _apply_visual_tile_state(
 		and tile.visual_layer_ids == layer_ids
 		and tile.visual_style == visual_style
 	):
+		# 已提交的 value 不随数值装饰 Tween 改变；取消时仍须恢复可见读数。
+		tile.value_label.text = str(tile_data.value)
 		return
 	var colors: Dictionary = _get_tile_colors(tile_data.value, tile_data.definition_id)
 	tile.setup(
@@ -629,8 +667,19 @@ func _apply_visual_tile_state(
 		_get_color(colors, &"font", Color.BLACK),
 		family_id,
 		layer_ids,
-		visual_style
+		visual_style,
+		_resolve_tile_numeric_font()
 	)
+
+
+func _resolve_tile_numeric_font() -> Font:
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	if not is_instance_valid(theme_utility):
+		return null
+	var visual_theme: GameTheme = theme_utility.get_current_visual_theme()
+	if visual_theme != null and visual_theme.ui_palette != null:
+		return visual_theme.ui_palette.numeric_font
+	return null
 
 
 func _get_tile_presentation_descriptor(tile_data: TileState) -> Dictionary:
@@ -670,11 +719,26 @@ func _release_visual_tile(tile: Tile) -> void:
 
 	tile.reset_animation_state()
 	tile.set_meta(RELEASE_TOKEN_META, 0)
+	tile.visible = false
+	if not _can_pool_visual_node(tile):
+		# 场景退出期间不能把孩子重挂到池根；随原场景安全销毁，由池清理失效租用。
+		tile.queue_free()
+		return
 	if not is_instance_valid(_pool):
 		push_error("[GameBoardController] GFObjectPoolUtility 不可用，无法归还 Tile。")
 		return
 	_pool.release(tile, TileScene)
-	tile.visible = false
+
+
+func _can_pool_visual_node(node: Node) -> bool:
+	if _visual_tree_exiting or not node.is_inside_tree():
+		return false
+	var ancestor: Node = node
+	while is_instance_valid(ancestor):
+		if ancestor.is_queued_for_deletion():
+			return false
+		ancestor = ancestor.get_parent()
+	return true
 
 
 func _animate_release_visual_tile(
@@ -705,7 +769,8 @@ func _release_visual_tile_if_valid(tile: Tile, release_token: RefCounted) -> voi
 		return
 	if not tile.has_meta(RELEASE_TOKEN_META):
 		return
-	if tile.get_meta(RELEASE_TOKEN_META) != release_token:
+	var current_token: Variant = tile.get_meta(RELEASE_TOKEN_META)
+	if not current_token is RefCounted or not is_same(current_token, release_token):
 		return
 
 	_release_visual_tile(tile)
@@ -846,13 +911,11 @@ func _apply_board_background_style() -> void:
 	if not is_instance_valid(panel_style):
 		return
 
-	# 游戏局内不再绘制一整块棋盘面板；间隙直接露出纸面，
-	# 让每个空格和有效方块成为独立的纸片单元。BoardBackground 保留为
-	# 生命周期/层级锚点，预览场景仍可自行使用 BoardTheme 的纸色底板。
-	panel_style.bg_color = Color.TRANSPARENT
-	panel_style.border_color = Color.TRANSPARENT
-	panel_style.set_border_width_all(0)
-	panel_style.set_corner_radius_all(0)
+	# 板框材质来自主题，棋盘尺寸与命中区域保持稳定。
+	panel_style.bg_color = board_theme.board_panel_color
+	panel_style.border_color = board_theme.board_border_color
+	panel_style.set_border_width_all(board_theme.board_border_width)
+	panel_style.set_corner_radius_all(board_theme.board_corner_radius)
 	panel_style.shadow_color = Color.TRANSPARENT
 	panel_style.shadow_size = 0
 	panel_style.shadow_offset = Vector2.ZERO
@@ -860,6 +923,8 @@ func _apply_board_background_style() -> void:
 
 
 func _sync_visible_region() -> void:
+	if _visual_tree_exiting or _is_cleaned_up:
+		return
 	if _initial_reveal_pending:
 		return
 	if _is_rebuilding_visuals:
@@ -1117,11 +1182,11 @@ func _configure_cell_style(stylebox: StyleBoxFlat) -> void:
 	var cell_border_color: Color = board_theme.empty_cell_border_color
 	cell_border_color.a = minf(cell_border_color.a, 0.56)
 	stylebox.border_color = cell_border_color
-	stylebox.set_border_width_all(2)
-	stylebox.set_corner_radius_all(3)
-	stylebox.shadow_color = Color(cell_border_color.r, cell_border_color.g, cell_border_color.b, 0.12)
-	stylebox.shadow_size = 2
-	stylebox.shadow_offset = Vector2(1, 2)
+	stylebox.set_border_width_all(board_theme.empty_cell_border_width)
+	stylebox.set_corner_radius_all(board_theme.empty_cell_corner_radius)
+	stylebox.shadow_color = Color.TRANSPARENT
+	stylebox.shadow_size = 0
+	stylebox.shadow_offset = Vector2.ZERO
 
 
 func _style_grid_cell(cell_control: Control) -> void:
@@ -1160,7 +1225,7 @@ func _release_grid_cell(cell_control: Control) -> void:
 	cell_control.scale = Vector2.ONE
 	cell_control.rotation = 0.0
 	cell_control.modulate = Color.WHITE
-	if not is_instance_valid(_pool):
+	if not _can_pool_visual_node(cell_control) or not is_instance_valid(_pool):
 		cell_control.queue_free()
 		return
 	_pool.release(cell_control, grid_cell_scene)

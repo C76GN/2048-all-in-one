@@ -23,15 +23,17 @@ var _business_provider: BookmarkCatalogSaveData = null
 # --- Godot 生命周期方法 ---
 
 func _init(
-	business_provider: BookmarkCatalogSaveData = null
+	business_provider: BookmarkCatalogSaveData = null,
+	profile_section_id: StringName = &"bookmarks"
 ) -> void:
-	section_id = &"bookmarks"
+	section_id = profile_section_id
 	schema_version = PERSISTENCE_SCHEMA_VERSION
 	_business_provider = (
 		business_provider
 		if business_provider != null
 		else BookmarkCatalogSaveData.new()
 	)
+	_business_provider.section_id = profile_section_id
 
 
 # --- 公共方法 ---

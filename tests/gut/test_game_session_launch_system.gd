@@ -147,6 +147,43 @@ func test_bookmark_and_replay_are_reresolved_by_id_and_copy_isolated() -> void:
 	assert_true(router.gameplay_request_count == 2)
 
 
+func test_continue_prefers_automatic_slot_and_resolves_a_frozen_copy() -> void:
+	var fixture: Dictionary = _make_fixture()
+	var launch: GameSessionLaunchSystem = fixture[&"launch_system"]
+	var bookmarks: _BookmarkSystemStub = fixture[&"bookmarks"]
+	var app_config: AppConfigModel = fixture[&"app_config"]
+	var mode: GameModeConfig = fixture[&"mode"]
+	var manual: BookmarkData = _make_bookmark(mode)
+	var automatic: BookmarkData = _make_bookmark(mode)
+	manual.timestamp = 100
+	automatic.timestamp = 1
+	bookmarks.items = [manual]
+	bookmarks.resume_game = automatic
+	assert_true(launch.get_latest_resumable_bookmark_id() == automatic.bookmark_id)
+	assert_true(launch.launch_bookmark(automatic.bookmark_id))
+	var selected: BookmarkData = app_config.selected_bookmark_data.get_value()
+	assert_not_same(selected, automatic)
+	automatic.score = 100
+	assert_true(selected.score == 0)
+	bookmarks.resume_game = null
+	assert_true(launch.get_latest_resumable_bookmark_id() == manual.bookmark_id)
+	assert_false(launch.launch_bookmark(automatic.bookmark_id))
+	assert_push_error("书签不存在或不满足当前模式契约")
+
+
+func test_continue_ignores_invalid_automatic_slot_and_keeps_manual_fallback() -> void:
+	var fixture: Dictionary = _make_fixture()
+	var launch: GameSessionLaunchSystem = fixture[&"launch_system"]
+	var bookmarks: _BookmarkSystemStub = fixture[&"bookmarks"]
+	var mode: GameModeConfig = fixture[&"mode"]
+	var manual: BookmarkData = _make_bookmark(mode)
+	bookmarks.items = [manual]
+	bookmarks.resume_game = _make_bookmark(mode)
+	bookmarks.resume_game.mode_config_path = "res://missing_mode.tres"
+	assert_true(launch.get_latest_resumable_bookmark_id() == manual.bookmark_id)
+	bookmarks.items.clear()
+	assert_true(launch.get_latest_resumable_bookmark_id() == "")
+
 # --- 私有/辅助方法 ---
 
 func _make_fixture() -> Dictionary:
@@ -232,6 +269,10 @@ func _make_replay(mode: GameModeConfig) -> ReplayData:
 
 class _BookmarkSystemStub extends BookmarkSystem:
 	var items: Array[BookmarkData] = []
+	var resume_game: BookmarkData = null
+
+	func load_resume_game() -> BookmarkData:
+		return resume_game
 
 	func load_bookmarks() -> Array[BookmarkData]:
 		return items.duplicate()

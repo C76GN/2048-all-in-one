@@ -26,6 +26,7 @@ var _proof_descriptor: ModeRuleProofDescriptor = null
 
 # --- @onready 变量 (节点引用) ---
 
+@onready var _rule_sample_label: Label = %RuleSampleLabel
 @onready var _title_label: Label = $MarginContainer/VBoxContainer/TitleLabel
 @onready var _description_label: Label = $MarginContainer/VBoxContainer/DescriptionLabel
 @onready var _panel: Panel = $Panel
@@ -68,6 +69,7 @@ func setup(
 func update_text() -> void:
 	if is_instance_valid(_mode_config):
 		_title_label.text = tr(_mode_config.mode_name)
+		_rule_sample_label.text = _get_rule_sample(_proof_descriptor)
 		_description_label.text = (
 			_get_proof_formula_text(_proof_descriptor)
 			if is_instance_valid(_proof_descriptor)
@@ -75,6 +77,7 @@ func update_text() -> void:
 		)
 	else:
 		_title_label.text = tr("UI_ERROR")
+		_rule_sample_label.text = ""
 		_description_label.text = tr("ERR_LOAD_CONFIG")
 
 ## 获取此卡片关联的配置路径。
@@ -91,6 +94,19 @@ func set_selected(is_selected: bool) -> void:
 
 
 # --- 私有/辅助方法 ---
+
+static func _get_rule_sample(descriptor: ModeRuleProofDescriptor) -> String:
+	if not is_instance_valid(descriptor):
+		return ""
+	if descriptor.ruleset_id == &"gameplay.step_by_step":
+		return "%s · · → · %s ·" % [descriptor.source_a, descriptor.result]
+	return "%s %s %s = %s" % [
+		descriptor.source_a,
+		descriptor.operator_symbol,
+		descriptor.source_b,
+		descriptor.result,
+	]
+
 
 func _get_summary_line(description: String) -> String:
 	for raw_line: String in description.split("\n", false):
@@ -111,16 +127,17 @@ func _get_proof_formula_text(descriptor: ModeRuleProofDescriptor) -> String:
 func _update_style() -> void:
 	if not is_instance_valid(_style_utility):
 		return
-	# 选中态只使用边框建立层级，不再叠加高饱和底色、粗边与色条三重强调。
-	var surface_role: GameUiStyleUtility.SurfaceRole = GameUiStyleUtility.SurfaceRole.PANEL
+	var surface_role: GameUiStyleUtility.SurfaceRole = (
+		GameUiStyleUtility.SurfaceRole.SELECTED if _is_selected else GameUiStyleUtility.SurfaceRole.PANEL
+	)
 	var border_role: GameUiStyleUtility.BorderRole = GameUiStyleUtility.BorderRole.DEFAULT
 	var border_width: int = 1
 	if has_focus():
 		border_role = GameUiStyleUtility.BorderRole.FOCUS
-		border_width = 3
+		border_width = 2
 	elif _is_selected:
 		border_role = GameUiStyleUtility.BorderRole.SELECTED
-		border_width = 2
+		border_width = 1
 	_style_utility.style_panel(_panel, surface_role, border_role, border_width)
 	_update_label_colors()
 	_update_accent_strip()
@@ -129,7 +146,12 @@ func _update_style() -> void:
 func _update_label_colors() -> void:
 	if not is_instance_valid(_style_utility):
 		return
-	_style_utility.style_label(_title_label, GameUiStyleUtility.TextRole.PRIMARY)
+	_style_utility.style_label(
+		_rule_sample_label,
+		GameUiStyleUtility.TextRole.NUMERIC,
+		24 if _rule_sample_label.text.length() >= 14 else 30
+	)
+	_style_utility.style_label(_title_label, GameUiStyleUtility.TextRole.PRIMARY, 17)
 	var description_role: GameUiStyleUtility.TextRole = (
 		GameUiStyleUtility.TextRole.PRIMARY
 		if _is_selected or has_focus()
@@ -141,20 +163,13 @@ func _update_label_colors() -> void:
 func _update_accent_strip() -> void:
 	if not is_instance_valid(_accent_strip):
 		return
-	var accent_colors: Array[Color] = [
-		Color(0.29411766, 0.7411765, 0.77254903, 0.82),
-		Color(0.8745098, 0.29411766, 0.6039216, 0.82),
-		Color(0.9372549, 0.81960785, 0.3647059, 0.88),
-	]
-	var color_index: int = (
-		clampi(int(_proof_descriptor.accent_role), 0, accent_colors.size() - 1)
-		if is_instance_valid(_proof_descriptor)
-		else absi(_config_path.hash()) % accent_colors.size()
-	)
-	var accent: Color = accent_colors[color_index]
-	accent.a = 0.42
-	if _is_selected or has_focus():
-		accent.a = 0.82
+	var accent: Color = _title_label.get_theme_color("font_color")
+	if _panel.has_theme_stylebox_override("panel"):
+		var panel_style: StyleBox = _panel.get_theme_stylebox("panel")
+		if panel_style is StyleBoxFlat:
+			var flat_style: StyleBoxFlat = panel_style
+			accent = flat_style.border_color
+	accent.a = 1.0 if _is_selected or has_focus() else 0.5
 	_accent_strip.color = accent
 
 

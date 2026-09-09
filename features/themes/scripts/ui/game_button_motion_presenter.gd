@@ -87,6 +87,7 @@ func apply_motion_profile(profile: GameUiMotionProfile) -> void:
 		return
 	complete_motion()
 	_motion_profile = profile
+	_apply_geometry_immediately(_motion_state)
 
 
 ## 切换纸片的语义状态。
@@ -100,14 +101,27 @@ func set_motion_state(
 ) -> void:
 	if not _configured:
 		return
+	var previous_state: MotionState = _motion_state
 	_motion_state = state
 	_kill_motion_tween()
 	_apply_style_for_state(state)
 	if reduced_motion or not animated or not is_inside_tree():
 		_apply_geometry_immediately(state)
 		return
+	if (
+		_get_motion_profile().print_motion
+		and previous_state == MotionState.PRESSED
+		and state != MotionState.PRESSED
+		and state != MotionState.DISABLED
+	):
+		_play_stamp_release(state)
+		return
 	if state == MotionState.ACTIVE:
-		_play_active_overshoot()
+		_play_single_phase(
+			_get_target_rect(state),
+			_get_motion_profile().button_active_settle_duration,
+			Tween.TRANS_QUAD
+		)
 	elif state == MotionState.PRESSED:
 		_play_single_phase(
 			_get_target_rect(state),
@@ -118,7 +132,7 @@ func set_motion_state(
 		_play_single_phase(
 			_get_target_rect(state),
 			_get_motion_profile().button_restore_duration,
-			Tween.TRANS_BACK
+			Tween.TRANS_QUAD
 		)
 
 
@@ -158,7 +172,11 @@ func play_deal_in(
 	)
 	_apply_face_rect(start_rect)
 	_face.rotation = start_rotation
-	_face.modulate = Color(1.0, 1.0, 1.0, 0.0)
+	_face.modulate = (
+		Color.WHITE
+		if _get_motion_profile().print_motion
+		else Color(1.0, 1.0, 1.0, 0.0)
+	)
 
 	var tween: Tween = create_tween()
 	_motion_tween = tween
@@ -406,25 +424,48 @@ func _get_target_rect(state: MotionState) -> Rect2:
 	if presenter_size.x <= 0.0 or presenter_size.y <= 0.0:
 		if is_instance_valid(_button):
 			presenter_size = _button.size
-	var rest_left: float = clampf(presenter_size.x * 0.050, 8.0, 32.0)
-	var rest_top: float = clampf(presenter_size.y * 0.12, 5.0, 9.0)
-	var active_left: float = (
-		clampf(presenter_size.x * 0.010, 3.0, 5.0) + 1.0
+	if _get_motion_profile().print_motion:
+		if state == MotionState.PRESSED:
+			return _rect_from_insets(
+				presenter_size,
+				2.0,
+				2.0 + _get_motion_profile().button_stamp_depth,
+				2.0,
+				2.0
+			)
+		if state == MotionState.ACTIVE:
+			return _rect_from_insets(presenter_size, 2.0, 1.5, 2.0, 2.5)
+	var inset: float = 3.0 if state == MotionState.PRESSED else 2.0
+	return _rect_from_insets(presenter_size, inset, inset, inset, inset)
+
+
+func _play_stamp_release(state: MotionState) -> void:
+	var profile: GameUiMotionProfile = _get_motion_profile()
+	var target_rect: Rect2 = _get_target_rect(state)
+	var rebound_rect: Rect2 = target_rect
+	rebound_rect.position.y -= profile.button_release_lift
+	rebound_rect = _clamp_rect_to_visual_envelope(rebound_rect, 0.0)
+	var tween: Tween = create_tween()
+	_motion_tween = tween
+	var _pause_mode: Tween = tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	var lift: PropertyTweener = tween.tween_property(
+		_face, "position", rebound_rect.position, profile.button_restore_duration * 0.38
 	)
-	var active_top: float = clampf(presenter_size.y * 0.060, 3.0, 5.0)
-	var left: float = rest_left
-	var top: float = rest_top
-	var right: float = rest_left + 3.0
-	var bottom: float = rest_top + 5.0
-	if state == MotionState.ACTIVE or state == MotionState.SELECTED:
-		left = active_left
-		top = active_top
-		right = active_left + 4.0
-		bottom = active_top + 7.0
-	elif state == MotionState.PRESSED:
-		top += 2.0
-		bottom = maxf(bottom - 2.0, 3.0)
-	return _rect_from_insets(presenter_size, left, top, right, bottom)
+	var _lift_curve: Tweener = lift.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	var expand: PropertyTweener = tween.parallel().tween_property(
+		_face, "size", rebound_rect.size, profile.button_restore_duration * 0.38
+	)
+	var _expand_curve: Tweener = expand.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	var settle: PropertyTweener = tween.tween_property(
+		_face, "position", target_rect.position, profile.button_restore_duration * 0.62
+	)
+	var _settle_curve: Tweener = settle.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	var restore_size: PropertyTweener = tween.parallel().tween_property(
+		_face, "size", target_rect.size, profile.button_restore_duration * 0.62
+	)
+	var _restore_curve: Tweener = restore_size.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_face.rotation = 0.0
+	_face.modulate = Color.WHITE
 
 
 func _rect_from_insets(

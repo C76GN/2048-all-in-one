@@ -109,6 +109,7 @@ var _visible_world_rect: Rect2 = Rect2()
 var _fit_insets: Dictionary = {}
 var _zoom: float = 1.0
 var _follow_fit: bool = true
+var _compact_view_controls: bool = false
 var _is_initialized: bool = false
 var _is_applying_project_view: bool = false
 var _is_reconciling_spatial_view: bool = false
@@ -245,6 +246,7 @@ func set_fit_insets(insets: Dictionary) -> void:
 ## 在窄竖屏只保留完整聚焦按钮；缩放仍可通过手势、键盘、鼠标滚轮和手柄完成。
 ## @param compact: 是否启用窄竖屏视图控件布局。
 func set_compact_view_controls(compact: bool) -> void:
+	_compact_view_controls = compact
 	if is_instance_valid(_zoom_out_button):
 		_zoom_out_button.visible = not compact
 	if is_instance_valid(_zoom_label):
@@ -256,6 +258,7 @@ func set_compact_view_controls(compact: bool) -> void:
 			_FIT_BUTTON_COMPACT_MINIMUM if compact else _FIT_BUTTON_DESKTOP_MINIMUM
 		)
 	if is_instance_valid(_view_controls):
+		_view_controls.visible = not compact or not _follow_fit
 		_view_controls.offset_left = (
 			_VIEW_CONTROLS_COMPACT_LEFT_OFFSET
 			if compact
@@ -656,6 +659,9 @@ func _sync_visible_world_rect() -> void:
 func _update_zoom_label() -> void:
 	if is_instance_valid(_zoom_label):
 		_zoom_label.text = "%d%%" % roundi(_zoom * 100.0)
+	if is_instance_valid(_view_controls):
+		# In portrait, the recovery action appears only after manual pan/zoom.
+		_view_controls.visible = not _compact_view_controls or not _follow_fit
 
 
 func _get_fit_viewport_rect() -> Rect2:

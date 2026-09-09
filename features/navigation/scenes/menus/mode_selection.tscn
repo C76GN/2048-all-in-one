@@ -69,7 +69,8 @@ text = "返回"
 [node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/RightColumn" index="0" unique_id=1647236253]
 layout_mode = 2
 theme_override_font_sizes/font_size = 24
-text = "开始设置"
+text = "经典模式"
+autowrap_mode = 3
 
 [node name="ModeRuleProof" parent="MarginContainer/ColumnsContainer/RightColumn" index="1" instance=ExtResource("3_proof")]
 unique_name_in_owner = true
@@ -79,14 +80,19 @@ size_flags_horizontal = 3
 [node name="HSeparator" type="HSeparator" parent="MarginContainer/ColumnsContainer/RightColumn" index="2" unique_id=339780803]
 layout_mode = 2
 
-[node name="GridSizeContainer" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/RightColumn" index="3" unique_id=2143843944]
+[node name="LaunchRow" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/RightColumn" index="3"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="GridSizeContainer" type="HBoxContainer" parent="MarginContainer/ColumnsContainer/RightColumn/LaunchRow" index="0" unique_id=2143843944]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/RightColumn/GridSizeContainer" index="0" unique_id=365883448]
+[node name="Label" type="Label" parent="MarginContainer/ColumnsContainer/RightColumn/LaunchRow/GridSizeContainer" index="0" unique_id=365883448]
 layout_mode = 2
+visible = false
 text = "棋盘大小："
 
-[node name="GridSizeOptionButton" type="OptionButton" parent="MarginContainer/ColumnsContainer/RightColumn/GridSizeContainer" index="1" unique_id=1362999551]
+[node name="GridSizeOptionButton" type="OptionButton" parent="MarginContainer/ColumnsContainer/RightColumn/LaunchRow/GridSizeContainer" index="1" unique_id=1362999551]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
@@ -94,13 +100,14 @@ focus_neighbor_left = NodePath("../../../CenterColumn/CenterContentHolder/Center
 focus_neighbor_top = NodePath("../../StartGameButton")
 focus_neighbor_bottom = NodePath("../../StartGameButton")
 
-[node name="StartGameButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn" index="4" unique_id=1679984735]
+[node name="StartGameButton" type="Button" parent="MarginContainer/ColumnsContainer/RightColumn/LaunchRow" index="1" unique_id=1679984735]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 48)
+custom_minimum_size = Vector2(150, 64)
 layout_mode = 2
+size_flags_horizontal = 3
 focus_neighbor_left = NodePath("../../CenterColumn/CenterContentHolder/CenterContentVBox/ModeListContainer")
 focus_neighbor_top = NodePath("../GridSizeContainer/GridSizeOptionButton")
-focus_neighbor_bottom = NodePath("../AdvancedSettingsButton")
+focus_neighbor_bottom = NodePath("../../AdvancedSettingsButton")
 disabled = true
 text = "开始游戏"
 

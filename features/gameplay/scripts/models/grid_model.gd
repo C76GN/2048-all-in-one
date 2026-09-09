@@ -293,7 +293,11 @@ func from_dict(data: Dictionary) -> void:
 
 ## 在不依赖当前模式 TileDefinition 的前提下校验棋盘快照 envelope。
 ## @param snapshot: 待校验的棋盘快照字典。
-static func is_snapshot_envelope_valid(snapshot: Dictionary) -> bool:
+## @param known_topology: 可选复用提示，仅严格匹配快照时使用。
+static func is_snapshot_envelope_valid(
+	snapshot: Dictionary,
+	known_topology: BoardTopology = null
+) -> bool:
 	if not (
 		snapshot.size() == 3
 		and GFVariantData.get_option_value(snapshot, &"schema_version") is int
@@ -313,12 +317,13 @@ static func is_snapshot_envelope_valid(snapshot: Dictionary) -> bool:
 	)
 	if not topology_data_value is Dictionary or not tiles_value is Array:
 		return false
-	var topology_value: BoardTopology = BoardTopology.from_dict(
-		GFVariantData.as_dictionary(topology_data_value)
-	)
+	var topology_data: Dictionary = GFVariantData.as_dictionary(topology_data_value)
+	var topology_value: BoardTopology = known_topology
+	if topology_value == null or not topology_value.matches_serialized_data(topology_data):
+		topology_value = BoardTopology.from_dict(topology_data)
 	if (
 		topology_value == null
-		or not topology_value.get_playable_validation_report().is_ok()
+		or not topology_value.is_playable()
 	):
 		return false
 	var seen_cells: Dictionary = {}

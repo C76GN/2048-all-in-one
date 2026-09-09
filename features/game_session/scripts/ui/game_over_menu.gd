@@ -57,6 +57,7 @@ func _ready() -> void:
 
 	_update_ui_text()
 	_apply_visual_style()
+	_bind_live_theme_refresh()
 	_apply_responsive_layout()
 	call_deferred(&"_refresh_summary")
 	call_deferred(&"_focus_initial_control")

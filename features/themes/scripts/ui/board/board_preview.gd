@@ -120,9 +120,15 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 			if is_instance_valid(board_theme):
 				cell_style.bg_color = board_theme.empty_cell_color
 				cell_style.border_color = board_theme.empty_cell_border_color
-			cell_style.set_border_width_all(2)
+			cell_style.set_border_width_all(1)
 			# 预览图稍微缩小圆角
-			cell_style.set_corner_radius_all(maxi(2, roundi(cell_size * 0.1)))
+			cell_style.set_corner_radius_all(maxi(2, roundi(cell_size * 0.04)))
+			if is_instance_valid(board_theme):
+				cell_style.set_border_width_all(board_theme.empty_cell_border_width)
+				cell_style.set_corner_radius_all(mini(
+					board_theme.empty_cell_corner_radius,
+					maxi(2, roundi(cell_size * 0.04))
+				))
 			cell_instance.add_theme_stylebox_override("panel", cell_style)
 
 	# 绘制方块
@@ -169,7 +175,8 @@ func show_snapshot(snapshot: Dictionary, mode_config: GameModeConfig) -> void:
 			tile_font_color,
 			family_id,
 			_get_string_name_array(presentation, &"visual_layer_ids"),
-			_theme_utility.resolve_tile_visual_style(family_id) if is_instance_valid(_theme_utility) else null
+			_theme_utility.resolve_tile_visual_style(family_id) if is_instance_valid(_theme_utility) else null,
+			_resolve_tile_numeric_font()
 		)
 
 		var scale_factor: float = cell_size / 100.0
@@ -216,8 +223,11 @@ func _apply_background_panel_style(board_theme: BoardTheme) -> void:
 	if is_instance_valid(board_theme):
 		style.bg_color = board_theme.board_panel_color
 		style.border_color = board_theme.board_border_color
-	style.set_border_width_all(4)
-	style.set_corner_radius_all(4)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(8)
+	if is_instance_valid(board_theme):
+		style.set_border_width_all(board_theme.board_border_width)
+		style.set_corner_radius_all(mini(8, board_theme.board_corner_radius))
 	_background_panel.add_theme_stylebox_override("panel", style)
 
 
@@ -310,6 +320,16 @@ func _get_tile_presentation_descriptor(
 	return definition.get_presentation_descriptor(
 		_get_string_name_array(tile_data, &"capability_recipe_ids")
 	)
+
+
+func _resolve_tile_numeric_font() -> Font:
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	if not is_instance_valid(theme_utility):
+		return null
+	var visual_theme: GameTheme = theme_utility.get_current_visual_theme()
+	if visual_theme != null and visual_theme.ui_palette != null:
+		return visual_theme.ui_palette.numeric_font
+	return null
 
 
 func _resolve_board_theme(mode_config: GameModeConfig) -> BoardTheme:

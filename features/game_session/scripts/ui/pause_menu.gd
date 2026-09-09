@@ -34,6 +34,7 @@ func _ready() -> void:
 
 	_update_ui_text()
 	_apply_semantic_styles()
+	_bind_live_theme_refresh()
 	call_deferred(&"_focus_initial_control")
 	call_deferred(&"_play_content_reveal")
 

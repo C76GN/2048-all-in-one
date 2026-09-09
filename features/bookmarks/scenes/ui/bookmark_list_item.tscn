@@ -4,16 +4,16 @@
 [ext_resource type="Script" uid="uid://b4ammncug2ofd" path="res://features/bookmarks/scripts/ui/bookmark_board_stamp.gd" id="2_stamp"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_1"]
-bg_color = Color(0.61960787, 0.85882354, 0.8352941, 0.7)
-border_width_left = 3
-border_width_top = 3
-border_width_right = 3
-border_width_bottom = 3
-border_color = Color(0.18431373, 0.1882353, 0.21568628, 1)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
+bg_color = Color(0.898039, 0.933333, 0.890196, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.196078, 0.403922, 0.34902, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
 
 [node name="BookmarkListItem" type="Button" unique_id=169103514]
 custom_minimum_size = Vector2(250, 180)

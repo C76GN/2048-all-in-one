@@ -14,6 +14,19 @@ const _HUD_SCENE: PackedScene = preload(
 
 # --- 测试用例 ---
 
+func test_feedback_profile_accepts_disabled_shake_but_rejects_invalid_enabled_shake() -> void:
+	var profile: GameBoardFeedbackProfile = _PROFILE.duplicate(true) as GameBoardFeedbackProfile
+	assert_true(profile.get_validation_report().is_ok(), "关闭震动的完整主题仍必须能够加载。")
+	var shake: GFShakePreset = GFShakePreset.new()
+	shake.duration_seconds = 0.0
+	profile.move_recipe.shake_preset = shake
+	assert_false(profile.get_validation_report().is_ok(), "主动提供的震动预设仍必须完整有效。")
+	shake.duration_seconds = 0.1
+	assert_true(profile.get_validation_report().is_ok(), "有效震动预设应继续受到支持。")
+	profile.move_recipe = null
+	assert_false(profile.get_validation_report().is_ok(), "可选震动不应放松完整语义配方要求。")
+
+
 func test_move_feedback_is_short_subtle_and_does_not_use_emphasis_channels() -> void:
 	var setup: Dictionary = await _make_feedback_architecture()
 	var architecture: GFArchitecture = setup[&"architecture"]
@@ -22,7 +35,7 @@ func test_move_feedback_is_short_subtle_and_does_not_use_emphasis_channels() -> 
 	assert_true(feedback.apply_profile(_PROFILE))
 
 	var move_recipe: GameFeedbackRecipe = _PROFILE.move_recipe
-	assert_between(move_recipe.root_impulse, 3.0, 6.0)
+	assert_almost_eq(move_recipe.root_impulse, 0.0, 0.001)
 	assert_lte(move_recipe.root_rotation_degrees, 0.3)
 	assert_between(
 		move_recipe.impact_duration + move_recipe.settle_duration,
@@ -59,22 +72,14 @@ func test_move_feedback_is_short_subtle_and_does_not_use_emphasis_channels() -> 
 	assert_true(canvas._turn_duration == 0.0, "普通移动不得播放棋盘边缘冲击。")
 	assert_true(backdrop._duration == 0.0, "普通移动不得启动后层纸片冲击。")
 
-	var tween_value: Variant = feedback._root_tweens.get(root.get_instance_id())
-	assert_true(tween_value is Tween, "普通移动仍应保留短促的棋盘根节点确认。")
-	if tween_value is Tween:
-		var tween: Tween = tween_value
-		var _impact_active: bool = tween.custom_step(0.05)
-		var travel_distance: float = root.position.distance_to(Vector2(120.0, 80.0))
-		assert_between(travel_distance, 3.0, 6.0)
-		assert_lte(absf(root.rotation_degrees), 0.3)
-		var _settle_active: bool = tween.custom_step(0.20)
-		assert_true(root.position.is_equal_approx(Vector2(120.0, 80.0)))
-		assert_almost_eq(root.rotation_degrees, 0.0, 0.001)
+	assert_false(feedback._root_tweens.has(root.get_instance_id()), "普通移动不应创建整盘 Tween。")
+	assert_true(root.position == Vector2(120.0, 80.0))
+	assert_almost_eq(root.rotation_degrees, 0.0, 0.001)
 
 	architecture.dispose()
 
 
-func test_merge_feedback_keeps_the_emphasis_channels() -> void:
+func test_merge_feedback_keeps_the_board_stable_for_local_tile_feedback() -> void:
 	var setup: Dictionary = await _make_feedback_architecture()
 	var architecture: GFArchitecture = setup[&"architecture"]
 	var feedback: GameBoardFeedbackUtility = setup[&"feedback"]
@@ -102,49 +107,25 @@ func test_merge_feedback_keeps_the_emphasis_channels() -> void:
 		Color.WHITE,
 		backdrop
 	)
-	assert_gt(fragment_count, 0)
-	assert_gt(shake.get_active_shake_count(&"board"), 0, "合并应保留 GF Shake 强调。")
-	assert_gt(canvas._turn_duration, 0.0, "合并应保留棋盘边缘冲击。")
-	assert_gt(backdrop._duration, 0.0, "合并应保留后层纸片反馈。")
+	assert_true(fragment_count == 0)
+	assert_true(shake.get_active_shake_count(&"board") == 0, "合并确认不能摇晃整个棋盘。")
+	assert_almost_eq(canvas._turn_duration, 0.0, 0.001, "局部合并不应启动边缘冲击。")
+	assert_almost_eq(backdrop._duration, 0.0, 0.001, "局部合并不应旋转背板。")
 
 	architecture.dispose()
 
 
-func test_merge_feedback_hierarchy_reserves_large_board_motion_for_records() -> void:
-	var merge_recipe: GameFeedbackRecipe = _PROFILE.turn_merge_recipe
-	var high_merge_recipe: GameFeedbackRecipe = _PROFILE.high_merge_recipe
-	var record_recipe: GameFeedbackRecipe = _PROFILE.record_recipe
-
-	assert_between(
-		merge_recipe.root_rotation_degrees,
-		0.5,
-		1.0,
-		"普通合并的整盘旋转应只作为轻量确认。"
-	)
-	assert_between(
-		merge_recipe.edge_fragment_count,
-		0,
-		3,
-		"普通合并只允许少量边缘纸片。"
-	)
-	assert_between(
-		high_merge_recipe.root_rotation_degrees,
-		1.0,
-		2.0,
-		"高价值合并仍应保持在克制的整盘运动范围。"
-	)
-	assert_between(
-		high_merge_recipe.edge_fragment_count,
-		4,
-		6,
-		"高价值合并应使用可辨识但有界的纸片数量。"
-	)
-	assert_between(
-		record_recipe.root_rotation_degrees,
-		4.0,
-		5.0,
-		"明显的整盘旋转只保留给破纪录等稀有事件。"
-	)
+func test_feedback_hierarchy_preserves_a_stable_board_at_every_tier() -> void:
+	for recipe: GameFeedbackRecipe in [
+		_PROFILE.move_recipe, _PROFILE.turn_merge_recipe,
+		_PROFILE.high_merge_recipe, _PROFILE.record_recipe,
+	]:
+		assert_almost_eq(recipe.root_impulse, 0.0, 0.001)
+		assert_almost_eq(recipe.root_rotation_degrees, 0.0, 0.001)
+		assert_almost_eq(recipe.root_compression, 0.0, 0.001)
+		assert_almost_eq(recipe.background_energy, 0.0, 0.001)
+		assert_null(recipe.shake_preset)
+		assert_true(recipe.edge_fragment_count == 0)
 
 	var feedback: GameBoardFeedbackUtility = GameBoardFeedbackUtility.new()
 	assert_true(

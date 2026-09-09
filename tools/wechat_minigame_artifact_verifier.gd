@@ -25,10 +25,10 @@ const RELEASE_PROJECT_NAME: String = "2048 Full Game Release Candidate"
 const _EXPORT_PRESET: String = "Web Compatibility Smoke"
 const _RELEASE_EXPORT_PRESET: String = "Web Compatibility WeChat Release"
 const _TEMPLATE_RELEASE: String = "4.7"
-const _TEMPLATE_ASSET: String = "minigame4.7.tpz"
-const _TEMPLATE_EXPECTED_BYTES: int = 11_763_895
+const _TEMPLATE_ASSET: String = "minigame4.7.0.7.tpz"
+const _TEMPLATE_EXPECTED_BYTES: int = 11_767_131
 const _TEMPLATE_SHA256: String = (
-	"ae5bdeb5ba1ce9712d4efc35d337cb5ecbef3ad5bfb0f7d06ae9cb662c1f2d71"
+	"a4792abe2ef3217a18c1690dac67f71402af87a43222150f3635d136de5a4710"
 )
 const _TOOL_IDENTITY_NAMES: PackedStringArray = [
 	"export_tool",
@@ -187,7 +187,8 @@ const _LOADER_RENDER_PATCH_MARKER: String = (
 	"/*2048-wechat-loader-dpr-cap-v1*/"
 )
 const _RENDER_DPR_SOURCE_TOKEN: String = (
-	"i=Number(window.devicePixelRatio)," +
+	"const {width:t,height:e}=this.getViewportSize()," +
+	"i=Number(this.getDevicePixelRatio())," +
 	"r=Number.isFinite(i)&&i>0?Math.max(1,i):1," +
 	"s=Math.max(t,e),o=Math.min(t,e)"
 )
@@ -223,7 +224,7 @@ const _SMOKE_FONT_SHA256: String = (
 const _SMOKE_FONT_PATH: String = "res://shared/assets/fonts/wechat_smoke_sans_subset.ttf"
 const _RELEASE_FONT_TOKEN: String = "wechat_release_sans_subset"
 const _RELEASE_FONT_SHA256: String = (
-	"b9bd519d1a5cee5647c976b21153726035adc848a563f0e8af2d612e56fd265f"
+	"99e5872847c9fbbf04dcdafdf792c072e855b1e9f043edfc20065401d4740909"
 )
 const _RELEASE_FONT_PATH: String = (
 	"res://shared/assets/fonts/wechat_release_sans_subset.ttf"
@@ -235,10 +236,10 @@ const _RELEASE_COVERAGE_MANIFEST_PATH: String = (
 	"res://shared/assets/fonts/wechat_release_font_coverage.json"
 )
 const _RELEASE_COVERAGE_SHA256: String = (
-	"aa0d06deafac5ccf7cccca1565d143b1b1478b1377170254161c44cab07ad157"
+	"b27daf664e5ce0c0933232ff9ebf9742c2a133c612caa216a13f14ffdddbd221"
 )
-const _RELEASE_FONT_BYTES: int = 445_076
-const _RELEASE_CODEPOINT_COUNT: int = 810
+const _RELEASE_FONT_BYTES: int = 447_788
+const _RELEASE_CODEPOINT_COUNT: int = 816
 const _RELEASE_SOURCE_FONT_SHA256: String = (
 	"763146584cf0710223441356b4395e279021b0806c196614377a7a0174ae074a"
 )

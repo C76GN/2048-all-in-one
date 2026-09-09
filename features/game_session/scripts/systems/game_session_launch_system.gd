@@ -139,6 +139,9 @@ func launch_replay(replay_id: String) -> bool:
 func get_latest_resumable_bookmark_id() -> String:
 	if not _has_required_dependencies():
 		return ""
+	var resume_game: BookmarkData = _bookmark_system.load_resume_game()
+	if _is_bookmark_valid_for_launch(resume_game):
+		return resume_game.bookmark_id
 	for bookmark: BookmarkData in _bookmark_system.load_bookmarks():
 		if _is_bookmark_valid_for_launch(bookmark):
 			return bookmark.bookmark_id
@@ -188,6 +191,13 @@ func _clear_new_game_selection() -> void:
 func _resolve_valid_bookmark(bookmark_id: String) -> BookmarkData:
 	if not GFUuid.is_valid(bookmark_id, 7):
 		return null
+	var resume_game: BookmarkData = _bookmark_system.load_resume_game()
+	if (
+		is_instance_valid(resume_game)
+		and resume_game.bookmark_id == bookmark_id
+		and _is_bookmark_valid_for_launch(resume_game)
+	):
+		return BookmarkData.from_dict(resume_game.to_dict())
 	for bookmark: BookmarkData in _bookmark_system.load_bookmarks():
 		if bookmark.bookmark_id != bookmark_id:
 			continue

@@ -6,10 +6,10 @@
 script = ExtResource("1_profile")
 parameters = {
 "dash_count": 18.0,
-"dash_ratio": 0.54,
-"radius": 7.0,
-"speed": 0.65,
-"thickness": 3.0
+"dash_ratio": 1.0,
+"radius": 0.0,
+"speed": 0.0,
+"thickness": 2.0
 }
 metadata = {
 "profile_id": &"halftone_atlas.ui.focus_ring",

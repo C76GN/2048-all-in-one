@@ -113,6 +113,7 @@ func install(architecture: GFArchitecture, scope: GFAsyncScope) -> void:
 	_architecture = architecture
 	_installation_timing = {
 		"project_install_started_usec": _clock.get_monotonic_usec(),
+		"binding_samples": [],
 	}
 	if architecture == null or scope == null:
 		var invalid_reason: String = (
@@ -191,7 +192,8 @@ func _bind_required(
 	target_script: Script,
 	alias_script: Script = null
 ) -> bool:
-	return await ProjectRequiredBinding.bind_singleton(
+	var started_usec: int = _clock.get_monotonic_usec()
+	var bound: bool = await ProjectRequiredBinding.bind_singleton(
 		binding,
 		_architecture,
 		scope,
@@ -199,6 +201,14 @@ func _bind_required(
 		target_script,
 		alias_script
 	)
+	var samples: Array = GFVariantData.as_array(_installation_timing.get("binding_samples", []))
+	samples.append({
+		"kind": String(binding_kind),
+		"type": String(target_script.get_global_name()) if target_script != null else "",
+		"duration_msec": float(_clock.get_monotonic_usec() - started_usec) / 1000.0,
+		"succeeded": bound,
+	})
+	return bound
 
 
 func _bind_required_scripts(
@@ -659,6 +669,11 @@ func _create_game_save_graph_utility() -> GameSaveGraphUtility:
 	var bookmark_profile_provider: BookmarkManifestSaveSectionProvider = (
 		BookmarkManifestSaveSectionProvider.new(bookmark_data)
 	)
+	var resume_data: BookmarkCatalogSaveData = BookmarkCatalogSaveData.new()
+	var resume_profile_provider: BookmarkManifestSaveSectionProvider = (
+		BookmarkManifestSaveSectionProvider.new(resume_data, BookmarkSystem.RESUME_SECTION_ID)
+	)
+	resume_profile_provider.required_on_load = false
 	var replay_data: ReplayCatalogSaveData = ReplayCatalogSaveData.new()
 	var replay_profile_provider: ReplayManifestSaveSectionProvider = (
 		ReplayManifestSaveSectionProvider.new(replay_data)
@@ -678,6 +693,12 @@ func _create_game_save_graph_utility() -> GameSaveGraphUtility:
 		GameSaveGraphUtility.CUSTOM_BOARDS_SECTION_ID,
 		CustomBoardCatalogSaveData.new(),
 		GameSaveGraphUtility.SectionOrder.NORMAL
+	)
+	var resume_registered: bool = save_graph.register_section(
+		BookmarkSystem.RESUME_SECTION_ID,
+		resume_data,
+		GameSaveGraphUtility.SectionOrder.NORMAL,
+		resume_profile_provider
 	)
 	var discoveries_registered: bool = save_graph.register_section(
 		GameSaveGraphUtility.DISCOVERIES_SECTION_ID,
@@ -703,6 +724,7 @@ func _create_game_save_graph_utility() -> GameSaveGraphUtility:
 	if (
 		not progress_registered
 		or not bookmarks_registered
+		or not resume_registered
 		or not custom_boards_registered
 		or not discoveries_registered
 		or not tile_blueprints_registered

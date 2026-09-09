@@ -24,3 +24,9 @@ extends Resource
 
 ## 棋盘上空格子的描边颜色。
 @export var empty_cell_border_color: Color = Color.BLACK
+
+## 静态板框几何由主题统一投影到游戏与预览，切换主题时不改棋盘布局。
+@export_range(0, 24, 1) var board_corner_radius: int = 12
+@export_range(0, 4, 1) var board_border_width: int = 1
+@export_range(0, 16, 1) var empty_cell_corner_radius: int = 6
+@export_range(0, 4, 1) var empty_cell_border_width: int = 1

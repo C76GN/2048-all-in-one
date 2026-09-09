@@ -1,7 +1,7 @@
 {
   "coverage": {
-    "codepoint_count": 810,
-    "codepoints_sha256": "aa0d06deafac5ccf7cccca1565d143b1b1478b1377170254161c44cab07ad157",
+    "codepoint_count": 816,
+    "codepoints_sha256": "b27daf664e5ce0c0933232ff9ebf9742c2a133c612caa216a13f14ffdddbd221",
     "excluded_prefixes": [
       "features/asset_library/resources/review/",
       "features/asset_library/resources/source_packs/",
@@ -120,11 +120,11 @@
       ".tscn",
       ".tres"
     ],
-    "source_file_count": 410,
-    "source_paths_sha256": "10e05787b5432bfbe4e0e2bf12b3e2af5297c04472c5e2f62e58c68b47733beb",
+    "source_file_count": 426,
+    "source_paths_sha256": "c808abbfe277b68bf48109cba550a6915412c195e936210782c569bc391bc7ae",
     "translation_source": {
       "path": "shared/assets/translations.csv",
-      "sha256": "616f2450dcca20e3cb7f11bf16e78c64b10aef9c85177178bcf9935067e35ab1"
+      "sha256": "c41ea7962f0fd8bfc6c5102ac3a1fa847c2067ecca7a70fc2e806b6ee6f8cd5a"
     }
   },
   "license": {
@@ -144,8 +144,8 @@
     "sha256": "763146584cf0710223441356b4395e279021b0806c196614377a7a0174ae074a"
   },
   "subset_font": {
-    "bytes": 445076,
+    "bytes": 447788,
     "path": "shared/assets/fonts/wechat_release_sans_subset.ttf",
-    "sha256": "b9bd519d1a5cee5647c976b21153726035adc848a563f0e8af2d612e56fd265f"
+    "sha256": "99e5872847c9fbbf04dcdafdf792c072e855b1e9f043edfc20065401d4740909"
   }
 }

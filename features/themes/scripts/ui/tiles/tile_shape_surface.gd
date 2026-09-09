@@ -11,7 +11,7 @@ extends Control
 const _DEFAULT_BORDER_COLOR: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
 const _DEFAULT_SCALE: Vector2 = Vector2(0.94, 0.94)
 const _DEFAULT_SHADOW_OFFSET: Vector2 = Vector2(3.5, 3.5)
-const _SHADOW_ALPHA: float = 0.15
+const _SHADOW_ALPHA: float = 0.07
 
 
 # --- 私有变量 ---
@@ -34,14 +34,13 @@ func _draw() -> void:
 		return
 
 	var shadow_color: Color = _get_border_color()
-	shadow_color.a = _SHADOW_ALPHA
-	var shadow_points: PackedVector2Array = PackedVector2Array()
+	shadow_color.a = _visual_style.shadow_opacity if _visual_style != null else _SHADOW_ALPHA
 	var shadow_offset: Vector2 = _get_shadow_offset()
-	for point: Vector2 in _shape_points:
-		var _shadow_append_result: bool = shadow_points.append(
-			point + shadow_offset
-		)
-	draw_colored_polygon(shadow_points, shadow_color)
+	if shadow_color.a > 0.001 and not shadow_offset.is_zero_approx():
+		var shadow_points: PackedVector2Array = PackedVector2Array()
+		for point: Vector2 in _shape_points:
+			var _shadow_append_result: bool = shadow_points.append(point + shadow_offset)
+		draw_colored_polygon(shadow_points, shadow_color)
 
 	draw_colored_polygon(_shape_points, _fill_color)
 	var outline: PackedVector2Array = _shape_points.duplicate()
@@ -77,30 +76,31 @@ func get_silhouette_id() -> StringName:
 	return _visual_style.silhouette_id if _visual_style != null else &"soft_square"
 
 
+## 为菜单与缩略图复用局内方块的轮廓，避免各页面维护不同的几何规则。
+## @param visual_style: 当前家族的视觉资源。
+## @param area: 需要填充的局部区域。
+static func build_outline(visual_style: TileVisualFamilyStyle, area: Rect2) -> PackedVector2Array:
+	var shape_scale: Vector2 = visual_style.shape_scale if visual_style != null else _DEFAULT_SCALE
+	var silhouette: StringName = visual_style.silhouette_id if visual_style != null else &"soft_square"
+	var points: PackedVector2Array = _build_local_shape_points(silhouette, area.size * shape_scale * 0.5)
+	var rotation_radians: float = deg_to_rad(
+		visual_style.shape_rotation_degrees if visual_style != null else 0.0
+	)
+	for index: int in range(points.size()):
+		points[index] = area.get_center() + points[index].rotated(rotation_radians)
+	return points
+
+
 # --- 私有/辅助方法 ---
 
 func _rebuild_shape() -> void:
 	if size.x <= 0.0 or size.y <= 0.0:
 		return
-	var scale_value: Vector2 = _visual_style.shape_scale if _visual_style != null else _DEFAULT_SCALE
-	var half_size: Vector2 = size * scale_value * 0.5
-	var center: Vector2 = size * 0.5
-	var local_points: PackedVector2Array = _build_local_shape_points(
-		get_silhouette_id(),
-		half_size
-	)
-	var rotation_radians: float = deg_to_rad(
-		_visual_style.shape_rotation_degrees if _visual_style != null else 0.0
-	)
-	_shape_points = PackedVector2Array()
-	for local_point: Vector2 in local_points:
-		var _shape_append_result: bool = _shape_points.append(
-			center + local_point.rotated(rotation_radians)
-		)
+	_shape_points = build_outline(_visual_style, Rect2(Vector2.ZERO, size))
 	queue_redraw()
 
 
-func _build_local_shape_points(
+static func _build_local_shape_points(
 	silhouette_id: StringName,
 	half_size: Vector2
 ) -> PackedVector2Array:
@@ -121,7 +121,7 @@ func _build_local_shape_points(
 			return _build_asymmetric_cut_shape(half_size, 0.035, 0.035, 0.035, 0.035)
 
 
-func _build_asymmetric_cut_shape(
+static func _build_asymmetric_cut_shape(
 	half_size: Vector2,
 	top_left_ratio: float,
 	top_right_ratio: float,
@@ -145,7 +145,7 @@ func _build_asymmetric_cut_shape(
 	])
 
 
-func _build_bracket_shape(half_size: Vector2) -> PackedVector2Array:
+static func _build_bracket_shape(half_size: Vector2) -> PackedVector2Array:
 	var cut: float = minf(half_size.x, half_size.y) * 0.05
 	var notch_depth: float = half_size.x * 0.055
 	var notch_half_height: float = half_size.y * 0.08
@@ -167,7 +167,7 @@ func _build_bracket_shape(half_size: Vector2) -> PackedVector2Array:
 	])
 
 
-func _build_ticket_shape(half_size: Vector2) -> PackedVector2Array:
+static func _build_ticket_shape(half_size: Vector2) -> PackedVector2Array:
 	var cut: float = minf(half_size.x, half_size.y) * 0.06
 	var notch_depth: float = half_size.y * 0.055
 	var notch_half_width: float = half_size.x * 0.075

@@ -11,6 +11,19 @@
 2. 再用平台规范和可运行示例拆出时序、Easing、空间与中断规则；
 3. 最后把结论转成项目自己的语义 Motion Preset，并同时定义 Reduced Motion 终态。
 
+## 2026-09-07 印刷风采用的机制
+
+本轮选择 FIRST EDITION 印刷风，并保留可切换的安静纸面。高频反馈简短、进入与退出分工、运动连续衔接，仍沿用此前参考的 [Material 时长与缓动说明](https://m1.material.io/motion/duration-easing.html) 和 [Motion 实现说明](https://github.com/material-components/material-components-android/blob/master/docs/theming/Motion.md)。纸签落版、墨面压印和直边翻页是本项目的设计；以下数值只是本次落地的参考快照，不是外部案例的原始参数。完整节拍和规范以 [visual_style.md](./visual_style.md) 及主题资源为准。
+
+- 按钮约 35ms 压印、105ms 一次回弹；只改变内部 `PaperFace` 的矩形，按钮文字和点击区域始终固定。再次按下直接接续当前纸面，不等待回弹结束。
+- 纸签约 130ms 落定，首帧已可读；错峰总延迟有上限。带按钮、输入框或滑块的面板只对自身墨色做短暂反馈，子控件不跟随整面板缩放、移动或淡入。
+- 弹层任务表面立即可读，遮罩允许短暂变化；打开、关闭和再次打开从当前遮罩状态接续。场景使用直边纸页覆盖与揭示，分别约 70ms、100ms；实际切页时间还包含加载与首绘。
+- 棋块移动 120ms、生成 100ms；合并数字在碰撞时提交，再用两段各约 55ms 的局部横展纵压收束。生成和合并尾效不占用下一次方向输入的准入。
+- 连续方向从当前像素位置重定向，被取消的旧回调不能写入新回合。减少动态直接提交相同落点、数字、焦点和遮罩终态，不等待不可见 Tween。
+- 默认背景、焦点和整块棋盘保持稳定。安静纸面保留自己的轻揭示与等比合并脉冲，切换时取消当前纸面动画并重投影当前交互状态。
+
+实现入口为 [GameUiMotionUtility](../features/themes/scripts/utilities/game_ui_motion_utility.gd)、[GameButtonMotionPresenter](../features/themes/scripts/ui/game_button_motion_presenter.gd)、[印刷 UI 节拍](../features/themes/resources/themes/game/halftone_atlas_ui_motion_profile.tres)、[局部方块反馈](../features/themes/resources/themes/game/feedback/halftone_atlas_board_feedback_profile.tres) 和 [安静纸面节拍](../features/themes/resources/themes/game/quiet_paper/ui_motion_profile.tres)。[连续打断与减少动态测试](../tests/gut/test_print_motion.gd) 验证这些行为；测试存在不等于真实触控或目标设备性能已验收。
+
 ## 快速结论
 
 ### 最值得长期收藏的入口
@@ -33,7 +46,7 @@
 - 输入到首要反馈必须小于 `50ms`。按钮按下、焦点和合法目标不能等业务完成或等旧 Tween 播完。
 - 演出只消费已提交状态；动画结束回调不能成为玩法真值。新的输入应从当前视觉值重定向，或明确 cancel/settle，不得排队播放陈旧状态。
 - Reduced Motion 必须直接落到相同静态终态，不等待不可见 Tween；关闭震动只移除 Haptic，不改变其他反馈；`MINIMAL` 仍可保留预算内的小幅动作，但彩屑为 0、背景/庆祝 Shader 关闭。
-- 当前 CMYK 半调纸片语言适合短、清楚、机械式动作；不应借用 blur、glow、长淡入、大视差或持续漂移作为默认风格。
+- 当前印刷风采用纸签落版、墨面压印和局部合并反馈；安静纸面保留轻揭示。两者都应让数字先可读、操作区保持稳定，避免把长淡入、大视差或持续漂移当作高频反馈。
 
 ## 1. 调研口径与维护方法
 

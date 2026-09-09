@@ -1,0 +1,63 @@
+[gd_resource type="Resource" script_class="TileColorScheme" format=3]
+
+[ext_resource type="Script" uid="uid://dwmd115dhs0pl" path="res://features/themes/scripts/data/tiles/tile_color_scheme.gd" id="1_wiyha"]
+[ext_resource type="Script" uid="uid://b7dkhehece8ke" path="res://features/themes/scripts/data/tiles/tile_level_style.gd" id="2_v8o4n"]
+
+[sub_resource type="Resource" id="Resource_wiyha"]
+script = ExtResource("2_v8o4n")
+background_color = Color(0.95686275, 0.92156863, 0.86666667, 1)
+font_color = Color(0.14117647, 0.20784314, 0.18431373, 1)
+
+[sub_resource type="Resource" id="Resource_v8o4n"]
+script = ExtResource("2_v8o4n")
+background_color = Color(0.91372549, 0.85098039, 0.72156863, 1)
+font_color = Color(0.14117647, 0.20784314, 0.18431373, 1)
+
+[sub_resource type="Resource" id="Resource_c8oyv"]
+script = ExtResource("2_v8o4n")
+background_color = Color(0.86666667, 0.72156863, 0.47450980, 1)
+font_color = Color(0.14117647, 0.20784314, 0.18431373, 1)
+
+[sub_resource type="Resource" id="Resource_ggvnx"]
+script = ExtResource("2_v8o4n")
+background_color = Color(0.81176471, 0.58823529, 0.42352941, 1)
+font_color = Color(0.14117647, 0.20784314, 0.18431373, 1)
+
+[sub_resource type="Resource" id="Resource_3d667"]
+script = ExtResource("2_v8o4n")
+background_color = Color(0.78039216, 0.48235294, 0.37647059, 1)
+font_color = Color(1.00000000, 0.99607843, 0.98039216, 1)
+
+[sub_resource type="Resource" id="Resource_t7yvn"]
+script = ExtResource("2_v8o4n")
+background_color = Color(0.66274510, 0.40784314, 0.32156863, 1)
+font_color = Color(1.00000000, 0.99607843, 0.98039216, 1)
+
+[sub_resource type="Resource" id="Resource_601s1"]
+script = ExtResource("2_v8o4n")
+background_color = Color(0.34901961, 0.47843137, 0.39215686, 1)
+font_color = Color(1.00000000, 0.99607843, 0.98039216, 1)
+
+[sub_resource type="Resource" id="Resource_1hn0q"]
+script = ExtResource("2_v8o4n")
+background_color = Color(0.25490196, 0.40784314, 0.34509804, 1)
+font_color = Color(1.00000000, 0.99607843, 0.98039216, 1)
+
+[sub_resource type="Resource" id="Resource_xtav8"]
+script = ExtResource("2_v8o4n")
+background_color = Color(0.20392157, 0.34509804, 0.29019608, 1)
+font_color = Color(1.00000000, 0.99607843, 0.98039216, 1)
+
+[sub_resource type="Resource" id="Resource_yxeey"]
+script = ExtResource("2_v8o4n")
+background_color = Color(0.16078431, 0.28235294, 0.23921569, 1)
+font_color = Color(1.00000000, 0.99607843, 0.98039216, 1)
+
+[sub_resource type="Resource" id="Resource_j1els"]
+script = ExtResource("2_v8o4n")
+background_color = Color(0.12549020, 0.21960784, 0.18431373, 1)
+font_color = Color(1.00000000, 0.99607843, 0.98039216, 1)
+
+[resource]
+script = ExtResource("1_wiyha")
+styles = Array[ExtResource("2_v8o4n")]([SubResource("Resource_wiyha"), SubResource("Resource_v8o4n"), SubResource("Resource_c8oyv"), SubResource("Resource_ggvnx"), SubResource("Resource_3d667"), SubResource("Resource_t7yvn"), SubResource("Resource_601s1"), SubResource("Resource_1hn0q"), SubResource("Resource_xtav8"), SubResource("Resource_yxeey"), SubResource("Resource_j1els")])

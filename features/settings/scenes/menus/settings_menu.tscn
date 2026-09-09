@@ -162,6 +162,28 @@ custom_minimum_size = Vector2(220, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 
+[node name="VisualThemeContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Label" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/VisualThemeContainer"]
+custom_minimum_size = Vector2(150, 0)
+layout_mode = 2
+text = "画面风格"
+vertical_alignment = 1
+
+[node name="VisualThemeOptionButton" type="OptionButton" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection/VisualThemeContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="VisualThemeStatus" type="Label" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 2
+text = ""
+
 [node name="WindowModeContainer" type="HBoxContainer" parent="SafeMargin/Page/Body/ContentPanel/ContentMargin/Sections/GeneralSection"]
 layout_mode = 2
 theme_override_constants/separation = 12

@@ -14,12 +14,12 @@ const _DESKTOP_SAFE_AREA_MARGINS: Dictionary = {
 	"bottom": 42.0,
 	"right": 56.0,
 }
-const _INTRO_BRAND_STAGGER: float = 0.045
+const _INTRO_BRAND_STAGGER: float = 0.018
 const _RETURN_BRAND_STAGGER: float = 0.022
-const _INTRO_MENU_STAGGER: float = 0.032
+const _INTRO_MENU_STAGGER: float = 0.012
 const _RETURN_MENU_STAGGER: float = 0.018
-const _INTRO_MENU_DELAY: float = 0.24
-const _FULL_INTRO_WINDOW: float = 0.92
+const _INTRO_MENU_DELAY: float = 0.0
+const _FULL_INTRO_WINDOW: float = 0.30
 const _POPUP_INTENT_PRELOAD_GROUP_ID: StringName = &"main_menu_popup_intent"
 const _POPUP_INTENT_PRELOAD_PLAN_ID: StringName = &"main_menu_popup_intent.preload"
 const _POPUP_INTENT_PRELOAD_ROUTE_IDS: Array[StringName] = [
@@ -52,6 +52,7 @@ const _POPUP_INTENT_PRELOAD_ROUTE_IDS: Array[StringName] = [
 
 static var _has_played_full_intro: bool = false
 
+var _theme_signal_utility: GFSignalUtility = null
 var _layout_update_queued: bool = false
 var _viewport_utility: GFViewportUtility = null
 var _content_scroll: ScrollContainer = null
@@ -82,9 +83,12 @@ var _popup_intent_asset_utility: GFAssetUtility = null
 @onready var _content: BoxContainer = %Content
 @onready var _showcase: VBoxContainer = %Showcase
 @onready var _board_preview_frame: Panel = %BoardPreviewFrame
-@onready var _board_motif: MainMenuBoardMotif = (
-	$SafeMargin/Content/Showcase/BoardPreviewFrame/BoardMotif
-)
+@onready var _board_motif: MainMenuBoardMotif = %BoardMotif
+@onready var _title_rule: ColorRect = %TitleRule
+@onready var _library_rule: ColorRect = %LibraryRule
+@onready var _hero_row: BoxContainer = %HeroRow
+@onready var _primary_actions: BoxContainer = %PrimaryActions
+@onready var _library_rail: GridContainer = %LibraryRail
 @onready var _menu_column: VBoxContainer = %MenuColumn
 @onready var _title_label: Label = %TitleLabel
 @onready var _edition_label: Label = %EditionLabel
@@ -124,6 +128,10 @@ func _ready() -> void:
 	_bind_board_motif_interactions()
 
 	_apply_semantic_styles()
+	_bind_visual_theme_changes()
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	if is_instance_valid(theme_utility) and is_instance_valid(_board_motif):
+		_board_motif.configure_theme(theme_utility.get_current_visual_theme())
 	_queue_layout_update()
 	_start_game_button.grab_focus()
 	_update_ui_text()
@@ -134,6 +142,9 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	_release_popup_intent_preload()
+	if is_instance_valid(_theme_signal_utility):
+		_theme_signal_utility.disconnect_owner(self)
+	_theme_signal_utility = null
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -360,14 +371,24 @@ func _apply_semantic_styles() -> void:
 	style.style_label(_continue_hint_label, GameUiStyleUtility.TextRole.MUTED)
 	style.style_button(_start_game_button, GameUiStyleUtility.ButtonRole.PRIMARY)
 	style.style_button(_continue_game_button, GameUiStyleUtility.ButtonRole.SECONDARY)
-	style.style_button(_load_bookmark_button, GameUiStyleUtility.ButtonRole.SECONDARY)
-	style.style_button(_replays_button, GameUiStyleUtility.ButtonRole.SECONDARY)
-	style.style_button(_tile_catalog_button, GameUiStyleUtility.ButtonRole.SECONDARY)
-	style.style_button(_tile_lab_button, GameUiStyleUtility.ButtonRole.SECONDARY)
-	style.style_button(_player_profile_button, GameUiStyleUtility.ButtonRole.SECONDARY)
-	style.style_button(_achievements_button, GameUiStyleUtility.ButtonRole.SECONDARY)
-	style.style_button(_settings_button, GameUiStyleUtility.ButtonRole.SECONDARY)
-	style.style_button(_quit_button, GameUiStyleUtility.ButtonRole.SECONDARY)
+	style.style_button(_load_bookmark_button, GameUiStyleUtility.ButtonRole.QUIET)
+	style.style_button(_replays_button, GameUiStyleUtility.ButtonRole.QUIET)
+	style.style_button(_tile_catalog_button, GameUiStyleUtility.ButtonRole.QUIET)
+	style.style_button(_tile_lab_button, GameUiStyleUtility.ButtonRole.QUIET)
+	style.style_button(_player_profile_button, GameUiStyleUtility.ButtonRole.QUIET)
+	style.style_button(_achievements_button, GameUiStyleUtility.ButtonRole.QUIET)
+	style.style_button(_settings_button, GameUiStyleUtility.ButtonRole.QUIET)
+	style.style_button(_quit_button, GameUiStyleUtility.ButtonRole.QUIET)
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	var visual_theme: GameTheme = theme_utility.get_current_visual_theme() if is_instance_valid(theme_utility) else null
+	var palette: GameUiPalette = visual_theme.ui_palette if visual_theme != null else null
+	var print_marks: bool = palette != null and palette.print_marks_enabled
+	_title_rule.visible = print_marks
+	_library_rule.visible = print_marks
+	if print_marks:
+		_title_rule.color = palette.primary_button_color
+		_library_rule.color = palette.text_primary_color
+
 
 
 func _play_content_reveal() -> void:
@@ -394,7 +415,7 @@ func _play_content_reveal() -> void:
 	)
 	var _menu_reveal_count: int = motion.play_button_deal_sequence(
 		_get_menu_button_sequence(),
-		Vector2(34.0, 0.0),
+		Vector2(0.0, 4.0),
 		_RETURN_MENU_STAGGER if shortened else _INTRO_MENU_STAGGER,
 		0.0 if shortened else _INTRO_MENU_DELAY
 	)
@@ -482,63 +503,47 @@ func _apply_responsive_layout() -> void:
 	_layout_update_queued = false
 	if not is_inside_tree():
 		return
-	var task_layout_mode: int = GameTaskPageLayoutUtility.classify_layout(size)
-	var compact: bool = task_layout_mode != GameTaskPageLayoutUtility.LayoutMode.DESKTOP
-	var compact_landscape: bool = (
-		task_layout_mode == GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE
+	var page_layout_mode: GameTaskPageLayoutUtility.LayoutMode = (
+		GameTaskPageLayoutUtility.classify_layout(size)
 	)
-	_content.vertical = compact
+	var portrait: bool = page_layout_mode == GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
+	var compact: bool = page_layout_mode == GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE
+	_hero_row.vertical = portrait
+	_primary_actions.vertical = portrait
+	_hero_row.add_theme_constant_override("separation", 8 if portrait else (24 if compact else 56))
+	_content.add_theme_constant_override("separation", 16 if portrait else 18)
+	_menu_column.add_theme_constant_override("separation", 4 if compact else 8)
+	_showcase.custom_minimum_size.x = 0.0 if portrait else (370.0 if compact else 500.0)
+	_showcase.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_menu_column.custom_minimum_size.x = 0.0
+	_menu_column.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_board_preview_frame.visible = true
-	_board_preview_frame.custom_minimum_size = _get_board_preview_minimum_size(
-		task_layout_mode
+	_board_preview_frame.custom_minimum_size = _get_board_preview_minimum_size(page_layout_mode)
+	_board_preview_frame.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_board_preview_frame.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_library_rail.columns = 3 if portrait or size.x < 820.0 else 6
+	_title_rule.custom_minimum_size.x = minf(360.0, maxf(size.x - 64.0, 44.0))
+	_library_rule.custom_minimum_size.x = minf(760.0, maxf(size.x - 48.0, 44.0))
+	_library_rail.add_theme_constant_override("h_separation", 10 if compact else 16)
+	var horizontal_margin: float = maxf(32.0, (size.x - 1120.0) * 0.5)
+	var margins: Dictionary = GameTaskPageLayoutUtility.get_safe_area_extra_margins(
+		page_layout_mode,
+		{"left": horizontal_margin, "right": horizontal_margin, "top": 24.0, "bottom": 24.0}
 	)
-	_board_preview_frame.size_flags_vertical = (
-		Control.SIZE_SHRINK_CENTER if compact else Control.SIZE_EXPAND_FILL
+	_apply_safe_area_margins(margins)
+	_title_label.add_theme_font_size_override("font_size", 132 if portrait else (128 if compact else 164))
+	_edition_label.add_theme_font_size_override("font_size", 22 if compact else 25)
+	_subtitle_label.add_theme_font_size_override("font_size", 14 if compact else 16)
+	_subtitle_label.custom_minimum_size.x = 0.0
+	_start_game_button.custom_minimum_size = Vector2(
+		minf(460.0, maxf(size.x - 48.0, 44.0)) if portrait else (390.0 if compact else 460.0),
+		64.0 if compact else 76.0
 	)
-	_showcase.size_flags_vertical = (
-		Control.SIZE_SHRINK_BEGIN if compact else Control.SIZE_EXPAND_FILL
-	)
-	_menu_column.size_flags_vertical = (
-		Control.SIZE_SHRINK_BEGIN if compact else Control.SIZE_SHRINK_CENTER
-	)
-	_showcase.custom_minimum_size.x = 0.0 if compact else 520.0
-	_menu_column.custom_minimum_size.x = 0.0 if compact else 360.0
-	_content.add_theme_constant_override(
-		"separation",
-		12 if compact_landscape else (18 if compact else 56)
-	)
-	_menu_column.add_theme_constant_override(
-		"separation",
-		6 if compact_landscape else (8 if compact else 10)
-	)
-	_apply_safe_area_margins(
-		GameTaskPageLayoutUtility.get_safe_area_extra_margins(
-			task_layout_mode,
-			_DESKTOP_SAFE_AREA_MARGINS
-		)
-	)
-	_title_label.add_theme_font_size_override(
-		"font_size",
-		44 if compact_landscape else (56 if compact else 104)
-	)
-	_edition_label.add_theme_font_size_override(
-		"font_size",
-		16 if compact_landscape else (18 if compact else 24)
-	)
-	_subtitle_label.add_theme_font_size_override(
-		"font_size",
-		12 if compact_landscape else (13 if compact else 16)
-	)
-	_subtitle_label.custom_minimum_size.x = 180.0 if compact else 220.0
-	_start_game_button.custom_minimum_size.y = (
-		52.0 if compact_landscape else (58.0 if compact else 68.0)
-	)
-	_continue_game_button.custom_minimum_size.y = (
-		44.0 if compact_landscape else (48.0 if compact else 54.0)
-	)
-	_load_bookmark_button.custom_minimum_size.y = (
-		44.0 if compact_landscape else (48.0 if compact else 54.0)
-	)
+	_start_game_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_start_game_button.add_theme_font_size_override("font_size", 28 if compact else 32)
+	_continue_game_button.custom_minimum_size = Vector2(208.0, 48.0 if compact else 56.0)
+	_continue_game_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_continue_game_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	if is_instance_valid(_content_scroll) and not _initial_scroll_restored:
 		_initial_scroll_restored = true
 		call_deferred(&"_restore_initial_scroll_position")
@@ -549,11 +554,24 @@ static func _get_board_preview_minimum_size(
 ) -> Vector2:
 	match page_layout_mode:
 		GameTaskPageLayoutUtility.LayoutMode.COMPACT_LANDSCAPE:
-			return Vector2(224.0, 128.0)
+			return Vector2(280.0, 280.0)
 		GameTaskPageLayoutUtility.LayoutMode.PORTRAIT:
-			return Vector2(240.0, 164.0)
+			return Vector2(280.0, 280.0)
 		_:
-			return Vector2(440.0, 378.0)
+			return Vector2(360.0, 360.0)
+
+
+func _bind_visual_theme_changes() -> void:
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	var signal_value: Object = _find_optional_utility(GFSignalUtility)
+	if not is_instance_valid(theme_utility) or not signal_value is GFSignalUtility:
+		return
+	_theme_signal_utility = signal_value
+	var _connection: GFSignalConnection = _theme_signal_utility.connect_signal(
+		theme_utility.visual_theme_changed,
+		_on_visual_theme_changed,
+		self
+	)
 
 
 func _restore_initial_scroll_position() -> void:
@@ -711,6 +729,18 @@ func _finish_popup_route_open(origin_button: BaseButton, opened: bool) -> void:
 
 
 # --- 信号处理函数 ---
+
+func _on_visual_theme_changed(visual_theme: GameTheme) -> void:
+	if not is_node_ready():
+		return
+	var theme_utility: GameThemeUtility = _get_theme_utility()
+	if is_instance_valid(theme_utility):
+		var _styled_count: int = theme_utility.apply_current_theme_to_tree(self)
+	_apply_semantic_styles()
+	if is_instance_valid(_board_motif):
+		_board_motif.configure_theme(visual_theme)
+	_queue_layout_update()
+
 
 func _on_start_game_button_pressed() -> void:
 	_goto_scene(mode_selection_scene_path, "mode_selection_scene_path")

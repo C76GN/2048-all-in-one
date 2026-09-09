@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="GameUiPalette" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://features/themes/scripts/data/game_ui_palette.gd" id="1_palette"]
+[ext_resource type="Resource" path="res://features/themes/resources/themes/game/quiet_paper/focus_ring_profile.tres" id="2_focus"]
+[ext_resource type="FontVariation" path="res://shared/assets/fonts/ui_sans_regular.tres" id="3_body_font"]
+[ext_resource type="FontVariation" path="res://shared/assets/fonts/ui_sans_display.tres" id="4_display_font"]
+
+[resource]
+script = ExtResource("1_palette")
+text_primary_color = Color(0.14117647, 0.20784314, 0.18431373, 1)
+text_secondary_color = Color(0.39607843, 0.44313725, 0.41568627, 1)
+text_shadow_color = Color(0.14117647, 0.20784314, 0.18431373, 0)
+body_font = ExtResource("3_body_font")
+display_font = ExtResource("4_display_font")
+numeric_font = ExtResource("4_display_font")
+button_normal_color = Color(1.00000000, 0.99607843, 0.98039216, 1)
+button_hover_color = Color(0.90588235, 0.93333333, 0.90196078, 1)
+button_pressed_color = Color(0.84705882, 0.89803922, 0.85490196, 1)
+button_focus_border_color = Color(0.19607843, 0.40392157, 0.34901961, 1)
+button_disabled_color = Color(0.92156863, 0.92549020, 0.89803922, 1)
+button_font_color = Color(0.14117647, 0.20784314, 0.18431373, 1)
+button_font_disabled_color = Color(0.57254902, 0.60000000, 0.56078431, 1)
+primary_button_color = Color(0.19607843, 0.40392157, 0.34901961, 1)
+primary_button_hover_color = Color(0.15294118, 0.34117647, 0.29411765, 1)
+primary_button_pressed_color = Color(0.12549020, 0.27843137, 0.23921569, 1)
+quiet_button_hover_color = Color(0.19607843, 0.40392157, 0.34901961, 0.07)
+field_surface_color = Color(1.00000000, 0.99607843, 0.98039216, 1)
+field_focus_surface_color = Color(0.94901961, 0.96470588, 0.93725490, 1)
+field_border_color = Color(0.82352941, 0.85098039, 0.80784314, 1)
+field_focus_border_color = Color(0.19607843, 0.40392157, 0.34901961, 1)
+panel_surface_color = Color(1.00000000, 0.99607843, 0.98039216, 1)
+selected_surface_color = Color(0.89803922, 0.93333333, 0.89019608, 1)
+selected_border_color = Color(0.19607843, 0.40392157, 0.34901961, 1)
+slider_track_color = Color(0.85490196, 0.88627451, 0.83921569, 1)
+slider_grabber_color = Color(0.19607843, 0.40392157, 0.34901961, 1)
+slider_grabber_highlight_color = Color(0.12549020, 0.27843137, 0.23921569, 1)
+button_focus_shader_profile = ExtResource("2_focus")
+primary_button_font_color = Color(1.00000000, 0.99607843, 0.98039216, 1)

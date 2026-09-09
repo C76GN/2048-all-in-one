@@ -79,14 +79,11 @@ const _PANEL_SURFACE_COLOR: Color = Color(1.0, 0.972549, 0.9098039, 0.88)
 const _SELECTED_SURFACE_COLOR: Color = Color(0.61960787, 0.85882354, 0.8352941, 0.82)
 const _SELECTED_BORDER_COLOR: Color = Color(0.29411766, 0.7411765, 0.77254903, 1.0)
 const _FOCUS_RING_INSET: float = 2.0
-const _BUTTON_SHADOW_OFFSET: Vector2 = Vector2(3.0, 5.0)
-const _BUTTON_HOVER_SHADOW_OFFSET: Vector2 = Vector2(4.0, 6.0)
-const _BUTTON_PRESSED_SHADOW_OFFSET: Vector2 = Vector2(1.0, 2.0)
-const _PRIMARY_BUTTON_SHADOW_OFFSET: Vector2 = Vector2(3.0, 6.0)
-const _PRIMARY_BUTTON_HOVER_SHADOW_OFFSET: Vector2 = Vector2(4.0, 6.0)
-const _PRIMARY_BUTTON_PRESSED_SHADOW_OFFSET: Vector2 = Vector2(1.0, 2.0)
+const _BUTTON_SHADOW_OFFSET: Vector2 = Vector2.ZERO
+const _BUTTON_HOVER_SHADOW_OFFSET: Vector2 = Vector2.ZERO
+const _BUTTON_PRESSED_SHADOW_OFFSET: Vector2 = Vector2.ZERO
+const _PRIMARY_BUTTON_PRESSED_SHADOW_OFFSET: Vector2 = Vector2.ZERO
 const _BUTTON_HARD_SHADOW_SPREAD: int = 1
-const _SHELL_SHADOW_OFFSET: Vector2 = Vector2(7.0, 7.0)
 
 
 # --- 私有变量 ---
@@ -98,9 +95,10 @@ var _button_focus_border_color: Color = _BUTTON_FOCUS_BORDER_COLOR
 var _button_disabled_color: Color = _BUTTON_DISABLED_COLOR
 var _button_font_color: Color = _BUTTON_FONT_COLOR
 var _button_font_disabled_color: Color = _BUTTON_FONT_DISABLED_COLOR
-var _primary_button_color: Color = Color(0.78039217, 0.23921569, 0.4627451, 1.0)
-var _primary_button_hover_color: Color = Color(0.8745098, 0.29411766, 0.6039216, 1.0)
+var _primary_button_color: Color = Color(0.49411765, 0.79607844, 0.827451, 1.0)
+var _primary_button_hover_color: Color = Color(0.61960787, 0.85882354, 0.8352941, 1.0)
 var _primary_button_pressed_color: Color = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
+var _primary_button_font_color: Color = _BUTTON_FONT_COLOR
 var _quiet_button_hover_color: Color = Color(0.18431373, 0.1882353, 0.21568628, 0.08)
 var _text_primary_color: Color = _TEXT_PRIMARY_COLOR
 var _text_secondary_color: Color = _TEXT_SECONDARY_COLOR
@@ -118,6 +116,7 @@ var _slider_grabber_highlight_color: Color = Color(0.8745098, 0.29411766, 0.6039
 var _body_font: Font
 var _display_font: Font
 var _numeric_font: Font
+var _material_palette: GameUiPalette = GameUiPalette.new()
 var _button_focus_shader_profile: GFShaderParameterProfile
 var _asset_library: GameAssetLibraryUtility
 var _button_focus_ring_shader: Shader
@@ -175,6 +174,7 @@ func apply_palette(palette: GameUiPalette) -> void:
 		_reset_palette()
 		return
 
+	_material_palette = palette
 	_button_normal_color = palette.button_normal_color
 	_button_hover_color = palette.button_hover_color
 	_button_pressed_color = palette.button_pressed_color
@@ -185,11 +185,11 @@ func apply_palette(palette: GameUiPalette) -> void:
 	_primary_button_color = palette.primary_button_color
 	_primary_button_hover_color = palette.primary_button_hover_color
 	_primary_button_pressed_color = palette.primary_button_pressed_color
+	_primary_button_font_color = palette.primary_button_font_color
 	_quiet_button_hover_color = palette.quiet_button_hover_color
 	_text_primary_color = palette.text_primary_color
 	_text_secondary_color = palette.text_secondary_color
 	_text_shadow_color = palette.text_shadow_color
-	_text_shadow_color.a = 0.52
 	_field_surface_color = palette.field_surface_color
 	_field_focus_surface_color = palette.field_focus_surface_color
 	_field_border_color = palette.field_border_color
@@ -384,6 +384,7 @@ func style_panel_container(
 func style_line_edit(line_edit: LineEdit) -> void:
 	if not is_instance_valid(line_edit):
 		return
+	line_edit.begin_bulk_theme_override()
 	line_edit.add_theme_stylebox_override(
 		"normal",
 		_create_field_style(_field_surface_color, _field_border_color, 1)
@@ -400,6 +401,7 @@ func style_line_edit(line_edit: LineEdit) -> void:
 	line_edit.add_theme_color_override("font_placeholder_color", _get_text_color(TextRole.MUTED))
 	line_edit.add_theme_color_override("caret_color", _field_focus_border_color)
 	_apply_font_override(line_edit, _body_font)
+	line_edit.end_bulk_theme_override()
 
 
 ## 为分隔线应用当前主题的弱边框颜色。
@@ -409,7 +411,11 @@ func style_separator(separator: HSeparator) -> void:
 		return
 	var separator_color: Color = _field_border_color
 	separator_color.a *= 0.78
-	separator.modulate = separator_color
+	var separator_style: StyleBoxLine = StyleBoxLine.new()
+	separator_style.color = separator_color
+	separator_style.thickness = 1
+	separator.add_theme_stylebox_override("separator", separator_style)
+	separator.modulate = Color.WHITE
 
 
 ## 为按钮应用当前色板并确保焦点 Shader 节点存在。
@@ -419,10 +425,18 @@ func style_separator(separator: HSeparator) -> void:
 func prepare_button(button: BaseButton) -> void:
 	if not is_instance_valid(button):
 		return
-	_apply_button_visual_style(button)
+	button.begin_bulk_theme_override()
 	if button is OptionButton:
 		var option_button: OptionButton = button
 		_style_option_button(option_button)
+	else:
+		_apply_button_visual_style(button)
+	button.end_bulk_theme_override()
+	if button is BaseListMenuItem:
+		var list_item: BaseListMenuItem = button
+		list_item.apply_selection_style(
+			_create_semantic_surface_style(SurfaceRole.SELECTED, BorderRole.SELECTED, 1)
+		)
 	var _focus_ring: ColorRect = _ensure_button_focus_ring(button)
 	button_visual_style_applied.emit(button)
 
@@ -507,6 +521,7 @@ func button_uses_embedded_focus_visual(button: BaseButton) -> bool:
 # --- 私有/辅助方法 ---
 
 func _apply_label_style(label: Label) -> void:
+	label.begin_bulk_theme_override()
 	var role: int = GFVariantData.to_int(
 		_get_control_meta(label, _TEXT_ROLE_META, TextRole.PRIMARY)
 	)
@@ -523,7 +538,6 @@ func _apply_label_style(label: Label) -> void:
 	var use_shadow: bool = GFVariantData.to_bool(
 		_get_control_meta(label, _TEXT_SHADOW_META, false)
 	)
-	use_shadow = use_shadow or role == TextRole.DISPLAY
 	if use_shadow:
 		label.add_theme_color_override("font_shadow_color", _text_shadow_color)
 		var shadow_offset: int = 3 if role == TextRole.DISPLAY else 2
@@ -533,6 +547,7 @@ func _apply_label_style(label: Label) -> void:
 		label.remove_theme_color_override("font_shadow_color")
 		label.remove_theme_constant_override("shadow_offset_x")
 		label.remove_theme_constant_override("shadow_offset_y")
+	label.end_bulk_theme_override()
 
 
 func _get_text_color(role: int) -> Color:
@@ -558,6 +573,7 @@ func _get_text_font(role: int) -> Font:
 
 
 func _apply_rich_text_label_style(label: RichTextLabel) -> void:
+	label.begin_bulk_theme_override()
 	var role: int = GFVariantData.to_int(
 		_get_control_meta(label, _TEXT_ROLE_META, TextRole.SECONDARY)
 	)
@@ -565,6 +581,7 @@ func _apply_rich_text_label_style(label: RichTextLabel) -> void:
 	label.add_theme_color_override("font_selected_color", _text_primary_color)
 	label.add_theme_color_override("font_outline_color", Color.TRANSPARENT)
 	_apply_font_override(label, _get_text_font(role))
+	label.end_bulk_theme_override()
 
 
 func _apply_semantic_panel_style(panel: Panel) -> void:
@@ -624,13 +641,21 @@ func _create_semantic_surface_style(
 	)
 	if surface_role == SurfaceRole.SHELL:
 		var shell_shadow_color: Color = _button_focus_border_color
-		shell_shadow_color.a *= 0.88
+		shell_shadow_color.a *= _material_palette.shell_shadow_opacity
 		style.shadow_color = shell_shadow_color
-		style.shadow_offset = _SHELL_SHADOW_OFFSET
+		style.shadow_offset = _material_palette.shell_shadow_offset
+		if _material_palette.shell_top_rule_width > 0:
+			style.set_corner_radius_all(_material_palette.shell_corner_radius)
+			style.set_border_width_all(_material_palette.shell_outline_width)
+			style.border_width_top = maxi(
+				_material_palette.shell_outline_width,
+				_material_palette.shell_top_rule_width
+			)
 	return style
 
 
 func _style_spin_box(spin_box: SpinBox) -> void:
+	spin_box.begin_bulk_theme_override()
 	for direction: StringName in [&"up", &"down"]:
 		spin_box.add_theme_color_override(
 			"%s_icon_modulate" % direction,
@@ -678,6 +703,7 @@ func _style_spin_box(spin_box: SpinBox) -> void:
 	spin_box.add_theme_constant_override("buttons_width", 30)
 	spin_box.add_theme_constant_override("field_and_buttons_separation", 1)
 	spin_box.add_theme_constant_override("buttons_vertical_separation", 1)
+	spin_box.end_bulk_theme_override()
 	var line_edit: LineEdit = spin_box.get_line_edit()
 	if is_instance_valid(line_edit):
 		style_line_edit(line_edit)
@@ -716,6 +742,7 @@ func _style_scroll_bars_in_subtree(root: Node) -> void:
 
 
 func _style_scroll_bar(scroll_bar: ScrollBar) -> void:
+	scroll_bar.begin_bulk_theme_override()
 	var track_color: Color = _slider_track_color
 	track_color.a = minf(track_color.a, 0.34)
 	var focus_track_color: Color = track_color
@@ -752,9 +779,11 @@ func _style_scroll_bar(scroll_bar: ScrollBar) -> void:
 			12.0
 		)
 	scroll_bar.set_meta(_STATIC_STYLE_META, true)
+	scroll_bar.end_bulk_theme_override()
 
 
 func _style_range(range_control: Range) -> void:
+	range_control.begin_bulk_theme_override()
 	range_control.add_theme_stylebox_override(
 		"slider",
 		_create_field_style(_slider_track_color, Color.TRANSPARENT, 0)
@@ -767,9 +796,11 @@ func _style_range(range_control: Range) -> void:
 		"grabber_area_highlight",
 		_create_field_style(_slider_grabber_highlight_color, Color.TRANSPARENT, 0)
 	)
+	range_control.end_bulk_theme_override()
 
 
 func _style_progress_bar(progress_bar: ProgressBar) -> void:
+	progress_bar.begin_bulk_theme_override()
 	var background_color: Color = _slider_track_color
 	background_color.a = minf(background_color.a, 0.38)
 	progress_bar.add_theme_stylebox_override(
@@ -787,25 +818,36 @@ func _style_progress_bar(progress_bar: ProgressBar) -> void:
 	)
 	progress_bar.add_theme_constant_override("outline_size", 1)
 	_apply_font_override(progress_bar, _numeric_font)
+	progress_bar.end_bulk_theme_override()
 
 
 func _style_tab_container(tab_container: TabContainer) -> void:
+	tab_container.begin_bulk_theme_override()
 	tab_container.add_theme_stylebox_override(
 		"panel",
 		_create_field_style(_panel_surface_color, _field_border_color, 1)
 	)
 	_apply_tab_strip_style(tab_container)
+	tab_container.end_bulk_theme_override()
 	var tab_bar: TabBar = tab_container.get_tab_bar()
 	if is_instance_valid(tab_bar):
 		_style_tab_bar(tab_bar)
 
 
 func _style_tab_bar(tab_bar: TabBar) -> void:
+	tab_bar.begin_bulk_theme_override()
 	_apply_tab_strip_style(tab_bar)
 	tab_bar.set_meta(_STATIC_STYLE_META, true)
+	tab_bar.end_bulk_theme_override()
 
 
 func _apply_tab_strip_style(control: Control) -> void:
+	var selected_fill: Color = (
+		_text_primary_color if _material_palette.tab_selected_uses_ink else _selected_surface_color
+	)
+	var selected_text: Color = (
+		_panel_surface_color if _material_palette.tab_selected_uses_ink else _text_primary_color
+	)
 	control.add_theme_stylebox_override(
 		"tab_unselected",
 		_create_tab_style(_field_surface_color, _field_border_color, 1)
@@ -816,7 +858,7 @@ func _apply_tab_strip_style(control: Control) -> void:
 	)
 	control.add_theme_stylebox_override(
 		"tab_selected",
-		_create_tab_style(_selected_surface_color, _selected_border_color, 2)
+		_create_tab_style(selected_fill, _selected_border_color, 2)
 	)
 	control.add_theme_stylebox_override(
 		"tab_focus",
@@ -828,7 +870,7 @@ func _apply_tab_strip_style(control: Control) -> void:
 	)
 	control.add_theme_color_override("font_unselected_color", _text_secondary_color)
 	control.add_theme_color_override("font_hovered_color", _text_primary_color)
-	control.add_theme_color_override("font_selected_color", _text_primary_color)
+	control.add_theme_color_override("font_selected_color", selected_text)
 	control.add_theme_color_override(
 		"font_disabled_color",
 		_button_font_disabled_color
@@ -848,14 +890,20 @@ func _style_surface_vbox_container(surface: SurfaceVboxContainer) -> void:
 	surface.surface_color = _panel_surface_color
 	surface.border_color = _field_border_color
 	var shell_shadow_color: Color = _button_focus_border_color
-	shell_shadow_color.a *= 0.88
+	shell_shadow_color.a *= _material_palette.shell_shadow_opacity
 	surface.shadow_color = shell_shadow_color
+	surface.shadow_offset = _material_palette.shell_shadow_offset
+	surface.corner_radius = _material_palette.shell_corner_radius
+	surface.border_width = _material_palette.shell_outline_width
+	surface.top_rule_width = _material_palette.shell_top_rule_width
+	surface.show_registration_accents = false
 	surface.primary_accent_color = _primary_button_color
 	surface.secondary_accent_color = _button_pressed_color
 	surface.queue_redraw()
 
 
 func _style_item_list(item_list: ItemList) -> void:
+	item_list.begin_bulk_theme_override()
 	item_list.add_theme_stylebox_override(
 		"panel",
 		_create_field_style(_field_surface_color, _field_border_color, 1)
@@ -875,6 +923,7 @@ func _style_item_list(item_list: ItemList) -> void:
 	item_list.add_theme_color_override("font_color", _text_primary_color)
 	item_list.add_theme_color_override("font_selected_color", _text_primary_color)
 	_apply_font_override(item_list, _body_font)
+	item_list.end_bulk_theme_override()
 
 
 func _style_option_button(option_button: OptionButton) -> void:
@@ -927,6 +976,7 @@ func _style_option_button(option_button: OptionButton) -> void:
 func _style_popup_menu(popup: PopupMenu) -> void:
 	if not is_instance_valid(popup):
 		return
+	popup.begin_bulk_theme_override()
 	popup.prefer_native_menu = false
 	popup.transparent_bg = true
 	popup.add_theme_stylebox_override(
@@ -956,6 +1006,7 @@ func _style_popup_menu(popup: PopupMenu) -> void:
 	popup.add_theme_constant_override("item_end_padding", 12)
 	if _body_font != null:
 		popup.add_theme_font_override("font", _body_font)
+	popup.end_bulk_theme_override()
 
 
 func _on_option_popup_about_to_show(popup: PopupMenu) -> void:
@@ -970,27 +1021,36 @@ func _apply_button_visual_style(button: BaseButton) -> void:
 	var hover_color: Color = _button_hover_color
 	var pressed_color: Color = _button_pressed_color
 	var pressed_border_color: Color = _button_focus_border_color
-	var pressed_border_width: int = 3
-	var border_color: Color = _button_focus_border_color
-	var hover_border_color: Color = _button_normal_color
-	var normal_border_width: int = 2
-	var hover_border_width: int = 3
+	var pressed_border_width: int = 1
+	var border_color: Color = _field_border_color
+	var hover_border_color: Color = _selected_border_color
+	var normal_border_width: int = _material_palette.button_border_width
+	var hover_border_width: int = _material_palette.button_border_width
 	var normal_shadow_offset: Vector2 = _BUTTON_SHADOW_OFFSET
 	var hover_shadow_offset: Vector2 = _BUTTON_HOVER_SHADOW_OFFSET
 	var pressed_shadow_offset: Vector2 = _BUTTON_PRESSED_SHADOW_OFFSET
 	var shadow_color: Color = _button_focus_border_color
+	shadow_color.a = 0.10
 	var disabled_color: Color = _button_disabled_color
-	var disabled_border_color: Color = _button_focus_border_color.darkened(0.12)
+	var disabled_border_color: Color = _field_border_color
 	var disabled_border_width: int = 1
 	if role == ButtonRole.PRIMARY:
 		normal_color = _primary_button_color
 		hover_color = _primary_button_hover_color
 		pressed_color = _primary_button_pressed_color
-		normal_border_width = 3
-		normal_shadow_offset = _PRIMARY_BUTTON_SHADOW_OFFSET
-		hover_shadow_offset = _PRIMARY_BUTTON_HOVER_SHADOW_OFFSET
+		border_color = _primary_button_color
+		hover_border_color = _primary_button_hover_color
+		pressed_border_color = _primary_button_pressed_color
+		normal_border_width = _material_palette.primary_button_border_width
+		pressed_border_width = _material_palette.primary_button_border_width
+		if _material_palette.primary_button_uses_ink_outline:
+			border_color = _text_primary_color
+			hover_border_color = _text_primary_color
+			pressed_border_color = _text_primary_color
+		normal_shadow_offset = _material_palette.primary_button_shadow_offset
+		hover_shadow_offset = _material_palette.primary_button_shadow_offset
+		shadow_color.a = _material_palette.primary_button_shadow_opacity
 		pressed_shadow_offset = _PRIMARY_BUTTON_PRESSED_SHADOW_OFFSET
-		shadow_color = _button_focus_border_color
 	elif role == ButtonRole.QUIET:
 		normal_color = Color.TRANSPARENT
 		hover_color = _quiet_button_hover_color
@@ -1007,7 +1067,7 @@ func _apply_button_visual_style(button: BaseButton) -> void:
 		hover_color = _button_hover_color
 		pressed_color = _button_pressed_color
 		normal_border_width = 1
-	hover_border_width = maxi(normal_border_width, 3)
+	hover_border_width = normal_border_width
 	var uses_quiet_state_surface: bool = button is CheckButton or button is CheckBox
 	if uses_quiet_state_surface:
 		# CheckButton / CheckBox 的持久状态由轨道、勾选图标和文字共同表达。
@@ -1085,11 +1145,29 @@ func _apply_button_visual_style(button: BaseButton) -> void:
 			disabled_border_width
 		)
 	)
-	button.add_theme_color_override("font_color", _button_font_color)
-	button.add_theme_color_override("font_hover_color", _button_font_color)
-	button.add_theme_color_override("font_pressed_color", _button_font_color)
-	button.add_theme_color_override("font_hover_pressed_color", _button_font_color)
-	button.add_theme_color_override("font_focus_color", _button_font_color)
+	if (
+		role == ButtonRole.SECONDARY
+		and not button.toggle_mode
+		and not uses_quiet_state_surface
+		and _material_palette.secondary_button_rule_width > 0
+	):
+		for state_name: StringName in [&"normal", &"hover", &"pressed", &"hover_pressed", &"disabled"]:
+			var ruled_style_value: StyleBox = button.get_theme_stylebox(state_name)
+			if ruled_style_value is StyleBoxFlat:
+				var ruled_style: StyleBoxFlat = ruled_style_value
+				ruled_style.set_border_width_all(0)
+				ruled_style.border_width_bottom = _material_palette.secondary_button_rule_width
+				ruled_style.border_color = (
+					_button_font_disabled_color if state_name == &"disabled" else _text_primary_color
+				)
+	var foreground_color: Color = (
+		_primary_button_font_color if role == ButtonRole.PRIMARY else _button_font_color
+	)
+	button.add_theme_color_override("font_color", foreground_color)
+	button.add_theme_color_override("font_hover_color", foreground_color)
+	button.add_theme_color_override("font_pressed_color", foreground_color)
+	button.add_theme_color_override("font_hover_pressed_color", foreground_color)
+	button.add_theme_color_override("font_focus_color", foreground_color)
 	button.add_theme_color_override("font_disabled_color", _button_font_disabled_color)
 	_apply_font_override(
 		button,
@@ -1109,7 +1187,7 @@ func _create_button_style(
 	style.bg_color = color
 	style.border_color = border_color
 	style.set_border_width_all(border_width)
-	style.set_corner_radius_all(2)
+	style.set_corner_radius_all(_material_palette.button_corner_radius)
 	style.shadow_color = shadow_color
 	style.shadow_size = (
 		_BUTTON_HARD_SHADOW_SPREAD
@@ -1137,9 +1215,17 @@ func _create_button_focus_style(
 	)
 	if can_use_external_ring:
 		return StyleBoxEmpty.new()
+	var focus_color: Color = _get_button_focus_color(button)
 	if is_option_button:
-		return _create_option_style(Color.TRANSPARENT, _button_focus_border_color, 3)
-	return _create_button_style(Color.TRANSPARENT, _button_focus_border_color, 3)
+		return _create_option_style(Color.TRANSPARENT, focus_color, 3)
+	return _create_button_style(Color.TRANSPARENT, focus_color, 3)
+
+
+func _get_button_focus_color(button: BaseButton) -> Color:
+	var role: int = GFVariantData.to_int(
+		_get_control_meta(button, _BUTTON_ROLE_META, ButtonRole.SECONDARY)
+	)
+	return _primary_button_font_color if role == ButtonRole.PRIMARY else _button_focus_border_color
 
 
 func _create_option_style(
@@ -1167,7 +1253,7 @@ func _create_popup_panel_style() -> StyleBoxFlat:
 
 func _create_popup_item_style(bg_color: Color, border_color: Color) -> StyleBoxFlat:
 	var style: StyleBoxFlat = _create_field_style(bg_color, border_color, 1)
-	style.set_corner_radius_all(2)
+	style.set_corner_radius_all(_material_palette.field_corner_radius)
 	style.set_content_margin(SIDE_LEFT, 7.0)
 	style.set_content_margin(SIDE_TOP, 5.0)
 	style.set_content_margin(SIDE_RIGHT, 7.0)
@@ -1194,7 +1280,9 @@ func _create_field_style(
 	style.bg_color = bg_color
 	style.border_color = border_color
 	style.set_border_width_all(border_width)
-	style.set_corner_radius_all(2)
+	style.set_corner_radius_all(_material_palette.field_corner_radius)
+	if border_width > 0:
+		style.border_width_bottom = maxi(border_width, _material_palette.field_bottom_rule_width)
 	style.shadow_color = Color.TRANSPARENT
 	style.shadow_size = 0
 	style.set_content_margin(SIDE_LEFT, 10.0)
@@ -1210,9 +1298,9 @@ func _create_spin_button_style(
 ) -> StyleBoxFlat:
 	var style: StyleBoxFlat = _create_solid_style(bg_color)
 	if is_top_button:
-		style.corner_radius_top_right = 4
+		style.corner_radius_top_right = mini(4, _material_palette.field_corner_radius)
 	else:
-		style.corner_radius_bottom_right = 4
+		style.corner_radius_bottom_right = mini(4, _material_palette.field_corner_radius)
 	return style
 
 
@@ -1226,7 +1314,7 @@ func _create_tab_style(
 		border_color,
 		border_width
 	)
-	style.set_corner_radius_all(2)
+	style.set_corner_radius_all(_material_palette.tab_corner_radius)
 	style.set_content_margin(SIDE_LEFT, 12.0)
 	style.set_content_margin(SIDE_TOP, 7.0)
 	style.set_content_margin(SIDE_RIGHT, 12.0)
@@ -1236,7 +1324,7 @@ func _create_tab_style(
 
 func _create_progress_style(bg_color: Color) -> StyleBoxFlat:
 	var style: StyleBoxFlat = _create_solid_style(bg_color)
-	style.set_corner_radius_all(4)
+	style.set_corner_radius_all(mini(4, _material_palette.field_corner_radius))
 	return style
 
 
@@ -1248,7 +1336,7 @@ func _create_scroll_bar_style(
 	var style: StyleBoxFlat = _create_solid_style(bg_color)
 	style.border_color = border_color
 	style.set_border_width_all(border_width)
-	style.set_corner_radius_all(5)
+	style.set_corner_radius_all(mini(5, _material_palette.field_corner_radius))
 	style.set_content_margin(SIDE_LEFT, 2.0)
 	style.set_content_margin(SIDE_TOP, 2.0)
 	style.set_content_margin(SIDE_RIGHT, 2.0)
@@ -1273,7 +1361,7 @@ func _create_panel_surface_style(
 	style.bg_color = bg_color
 	style.border_color = border_color
 	style.set_border_width_all(border_width)
-	style.set_corner_radius_all(2)
+	style.set_corner_radius_all(_material_palette.panel_corner_radius)
 	style.shadow_color = Color.TRANSPARENT
 	style.shadow_size = 0
 	style.shadow_offset = Vector2.ZERO
@@ -1371,13 +1459,19 @@ func _apply_button_focus_ring_style(button: BaseButton) -> void:
 				maxf(button.size.x - _FOCUS_RING_INSET * 2.0, 1.0),
 				maxf(button.size.y - _FOCUS_RING_INSET * 2.0, 1.0)
 			),
-			&"color": _button_focus_border_color,
+			&"color": _get_button_focus_color(button),
 		},
 		_get_shader_apply_options()
 	)
 	if is_instance_valid(driver):
 		var _captured_material: ShaderMaterial = driver.capture_current_material()
-		driver.set_animation_enabled(true, true)
+		var has_focus_motion: bool = (
+			_button_focus_shader_profile != null
+			and GFVariantData.to_float(
+				_button_focus_shader_profile.get_parameter(&"speed", 0.0)
+			) > 0.0
+		)
+		driver.set_animation_enabled(has_focus_motion, false)
 	ring.visible = (
 		button.has_focus()
 		and not button.disabled
@@ -1434,6 +1528,7 @@ func _node_contains_semantic_panel(node: Node) -> bool:
 
 
 func _reset_palette() -> void:
+	_material_palette = GameUiPalette.new()
 	_button_normal_color = _BUTTON_NORMAL_COLOR
 	_button_hover_color = _BUTTON_HOVER_COLOR
 	_button_pressed_color = _BUTTON_PRESSED_COLOR
@@ -1444,6 +1539,7 @@ func _reset_palette() -> void:
 	_primary_button_color = Color(0.49411765, 0.79607844, 0.827451, 1.0)
 	_primary_button_hover_color = Color(0.61960787, 0.85882354, 0.8352941, 1.0)
 	_primary_button_pressed_color = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
+	_primary_button_font_color = _BUTTON_FONT_COLOR
 	_quiet_button_hover_color = Color(0.18431373, 0.1882353, 0.21568628, 0.08)
 	_text_primary_color = _TEXT_PRIMARY_COLOR
 	_text_secondary_color = _TEXT_SECONDARY_COLOR

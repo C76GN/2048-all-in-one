@@ -33,6 +33,11 @@ const PRESET_REWARD_RESULT_REVEAL: StringName = &"reward.result.reveal"
 
 # --- 导出变量 ---
 
+@export_group("Print Motion")
+@export var print_motion: bool = false
+@export_range(0.0, 6.0, 0.1) var button_stamp_depth: float = 2.5
+@export_range(0.0, 2.0, 0.1) var button_release_lift: float = 0.8
+
 @export_group("Button")
 @export_range(0.001, 1.0, 0.001) var button_active_overshoot_duration: float = 0.058
 @export_range(0.001, 1.0, 0.001) var button_active_settle_duration: float = 0.092

@@ -98,9 +98,10 @@ const _RELEASE_AUDIT_EXCLUDED_ROOTS: PackedStringArray = [
 func test_export_tool_pins_the_verified_godot_4_7_template() -> void:
 	var source: String = _read_tool_source()
 	assert_true(source.contains('$TemplateRelease = "4.7"'))
-	assert_true(source.contains('$TemplateExpectedBytes = 11763895'))
+	assert_true(source.contains('$TemplateExpectedBytes = 11767131'))
+	assert_true(source.contains('$TemplateAssetName = "minigame4.7.0.7.tpz"'))
 	assert_true(source.contains(
-		"AE5BDEB5BA1CE9712D4EFC35D337CB5ECBEF3AD5BFB0F7D06AE9CB662C1F2D71"
+		"A4792ABE2EF3217A18C1690DAC67F71402AF87A43222150F3635D136DE5A4710"
 	))
 	assert_true(source.contains("godothub/godot-minigame/releases/download/4.7"))
 
@@ -145,10 +146,10 @@ func test_export_tool_patches_the_pinned_wxmemfs_rename_fail_closed() -> void:
 	var source: String = _read_tool_source()
 	assert_true(FileAccess.file_exists(_WXMEMFS_RENAME_PATCH_PATH))
 	assert_true(source.contains(
-		"CC396C67F410502C958185003EA72F5F67E5ACBCD040774D1AAF5B9622491B15"
+		"E1D74102F9C9EAD075B8FF3589530A4D4AFE7FE9076F01CC2EFFCFC696488475"
 	))
 	assert_true(source.contains(
-		"FD91EA35F0515360BE35AE6FD2425D102CBAF17F30F5B7CCB8688AF635CE3638"
+		"DE036950932C3DF59EBCD302440D02F2A4AE5811CCBAD9093D4D874A04171F1A"
 	))
 	assert_true(source.contains("ConvertTo-WeChatWxMemFsRenamePatchedSource"))
 	assert_true(source.contains('strategy = "physical_rename_before_memfs_mutation"'))
@@ -158,7 +159,7 @@ func test_export_tool_patches_the_pinned_wxmemfs_rename_fail_closed() -> void:
 func test_export_tool_patches_subpackage_lifecycle_and_confirms_engine_entry() -> void:
 	var source: String = _read_tool_source()
 	assert_true(source.contains(
-		"181E61961CF6527F718E93E132D86DAF4310E091E3B004909076BDCE4D56C99C"
+		"0E6BDE33B9A63D3F452209838F0EF110A33890DF8BC97FDEDF25728BF00C03A4"
 	))
 	assert_true(source.contains("ConvertTo-WeChatSubpackageLifecyclePatchedSource"))
 	assert_true(FileAccess.file_exists(_STARTUP_COORDINATOR_SOURCE_PATH))
@@ -214,10 +215,10 @@ func test_export_tool_caps_loader_and_runtime_dpr_without_changing_css_size() ->
 	assert_true(source.contains('this.onScreenCanvas.style.width=`${t}px`'))
 	assert_true(source.contains('this.onScreenCanvas.style.height=`${e}px`'))
 	assert_true(source.contains(
-		"0256C25987171B218FE217E0AFC5DC774A8017754E2B632EA007BCC8A1E71637"
+		"D2C561D522646A105CCD6FFDD7D25AEF1A811E9FC0F0C07CB89B45E62B663640"
 	))
 	assert_true(source.contains(
-		"2511B4DDC4DF446DC4902E551BE0E76807CF78E846BD0B5181AAB9054C2AA9CB"
+		"46C8CC231CCF27C8BA5A278F826A24566775817F87B98C6C724205AD9BF80479"
 	))
 	assert_true(source.contains(
 		"Pinned godot-loader.js contains multiple resizeCanvases patch targets."

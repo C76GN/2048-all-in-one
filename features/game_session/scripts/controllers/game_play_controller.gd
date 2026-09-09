@@ -624,6 +624,11 @@ func _apply_current_ui_theme() -> void:
 		):
 			replay_timeline.apply_palette(current_theme.ui_palette)
 
+	var style_value: Object = get_utility(GameUiStyleUtility)
+	if style_value is GameUiStyleUtility:
+		var style: GameUiStyleUtility = style_value
+		style.style_panel_container(_view_controls, GameUiStyleUtility.SurfaceRole.SHELL)
+
 	var motion_utility: GameUiMotionUtility = _get_ui_motion_utility()
 	if is_instance_valid(motion_utility):
 		var _bound_count: int = motion_utility.bind_interactive_controls(self)

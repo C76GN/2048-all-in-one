@@ -14,6 +14,27 @@ extends Resource
 @export var display_font: Font
 @export var numeric_font: Font
 
+@export_group("Material Geometry")
+@export_range(0, 32, 1) var button_corner_radius: int = 8
+@export_range(0, 32, 1) var field_corner_radius: int = 6
+@export_range(0, 32, 1) var panel_corner_radius: int = 8
+@export_range(0, 32, 1) var shell_corner_radius: int = 10
+@export_range(0, 16, 1) var tab_corner_radius: int = 2
+@export_range(0, 6, 1) var button_border_width: int = 1
+@export_range(0, 6, 1) var primary_button_border_width: int = 1
+@export var primary_button_uses_ink_outline: bool = false
+@export var primary_button_shadow_offset: Vector2 = Vector2(0.0, 1.0)
+@export_range(0.0, 1.0, 0.01) var primary_button_shadow_opacity: float = 0.10
+@export_range(0, 4, 1) var secondary_button_rule_width: int = 0
+@export_range(0, 4, 1) var field_bottom_rule_width: int = 0
+@export_range(0, 4, 1) var shell_outline_width: int = 2
+@export_range(0, 4, 1) var shell_top_rule_width: int = 0
+@export var shell_shadow_offset: Vector2 = Vector2(0.0, 2.0)
+@export_range(0.0, 1.0, 0.01) var shell_shadow_opacity: float = 0.08
+@export var tab_selected_uses_ink: bool = false
+## 仅供静态标题线和页边套准标记使用，不开启背景噪声或逐帧绘制。
+@export var print_marks_enabled: bool = false
+
 @export_group("Buttons")
 
 @export var button_normal_color: Color = Color(1.0, 0.972549, 0.9098039, 0.96)
@@ -26,6 +47,7 @@ extends Resource
 @export var primary_button_color: Color = Color(0.49411765, 0.79607844, 0.827451, 1.0)
 @export var primary_button_hover_color: Color = Color(0.61960787, 0.85882354, 0.8352941, 1.0)
 @export var primary_button_pressed_color: Color = Color(0.9372549, 0.81960785, 0.3647059, 1.0)
+@export var primary_button_font_color: Color = Color(0.18431373, 0.1882353, 0.21568628, 1.0)
 @export var quiet_button_hover_color: Color = Color(0.18431373, 0.1882353, 0.21568628, 0.08)
 
 @export_group("Fields")

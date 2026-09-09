@@ -161,7 +161,7 @@ func test_candidate_build_id_uses_the_cross_tool_canonical_framing() -> void:
 		"artifact_manifest_sha256": "f".repeat(64),
 		"template": {
 			"sha256": (
-				"ae5bdeb5ba1ce9712d4efc35d337cb5ecbef3ad5bfb0f7d06ae9cb662c1f2d71"
+				"a4792abe2ef3217a18c1690dac67f71402af87a43222150f3635d136de5a4710"
 			),
 		},
 		"tool_identity": {
@@ -180,7 +180,7 @@ func test_candidate_build_id_uses_the_cross_tool_canonical_framing() -> void:
 	var actual_build_id: String = verifier.compute_report_build_id(export_report)
 	assert_true(
 		actual_build_id ==
-			"c49fe442704031e85050b14d3f91232d79928e74354c6eb5756b98cb20535947",
+			"633efda4f5f4118281674c5282f9ac4002ee9de62d8726dcf6f6d886f204d099",
 		"PowerShell 与 GDScript 必须共享同一 build_id canonical framing。"
 	)
 
@@ -886,10 +886,10 @@ func _make_valid_export_report() -> Dictionary:
 		"tool_identity": verifier.build_tool_identity(),
 		"template": {
 			"release": "4.7",
-			"asset": "minigame4.7.tpz",
-			"expected_bytes": 11_763_895,
+			"asset": "minigame4.7.0.7.tpz",
+			"expected_bytes": 11_767_131,
 			"sha256": (
-				"ae5bdeb5ba1ce9712d4efc35d337cb5ecbef3ad5bfb0f7d06ae9cb662c1f2d71"
+				"a4792abe2ef3217a18c1690dac67f71402af87a43222150f3635d136de5a4710"
 			),
 		},
 		"render_resolution": {
@@ -1114,8 +1114,8 @@ func _valid_root_game_text(engine_bytes: int, game_data_bytes: int) -> String:
 func _valid_root_loader_text() -> String:
 	return (
 		"resizeCanvases(){/*2048-wechat-loader-dpr-cap-v1*/" +
-		"const t=window.innerWidth,e=window.innerHeight," +
-		"i=Number(window.devicePixelRatio)," +
+		"const {width:t,height:e}=this.getViewportSize()," +
+		"i=Number(this.getDevicePixelRatio())," +
 		"r=Number.isFinite(i)&&i>0?Math.max(1,i):1," +
 		"s=Math.max(t,e),o=Math.min(t,e);" +
 		"this.dpr=Math.max(1,Math.min(r,s>0?1280/s:r,o>0?720/o:r))," +
@@ -1124,9 +1124,9 @@ func _valid_root_loader_text() -> String:
 		'this.onScreenCanvas.style.width=`${t}px`,' +
 		'this.onScreenCanvas.style.height=`${e}px`,' +
 		"this.offScreenCanvas.width=t*this.dpr," +
-		"this.offScreenCanvas.height=e*this.dpr," +
-		"this.gl.viewport(0,0,this.onScreenCanvas.width," +
-		"this.onScreenCanvas.height),this.render()}\n" +
+		"this.offScreenCanvas.height=e*this.dpr;" +
+		"if(this.gl)this.gl.viewport(0,0,this.onScreenCanvas.width," +
+		"this.onScreenCanvas.height);this.render()}\n" +
 		"loadGameEngine(){const coordinator=" +
 		"GameGlobal.WeChatSubpackageStartupCoordinator;" +
 		"const startup=coordinator.start({loader:this," +

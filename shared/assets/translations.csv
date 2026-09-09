@@ -5,18 +5,18 @@ TIME_PARSE_ERROR,无法解析时间,Invalid Time
 NO_PREVIEW_DATA,暂无预览数据,No Preview Data
 LABEL_REPLAY_TIMELINE,过程时间带,Process timeline
 REPLAY_TIMELINE_HINT,拖动跳转；方向键选择步骤后按确认。,Drag to jump; use directional input to select a step, then confirm.
-TITLE_BOOKMARK_DRAWER,样张抽屉,Proof drawer
-BOOKMARK_DRAWER_GUIDE,冻结样张 · 棋盘状态是主要辨识对象,Frozen proofs · Board state is the primary identifier
-TITLE_BOOKMARK_PROOF,冻结样张,Frozen proof
-SETTINGS_CALIBRATION_PREVIEW_TITLE,校准样张,Calibration proof
+TITLE_BOOKMARK_DRAWER,保存的棋盘,Saved boards
+BOOKMARK_DRAWER_GUIDE,选择棋盘，继续游戏,Choose a board to continue
+TITLE_BOOKMARK_PROOF,棋盘预览,Board preview
+SETTINGS_CALIBRATION_PREVIEW_TITLE,效果预览,Appearance preview
 SETTINGS_CALIBRATION_MOTION_STATIC,静态峰值反馈,Static peak feedback
 SETTINGS_CALIBRATION_MOTION_ACTIVE,短促过渡反馈,Brief transition feedback
 SETTINGS_CALIBRATION_CONTRAST_HIGH,高对比描边,High-contrast outlines
 SETTINGS_CALIBRATION_CONTRAST_STANDARD,标准纸墨对比,Standard paper/ink contrast
 SETTINGS_CALIBRATION_SHADER_ON,Shader 通道启用,Shader channel enabled
 SETTINGS_CALIBRATION_SHADER_OFF,Shader 通道关闭,Shader channel disabled
-MODE_PROOF_KICKER,规则样张,RULE PROOF
-MODE_PROOF_NUMBER_FORMAT,样张 %s,PROOF %s
+MODE_PROOF_KICKER,合并规则,MERGE RULE
+MODE_PROOF_NUMBER_FORMAT,示例 %s,EXAMPLE %s
 MODE_PROOF_CLASSIC_FORMULA,同值翻倍,Equal values double
 MODE_PROOF_CLASSIC_OUTCOME,两个相同数值合并为两倍。,Two equal values merge into their double.
 MODE_PROOF_FIBONACCI_FORMULA,相邻序列项相加,Adjacent sequence terms add
@@ -29,8 +29,8 @@ MODE_PROOF_STEP_FORMULA,每个指令移动一格,One cell per command
 MODE_PROOF_STEP_OUTCOME,方块每次只移动一格；移动后沿用经典规则在随机空位生成新方块。,Tiles move one cell; after a move classic spawning places a new tile in a random empty cell.
 MODE_PROOF_RATIO_FORMULA,跨族方块按商化简,Cross-family tiles resolve by quotient
 MODE_PROOF_RATIO_OUTCOME,不同族的数值以大除以小，结果最小为 1。,Different families divide larger by smaller, with a minimum of 1.
-BOOKMARK_INFO_FORMAT,"%s | %s %d | %s %dx%d","%s | %s %d | %s %dx%d"
-REPLAY_INFO_FORMAT,"%s | %s %d | %s %dx%d","%s | %s %d | %s %dx%d"
+BOOKMARK_INFO_FORMAT,%s | %s %d | %s %dx%d,%s | %s %d | %s %dx%d
+REPLAY_INFO_FORMAT,%s | %s %d | %s %dx%d,%s | %s %d | %s %dx%d
 LIST_RECORD_META_FORMAT,%s · %dx%d · %d 步,%s · %dx%d · %d moves
 LIST_RECORD_SCORE_FORMAT,%d 分,%d pts
 SCORE_LABEL,分数: %d,Score: %d
@@ -52,6 +52,8 @@ SNAPSHOT_NO_CHANGE,游戏状态未变，无需重复保存。,State unchanged. S
 SNAPSHOT_SAVED_SUCCESS,书签已保存！,Bookmark Saved!
 SNAPSHOT_SAVE_FAILED,书签保存失败。,Bookmark save failed.
 SNAPSHOT_SAVE_PENDING,书签正在确认保存结果，请稍候。,Bookmark save is still being confirmed.
+RESUME_SAVE_PENDING,正在保存这局进度…,Saving your game…
+RESUME_SAVE_FAILED,未能保存进度，已留在当前对局。请稍后重试。,Could not save progress. Your game is still open. Please try again.
 REPLAY_CONTINUE_SUCCESS,已从当前回放进度继续游戏。,Continued from the current replay step.
 TARGET_REACHED_MESSAGE,已达成目标 %d！可以继续挑战更高方块。,Target %d reached! Keep going for a higher tile.
 SIZE_LABEL,尺寸,Size
@@ -113,12 +115,16 @@ VSYNC_LABEL,垂直同步,VSync
 VSYNC_DISABLED,关闭,Off
 VSYNC_ENABLED,开启,On
 VSYNC_ADAPTIVE,自适应,Adaptive
-VISUAL_THEME_LABEL,视觉主题,Visual Theme
+VISUAL_THEME_LABEL,画面风格,Visual Style
 SOUND_THEME_LABEL,音效主题,Sound Theme
-THEME_HALFTONE_ATLAS,半调图集,Halftone Atlas
-THEME_HALFTONE_ATLAS_DESC,青蓝纸面、深色墨盘和多纹理方块的印刷主题。,"Printed cyan paper, dark ink board, and patterned tiles."
+THEME_HALFTONE_ATLAS,印刷工坊,Print Edition
+THEME_HALFTONE_ATLAS_DESC,黑墨与朱红套印，纸签落版与短促盖章。,"Black ink and vermilion. Paper slips land with a crisp stamp."
+THEME_QUIET_PAPER,素纸,Quiet Paper
+THEME_QUIET_PAPER_DESC,柔和纸面与轻量动效。,Soft paper and quiet motion.
+VISUAL_THEME_APPLYING,正在应用风格…,Applying style…
+VISUAL_THEME_APPLY_FAILED,切换未完成，已保留原风格。,The style could not be applied. Your previous style is kept.
 SOUND_THEME_PRINTWORKS,印刷工坊,Printworks
-SOUND_THEME_PRINTWORKS_DESC,为纸媒印刷主题预留的柔和短音效包。,"A softer short-sound pack reserved for the print theme."
+SOUND_THEME_PRINTWORKS_DESC,为合并与操作提供柔和、简短的音效。,"Soft, brief sounds for merges and controls."
 MASTER_VOLUME_LABEL,主音量,Master Volume
 BGM_VOLUME_LABEL,音乐音量,Music Volume
 SFX_VOLUME_LABEL,音效音量,Sound Effects Volume
@@ -175,7 +181,7 @@ BTN_CONTINUE_GAME,继续游戏,Continue
 CONTINUE_GAME_HINT,继续最近一个有效存档,Resume the latest valid save
 CONTINUE_GAME_UNAVAILABLE_HINT,没有可继续的有效存档,No valid save is available to resume
 MAIN_MENU_KICKER,无限合并实验室,INFINITE MERGE LAB
-MAIN_MENU_SUBTITLE,规则会组合，棋盘会生长,"Rules combine. Boards evolve."
+MAIN_MENU_SUBTITLE,规则会组合，棋盘会生长,Rules combine. Boards evolve.
 MAIN_MENU_PLAY,开始,PLAY
 MAIN_MENU_COLLECTION,收藏与记录,COLLECTION
 MAIN_MENU_SYSTEM,系统,SYSTEM
@@ -240,7 +246,7 @@ Equal tiles with the same definition add together. Tiles with different definiti
 Factor tiles have a low chance to spawn after each move. A miss increases the next chance."
 TITLE_GAME_OVER,游戏结束,Game Over
 TITLE_TARGET_REACHED,目标达成,Target Reached
-TARGET_REACHED_PANEL_MESSAGE,"你已经达成本局目标。可以继续挑战更高方块，也可以重新开始或返回主界面。","You reached this run's target. Keep pushing for a higher tile, restart, or return to the main menu."
+TARGET_REACHED_PANEL_MESSAGE,你已经达成本局目标。可以继续挑战更高方块，也可以重新开始或返回主界面。,"You reached this run's target. Keep pushing for a higher tile, restart, or return to the main menu."
 TARGET_REACHED_SUMMARY_LOADING,正在整理目标摘要...,Preparing target summary...
 TARGET_REACHED_SUMMARY_UNAVAILABLE,暂无目标摘要,Target summary unavailable
 TARGET_REACHED_SUMMARY_FORMAT,"目标 %d 已完成
@@ -477,9 +483,9 @@ LOCAL_PERFORMANCE_TRACE_LABEL,本地性能诊断,Local Performance Diagnostics
 LOCAL_PERFORMANCE_TRACE_HINT,仅在本机内存中记录有界且脱敏的移动耗时；关闭后立即清除。,Records bounded redacted move timings in local memory only; disabling clears them immediately.
 ACCESSIBILITY_CELL_EMPTY,空,Empty
 ACCESSIBILITY_CELL_INACTIVE,不可用,Inactive
-ACCESSIBILITY_BOARD_ROW_FORMAT,"第 %d 行：%s。","Row %d: %s."
-ACCESSIBILITY_BOARD_HEADER_FORMAT,"棋盘 %d×%d，%d 个有效格，%d 个方块，最大方块 %d。","Board %d×%d with %d active cells, %d tiles, and highest tile %d."
-ACCESSIBILITY_TURN_FORMAT,"向%s移动：%d 个方块位移，合并 %d 次，生成 %d 个，变化 %d 个，得分 %+d。","Move %s: %d tiles moved, %d merges, %d spawns, %d transforms, score %+d."
+ACCESSIBILITY_BOARD_ROW_FORMAT,第 %d 行：%s。,Row %d: %s.
+ACCESSIBILITY_BOARD_HEADER_FORMAT,棋盘 %d×%d，%d 个有效格，%d 个方块，最大方块 %d。,"Board %d×%d with %d active cells, %d tiles, and highest tile %d."
+ACCESSIBILITY_TURN_FORMAT,向%s移动：%d 个方块位移，合并 %d 次，生成 %d 个，变化 %d 个，得分 %+d。,"Move %s: %d tiles moved, %d merges, %d spawns, %d transforms, score %+d."
 ACCESSIBILITY_TURN_RULE_LUCAS_BRIDGE,数列桥接 ×%d。,Sequence bridge ×%d.
 ACCESSIBILITY_TURN_RULE_LUCAS,卢卡斯相邻合并 ×%d。,Lucas adjacency ×%d.
 ACCESSIBILITY_TURN_RULE_FIBONACCI,斐波那契相邻合并 ×%d。,Fibonacci adjacency ×%d.

@@ -41,7 +41,7 @@ func launch_replay(_replay_id: String) -> bool:
 	return false
 
 
-## 返回当前目录中最新且满足当前模式契约的可恢复书签 ID。
+## 优先返回当前账号有效的自动续玩 ID，否则返回最新可恢复手动书签 ID。
 func get_latest_resumable_bookmark_id() -> String:
 	push_error("[GameSessionLaunchPort] 未安装 game_session Adapter，无法查询可恢复书签。")
 	return ""

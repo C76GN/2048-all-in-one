@@ -8,6 +8,21 @@ extends GFSaveSectionProvider
 
 # --- 公共方法 ---
 
+## 读取 Feature 拥有的轻量投影；返回值必须与内部可变状态隔离。
+## 不支持的投影返回空字典，不回退为完整 section 复制。
+## @param _projection_id: Feature 定义的投影标识。
+## @param _arguments: 投影查询参数，不得保留可变别名。
+func get_section_projection(_projection_id: StringName, _arguments: Dictionary) -> Dictionary:
+	return {}
+
+
+## 原子应用 Feature 拥有的增量更新。失败必须保持内部状态不变。
+## 成功时只替换相关不可变根，且不得保留调用方的可变别名。
+## @param _update: Feature 定义的增量候选数据。
+func apply_section_update(_update: Dictionary) -> Error:
+	return ERR_UNAVAILABLE
+
+
 ## 获取业务数据副本，不暴露内部可变引用。
 func get_section_data() -> Dictionary:
 	var isolated_value: Variant = GFVariantData.duplicate_variant(

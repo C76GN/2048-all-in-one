@@ -23,6 +23,9 @@ repomix.config.json
 # GF AI Developer regenerated local evidence
 /.gf/ai/
 
+# Legacy GF package-manager workstation cache (retired in GF 11)
+/.gf/package_cache/
+
 # Python tooling caches
 __pycache__/
 *.py[cod]

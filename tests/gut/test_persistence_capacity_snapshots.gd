@@ -325,6 +325,62 @@ func test_progress_snapshot_preserves_legacy_variants_and_freezes_request_root()
 	)
 
 
+func test_progress_incremental_update_freezes_snapshot_and_isolates_entry_aliases() -> void:
+	var provider: GameStatsSaveData = GameStatsSaveData.new()
+	var original_stats: Dictionary = {"classic": {"board": {"best_score": 16, "plays": 3}}}
+	assert_true(provider.replace_section_data({"stats": original_stats, "results": [], "leaderboards": {}}) == OK)
+	var operation: GFSaveSectionSnapshotOperation = provider.begin_save_snapshot()
+	assert_not_null(operation)
+	if operation == null:
+		return
+	var bytes: PackedByteArray = PackedByteArray([7, 8])
+	var entry: Dictionary = {"best_score": 32, "plays": 3, "legacy_values": [1, 2], "legacy_blob": bytes}
+	assert_true(provider.apply_section_update({&"mode_id": "classic", &"board_key": "board", &"stats_entry": entry}) == OK)
+	entry["best_score"] = 999
+	var exposed_values: Array = entry["legacy_values"]
+	exposed_values.clear()
+	bytes[0] = 99
+	var query: Dictionary = {&"mode_id": "classic", &"board_key": "board"}
+	var projection: Dictionary = provider.get_section_projection(&"stats_entry", query)
+	var expected: Dictionary = {"best_score": 32, "plays": 3, "legacy_values": [1, 2], "legacy_blob": PackedByteArray([7, 8])}
+	assert_true(projection == expected, "增量入口也必须隔离调用方的 PackedArray 叶节点。")
+	var projected_bytes: PackedByteArray = projection["legacy_blob"]
+	projected_bytes[0] = 55
+	projection.clear()
+	assert_true(provider.get_section_projection(&"stats_entry", query) == expected, "统计投影的 PackedArray 不得反向修改权威状态。")
+	assert_true(GFVariantData.get_option_int(provider.get_section_projection(&"high_score", query), &"best_score") == 32)
+	_drain_snapshot(operation)
+	var snapshot: GFSaveSectionSnapshot = operation.take_snapshot_for_framework()
+	assert_not_null(snapshot)
+	if snapshot != null:
+		var record: Dictionary = snapshot.claim_for_framework()
+		var payload: Dictionary = GFVariantData.get_option_dictionary(record, &"payload")
+		assert_true(GFVariantData.get_option_dictionary(payload, &"stats") == original_stats, "增量更新不能修改已开始保存的旧统计根。")
+
+
+func test_progress_incremental_updates_preserve_capacity_and_atomic_rejection() -> void:
+	var provider: GameStatsSaveData = GameStatsSaveData.new()
+	var stats: Dictionary = {}
+	for index: int in range(GameStatsSaveData.MAX_STATS_MODE_COUNT):
+		stats["mode_%d" % index] = {"board": {"best_score": 1}}
+	assert_true(provider.replace_section_data({"stats": stats, "results": [], "leaderboards": {}}) == OK)
+	assert_true(provider.apply_section_update({&"mode_id": "overflow", &"board_key": "board", &"stats_entry": {"best_score": 2}}) == ERR_INVALID_DATA)
+	assert_true(GFVariantData.get_option_dictionary(provider.get_section_data(), &"stats") == stats)
+	assert_true(provider.apply_section_update({&"mode_id": "mode_0", &"board_key": "board", &"stats_entry": {"best_score": 2}}) == OK)
+	var accepted: Dictionary = provider.get_section_data()
+	var deep_entry: Dictionary = {"value": []}
+	var cursor: Array = deep_entry["value"]
+	for _index: int in range(GameStatsSaveData.MAX_PERSISTED_VALUE_DEPTH):
+		var child: Array = []
+		cursor.append(child)
+		cursor = child
+	assert_true(provider.apply_section_update({&"mode_id": "mode_0", &"board_key": "board", &"stats_entry": deep_entry}) == ERR_INVALID_DATA)
+	assert_true(provider.get_section_data() == accepted, "拒绝过深输入后必须保留先前的完整状态。")
+	var round_trip: GameStatsSaveData = GameStatsSaveData.new()
+	assert_true(round_trip.replace_section_data(accepted) == OK, "增量入口接受的状态也必须通过完整存储边界。")
+	assert_true(round_trip.get_section_data() == accepted)
+
+
 func test_bookmark_snapshot_freezes_old_root_without_eager_catalog_copy() -> void:
 	var provider: BookmarkCatalogSaveData = BookmarkCatalogSaveData.new()
 	var requested_items: Array[Dictionary] = [

@@ -43,7 +43,7 @@ const _COMPACT_BOARD_FIT_INSETS: Dictionary = {
 const _PORTRAIT_BOARD_FIT_INSETS: Dictionary = {
 	"top": 92.0,
 	"left": 8.0,
-	"bottom": 328.0,
+	"bottom": 284.0,
 	"right": 8.0,
 }
 const _REPLAY_CONTROLS_HEIGHT: float = 372.0

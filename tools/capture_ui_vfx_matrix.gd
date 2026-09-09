@@ -6,7 +6,8 @@ const VisualCaptureArtifactSession = preload(
 )
 const _OUTPUT_DIRECTORY: String = "res://build/ui_vfx_matrix"
 const _LOGICAL_DESIGN_SIZE: Vector2i = Vector2i(720, 720)
-const _GAMEPLAY_MOTION_GUARD_MARGIN: float = 50.0
+const _GAMEPLAY_STATIC_GUARD_MARGIN: float = 16.0
+const _GAMEPLAY_ENABLED_MOTION_GUARD_MARGIN: float = 50.0
 const _BUTTON_VISUAL_BOUNDS_TOLERANCE: float = 0.5
 const _RESOLUTIONS: Array[Vector2i] = [
 	Vector2i(1280, 720),
@@ -970,8 +971,10 @@ func _capture_settings_section_states(settings_menu: Node) -> bool:
 			"target",
 			&""
 		)
+		print("[UiVfxMatrix] activating section=%s" % capture_id)
 		if not await _activate_named_button(settings_menu, button_name):
 			return false
+		print("[UiVfxMatrix] activated section=%s" % capture_id)
 		for resolution: Vector2i in _PLAYER_FLOW_RESOLUTIONS:
 			_set_resolution(resolution)
 			await _settle_frames(5)
@@ -1529,7 +1532,7 @@ func _capture_gameplay_feedback_states(
 	else:
 		var subtitle: Control = subtitle_node
 		if subtitle.get_global_rect().intersects(
-			board.get_global_rect().grow(_GAMEPLAY_MOTION_GUARD_MARGIN)
+			_get_gameplay_guard_rect(board)
 		):
 			_record_error(
 				"gameplay @ %s 回合字幕进入棋盘动态安全包络。" % resolution
@@ -1558,7 +1561,7 @@ func _capture_gameplay_feedback_states(
 	else:
 		var notification_control: Control = notification_node
 		if notification_control.get_global_rect().intersects(
-			board.get_global_rect().grow(_GAMEPLAY_MOTION_GUARD_MARGIN)
+			_get_gameplay_guard_rect(board)
 		):
 			_record_error(
 				"gameplay @ %s 无效移动提示进入棋盘动态安全包络。" % resolution
@@ -1574,6 +1577,51 @@ func _capture_gameplay_feedback_states(
 		GFNotificationUtility.Level.INFO
 	)
 	await _settle_frames(3)
+
+
+func _get_gameplay_guard_rect(board: Control) -> Rect2:
+	var feedback_value: Variant = _get_gf_member(
+		&"get_utility",
+		GameBoardFeedbackUtility
+	)
+	var margin: float = _GAMEPLAY_ENABLED_MOTION_GUARD_MARGIN
+	if feedback_value is GameBoardFeedbackUtility:
+		var feedback: GameBoardFeedbackUtility = feedback_value
+		margin = _resolve_gameplay_guard_margin(
+			feedback.get_profile(),
+			feedback.get_current_budget()
+		)
+	return board.get_global_rect().grow(margin)
+
+
+static func _resolve_gameplay_guard_margin(
+	profile: GameBoardFeedbackProfile,
+	budget: GameFeedbackBudget
+) -> float:
+	# 静止棋盘仍保留 16px 局部脉冲和软边间距，不接受可见棋盘重叠。
+	# 未知配方或仍启用整盘运动时保留原 50px 预留，不据此认证新动效包络。
+	if budget == null:
+		return _GAMEPLAY_ENABLED_MOTION_GUARD_MARGIN
+	if budget.motion_scale <= 0.0:
+		return _GAMEPLAY_STATIC_GUARD_MARGIN
+	if profile == null:
+		return _GAMEPLAY_ENABLED_MOTION_GUARD_MARGIN
+	var turn_recipes: Array[GameFeedbackRecipe] = [
+		profile.move_recipe,
+		profile.turn_merge_recipe,
+		profile.high_merge_recipe,
+		profile.record_recipe,
+	]
+	for recipe: GameFeedbackRecipe in turn_recipes:
+		if (
+			recipe == null
+			or recipe.shake_preset != null
+			or not is_zero_approx(recipe.root_impulse)
+			or not is_zero_approx(recipe.root_rotation_degrees)
+			or not is_zero_approx(recipe.root_compression)
+		):
+			return _GAMEPLAY_ENABLED_MOTION_GUARD_MARGIN
+	return _GAMEPLAY_STATIC_GUARD_MARGIN
 
 
 func _make_feedback_preview_summary() -> GameAccessibilitySummary:
@@ -2281,16 +2329,33 @@ func _validate_page_structure(
 	match page_id:
 		&"main_menu":
 			var content_node: Node = page.find_child("Content", true, false)
+			var hero_node: Node = page.find_child("HeroRow", true, false)
 			var title_node: Node = page.find_child("TitleLabel", true, false)
 			var start_node: Node = page.find_child("StartGameButton", true, false)
+			var preview_node: Node = page.find_child("BoardPreviewFrame", true, false)
 			if not content_node is BoxContainer:
 				_record_error("main_menu @ %s 缺少 Content。" % resolution)
 			else:
 				var content: BoxContainer = content_node
-				if content.vertical != compact:
-					_record_error("main_menu @ %s 单列策略错误。" % resolution)
+				if not content.vertical:
+					_record_error("main_menu @ %s 标题主体与动作栏必须纵向排列。" % resolution)
+			if not hero_node is BoxContainer:
+				_record_error("main_menu @ %s 缺少 HeroRow。" % resolution)
+			else:
+				var hero: BoxContainer = hero_node
+				var expects_stacked: bool = (
+					GameTaskPageLayoutUtility.classify_layout(Vector2(resolution))
+					== GameTaskPageLayoutUtility.LayoutMode.PORTRAIT
+				)
+				if hero.vertical != expects_stacked:
+					_record_error("main_menu @ %s 标题与棋盘封面的分栏策略错误。" % resolution)
 			if compact and not page.find_child("MainMenuScroll", true, false) is ScrollContainer:
 				_record_error("main_menu @ %s 缺少紧凑滚动容器。" % resolution)
+			if preview_node is Control:
+				var preview_control: Control = preview_node
+				_validate_control_rect(preview_control, resolution, "main_menu 棋盘预览")
+			else:
+				_record_error("main_menu @ %s 缺少棋盘预览。" % resolution)
 			if title_node is Control:
 				var title_control: Control = title_node
 				_validate_control_rect(
@@ -2646,9 +2711,7 @@ func _validate_gameplay_structure(
 		if (
 			action_panel.is_visible_in_tree()
 			and action_panel.get_global_rect().intersects(
-				board_control.get_global_rect().grow(
-					_GAMEPLAY_MOTION_GUARD_MARGIN
-				)
+				_get_gameplay_guard_rect(board_control)
 			)
 		):
 			_record_error("gameplay @ %s 操作面板进入棋盘动态安全包络。" % resolution)

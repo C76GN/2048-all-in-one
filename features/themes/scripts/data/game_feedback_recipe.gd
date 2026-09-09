@@ -8,6 +8,7 @@ extends Resource
 @export var recipe_id: StringName = &""
 @export var accent_color: Color = Color.WHITE
 @export var high_contrast_color: Color = Color(0.12, 0.13, 0.15, 1.0)
+## 空值表示此语义不使用棋盘震动，仍保留其他反馈通道。
 @export var shake_preset: GFShakePreset
 @export var haptic_preset: GFHapticPreset
 @export_range(0.0, 64.0, 0.1) var root_impulse: float = 8.0

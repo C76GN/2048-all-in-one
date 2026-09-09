@@ -23,18 +23,18 @@ enum InteractionKind {
 # --- 常量 ---
 
 const _GRID_SIZE: int = 4
-const _INTRO_DURATION: float = 0.82
+const _INTRO_DURATION: float = 0.22
 const _BOARD_REVEAL_PORTION: float = 0.24
 const _TILE_REVEAL_START: float = 0.16
 const _TILE_REVEAL_STAGGER: float = 0.032
-const _TILE_REVEAL_DURATION: float = 0.28
-const _DEMO_DURATION: float = 0.54
+const _TILE_REVEAL_DURATION: float = 0.14
+const _DEMO_DURATION: float = 0.24
 const _DEMO_SLIDE_PORTION: float = 0.62
 const _DEMO_NEW_TILE_START: float = 0.72
 const _INTERACTION_DURATION: float = 0.16
-const _INTERACTION_SCALE: float = 0.045
-const _INTERACTION_LIFT: float = 1.5
-const _INTERACTION_ROTATION: float = 0.008
+const _INTERACTION_SCALE: float = 0.015
+const _INTERACTION_LIFT: float = 0.5
+const _INTERACTION_ROTATION: float = 0.0
 const _BOARD_COLOR: Color = Color("#eee5d2")
 const _EMPTY_COLOR: Color = Color("#a9a994")
 const _INK_COLOR: Color = Color("#2f3037")
@@ -62,6 +62,13 @@ var _interaction_kind: InteractionKind = InteractionKind.START_EXPERIMENT
 var _reduced_motion: bool = false
 var _intro_tween: Tween = null
 var _interaction_tween: Tween = null
+var _board_theme: BoardTheme
+var _tile_scheme: TileColorScheme
+var _tile_style: TileVisualFamilyStyle
+var _numeric_font: Font
+var _print_marks_enabled: bool = false
+var _print_ink: Color = Color.BLACK
+var _print_accent: Color = Color.BLACK
 
 
 # --- Godot 生命周期方法 ---
@@ -76,27 +83,36 @@ func _draw() -> void:
 	var side: float = minf(size.x, size.y)
 	if side <= 1.0:
 		return
-	var board_size: float = minf(side, 336.0)
+	var board_size: float = minf(maxf(side - (48.0 if _print_marks_enabled else 0.0), 1.0), 412.0)
 	var origin: Vector2 = Vector2(
 		(size.x - board_size) * 0.5,
 		(size.y - board_size) * 0.5
 	)
 	var board_rect: Rect2 = Rect2(origin, Vector2.ONE * board_size)
-	var board_shadow: Color = _INK_COLOR
 	var board_progress: float = _ease_out_cubic(
 		clampf(_intro_progress / _BOARD_REVEAL_PORTION, 0.0, 1.0)
 	)
-	board_shadow.a = 0.12 * board_progress
-	draw_rect(Rect2(board_rect.position + Vector2(6.0, 7.0), board_rect.size), board_shadow, true)
-	draw_rect(board_rect, _with_alpha(_BOARD_COLOR, board_progress), true)
-	draw_rect(board_rect, _with_alpha(_INK_COLOR, board_progress), false, 3.0)
+	var board_surface: StyleBoxFlat = StyleBoxFlat.new()
+	board_surface.bg_color = _with_alpha(
+		_board_theme.board_panel_color if _board_theme != null else _BOARD_COLOR,
+		board_progress
+	)
+	board_surface.set_corner_radius_all(
+		roundi(_board_theme.board_corner_radius) if _board_theme != null else 12
+	)
+	if _board_theme != null:
+		board_surface.border_color = _board_theme.board_border_color
+		board_surface.set_border_width_all(roundi(_board_theme.board_border_width))
+	if _print_marks_enabled:
+		_draw_registration_frame(board_rect, board_progress)
+	draw_style_box(board_surface, board_rect)
 
 	var outer_padding: float = board_size * 0.055
 	var gap: float = board_size * 0.028
 	var cell_size: float = (
 		board_size - outer_padding * 2.0 - gap * float(_GRID_SIZE - 1)
 	) / float(_GRID_SIZE)
-	var font: Font = get_theme_font("font", "Label")
+	var font: Font = _numeric_font if _numeric_font != null else get_theme_font("font", "Label")
 	var demo_active: bool = _intro_progress >= 1.0 and _demo_progress < 1.0
 
 	for index: int in range(_TILE_VALUES.size()):
@@ -114,7 +130,7 @@ func _draw() -> void:
 			if index < _GRID_SIZE and _demo_progress < 1.0
 			else _TILE_VALUES[index]
 		)
-		var fill: Color = _EMPTY_COLOR if value == 0 else _get_tile_color(value)
+		var fill: Color = _get_empty_color() if value == 0 else _get_tile_color(value)
 		_draw_intro_tile(
 			cell_rect,
 			fill,
@@ -137,6 +153,30 @@ func _draw() -> void:
 
 # --- 公共方法 ---
 
+## 使用当前主题的棋盘、色阶、数字字体和真实方块轮廓。
+## @param game_theme: 当前已激活的视觉主题。
+func configure_theme(game_theme: GameTheme) -> void:
+	if game_theme == null:
+		return
+	_board_theme = game_theme.board_theme
+	var scheme_value: Variant = game_theme.color_schemes.get(0)
+	if scheme_value is TileColorScheme:
+		var tile_scheme: TileColorScheme = scheme_value
+		_tile_scheme = tile_scheme
+	else:
+		_tile_scheme = null
+	if game_theme.tile_visual_theme != null:
+		_tile_style = game_theme.tile_visual_theme.get_family_style(&"tile.visual.classic_numeric")
+	if game_theme.ui_palette != null:
+		_numeric_font = game_theme.ui_palette.numeric_font
+		_print_marks_enabled = game_theme.ui_palette.print_marks_enabled
+		_print_ink = game_theme.ui_palette.text_primary_color
+		_print_accent = game_theme.ui_palette.primary_button_color
+	else:
+		_print_marks_enabled = false
+	queue_redraw()
+
+
 ## 播放微缩棋盘从纸面到方块逐项落定的开场展示。
 ## @param reduced_motion: 为 true 时直接提交最终静态构图。
 ## @param shortened: 再次回到主菜单时使用更短的展示。
@@ -155,7 +195,7 @@ func play_intro(reduced_motion: bool, shortened: bool = false) -> void:
 	_set_intro_progress(0.0)
 	_set_demo_progress(1.0 if shortened else 0.0)
 	set_process(false)
-	var duration: float = 0.32 if shortened else _INTRO_DURATION
+	var duration: float = 0.12 if shortened else _INTRO_DURATION
 	_intro_tween = create_tween()
 	var _pause_mode_result: Tween = _intro_tween.set_pause_mode(
 		Tween.TWEEN_PAUSE_PROCESS
@@ -242,6 +282,27 @@ func play_semantic_response(interaction_kind: InteractionKind) -> void:
 
 # --- 私有/辅助方法 ---
 
+func _draw_registration_frame(board_rect: Rect2, alpha: float) -> void:
+	var ink: Color = _with_alpha(_print_ink, alpha * 0.8)
+	var accent: Color = _with_alpha(_print_accent, alpha * 0.65)
+	var corners: Array[Vector2] = [
+		board_rect.position - Vector2(10.0, 10.0),
+		Vector2(board_rect.end.x + 10.0, board_rect.position.y - 10.0),
+		Vector2(board_rect.position.x - 10.0, board_rect.end.y + 10.0),
+		board_rect.end + Vector2(10.0, 10.0),
+	]
+	for corner: Vector2 in corners:
+		draw_line(corner - Vector2(4.0, 0.0), corner + Vector2(4.0, 0.0), ink, 1.0)
+		draw_line(corner - Vector2(0.0, 4.0), corner + Vector2(0.0, 4.0), ink, 1.0)
+	var rule_start: Vector2 = Vector2(board_rect.position.x, board_rect.end.y + 5.0)
+	draw_line(rule_start, rule_start + Vector2(board_rect.size.x * 0.52, 0.0), accent, 2.0)
+	# A small fixed screen-print patch lives in the cover margin, never over tile values.
+	for row: int in range(3):
+		for column: int in range(10):
+			var center: Vector2 = board_rect.end + Vector2(-62.0 + float(column) * 6.0, 8.0 + float(row) * 4.0)
+			draw_circle(center, 0.65 + float(column % 3) * 0.1, ink)
+
+
 func _draw_intro_tile(
 	cell_rect: Rect2,
 	fill: Color,
@@ -311,7 +372,7 @@ func _draw_demo_row(
 			row_origin + Vector2(float(column) * step, 0.0),
 			Vector2.ONE * cell_size
 		)
-		_draw_tile_surface(empty_rect, _EMPTY_COLOR, false, board_size)
+		_draw_tile_surface(empty_rect, _get_empty_color(), false, board_size)
 
 	var slide_progress: float = _ease_out_cubic(
 		clampf(_demo_progress / _DEMO_SLIDE_PORTION, 0.0, 1.0)
@@ -396,23 +457,20 @@ func _draw_tile_surface(
 	board_size: float,
 	alpha: float = 1.0
 ) -> void:
-	var border_width: float = maxf(board_size * 0.008, 2.0)
-	if occupied:
-		var shadow_color: Color = _INK_COLOR
-		shadow_color.a = 0.22 * alpha
-		var shadow_rect: Rect2 = Rect2(
-			rect.position + Vector2(2.0, 2.0),
-			rect.size - Vector2(2.0, 2.0)
-		)
-		draw_rect(shadow_rect, shadow_color, true)
-	draw_rect(rect, _with_alpha(fill, alpha), true)
-	draw_rect(rect, _with_alpha(_INK_COLOR, alpha), false, border_width)
 	if not occupied:
+		var empty_surface: StyleBoxFlat = StyleBoxFlat.new()
+		empty_surface.bg_color = _with_alpha(fill, alpha)
+		empty_surface.set_corner_radius_all(
+			roundi(_board_theme.empty_cell_corner_radius) if _board_theme != null
+			else maxi(2, roundi(board_size * 0.008))
+		)
+		draw_style_box(empty_surface, rect)
 		return
-	var highlight: Color = fill.lightened(0.34)
-	highlight.a = 0.52 * alpha
-	draw_line(rect.position + Vector2(4.0, 3.0), rect.end - Vector2(4.0, rect.size.y - 3.0), highlight, 1.5, true)
-	draw_line(rect.position + Vector2(3.0, 4.0), rect.end - Vector2(rect.size.x - 3.0, 4.0), highlight, 1.5, true)
+	var points: PackedVector2Array = TileShapeSurface.build_outline(_tile_style, rect)
+	draw_colored_polygon(points, _with_alpha(fill, alpha))
+	var border: Color = _tile_style.border_color if _tile_style != null else Color(0.14, 0.20, 0.18, 0.2)
+	var _closed: bool = points.append(points[0])
+	draw_polyline(points, _with_alpha(border, alpha), 1.0, true)
 
 
 func _draw_tile_text(
@@ -438,17 +496,6 @@ func _draw_tile_text(
 		(rect.size.x - text_size.x) * 0.5,
 		(rect.size.y + text_size.y) * 0.5 - 3.0
 	)
-	var text_shadow: Color = _INK_COLOR
-	text_shadow.a = 0.18 * alpha
-	draw_string(
-		font,
-		baseline + Vector2(1.0, 1.0),
-		text,
-		HORIZONTAL_ALIGNMENT_LEFT,
-		-1.0,
-		font_size,
-		text_shadow
-	)
 	draw_string(
 		font,
 		baseline,
@@ -456,7 +503,7 @@ func _draw_tile_text(
 		HORIZONTAL_ALIGNMENT_LEFT,
 		-1.0,
 		font_size,
-		_with_alpha(_get_text_color(fill), alpha)
+		_with_alpha(_get_tile_text_color(value, fill), alpha)
 	)
 
 
@@ -609,6 +656,9 @@ func _with_alpha(color: Color, alpha: float) -> Color:
 
 
 func _get_tile_color(value: int) -> Color:
+	if _tile_scheme != null and not _tile_scheme.styles.is_empty():
+		var level_index: int = clampi(roundi(log(float(maxi(value, 2))) / log(2.0)) - 1, 0, _tile_scheme.styles.size() - 1)
+		return _tile_scheme.styles[level_index].background_color
 	if value <= 2:
 		return _PAPER_COLOR
 	if value <= 4:
@@ -626,3 +676,14 @@ func _get_tile_color(value: int) -> Color:
 
 func _get_text_color(fill: Color) -> Color:
 	return _PAPER_COLOR if fill.get_luminance() < 0.42 else _INK_COLOR
+
+
+func _get_tile_text_color(value: int, fill: Color) -> Color:
+	if _tile_scheme != null and not _tile_scheme.styles.is_empty():
+		var level_index: int = clampi(roundi(log(float(maxi(value, 2))) / log(2.0)) - 1, 0, _tile_scheme.styles.size() - 1)
+		return _tile_scheme.styles[level_index].font_color
+	return _get_text_color(fill)
+
+
+func _get_empty_color() -> Color:
+	return _board_theme.empty_cell_color if _board_theme != null else _EMPTY_COLOR

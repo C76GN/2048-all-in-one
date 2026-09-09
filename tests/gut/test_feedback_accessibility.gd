@@ -87,16 +87,16 @@ func test_minimal_budget_shortens_and_softens_core_tile_motion() -> void:
 	assert_not_null(motion_profile, "棋盘反馈 Profile 必须拥有统一的 Tile 动画节拍。")
 	assert_true(motion_profile.is_valid_profile(), "正式 Tile 动画节拍必须完整有效。")
 	assert_true(
-		is_equal_approx(motion_profile.move_duration, 0.18)
-		and is_equal_approx(motion_profile.spawn_duration, 0.16)
-		and is_equal_approx(motion_profile.merge_pulse_duration, 0.12),
-		"完整档必须保持可读、缓和的核心动画节拍。"
+		is_equal_approx(motion_profile.move_duration, 0.12)
+		and is_equal_approx(motion_profile.spawn_duration, 0.10)
+		and is_equal_approx(motion_profile.merge_pulse_duration, 0.055),
+		"位移保持短促可读，本地脉冲与生成不阻塞下一操作。"
 	)
 	assert_true(
-		motion_profile.spawn_start_scale > 1.0
-		and motion_profile.spawn_start_rotation_degrees >= 2.0
-		and motion_profile.spawn_start_rotation_degrees <= 6.0,
-		"新方块应以略放大、轻微错版的纸片落定替代透明小点淡入。"
+		motion_profile.spawn_start_scale >= 0.85
+		and motion_profile.spawn_start_scale < 1.0
+		and is_zero_approx(motion_profile.spawn_start_rotation_degrees),
+		"新方块从可读尺寸短促出现，不旋转棋盘中的数字。"
 	)
 
 	var minimal_state: GameAccessibilityState = GameAccessibilityState.new()
@@ -120,7 +120,8 @@ func test_minimal_budget_shortens_and_softens_core_tile_motion() -> void:
 		"MINIMAL 仍应保留短促且可排队等待的核心动画。"
 	)
 	assert_true(
-		tile.scale.x > 1.0 and tile.scale.x < motion_profile.spawn_start_scale,
+		absf(tile.scale.x - 1.0) > 0.0
+		and absf(tile.scale.x - 1.0) < absf(motion_profile.spawn_start_scale - 1.0),
 		"MINIMAL 的生成缩放幅度必须比完整档更接近静止状态。"
 	)
 	tile.reset_animation_state()

@@ -302,6 +302,36 @@ func test_checkpoint_normalizes_board_and_fingerprints_ruleset_once() -> void:
 	)
 
 
+func test_checkpoint_topology_hint_preserves_hashes_and_validates_mismatched_payloads() -> void:
+	var determinism: GameDeterminismUtility = GameDeterminismUtility.new()
+	var full_state: Dictionary = _make_full_state()
+	var topology: BoardTopology = BoardTopology.create_rectangle(Vector2i(2, 1))
+	var fingerprint: String = determinism.calculate_ruleset_fingerprint(_make_ruleset_fixture(0.9))
+	var baseline: ReplayCheckpoint = determinism.create_checkpoint_for_session(1, full_state, fingerprint)
+	var reused: ReplayCheckpoint = determinism.create_checkpoint_for_session(1, full_state, fingerprint, null, topology)
+	assert_not_null(baseline)
+	assert_not_null(reused)
+	if baseline != null and reused != null:
+		assert_true(baseline.to_dict() == reused.to_dict(), "复用已验证拓扑不得改变任何规范哈希字节。")
+	var snapshot: Dictionary = GFVariantData.get_option_dictionary(full_state, &"board_snapshot")
+	var malformed: Dictionary = snapshot.duplicate(true)
+	var malformed_topology: Dictionary = GFVariantData.as_dictionary(malformed[&"topology"])
+	malformed_topology[&"active_cells"] = [Vector2i.ZERO, Vector2i.ZERO]
+	assert_false(GridModel.is_snapshot_envelope_valid(malformed, topology), "已知拓扑不能替不匹配的外部快照背书。")
+	assert_true(determinism.normalize_board_snapshot(malformed, topology).is_empty())
+	var wrong_schema_type: Dictionary = snapshot.duplicate(true)
+	var schema_topology: Dictionary = GFVariantData.as_dictionary(wrong_schema_type[&"topology"])
+	schema_topology[&"schema_version"] = 1.0
+	assert_false(GridModel.is_snapshot_envelope_valid(wrong_schema_type, topology), "数值相等不能绕过拓扑 schema 的严格 int 类型。")
+	var wrong_cell_type: Dictionary = snapshot.duplicate(true)
+	var cell_topology: Dictionary = GFVariantData.as_dictionary(wrong_cell_type[&"topology"])
+	cell_topology[&"active_cells"] = [Vector2.ZERO, Vector2(1, 0)]
+	assert_false(GridModel.is_snapshot_envelope_valid(wrong_cell_type, topology), "向量数值相等不能绕过 Vector2i 类型约束。")
+	topology.active_cells = [Vector2i.ZERO, Vector2i(10000, 10000)]
+	var hostile_snapshot: Dictionary = {&"schema_version": GridModel.SNAPSHOT_SCHEMA_VERSION, &"topology": topology.to_dict(), &"tiles": []}
+	assert_false(GridModel.is_snapshot_envelope_valid(hostile_snapshot, topology), "拓扑变化后必须重新验证可玩预算。")
+
+
 # --- 私有/辅助方法 ---
 
 func _make_seed_utility(seed_value: int) -> GFSeedUtility:
@@ -395,6 +425,7 @@ class CountingDeterminismUtility extends GameDeterminismUtility:
 
 	## 记录棋盘快照规范化次数并委托真实实现。
 	## @param board_snapshot: 要规范化的严格棋盘快照。
-	func normalize_board_snapshot(board_snapshot: Dictionary) -> Dictionary:
+	## @param known_topology: 委托真实校验器的可选拓扑提示。
+	func normalize_board_snapshot(board_snapshot: Dictionary, known_topology: BoardTopology = null) -> Dictionary:
 		board_normalization_calls += 1
-		return super.normalize_board_snapshot(board_snapshot)
+		return super.normalize_board_snapshot(board_snapshot, known_topology)

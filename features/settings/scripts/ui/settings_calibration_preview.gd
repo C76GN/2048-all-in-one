@@ -1,24 +1,13 @@
 ## SettingsCalibrationPreview: 设置页的只读视觉校准样张。
 ##
-## 只把当前表单值投影为静态棋盘/套印示例；不读取或写入持久化状态。
+## 只把当前表单值投影为主题棋盘和局部反馈示例；不读取或写入持久化状态。
 class_name SettingsCalibrationPreview
 extends Control
 
 
 # --- 常量 ---
 
-const _PAPER_COLOR: Color = Color("#f8f1df")
-const _INK_COLOR: Color = Color("#2f3037")
-const _CYAN_COLOR: Color = Color("#42b9c0")
-const _MAGENTA_COLOR: Color = Color("#d44b84")
-const _YELLOW_COLOR: Color = Color("#e6c654")
 const _CELL_VALUES: Array[int] = [2, 4, 8, 16]
-const _CELL_COLORS: Array[Color] = [
-	_PAPER_COLOR,
-	_YELLOW_COLOR,
-	_CYAN_COLOR,
-	_MAGENTA_COLOR,
-]
 
 
 # --- 私有变量 ---
@@ -27,6 +16,12 @@ var _reduced_motion: bool = false
 var _high_contrast: bool = false
 var _shader_effects_enabled: bool = true
 var _vfx_quality: int = GameAccessibilityState.VfxQuality.FULL
+var _palette: GameUiPalette = preload(
+	"res://features/themes/resources/themes/game/halftone_atlas_ui_palette.tres"
+)
+var _tile_scheme: TileColorScheme = preload(
+	"res://features/themes/resources/themes/mode_visuals/defaults/classic_tile_theme.tres"
+)
 
 
 # --- Godot 生命周期方法 ---
@@ -40,10 +35,11 @@ func _ready() -> void:
 func _draw() -> void:
 	if size.x <= 1.0 or size.y <= 1.0:
 		return
-	var border_width: float = 3.0 if _high_contrast else 1.5
-	var ink: Color = Color.BLACK if _high_contrast else _INK_COLOR
-	draw_rect(Rect2(Vector2.ZERO, size), _PAPER_COLOR, true)
-	draw_rect(Rect2(Vector2.ZERO, size), ink, false, border_width)
+	var border_width: float = 3.0 if _high_contrast else 1.0
+	var ink: Color = Color.BLACK if _high_contrast else _palette.text_primary_color
+	var border: Color = ink if _high_contrast else _palette.field_border_color
+	draw_rect(Rect2(Vector2.ZERO, size), _palette.panel_surface_color, true)
+	draw_rect(Rect2(Vector2.ZERO, size), border, false, border_width)
 
 	var board_side: float = minf(size.y - 26.0, minf(size.x * 0.42, 92.0))
 	var board_rect: Rect2 = Rect2(
@@ -51,11 +47,25 @@ func _draw() -> void:
 		Vector2.ONE * board_side
 	)
 	_draw_board_sample(board_rect, ink, border_width)
-	_draw_registration_sample(board_rect, ink)
+	_draw_feedback_sample(board_rect, ink)
 	_draw_status_text(board_rect, ink)
 
 
 # --- 公共方法 ---
+
+## 以当前主题的 UI 色板和经典方块色阶绘制校准样张。
+## @param game_theme: 当前已激活的视觉主题。
+func configure_theme(game_theme: GameTheme) -> void:
+	if game_theme == null:
+		return
+	if game_theme.ui_palette != null:
+		_palette = game_theme.ui_palette
+	var scheme_value: Variant = game_theme.color_schemes.get(0)
+	if scheme_value is TileColorScheme:
+		var tile_scheme: TileColorScheme = scheme_value
+		_tile_scheme = tile_scheme
+	queue_redraw()
+
 
 ## 更新只读校准样张；调用方仍负责写入真实无障碍状态。
 ## @param reduced_motion: 是否使用静态等价反馈。
@@ -101,11 +111,14 @@ func _draw_board_sample(board_rect: Rect2, ink: Color, border_width: float) -> v
 			),
 			Vector2.ONE * cell_size
 		)
-		var fill: Color = _CELL_COLORS[index]
+		var fill: Color = _palette.field_surface_color
+		if index < _tile_scheme.styles.size() and _tile_scheme.styles[index] != null:
+			fill = _tile_scheme.styles[index].background_color
 		if _vfx_quality == GameAccessibilityState.VfxQuality.MINIMAL:
-			fill = fill.lerp(_PAPER_COLOR, 0.38)
+			fill = fill.lerp(_palette.panel_surface_color, 0.38)
 		draw_rect(cell_rect, fill, true)
-		draw_rect(cell_rect, ink, false, border_width)
+		var border: Color = ink if _high_contrast else _palette.field_border_color
+		draw_rect(cell_rect, border, false, border_width)
 		var font: Font = get_theme_font("font", "Label")
 		var font_size: int = clampi(roundi(cell_size * 0.34), 12, 22)
 		var text: String = str(_CELL_VALUES[index])
@@ -126,41 +139,21 @@ func _draw_board_sample(board_rect: Rect2, ink: Color, border_width: float) -> v
 		)
 
 
-func _draw_registration_sample(board_rect: Rect2, ink: Color) -> void:
-	var center: Vector2 = board_rect.get_center()
-	var arm: float = board_rect.size.x * 0.18
-	var offset: float = 0.0 if _reduced_motion else 2.5
-	var channel_alpha: float = 0.88 if _shader_effects_enabled else 0.26
+func _draw_feedback_sample(board_rect: Rect2, ink: Color) -> void:
+	var cell_side: float = (board_rect.size.x - 5.0) * 0.5
+	var feedback_rect: Rect2 = Rect2(
+		board_rect.end - Vector2.ONE * cell_side,
+		Vector2.ONE * cell_side
+	)
+	var channel_alpha: float = 0.85 if _shader_effects_enabled else 0.3
 	if _vfx_quality == GameAccessibilityState.VfxQuality.MINIMAL:
 		channel_alpha *= 0.45
-	_draw_registration_channel(
-		center + Vector2(-offset, 0.0),
-		arm,
-		_with_alpha(_CYAN_COLOR, channel_alpha)
-	)
-	_draw_registration_channel(
-		center + Vector2(offset, 0.0),
-		arm,
-		_with_alpha(_MAGENTA_COLOR, channel_alpha)
-	)
-	if _high_contrast:
-		draw_circle(center, 4.0, ink, false, 2.0, true)
-
-
-func _draw_registration_channel(center: Vector2, arm: float, color: Color) -> void:
-	draw_line(
-		center - Vector2(arm, 0.0),
-		center + Vector2(arm, 0.0),
-		color,
-		2.0,
-		true
-	)
-	draw_line(
-		center - Vector2(0.0, arm),
-		center + Vector2(0.0, arm),
-		color,
-		2.0,
-		true
+	var accent: Color = ink if _high_contrast else _palette.selected_border_color
+	draw_rect(
+		feedback_rect.grow(-2.0 if _reduced_motion else 2.0),
+		_with_alpha(accent, channel_alpha),
+		false,
+		2.0 if _high_contrast else 1.0
 	)
 
 

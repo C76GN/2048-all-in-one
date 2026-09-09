@@ -35,6 +35,9 @@ const _EXPECTED_SCREENSHOTS: Array[String] = [
 	"replay_playback_step.png",
 	"settings_save_failure.png",
 	"settings_controls.png",
+	"settings_print_theme.png",
+	"settings_quiet_theme.png",
+	"settings_print_theme_restored.png",
 	"gameplay_intro_0020ms.png",
 	"gameplay_intro_0120ms.png",
 	"gameplay_intro_0280ms.png",
@@ -190,6 +193,9 @@ func _run_capture() -> void:
 	if not is_instance_valid(settings_menu):
 		push_error("[VisualReview] SettingsMenu timeout.")
 		_request_exit(13)
+		return
+	if not await _capture_theme_switching(settings_menu):
+		_request_exit(14)
 		return
 	if not await _capture_settings_persistence_failure(settings_menu):
 		_request_exit(14)
@@ -376,6 +382,18 @@ func _inject_replay_preview(page: Node) -> ReplayData:
 	replay.final_board_snapshot = _make_preview_snapshot(topology)
 	if ReplayData.from_dict(replay.to_dict()) == null:
 		push_error("[VisualReview] Generated replay preview does not satisfy schema v4.")
+		return null
+	# 真实启动会重新从 Profile 按稳定 ID 解析；仅注入列表节点不能构成可播放数据。
+	var replay_system_value: Variant = _get_gf_member(&"get_system", ReplaySystem)
+	if not replay_system_value is ReplaySystem:
+		return null
+	var replay_system: ReplaySystem = replay_system_value
+	var save_operation: GameSaveSectionOperation = replay_system.request_save_replay(replay)
+	if save_operation == null:
+		return null
+	var save_result: GameSaveSectionResult = await save_operation.await_result()
+	if save_result == null or not save_result.is_successful():
+		push_error("[VisualReview] Could not persist the replay fixture in the isolated Profile.")
 		return null
 	if not await _inject_list_item(page, _REPLAY_ITEM_SCENE, replay):
 		return null
@@ -612,6 +630,56 @@ func _wait_for_game_modal_close(
 			return true
 		await process_frame
 	return false
+
+
+func _capture_theme_switching(page: Node) -> bool:
+	var option_node: Node = page.find_child("VisualThemeOptionButton", true, false)
+	var theme_value: Variant = _get_gf_member(&"get_utility", GameThemeUtility)
+	if not option_node is OptionButton or not theme_value is GameThemeUtility:
+		push_error("[VisualReview] Missing theme picker or activation owner.")
+		return false
+	var option: OptionButton = option_node
+	var themes: GameThemeUtility = theme_value
+	await _settle_frames(12)
+	_capture_viewport("settings_print_theme.png")
+	for theme_id: StringName in [&"quiet_paper", &"halftone_atlas"]:
+		var selected_index: int = -1
+		for index: int in range(option.item_count):
+			if GFVariantData.to_string_name(option.get_item_metadata(index)) == theme_id:
+				selected_index = index
+				break
+		if selected_index < 0:
+			push_error("[VisualReview] Required theme is absent from the real picker.")
+			return false
+		option.select(selected_index)
+		option.item_selected.emit(selected_index)
+		var deadline: int = Time.get_ticks_msec() + 15000
+		while Time.get_ticks_msec() < deadline:
+			if themes.get_current_visual_theme_id() == theme_id and not option.disabled:
+				break
+			await process_frame
+		if themes.get_current_visual_theme_id() != theme_id or option.disabled:
+			push_error("[VisualReview] Theme picker failed to reach its selected terminal state.")
+			return false
+		await _settle_frames(15)
+		var visible_style: StyleBox = option.get_theme_stylebox("normal")
+		if not visible_style is StyleBoxFlat:
+			push_error("[VisualReview] Theme picker has no inspectable material.")
+			return false
+		var field_style: StyleBoxFlat = visible_style
+		var palette: GameUiPalette = themes.get_current_visual_theme().ui_palette
+		if not field_style.bg_color.is_equal_approx(palette.field_surface_color):
+			push_error("[VisualReview] Theme selection changed, but visible UI kept its old material.")
+			return false
+		if field_style.corner_radius_top_left != palette.field_corner_radius:
+			push_error("[VisualReview] Theme selection did not update visible field geometry.")
+			return false
+		_capture_viewport(
+			"settings_quiet_theme.png"
+			if theme_id == &"quiet_paper"
+			else "settings_print_theme_restored.png"
+		)
+	return true
 
 
 func _capture_settings_persistence_failure(page: Node) -> bool:

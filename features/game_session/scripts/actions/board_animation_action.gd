@@ -1,6 +1,6 @@
 ## BoardAnimationAction: 封装棋盘上方块合并、移动、生成的表现动作。
 ##
-## 同一批棋盘 Tween 并行执行，GFActionQueueSystem 会等待整批完成后再消费下一动作。
+## 位移与碰撞提交保持队列顺序；方块拥有的生成、脉冲尾效不占用下一输入的准入。
 class_name BoardAnimationAction
 extends BoardTweenBatchAction
 
@@ -16,6 +16,7 @@ const RELEASE_TOKEN_META: StringName = &"_board_animation_release_token"
 var _instructions: Array[Dictionary] = []
 var _game_board: GameBoardController
 var _pending_consumed_tiles: Dictionary = {}
+var _pending_merge_impacts: Dictionary = {}
 var _turn_result: TurnResult
 var _performance_trace_utility: GamePerformanceTraceUtility
 var _primary_feedback_attempt_id: int = 0
@@ -55,151 +56,89 @@ func execute() -> Variant:
 		return null
 
 	_pending_consumed_tiles.clear()
+	_pending_merge_impacts.clear()
 	_play_turn_feedback()
-	var tweens: Array[Tween] = []
+	var travel_tweens: Array[Tween] = []
 	var visible_feedback_state_committed: bool = false
 	for instruction: Dictionary in _instructions:
-		var tile: Tile
-		var target_pos: Vector2
-
 		match _get_instruction_type(instruction):
 			&"MOVE":
-				tile = _get_tile(instruction, &"tile")
-				
-				target_pos = _get_vector2(instruction, &"to_pos", Vector2.ZERO)
+				var tile: Tile = _get_tile(instruction, &"tile")
 				if is_instance_valid(tile):
 					visible_feedback_state_committed = true
-					_append_tween(
-						tweens,
-						tile.animate_move(
-							target_pos,
-							_tile_motion_profile,
-							_feedback_budget
-						)
-					)
-			
+					_append_tween(travel_tweens, tile.animate_move(
+						_get_vector2(instruction, &"to_pos", Vector2.ZERO),
+						_tile_motion_profile, _feedback_budget
+					))
 			&"MERGE":
 				var consumed: Tile = _get_tile(instruction, &"consumed_tile")
 				var merged: Tile = _get_tile(instruction, &"merged_tile")
-				target_pos = _get_vector2(instruction, &"to_pos", Vector2.ZERO)
-				var target_data: Dictionary = _get_dictionary(instruction, &"target_setup_data")
-
+				var target_pos: Vector2 = _get_vector2(instruction, &"to_pos", Vector2.ZERO)
+				var consumed_travel: Tween
 				if is_instance_valid(consumed):
 					visible_feedback_state_committed = true
-					# 确保被消耗的方块平滑移动到目标点后再消失
 					var release_token: RefCounted = RefCounted.new()
 					consumed.set_meta(RELEASE_TOKEN_META, release_token)
 					_pending_consumed_tiles[consumed] = release_token
-					var consumed_tween: Tween = consumed.animate_move(
-						target_pos,
-						_tile_motion_profile,
-						_feedback_budget
+					consumed_travel = consumed.animate_move(
+						target_pos, _tile_motion_profile, _feedback_budget
 					)
-					if is_instance_valid(consumed_tween) and consumed_tween.is_valid():
-						_append_tween(tweens, consumed_tween)
-						var _release_connected: int = consumed_tween.finished.connect(
-							_release_consumed_tile.bind(consumed, release_token)
+					if is_instance_valid(consumed_travel) and consumed_travel.is_valid():
+						_append_tween(travel_tweens, consumed_travel)
+						var _release_connection: int = consumed_travel.finished.connect(
+							_release_consumed_tile.bind(consumed, release_token), CONNECT_ONE_SHOT
 						)
 					else:
 						_release_consumed_tile(consumed, release_token)
-
 				if is_instance_valid(merged):
 					visible_feedback_state_committed = true
-					# merged 方块可能在同一帧收到了 MOVE 指令（已在上面处理）
-					# 如果它的目标位置已经改变，或者尚未开始移动动画，则触发移动。
-					# animate_move 内部自带了 is_equal_approx 检查，所以这里直接调用是安全的。
-					var merged_move_tween: Tween = merged.animate_move(
-						target_pos,
-						_tile_motion_profile,
-						_feedback_budget
+					var merged_travel: Tween = merged.animate_move(
+						target_pos, _tile_motion_profile, _feedback_budget
 					)
-					_append_tween(tweens, merged_move_tween)
-					
+					_append_tween(travel_tweens, merged_travel)
+					var target_data: Dictionary = _get_dictionary(instruction, &"target_setup_data")
 					if not target_data.is_empty():
-						var impact_delay: float = (
-							Tile.get_move_animation_duration(
-								_tile_motion_profile,
-								_feedback_budget
-							)
-							if is_instance_valid(merged_move_tween) and merged_move_tween.is_valid()
-							else 0.0
+						# A stationary survivor still waits for the incoming tile's collision.
+						var arrival: Tween = (
+							merged_travel
+							if is_instance_valid(merged_travel) and merged_travel.is_valid()
+							else consumed_travel
 						)
-						_append_tween(
-							tweens,
-							merged.animate_merge(
-								_apply_merge_impact.bind(merged, target_data),
-								impact_delay,
-								_tile_motion_profile,
-								_feedback_budget
+						var impact_token: RefCounted = RefCounted.new()
+						_pending_merge_impacts[merged] = {
+							&"token": impact_token, &"target_data": target_data,
+						}
+						if is_instance_valid(arrival) and arrival.is_valid():
+							var _impact_connection: int = arrival.finished.connect(
+								_complete_merge_impact.bind(merged, impact_token), CONNECT_ONE_SHOT
 							)
-						)
-						if _get_bool(target_data, &"do_transform", false):
-							_append_tween(
-								tweens,
-								merged.animate_transform(
-									_play_tile_feedback.bind(merged, &"transform", ""),
-									impact_delay + Tile.get_merge_animation_duration(
-										_tile_motion_profile,
-										_feedback_budget
-									),
-									_tile_motion_profile,
-									_feedback_budget
-								)
-							)
-			
+						else:
+							_complete_merge_impact(merged, impact_token)
 			&"SPAWN":
 				var spawn_tile: Tile = _get_tile(instruction, &"tile")
 				if is_instance_valid(spawn_tile):
 					visible_feedback_state_committed = true
-					_append_tween(
-						tweens,
-						spawn_tile.animate_spawn(_tile_motion_profile, _feedback_budget)
-					)
+					# The tile owns this short decoration; it does not block the next input.
+					var _spawn: Tween = spawn_tile.animate_spawn(_tile_motion_profile, _feedback_budget)
 					_play_tile_feedback(spawn_tile, &"spawn")
-
 			&"TRANSFORM":
-				tile = _get_tile(instruction, &"tile")
+				var transform_tile: Tile = _get_tile(instruction, &"tile")
 				var transform_data: Dictionary = _get_dictionary(instruction, &"target_setup_data")
-				if is_instance_valid(tile) and not transform_data.is_empty():
+				if is_instance_valid(transform_tile) and not transform_data.is_empty():
 					visible_feedback_state_committed = true
-					_apply_target_setup_data(tile, transform_data)
-					var transform_delay: float = 0.0
-					if _get_bool(transform_data, &"do_merge", false):
-						_append_tween(
-							tweens,
-							tile.animate_merge(
-								_play_tile_feedback.bind(tile, &"merge", ""),
-								0.0,
-								_tile_motion_profile,
-								_feedback_budget
-							)
-						)
-						transform_delay = Tile.get_merge_animation_duration(
-							_tile_motion_profile,
-							_feedback_budget
-						)
-					if _get_bool(transform_data, &"do_transform", false):
-						_append_tween(
-							tweens,
-							tile.animate_transform(
-								_play_tile_feedback.bind(tile, &"transform", ""),
-								transform_delay,
-								_tile_motion_profile,
-								_feedback_budget
-							)
-						)
-
-			_:
-				continue
+					_apply_target_setup_data(transform_tile, transform_data)
+					_play_merge_decorations(transform_tile, transform_data)
 
 	if visible_feedback_state_committed:
 		_notify_primary_feedback_state_committed()
-	return _wait_for_tweens(tweens, _game_board)
+	# Only displacement/collision gates FIFO admission. Pulse, spawn and color tails are local.
+	return _wait_for_tweens(travel_tweens, _game_board)
 
 
 func cancel() -> void:
-	super.cancel()
+	_pending_merge_impacts.clear()
 	_release_all_pending_consumed_tiles()
+	super.cancel()
 	_defer_visible_region_sync()
 
 
@@ -227,7 +166,8 @@ func _release_consumed_tile(consumed: Tile, release_token: RefCounted) -> void:
 		return
 	if not consumed.has_meta(RELEASE_TOKEN_META):
 		return
-	if consumed.get_meta(RELEASE_TOKEN_META) != release_token:
+	var current_token: Variant = consumed.get_meta(RELEASE_TOKEN_META)
+	if not current_token is RefCounted or not is_same(current_token, release_token):
 		return
 
 	var _erased: bool = _pending_consumed_tiles.erase(consumed)
@@ -281,25 +221,34 @@ func _play_turn_feedback() -> void:
 	_game_board.play_turn_feedback(_turn_result)
 
 
+func _complete_merge_impact(tile: Tile, token: RefCounted) -> void:
+	var pending: Dictionary = GFVariantData.get_option_dictionary(_pending_merge_impacts, tile)
+	var current_token: Variant = pending.get(&"token")
+	if not current_token is RefCounted or not is_same(current_token, token) or not is_instance_valid(tile):
+		return
+	var _erased: bool = _pending_merge_impacts.erase(tile)
+	var target_data: Dictionary = _get_dictionary(pending, &"target_data")
+	_apply_merge_impact(tile, target_data)
+	_play_merge_decorations(tile, target_data)
+
+
 func _apply_merge_impact(tile: Tile, target_data: Dictionary) -> void:
 	if not is_instance_valid(tile):
 		return
-	var old_value: int = tile.value
-	var old_background_color: Color = tile.background.get_fill_color()
-	var old_font_color: Color = tile.value_label.get_theme_color("font_color")
+	# Tile numbers represent committed values; only the local surface pulses at collision.
 	_apply_target_setup_data(tile, target_data)
-	var _growth_tween: Tween = tile.animate_value_growth(
-		old_value,
-		tile.value,
-		old_background_color,
-		tile.background.get_fill_color(),
-		old_font_color,
-		tile.value_label.get_theme_color("font_color"),
-		_tile_motion_profile,
-		_feedback_budget
-	)
-	# 分数增量统一留在 HUD；棋盘只保留碰撞、色阶和纸片反馈，避免文字遮挡方块。
 	_play_tile_feedback(tile, &"merge", "")
+
+
+func _play_merge_decorations(tile: Tile, target_data: Dictionary) -> void:
+	if _get_bool(target_data, &"do_merge", true):
+		var _merge_pulse: Tween = tile.animate_merge(
+			Callable(), 0.0, _tile_motion_profile, _feedback_budget
+		)
+	if _get_bool(target_data, &"do_transform", false):
+		var _transform: Tween = tile.animate_transform(
+			Callable(), 0.0, _tile_motion_profile, _feedback_budget
+		)
 
 
 static func _get_instruction_type(instruction: Dictionary) -> StringName:

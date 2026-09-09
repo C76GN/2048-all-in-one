@@ -28,6 +28,7 @@ const _DISABLED_STATE_META: StringName = &"_game_ui_motion_disabled_state"
 const _CONTROL_BASE_POSITION_META: StringName = &"_game_ui_motion_control_base_position"
 const _CONTROL_BASE_SCALE_META: StringName = &"_game_ui_motion_control_base_scale"
 const _CONTROL_BASE_MODULATE_META: StringName = &"_game_ui_motion_control_base_modulate"
+const _CONTROL_BASE_SELF_MODULATE_META: StringName = &"_game_ui_motion_control_base_self_modulate"
 const _CONTROL_BASE_ROTATION_META: StringName = &"_game_ui_motion_control_base_rotation"
 const _CONTROL_TWEEN_META: StringName = &"_game_ui_motion_control_tween"
 const _NUMERIC_TWEEN_META: StringName = &"_game_ui_motion_numeric_tween"
@@ -210,6 +211,8 @@ func play_modal_intro(backdrop: Control, surface: Control) -> Tween:
 	if not is_instance_valid(surface):
 		return null
 	var profile: GameUiMotionProfile = _get_motion_profile()
+	if profile.print_motion:
+		return _play_print_modal(backdrop, surface, false)
 	_store_control_base_state(surface, false)
 	if is_instance_valid(backdrop):
 		_store_control_base_state(backdrop, false)
@@ -307,6 +310,8 @@ func play_modal_outro(backdrop: Control, surface: Control) -> Tween:
 	if not is_instance_valid(surface):
 		return null
 	var profile: GameUiMotionProfile = _get_motion_profile()
+	if profile.print_motion:
+		return _play_print_modal(backdrop, surface, true)
 	_store_control_base_state(surface, false)
 	if is_instance_valid(backdrop):
 		_store_control_base_state(backdrop, false)
@@ -427,6 +432,8 @@ func play_control_pulse(
 		if duration < 0.0
 		else duration
 	)
+	if profile.print_motion and _contains_interactive_controls(control):
+		return _play_print_surface_impression(control, resolved_duration)
 
 	_store_control_base_state(control, false)
 	_kill_control_tween(control)
@@ -810,18 +817,20 @@ func play_button_deal_sequence(
 		if not is_instance_valid(button) or not button.visible:
 			continue
 		var direction: float = -1.0 if animated_count % 2 == 0 else 1.0
+		var sequence_delay: float = float(animated_count) * maxf(resolved_stagger, 0.0)
+		if profile.print_motion:
+			sequence_delay = minf(sequence_delay, profile.control_reveal_maximum_stagger)
+		sequence_delay += maxf(initial_delay, 0.0)
 		_play_button_deal_in(
 			button,
 			Vector2(absf(resolved_offset.x) * direction, resolved_offset.y),
 			_resolve_button_motion_state(button),
-			maxf(initial_delay, 0.0)
-				+ float(animated_count) * maxf(resolved_stagger, 0.0),
+			sequence_delay,
 			_is_reduced_motion()
 		)
 		_play_button_text_reveal(
 			button,
-			maxf(initial_delay, 0.0)
-				+ float(animated_count) * maxf(resolved_stagger, 0.0)
+			sequence_delay
 		)
 		animated_count += 1
 	return animated_count
@@ -1002,6 +1011,10 @@ func complete_control_motion(control: Control) -> void:
 			_CONTROL_BASE_MODULATE_META,
 			control.modulate
 		)
+	if control.has_meta(_CONTROL_BASE_SELF_MODULATE_META):
+		control.self_modulate = _get_control_color_meta(
+			control, _CONTROL_BASE_SELF_MODULATE_META, control.self_modulate
+		)
 	if control.has_meta(_CONTROL_BASE_ROTATION_META):
 		control.rotation = GFVariantData.to_float(
 			_get_control_meta(
@@ -1179,6 +1192,76 @@ func _bind_tab_container(tab_container: TabContainer) -> void:
 	)
 
 
+func _contains_interactive_controls(node: Node) -> bool:
+	if node is BaseButton or node is Range or node is LineEdit or node is TextEdit:
+		return true
+	if node is Control:
+		var control: Control = node
+		if control.focus_mode != Control.FOCUS_NONE:
+			return true
+	for child: Node in node.get_children():
+		if _contains_interactive_controls(child):
+			return true
+	return false
+
+
+func _play_print_surface_impression(control: Control, duration: float) -> Tween:
+	_store_control_base_state(control, false)
+	var was_interrupted: bool = _has_running_control_tween(control)
+	var visible_ink: Color = control.self_modulate
+	_kill_control_tween(control)
+	_restore_control_base_state(control, false)
+	var base_ink: Color = control.self_modulate
+	if _is_reduced_motion() or not control.is_inside_tree():
+		return null
+	# Only the control's own ink changes. Descendant text and hit regions remain
+	# fully visible at their final geometry throughout the impression.
+	var stamped_ink: Color = base_ink.lerp(_get_motion_profile().control_pulse_color, 0.18)
+	stamped_ink.a = base_ink.a
+	control.self_modulate = visible_ink if was_interrupted else stamped_ink
+	var tween: Tween = control.create_tween()
+	var _pause_mode: Tween = tween.set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	var impression: PropertyTweener = tween.tween_property(
+		control, "self_modulate", base_ink, maxf(duration, 0.001)
+	)
+	var _impression_curve: Tweener = impression.set_trans(Tween.TRANS_QUART).set_ease(
+		Tween.EASE_OUT
+	)
+	control.set_meta(_CONTROL_TWEEN_META, tween)
+	return tween
+
+
+func _play_print_modal(backdrop: Control, surface: Control, closing: bool) -> Tween:
+	var profile: GameUiMotionProfile = _get_motion_profile()
+	var interrupted: bool = (
+		is_instance_valid(backdrop) and _has_running_control_tween(backdrop)
+	)
+	var duration: float = (
+		profile.modal_exit_scale_duration if closing else profile.modal_enter_scale_duration
+	)
+	var tween: Tween = _play_print_surface_impression(surface, duration)
+	if not is_instance_valid(backdrop):
+		return tween
+	_store_control_base_state(backdrop, false)
+	_kill_control_tween(backdrop)
+	var target: Color = _get_control_color_meta(
+		backdrop, _CONTROL_BASE_MODULATE_META, Color.WHITE
+	)
+	if closing:
+		target.a = 0.0
+	if tween == null:
+		backdrop.modulate = target
+		return null
+	if not closing and not interrupted:
+		backdrop.modulate.a = 0.0
+	var dimmer: PropertyTweener = tween.parallel().tween_property(
+		backdrop, "modulate", target, duration
+	)
+	var _dimmer_curve: Tweener = dimmer.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	backdrop.set_meta(_CONTROL_TWEEN_META, tween)
+	return tween
+
+
 func _play_piece_reveal(
 	control: Control,
 	delay: float,
@@ -1188,6 +1271,8 @@ func _play_piece_reveal(
 	if not is_instance_valid(control):
 		return null
 	var profile: GameUiMotionProfile = _get_motion_profile()
+	if profile.print_motion and _contains_interactive_controls(control):
+		return _play_print_surface_impression(control, profile.piece_assembly_duration)
 	_store_control_base_state(control, false)
 	if not control.has_meta(_CONTROL_BASE_ROTATION_META):
 		control.set_meta(_CONTROL_BASE_ROTATION_META, control.rotation)
@@ -1221,9 +1306,9 @@ func _play_piece_reveal(
 	)
 	var start_modulate: Color = base_modulate
 	start_modulate.a = (
-		base_modulate.a * _PIECE_ASSEMBLY_FOOTHOLD_ALPHA
-		if keep_visible_foothold
-		else 0.0
+		base_modulate.a
+		if profile.print_motion
+		else (base_modulate.a * _PIECE_ASSEMBLY_FOOTHOLD_ALPHA if keep_visible_foothold else 0.0)
 	)
 	control.modulate = start_modulate
 
@@ -1442,6 +1527,12 @@ func _play_control_reveal(
 		return null
 
 	var fills_visible_viewport: bool = _control_fills_visible_viewport(control)
+	if _get_motion_profile().print_motion:
+		if fills_visible_viewport:
+			complete_control_motion(control)
+			return null
+		if _contains_interactive_controls(control):
+			return _play_print_surface_impression(control, duration)
 	var animate_transform_position: bool = (
 		animate_position and not fills_visible_viewport
 	)
@@ -1473,7 +1564,7 @@ func _play_control_reveal(
 		control.modulate = base_modulate
 		return null
 	var start_modulate: Color = base_modulate
-	start_modulate.a = 0.0
+	start_modulate.a = base_modulate.a if _get_motion_profile().print_motion else 0.0
 	var effective_start_scale: float = 1.0 if fills_visible_viewport else start_scale
 
 	if not was_interrupted:
@@ -1514,6 +1605,8 @@ func _play_reward_result_control(
 ) -> Tween:
 	if not is_instance_valid(control):
 		return null
+	if _get_motion_profile().print_motion and _contains_interactive_controls(control):
+		return _play_print_surface_impression(control, duration)
 	_store_control_base_state(control, false)
 	_kill_control_tween(control)
 	var base_scale: Vector2 = _get_control_vector2_meta(
@@ -1644,7 +1737,7 @@ func _play_button_text_reveal(button: BaseButton, delay: float) -> void:
 		return
 	_kill_button_text_tween(button)
 	var base_modulate: Color = _get_button_base_self_modulate(button)
-	if _is_reduced_motion() or not button.is_inside_tree():
+	if _get_motion_profile().print_motion or _is_reduced_motion() or not button.is_inside_tree():
 		button.self_modulate = base_modulate
 		return
 	var start_modulate: Color = base_modulate
@@ -1727,6 +1820,8 @@ func _store_control_base_state(control: Control, store_position: bool) -> void:
 		control.set_meta(_CONTROL_BASE_SCALE_META, control.scale)
 	if not control.has_meta(_CONTROL_BASE_MODULATE_META):
 		control.set_meta(_CONTROL_BASE_MODULATE_META, control.modulate)
+	if not control.has_meta(_CONTROL_BASE_SELF_MODULATE_META):
+		control.set_meta(_CONTROL_BASE_SELF_MODULATE_META, control.self_modulate)
 
 
 func _restore_control_base_state(control: Control, restore_position: bool) -> void:
@@ -1747,6 +1842,9 @@ func _restore_control_base_state(control: Control, restore_position: bool) -> vo
 		control,
 		_CONTROL_BASE_MODULATE_META,
 		control.modulate
+	)
+	control.self_modulate = _get_control_color_meta(
+		control, _CONTROL_BASE_SELF_MODULATE_META, control.self_modulate
 	)
 
 
@@ -2158,7 +2256,12 @@ func _is_reduced_motion() -> bool:
 
 
 func _play_fallback_toggle_settle(button: BaseButton) -> void:
+	if not is_instance_valid(button):
+		return
 	_kill_button_tween(button)
+	if _get_motion_profile().print_motion:
+		button.scale = _get_button_base_scale(button)
+		return
 	var profile: GameUiMotionProfile = _get_motion_profile()
 	var base_scale: Vector2 = _get_button_base_scale(button)
 	button.modulate = _get_button_base_modulate(button)

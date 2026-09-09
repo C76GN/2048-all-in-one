@@ -22,7 +22,10 @@ const MAX_PLAYABLE_BOUNDS_AREA: int = 256
 # --- 导出变量 ---
 
 ## 拓扑的稳定语义 ID。自定义棋盘仍会附加内容指纹以形成完整统计键。
-@export var topology_id: StringName = &""
+@export var topology_id: StringName = &"":
+	set(value):
+		topology_id = value
+		_playable_validation_cached = false
 
 ## 规范化、无重复的活跃单元列表。
 @export var active_cells: Array[Vector2i]:
@@ -34,6 +37,8 @@ const MAX_PLAYABLE_BOUNDS_AREA: int = 256
 		_cached_bounds_size = Vector2i(-1, -1)
 		_cached_content_fingerprint = ""
 		_cached_row_range_count = -1
+		_cached_move_lanes.clear()
+		_playable_validation_cached = false
 
 
 # --- 私有变量 ---
@@ -45,6 +50,9 @@ var _cached_content_fingerprint: String = ""
 var _row_ranges: Dictionary = {}
 var _cached_row_range_count: int = -1
 var _active_cells: Array[Vector2i] = []
+var _cached_move_lanes: Dictionary = {}
+var _playable_validation_cached: bool = false
+var _cached_is_playable: bool = false
 
 
 # --- 构造方法 ---
@@ -254,6 +262,9 @@ func is_rectangle() -> bool:
 func get_move_lanes(direction: Vector2i) -> Array:
 	if not _is_cardinal_direction(direction):
 		return []
+	if _cached_move_lanes.has(direction):
+		var cached_lanes: Array = _cached_move_lanes[direction]
+		return cached_lanes.duplicate(true)
 
 	_ensure_cell_lookup()
 	var cell_lookup: Dictionary = _cell_lookup
@@ -280,7 +291,8 @@ func get_move_lanes(direction: Vector2i) -> Array:
 			lane.append(current)
 			current -= direction
 		lanes.append(lane)
-	return lanes
+	_cached_move_lanes[direction] = lanes
+	return lanes.duplicate(true)
 
 
 ## 内容指纹只取规范化单元，不受 topology_id 影响。
@@ -316,6 +328,33 @@ func to_dict() -> Dictionary:
 		&"topology_id": String(topology_id),
 		&"active_cells": _active_cells.duplicate(),
 	}
+
+
+## 严格比较持久化拓扑；保留 schema 与 Vector2i 类型边界，不分配资源副本。
+## @param data: 待比较的严格持久化拓扑字典。
+func matches_serialized_data(data: Dictionary) -> bool:
+	if (
+		not _has_strict_serialized_shape(data)
+		or GFVariantData.get_option_int(data, &"schema_version") != SERIALIZATION_SCHEMA_VERSION
+		or GFVariantData.get_option_string(data, &"topology_id") != String(topology_id)
+	):
+		return false
+	var cells: Array = GFVariantData.as_array(GFVariantData.get_option_value(data, &"active_cells"))
+	if cells.size() != _active_cells.size():
+		return false
+	for index: int in range(cells.size()):
+		if not cells[index] is Vector2i or cells[index] != _active_cells[index]:
+			return false
+	return true
+
+
+## 查询当前拓扑是否可玩；只有 ID 或活跃单元整体替换才失效。
+## 需要完整问题明细时仍调用 get_playable_validation_report()。
+func is_playable() -> bool:
+	if not _playable_validation_cached:
+		_cached_is_playable = get_playable_validation_report().is_ok()
+		_playable_validation_cached = true
+	return _cached_is_playable
 
 
 func get_validation_report() -> GFValidationReport:

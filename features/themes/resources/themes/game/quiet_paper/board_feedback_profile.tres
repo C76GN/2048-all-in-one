@@ -1,0 +1,144 @@
+[gd_resource type="Resource" script_class="GameBoardFeedbackProfile" load_steps=17 format=3]
+
+[ext_resource type="Script" path="res://features/themes/scripts/data/game_board_feedback_profile.gd" id="1_profile"]
+[ext_resource type="Script" path="res://features/themes/scripts/data/game_feedback_recipe.gd" id="2_recipe"]
+[ext_resource type="Script" path="res://addons/gf/extensions/feedback/resources/gf_haptic_preset.gd" id="4_haptic"]
+[ext_resource type="Script" path="res://features/themes/scripts/data/game_tile_motion_profile.gd" id="5_motion"]
+
+[sub_resource type="Resource" id="Resource_move_haptic"]
+script = ExtResource("4_haptic")
+duration_seconds = 0.045
+weak_magnitude = 0.08
+strong_magnitude = 0.02
+intensity = 0.7
+
+[sub_resource type="Resource" id="Resource_merge_haptic"]
+script = ExtResource("4_haptic")
+duration_seconds = 0.075
+weak_magnitude = 0.18
+strong_magnitude = 0.28
+intensity = 1.0
+
+[sub_resource type="Resource" id="Resource_high_merge_haptic"]
+script = ExtResource("4_haptic")
+duration_seconds = 0.11
+weak_magnitude = 0.3
+strong_magnitude = 0.55
+intensity = 1.0
+
+[sub_resource type="Resource" id="Resource_record_haptic"]
+script = ExtResource("4_haptic")
+duration_seconds = 0.18
+weak_magnitude = 0.5
+strong_magnitude = 0.8
+intensity = 1.0
+
+[sub_resource type="Resource" id="Recipe_turn_move"]
+script = ExtResource("2_recipe")
+recipe_id = &"feedback.turn.move"
+accent_color = Color(0.36078432, 0.7176471, 0.7254902, 1)
+haptic_preset = SubResource("Resource_move_haptic")
+root_impulse = 0.0
+root_rotation_degrees = 0.0
+root_compression = 0.0
+impact_duration = 0.07
+settle_duration = 0.13
+background_duration = 0.20
+background_energy = 0.0
+edge_fragment_count = 0
+
+[sub_resource type="Resource" id="Recipe_turn_merge"]
+script = ExtResource("2_recipe")
+recipe_id = &"feedback.turn.merge"
+accent_color = Color(0.196078, 0.403922, 0.34902, 1)
+haptic_preset = SubResource("Resource_merge_haptic")
+root_impulse = 0.0
+root_rotation_degrees = 0.0
+root_compression = 0.0
+impact_duration = 0.09
+settle_duration = 0.15
+background_duration = 0.28
+background_energy = 0.0
+edge_fragment_count = 0
+
+[sub_resource type="Resource" id="Recipe_turn_high_merge"]
+script = ExtResource("2_recipe")
+recipe_id = &"feedback.turn.high_merge"
+accent_color = Color(0.827451, 0.38431373, 0.29411766, 1)
+haptic_preset = SubResource("Resource_high_merge_haptic")
+root_impulse = 0.0
+root_rotation_degrees = 0.0
+root_compression = 0.0
+impact_duration = 0.11
+settle_duration = 0.18
+background_duration = 0.36
+background_energy = 0.0
+edge_fragment_count = 0
+
+[sub_resource type="Resource" id="Recipe_turn_record"]
+script = ExtResource("2_recipe")
+recipe_id = &"feedback.turn.record"
+accent_color = Color(0.74902, 0.396078, 0.317647, 1)
+haptic_preset = SubResource("Resource_record_haptic")
+root_impulse = 0.0
+root_rotation_degrees = 0.0
+root_compression = 0.0
+impact_duration = 0.14
+settle_duration = 0.22
+background_duration = 0.48
+background_energy = 0.0
+edge_fragment_count = 0
+
+[sub_resource type="Resource" id="Recipe_tile_spawn"]
+script = ExtResource("2_recipe")
+recipe_id = &"feedback.tile.spawn"
+accent_color = Color(0.36078432, 0.7176471, 0.7254902, 1)
+tile_burst_duration = 0.30
+tile_shard_count = 0
+
+[sub_resource type="Resource" id="Recipe_tile_merge"]
+script = ExtResource("2_recipe")
+recipe_id = &"feedback.tile.merge"
+accent_color = Color(0.196078, 0.403922, 0.34902, 1)
+tile_burst_duration = 0.20
+tile_shard_count = 0
+
+[sub_resource type="Resource" id="Recipe_tile_transform"]
+script = ExtResource("2_recipe")
+recipe_id = &"feedback.tile.transform"
+accent_color = Color(0.827451, 0.38431373, 0.29411766, 1)
+tile_burst_duration = 0.22
+tile_shard_count = 2
+
+[sub_resource type="Resource" id="Motion_tile"]
+script = ExtResource("5_motion")
+move_duration = 0.12
+spawn_duration = 0.10
+spawn_fade_ratio = 0.75
+merge_pulse_duration = 0.055
+value_growth_duration = 0.08
+despawn_duration = 0.15
+transform_left_duration = 0.04
+transform_right_duration = 0.05
+transform_settle_duration = 0.04
+transform_home_duration = 0.05
+transform_flash_duration = 0.14
+spawn_start_scale = 0.88
+spawn_start_rotation_degrees = 0.0
+merge_peak_scale = 1.06
+merge_peak_rotation_degrees = 0.0
+despawn_end_scale = 0.28
+transform_peak_rotation_degrees = 0.0
+transform_settle_rotation_degrees = 0.0
+flash_label_peak_scale = 1.08
+
+[resource]
+script = ExtResource("1_profile")
+move_recipe = SubResource("Recipe_turn_move")
+turn_merge_recipe = SubResource("Recipe_turn_merge")
+high_merge_recipe = SubResource("Recipe_turn_high_merge")
+record_recipe = SubResource("Recipe_turn_record")
+spawn_recipe = SubResource("Recipe_tile_spawn")
+tile_merge_recipe = SubResource("Recipe_tile_merge")
+transform_recipe = SubResource("Recipe_tile_transform")
+tile_motion_profile = SubResource("Motion_tile")

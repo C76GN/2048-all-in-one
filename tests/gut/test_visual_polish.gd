@@ -410,6 +410,13 @@ func test_settings_calibration_preview_reports_static_equivalent_state() -> void
 		false,
 		GameAccessibilityState.VfxQuality.MINIMAL
 	)
+	var current_theme: GameTheme = GameTheme.new()
+	current_theme.ui_palette = GameUiPalette.new()
+	var current_scheme: TileColorScheme = TileColorScheme.new()
+	current_theme.color_schemes[0] = current_scheme
+	preview.configure_theme(current_theme)
+	assert_same(preview._palette, current_theme.ui_palette)
+	assert_same(preview._tile_scheme, current_scheme)
 	var snapshot: Dictionary = preview.get_preview_snapshot()
 
 	assert_true(GFVariantData.get_option_bool(snapshot, &"reduced_motion"))
@@ -623,6 +630,17 @@ func test_halftone_ui_palette_keeps_text_readable_on_light_surfaces() -> void:
 		_HALFTONE_UI_PALETTE.field_surface_color,
 		issues
 	)
+	for fill: Color in [
+		_HALFTONE_UI_PALETTE.primary_button_color,
+		_HALFTONE_UI_PALETTE.primary_button_hover_color,
+		_HALFTONE_UI_PALETTE.primary_button_pressed_color,
+	]:
+		_collect_palette_contrast_issue(
+			"主动作文字 / 交互状态",
+			_HALFTONE_UI_PALETTE.primary_button_font_color,
+			fill,
+			issues
+		)
 
 	assert_true(
 		issues.is_empty(),
@@ -655,22 +673,25 @@ func test_non_menu_surfaces_apply_theme_and_motion_in_their_own_feature() -> voi
 	)
 
 
-func test_visual_style_document_records_retro_print_direction() -> void:
+func test_visual_style_document_records_both_complete_theme_contracts() -> void:
 	var text: String = _read_text(_VISUAL_STYLE_DOC_PATH)
 	var missing_terms: Array[String] = []
 	for term: String in [
-		"CMYK 半调纸媒游戏",
-		"risograph",
-		"半调网点",
-		"侧边重复印刷条纹",
-		"粗描边",
-		"不是深色玻璃 UI",
+		"Print Edition",
+		"Quiet Paper",
+		"halftone_atlas",
+		"quiet_paper",
+		"#F2E9CF",
+		"#CC3B2F",
+		"print_marks_enabled",
+		"numeric_font",
+		"print_sheet_transition.gdshader",
+		"静态描边",
 		"TilePatternOverlay",
 		"grain_strength",
 		"stipple_strength",
 		"halftone_wipe_transition.gdshader",
-		"印刷擦除",
-		"features/themes/resources/themes/tile_schemes",
+		"features/themes/resources/themes/mode_visuals/defaults/",
 		"GameUiStyleUtility",
 		"GameUiMotionUtility",
 	]:
@@ -679,7 +700,7 @@ func test_visual_style_document_records_retro_print_direction() -> void:
 
 	assert_true(
 		missing_terms.is_empty(),
-		"视觉规范文档应固定 CMYK 半调纸媒方向和关键落地点，缺少：\n%s" % _join_lines(missing_terms)
+		"视觉规范应明确两套完整主题、资源所有权和静态等价状态，缺少：\n%s" % _join_lines(missing_terms)
 	)
 
 
@@ -746,10 +767,12 @@ func test_tile_setup_applies_sparse_theme_driven_identity_style() -> void:
 	)
 	assert_true(tile.background.get_silhouette_id() == fibonacci_style.silhouette_id)
 	assert_true(tile._get_pattern_type() == fibonacci_pattern)
-	assert_true(
+	assert_false(
 		tile.pattern_overlay.has_motif_texture(),
-		"非经典方块家族应加载已登记的低透明度纹样素材。"
+		"印刷版关闭全幅纹理，不能因为素材仍已登记而继续绘制。"
 	)
+	assert_true(is_zero_approx(fibonacci_style.motif_texture_opacity))
+	assert_true(fibonacci_style.motif_texture is Texture2D, "关闭绘制不应破坏稳定素材引用。")
 	assert_true(
 		not classic_style.motif_texture is Texture2D,
 		"经典数字方块应继续保持无纹样基底。"
@@ -759,7 +782,27 @@ func test_tile_setup_applies_sparse_theme_driven_identity_style() -> void:
 		== &"asset.texture.tile_pattern.kenney.fibonacci_blocks",
 		"主题纹样必须保留稳定素材键，不能只依赖原始文件路径。"
 	)
-	assert_true(fibonacci_style.shadow_offset == Vector2(3.5, 3.5), "方块应保留清晰的统一硬投影，不使用彩色错版偏移。")
+	assert_lte(fibonacci_style.shadow_offset.length(), 2.0, "方块的层次不能靠厚重偏移影挤占单元格。")
+	var quiet_visual_theme: TileVisualTheme = load(
+		"res://features/themes/resources/themes/game/quiet_paper/tile_visual_theme.tres"
+	)
+	var quiet_fibonacci: TileVisualFamilyStyle = quiet_visual_theme.get_family_style(
+		&"tile.visual.fibonacci_numeric"
+	)
+	assert_not_null(quiet_fibonacci)
+	if quiet_fibonacci != null:
+		tile.setup(
+			13, &"tile.fibonacci.numeric", Color("#944431"), Color.WHITE,
+			quiet_fibonacci.family_id, no_layers, quiet_fibonacci
+		)
+		assert_true(tile.pattern_overlay.has_motif_texture(), "素纸主题继续绘制原低透明度纹样。")
+		assert_true(is_equal_approx(quiet_fibonacci.motif_texture_opacity, 0.025))
+		assert_true(tile._get_pattern_type() == fibonacci_pattern)
+		tile.setup(
+			13, &"tile.fibonacci.numeric", Color("#944431"), Color.WHITE,
+			fibonacci_style.family_id, no_layers, fibonacci_style
+		)
+		assert_false(tile.pattern_overlay.has_motif_texture(), "返回印刷主题必须再次关闭纹理。")
 
 
 func test_all_tile_visual_families_have_unique_base_signatures() -> void:
@@ -831,7 +874,7 @@ func test_game_board_controller_uses_configured_tile_scheme_colors() -> void:
 	controller.free()
 
 
-func test_gameplay_board_uses_independent_paper_cells_without_a_slab() -> void:
+func test_gameplay_board_uses_a_stable_theme_surface_and_quiet_cells() -> void:
 	var controller: GameBoardController = GameBoardController.new()
 	var board_background: Panel = Panel.new()
 	var initial_board_style: StyleBoxFlat = StyleBoxFlat.new()
@@ -845,27 +888,30 @@ func test_gameplay_board_uses_independent_paper_cells_without_a_slab() -> void:
 	board_background.add_theme_stylebox_override("panel", initial_board_style)
 	controller.add_child(board_background)
 	controller.board_background = board_background
+	var board_theme: BoardTheme = BoardTheme.new()
+	board_theme.board_panel_color = Color(0.91, 0.92, 0.89, 1.0)
+	board_theme.board_border_color = Color(0.82, 0.85, 0.81, 1.0)
+	controller.board_theme = board_theme
 
 	controller._apply_board_background_style()
 	var runtime_board_style: StyleBoxFlat = board_background.get_theme_stylebox("panel")
 
-	assert_true(runtime_board_style.bg_color == Color.TRANSPARENT, "局内棋盘不得保留整块底色。")
-	assert_true(runtime_board_style.border_color == Color.TRANSPARENT, "局内棋盘不得保留整块外框。")
+	assert_true(runtime_board_style.bg_color == board_theme.board_panel_color, "棋盘底板应使用当前主题颜色。")
+	assert_true(runtime_board_style.border_color == board_theme.board_border_color, "棋盘边界应使用当前主题颜色。")
 	assert_true(
-		runtime_board_style.border_width_left == 0
-		and runtime_board_style.border_width_top == 0
-		and runtime_board_style.border_width_right == 0
-		and runtime_board_style.border_width_bottom == 0,
-		"局内棋盘四边宽度必须归零，格子间隙应直接露出背景纸面。"
+		runtime_board_style.border_width_left == 1
+		and runtime_board_style.border_width_top == 1
+		and runtime_board_style.border_width_right == 1
+		and runtime_board_style.border_width_bottom == 1,
+		"棋盘四边使用一致细边界，让格子构成一个稳定操作区域。"
 	)
 	assert_true(
 		runtime_board_style.shadow_color == Color.TRANSPARENT
 		and runtime_board_style.shadow_size == 0
 		and runtime_board_style.shadow_offset == Vector2.ZERO,
-		"局内棋盘不得以整块阴影重新形成棋板感。"
+		"棋盘不叠加厚重硬阴影。"
 	)
 
-	var board_theme: BoardTheme = BoardTheme.new()
 	board_theme.empty_cell_color = Color(0.62, 0.58, 0.47, 1.0)
 	board_theme.empty_cell_border_color = Color(0.24, 0.22, 0.19, 1.0)
 	controller.board_theme = board_theme
@@ -875,24 +921,24 @@ func test_gameplay_board_uses_independent_paper_cells_without_a_slab() -> void:
 	assert_true(is_equal_approx(cell_style.bg_color.a, 0.76), "空格纸片应保留可见填充，但不得连成实心底板。")
 	assert_true(is_equal_approx(cell_style.border_color.a, 0.56), "空格纸片应以克制描边保持独立边界。")
 	assert_true(
-		cell_style.border_width_left == 2
-		and cell_style.border_width_top == 2
-		and cell_style.border_width_right == 2
-		and cell_style.border_width_bottom == 2,
+		cell_style.border_width_left == 1
+		and cell_style.border_width_top == 1
+		and cell_style.border_width_right == 1
+		and cell_style.border_width_bottom == 1,
 		"每个空格纸片应独立拥有一致的细描边。"
 	)
 	assert_true(
-		cell_style.corner_radius_top_left == 3
-		and cell_style.corner_radius_top_right == 3
-		and cell_style.corner_radius_bottom_right == 3
-		and cell_style.corner_radius_bottom_left == 3,
+		cell_style.corner_radius_top_left == 6
+		and cell_style.corner_radius_top_right == 6
+		and cell_style.corner_radius_bottom_right == 6
+		and cell_style.corner_radius_bottom_left == 6,
 		"空格纸片应保留轻微圆角，而不是复原整块棋盘轮廓。"
 	)
 	assert_true(
-		is_equal_approx(cell_style.shadow_color.a, 0.12)
-		and cell_style.shadow_size == 2
-		and cell_style.shadow_offset == Vector2(1.0, 2.0),
-		"每个空格纸片应拥有自身的轻阴影，形成独立 tile 层次。"
+		cell_style.shadow_color == Color.TRANSPARENT
+		and cell_style.shadow_size == 0
+		and cell_style.shadow_offset == Vector2.ZERO,
+		"空格用色差表达位置，不叠加每格硬阴影。"
 	)
 	var large_board_stagger: float = controller._resolve_intro_stagger(256, 0.018, 0.62)
 	assert_true(
@@ -1060,6 +1106,7 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 	await architecture.register_utility(GameUiMotionUtility, motion_utility)
 	await architecture.init()
 	style_utility.apply_palette(_HALFTONE_UI_PALETTE)
+	style_utility.style_button(button, GameUiStyleUtility.ButtonRole.SECONDARY)
 	var emitted_events: Dictionary = {
 		&"selected": 0,
 		&"confirmed": 0,
@@ -1102,12 +1149,15 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 	assert_not_null(button_style, "按钮纸片应获得统一 StyleBoxFlat。")
 	if button_style != null:
 		assert_true(
-			button_style.get_border_width(SIDE_TOP) >= 2,
-			"统一按钮纸片应使用像素菜单描边。"
+			button_style.get_border_width(SIDE_TOP) == 0
+				and button_style.get_border_width(SIDE_LEFT) == 0
+				and button_style.get_border_width(SIDE_RIGHT) == 0
+				and button_style.get_border_width(SIDE_BOTTOM) == 1,
+			"印刷版次级操作在 Presenter 中仍应只保留 1px 底线。"
 		)
 		assert_true(
-			button_style.shadow_size == 1,
-			"统一按钮纸片应使用小范围、无模糊的硬投影底板。"
+			button_style.shadow_size == 0,
+			"常规按钮不应叠加厚重投影。"
 		)
 	assert_true(
 		button.get_theme_stylebox(&"normal") is StyleBoxEmpty,
@@ -1193,6 +1243,21 @@ func test_ui_motion_utility_binds_buttons_recursively_once() -> void:
 		"鼠标已经 hover 时获得焦点不应重复播放选择音效。"
 	)
 	assert_true(_get_event_count(emitted_events, &"confirmed") == 1, "button down 应发出 UI 确认音效语义信号。")
+	var quiet_palette: GameUiPalette = load(
+		"res://features/themes/resources/themes/game/quiet_paper/ui_palette.tres"
+	)
+	var _quiet_refresh_count: int = style_utility.apply_palette_to_tree(root, quiet_palette)
+	if presenter != null:
+		presenter.complete_motion()
+		var quiet_face: StyleBoxFlat = _get_stylebox_flat(presenter.get_face(), &"panel")
+		assert_not_null(quiet_face)
+		if quiet_face != null:
+			assert_true(
+				quiet_face.border_width_top == 1 and quiet_face.border_width_left == 1
+					and quiet_face.border_width_right == 1 and quiet_face.border_width_bottom == 1,
+				"素纸次级操作应恢复完整 1px 边界，不能残留印刷底线样式。"
+			)
+			assert_true(quiet_face.corner_radius_top_left == 8)
 	architecture.dispose()
 
 
@@ -1979,7 +2044,7 @@ func test_ui_style_utility_rebuilds_semantic_styles_after_palette_change() -> vo
 	architecture.dispose()
 
 
-func test_ui_style_utility_uses_hard_offset_depth_for_primary_actions_and_shells() -> void:
+func test_ui_style_utility_preserves_quiet_paper_depth_for_primary_actions_and_shells() -> void:
 	var root: Control = Control.new()
 	var primary_button: Button = Button.new()
 	var shell: PanelContainer = PanelContainer.new()
@@ -1995,7 +2060,10 @@ func test_ui_style_utility_uses_hard_offset_depth_for_primary_actions_and_shells
 	await architecture.register_utility(GFShaderParameterUtility, shader_parameters)
 	await architecture.register_utility(GameUiStyleUtility, style_utility)
 	await architecture.init()
-	style_utility.apply_palette(_HALFTONE_UI_PALETTE)
+	var quiet_palette: GameUiPalette = load(
+		"res://features/themes/resources/themes/game/quiet_paper/ui_palette.tres"
+	)
+	style_utility.apply_palette(quiet_palette)
 	style_utility.style_button(
 		primary_button,
 		GameUiStyleUtility.ButtonRole.PRIMARY
@@ -2789,7 +2857,7 @@ func test_board_feedback_utility_reuses_persistent_canvas_without_child_growth()
 	)
 
 
-func test_board_feedback_utility_orchestrates_gf_shake_and_background_feedback() -> void:
+func test_board_feedback_utility_orchestrates_explicitly_enabled_theme_channels() -> void:
 	var architecture: GFArchitecture = GFArchitecture.new()
 	var shake_utility: GFShakeUtility = GFShakeUtility.new()
 	var haptic_utility: GFHapticUtility = GFHapticUtility.new()
@@ -2804,9 +2872,20 @@ func test_board_feedback_utility_orchestrates_gf_shake_and_background_feedback()
 	await architecture.register_utility(GameAccessibilityUtility, accessibility_utility)
 	await architecture.register_utility(GameBoardFeedbackUtility, feedback_utility)
 	await architecture.init()
+	var enabled_resource: Resource = _HALFTONE_BOARD_FEEDBACK_PROFILE.duplicate(true)
+	assert_true(enabled_resource is GameBoardFeedbackProfile)
+	if not enabled_resource is GameBoardFeedbackProfile:
+		architecture.dispose()
+		return
+	var enabled_profile: GameBoardFeedbackProfile = enabled_resource
+	enabled_profile.high_merge_recipe.shake_preset = GFShakePreset.new()
+	enabled_profile.high_merge_recipe.shake_preset.duration_seconds = 0.20
+	enabled_profile.high_merge_recipe.shake_preset.amplitude = 0.20
+	enabled_profile.high_merge_recipe.background_energy = 0.30
+	enabled_profile.high_merge_recipe.edge_fragment_count = 5
 	assert_true(
-		feedback_utility.apply_profile(_HALFTONE_BOARD_FEEDBACK_PROFILE),
-		"棋盘反馈 Utility 应接受主题化 GF 反馈 Profile。"
+		feedback_utility.apply_profile(enabled_profile),
+		"其他主题显式启用的 GF 反馈通道仍应通过资源驱动。"
 	)
 
 	var feedback_root: Node2D = Node2D.new()
@@ -2834,7 +2913,7 @@ func test_board_feedback_utility_orchestrates_gf_shake_and_background_feedback()
 	)
 
 	assert_true(tier == GameBoardFeedbackUtility.FeedbackTier.HIGH_MERGE)
-	assert_true(created_count == 5, "高价值合并应使用克制且可辨识的后层纸片数量。")
+	assert_true(created_count == 5, "启用的边缘反馈应遵守资源数量与质量预算。")
 	assert_true(
 		shake_utility.get_active_shake_count(&"board") == 1,
 		"整批操作反馈应通过 GFShakeUtility 播放一次 board channel 反馈。"
